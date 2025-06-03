@@ -395,7 +395,7 @@ const InstallPrompt = () => {
             >
               <button
                 onClick={handleInstallClick}
-                className='px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-semibold rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center space-x-1.5'
+                className='min-w-20 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-semibold rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center space-x-1.5'
               >
                 {deferredPrompt ? (
                   <Zap className='w-3.5 h-3.5' />
@@ -410,9 +410,9 @@ const InstallPrompt = () => {
               </button>
               <button
                 onClick={handleDismiss}
-                className='px-4 py-2 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-all duration-200'
+                className='min-w-20 px-4 py-2 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-all duration-200 flex items-center justify-center'
               >
-                Maybe Later
+                Later
               </button>
             </motion.div>
           </div>
