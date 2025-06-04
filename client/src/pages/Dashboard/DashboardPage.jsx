@@ -325,7 +325,7 @@ export default function RadiantAIDashboard() {
                     Referral Program
                   </h2>
                 </div>
-                <div className='flex items-center bg-green-100 border-2 border-green-200 rounded-full px-3 md:px-4 py-1 md:py-2'>
+                <div className='hidden md:flex items-center bg-green-100 border-2 border-green-200 rounded-full px-3 md:px-4 py-1 md:py-2'>
                   <TrendingUp className='w-4 h-4 md:w-5 md:h-5 text-green-600 mr-1 md:mr-2' />
                   <span className='text-green-700 font-semibold text-xs md:text-sm'>
                     Growing
@@ -333,44 +333,50 @@ export default function RadiantAIDashboard() {
                 </div>
               </div>
 
-              <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6'>
-                <div className='bg-white border-2 border-indigo-200 rounded-xl md:rounded-2xl p-4 md:p-6 text-center hover:border-indigo-300 transition-colors'>
-                  <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-12 h-12 md:w-16 md:h-16 flex items-center justify-center mx-auto mb-3 md:mb-4'>
-                    <Users className='w-6 h-6 md:w-8 md:h-8 text-indigo-600' />
+              <div className='grid grid-cols-3 md:grid-cols-3 gap-2 md:gap-6'>
+                <div className='bg-white border-2 border-indigo-200 rounded-lg md:rounded-2xl p-3 md:p-6 text-center hover:border-indigo-300 transition-colors'>
+                  <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-8 h-8 md:w-16 md:h-16 flex items-center justify-center mx-auto mb-2 md:mb-4'>
+                    <Users className='w-4 h-4 md:w-8 md:h-8 text-indigo-600' />
                   </div>
-                  <p className='text-2xl md:text-4xl font-bold text-indigo-600 mb-1 md:mb-2'>
+                  <p className='text-lg md:text-4xl font-bold text-indigo-600 mb-1 md:mb-2'>
                     {mockData.referrals.total}
                   </p>
                   <p className='text-xs md:text-sm font-semibold text-gray-700'>
-                    Total Referrals
+                    Total
                   </p>
-                  <p className='text-xs text-gray-500 mt-1'>All time</p>
+                  <p className='text-xs text-gray-500 mt-1 hidden md:block'>
+                    All time
+                  </p>
                 </div>
 
-                <div className='bg-white border-2 border-green-200 rounded-xl md:rounded-2xl p-4 md:p-6 text-center hover:border-green-300 transition-colors'>
-                  <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-12 h-12 md:w-16 md:h-16 flex items-center justify-center mx-auto mb-3 md:mb-4'>
-                    <Calendar className='w-6 h-6 md:w-8 md:h-8 text-green-600' />
+                <div className='bg-white border-2 border-green-200 rounded-lg md:rounded-2xl p-3 md:p-6 text-center hover:border-green-300 transition-colors'>
+                  <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-8 h-8 md:w-16 md:h-16 flex items-center justify-center mx-auto mb-2 md:mb-4'>
+                    <Calendar className='w-4 h-4 md:w-8 md:h-8 text-green-600' />
                   </div>
-                  <p className='text-2xl md:text-4xl font-bold text-green-600 mb-1 md:mb-2'>
+                  <p className='text-lg md:text-4xl font-bold text-green-600 mb-1 md:mb-2'>
                     {mockData.referrals.thisMonth}
                   </p>
                   <p className='text-xs md:text-sm font-semibold text-gray-700'>
                     This Month
                   </p>
-                  <p className='text-xs text-gray-500 mt-1'>June 2025</p>
+                  <p className='text-xs text-gray-500 mt-1 hidden md:block'>
+                    June 2025
+                  </p>
                 </div>
 
-                <div className='bg-white border-2 border-purple-200 rounded-xl md:rounded-2xl p-4 md:p-6 text-center hover:border-purple-300 transition-colors'>
-                  <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-12 h-12 md:w-16 md:h-16 flex items-center justify-center mx-auto mb-3 md:mb-4'>
-                    <Gift className='w-6 h-6 md:w-8 md:h-8 text-purple-600' />
+                <div className='bg-white border-2 border-purple-200 rounded-lg md:rounded-2xl p-3 md:p-6 text-center hover:border-purple-300 transition-colors'>
+                  <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-8 h-8 md:w-16 md:h-16 flex items-center justify-center mx-auto mb-2 md:mb-4'>
+                    <Gift className='w-4 h-4 md:w-8 md:h-8 text-purple-600' />
                   </div>
-                  <p className='text-2xl md:text-4xl font-bold text-purple-600 mb-1 md:mb-2'>
+                  <p className='text-lg md:text-4xl font-bold text-purple-600 mb-1 md:mb-2'>
                     ${mockData.referrals.earnings}
                   </p>
                   <p className='text-xs md:text-sm font-semibold text-gray-700'>
-                    Total Earned
+                    Earned
                   </p>
-                  <p className='text-xs text-gray-500 mt-1'>Rewards</p>
+                  <p className='text-xs text-gray-500 mt-1 hidden md:block'>
+                    Rewards
+                  </p>
                 </div>
               </div>
 

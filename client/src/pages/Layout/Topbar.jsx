@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { Menu } from 'lucide-react'
 import React from 'react'
+import InstallButton from './InstallButton' // Add this import
 import NotificationPanel from './NotificationPanel'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
@@ -29,8 +30,8 @@ const Topbar = ({
     <div className={cn('bg-white border-b border-gray-200', className)}>
       <div className='px-6 py-4'>
         <div className='flex items-center justify-between'>
-          {/* Left side - Mobile Menu */}
-          <div className='flex items-center'>
+          {/* Left side - Mobile Menu and Install Button */}
+          <div className='flex items-center space-x-2 lg:space-x-3'>
             {showMobileMenu && (
               <button
                 onClick={onMenuClick}
@@ -39,10 +40,13 @@ const Topbar = ({
                 <Menu className='h-5 w-5' />
               </button>
             )}
+
+            {/* Install Button - Moved to left side */}
+            <InstallButton />
           </div>
 
           {/* Right side - Notifications and User Profile */}
-          <div className='flex items-center space-x-4'>
+          <div className='flex items-center space-x-2 lg:space-x-4'>
             {/* Notifications */}
             {showNotifications && <NotificationPanel />}
 
