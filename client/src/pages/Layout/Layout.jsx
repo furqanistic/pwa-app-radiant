@@ -14,6 +14,8 @@ import {
   X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import Topbar from './Topbar' // Import the Topbar component
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -63,9 +65,27 @@ const navItemVariants = {
   },
 }
 
-const Layout = ({ children, className = '' }) => {
+const Layout = ({
+  children,
+  className = '',
+  user = {
+    firstName: 'Sarah',
+    lastName: 'Johnson',
+  },
+  showTopbarNotifications = true,
+}) => {
   const [isOpen, setIsOpen] = useState(false)
-  const [isDesktop, setIsDesktop] = useState(false)
+  // Initialize isDesktop properly to prevent flash
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024
+    }
+    return false
+  })
+  const [isNavigating, setIsNavigating] = useState(false)
+
+  const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -88,6 +108,12 @@ const Layout = ({ children, className = '' }) => {
       document.body.style.overflow = 'unset'
     }
   }, [isOpen, isDesktop])
+
+  // Close mobile menu when route changes and reset loading state
+  useEffect(() => {
+    setIsOpen(false)
+    setIsNavigating(false)
+  }, [location.pathname, location.search, location.hash])
 
   const navigationItems = [
     {
@@ -162,10 +188,45 @@ const Layout = ({ children, className = '' }) => {
     },
   ]
 
-  const NavItem = ({ item, onClick }) => {
+  const handleNavigation = async (href, isLogout = false) => {
+    try {
+      // If we're already on this route and it's not a logout, just close the menu
+      if (location.pathname === href && !isLogout) {
+        setIsOpen(false)
+        return
+      }
+
+      setIsNavigating(true)
+
+      if (isLogout) {
+        // Handle logout logic here
+        // Clear user data, tokens, etc.
+        localStorage.removeItem('userToken')
+        sessionStorage.clear()
+
+        // Add any additional logout logic here
+        console.log('User logged out')
+      }
+
+      // Navigate to the new route
+      navigate(href)
+
+      // Close mobile menu
+      setIsOpen(false)
+
+      // Fallback: Reset loading state after a short delay in case route doesn't change
+      setTimeout(() => {
+        setIsNavigating(false)
+      }, 500)
+    } catch (error) {
+      console.error('Navigation error:', error)
+      setIsNavigating(false)
+    }
+  }
+
+  const NavItem = ({ item }) => {
     const Icon = item.icon
-    const isActive =
-      typeof window !== 'undefined' && window.location.pathname === item.href
+    const isActive = location.pathname === item.href
     const isLogout = item.isLogout
 
     if (isLogout) {
@@ -174,16 +235,20 @@ const Layout = ({ children, className = '' }) => {
           variants={navItemVariants}
           whileHover='hover'
           whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            console.log('Logout clicked')
-            onClick?.()
-          }}
-          className='w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all duration-200 group relative overflow-hidden text-red-600 hover:bg-red-50 hover:text-red-700'
+          onClick={() => handleNavigation(item.href, true)}
+          disabled={isNavigating}
+          className={cn(
+            'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all duration-200 group relative overflow-hidden text-red-600 hover:bg-red-50 hover:text-red-700',
+            isNavigating && 'opacity-50 cursor-not-allowed'
+          )}
         >
           <div className='flex items-center space-x-2.5 flex-1 min-w-0'>
             <Icon className='w-5 h-5 text-red-500 group-hover:text-red-600 transition-colors flex-shrink-0' />
             <span className='font-medium text-sm truncate'>{item.label}</span>
           </div>
+          {isNavigating && (
+            <div className='w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin flex-shrink-0' />
+          )}
         </motion.button>
       )
     }
@@ -193,16 +258,15 @@ const Layout = ({ children, className = '' }) => {
         variants={navItemVariants}
         whileHover='hover'
         whileTap={{ scale: 0.98 }}
+        onClick={() => handleNavigation(item.href)}
+        disabled={isNavigating || isActive}
         className={cn(
-          'w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden cursor-pointer',
+          'w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden',
           isActive
-            ? 'bg-gradient-to-r from-pink-50 to-purple-50 text-pink-700 shadow-sm border border-pink-200/60'
-            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            ? 'bg-gradient-to-r from-pink-50 to-purple-50 text-pink-700 shadow-sm border border-pink-200/60 cursor-default'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 cursor-pointer',
+          isNavigating && !isActive && 'opacity-50 cursor-not-allowed'
         )}
-        onClick={() => {
-          console.log(`Navigate to ${item.href}`)
-          onClick?.()
-        }}
       >
         <div className='flex items-center space-x-2.5 flex-1 min-w-0'>
           <Icon
@@ -215,16 +279,21 @@ const Layout = ({ children, className = '' }) => {
           />
           <span className='font-medium text-sm truncate'>{item.label}</span>
         </div>
-        {item.badge && (
-          <span
-            className={cn(
-              'flex-shrink-0 px-1.5 py-0.5 text-xs font-semibold text-white rounded-full ml-1.5',
-              item.badge.color
-            )}
-          >
-            {item.badge.count || item.badge.text}
-          </span>
-        )}
+        <div className='flex items-center space-x-2'>
+          {item.badge && (
+            <span
+              className={cn(
+                'flex-shrink-0 px-1.5 py-0.5 text-xs font-semibold text-white rounded-full',
+                item.badge.color
+              )}
+            >
+              {item.badge.count || item.badge.text}
+            </span>
+          )}
+          {isNavigating && location.pathname !== item.href && (
+            <div className='w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin flex-shrink-0' />
+          )}
+        </div>
         {isActive && (
           <motion.div
             layoutId='activeIndicator'
@@ -238,18 +307,6 @@ const Layout = ({ children, className = '' }) => {
 
   return (
     <div className='min-h-screen bg-gray-50'>
-      {/* Mobile Menu Button */}
-      <div className='lg:hidden fixed top-4 left-4 z-50'>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setIsOpen(true)}
-          className='p-2.5 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-xl shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all duration-200'
-        >
-          <Menu className='h-4 w-4 text-gray-700' />
-        </motion.button>
-      </div>
-
       {/* Mobile Overlay */}
       <AnimatePresence>
         {isOpen && !isDesktop && (
@@ -316,7 +373,7 @@ const Layout = ({ children, className = '' }) => {
               <div className='space-y-0.5'>
                 {navigationItems.map((item) => (
                   <div key={item.id}>
-                    <NavItem item={item} onClick={() => setIsOpen(false)} />
+                    <NavItem item={item} />
                   </div>
                 ))}
               </div>
@@ -332,7 +389,7 @@ const Layout = ({ children, className = '' }) => {
               <div className='space-y-0.5'>
                 {bottomItems.map((item) => (
                   <div key={item.id}>
-                    <NavItem item={item} onClick={() => setIsOpen(false)} />
+                    <NavItem item={item} />
                   </div>
                 ))}
               </div>
@@ -351,7 +408,26 @@ const Layout = ({ children, className = '' }) => {
           !isDesktop && 'ml-0'
         )}
       >
-        <div className='relative'>{children}</div>
+        {/* Topbar */}
+        <Topbar
+          user={user}
+          showNotifications={showTopbarNotifications}
+          onMenuClick={() => setIsOpen(true)}
+          showMobileMenu={!isDesktop}
+        />
+
+        <div className='relative'>
+          {/* Loading overlay for navigation */}
+          {isNavigating && (
+            <div className='absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center'>
+              <div className='flex items-center space-x-2 bg-white rounded-lg px-4 py-2 shadow-lg'>
+                <div className='w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin' />
+                <span className='text-sm text-gray-600'>Loading...</span>
+              </div>
+            </div>
+          )}
+          {children}
+        </div>
       </main>
     </div>
   )

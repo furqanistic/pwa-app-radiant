@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight,
   Bot,
-  Building2,
+  Calendar,
   Eye,
   EyeOff,
   Heart,
@@ -126,11 +126,10 @@ const AuthPage = () => {
 
   // Form states
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    fullName: '',
     email: '',
     phone: '',
-    businessName: '',
+    birthdate: '',
     password: '',
     confirmPassword: '',
   })
@@ -255,11 +254,11 @@ const AuthPage = () => {
       <div
         className={`${
           isMobile ? 'w-full' : 'w-3/5'
-        } bg-white flex flex-col p-4 lg:p-6`}
+        } bg-white flex flex-col h-screen overflow-hidden`}
       >
         {/* Fixed Header */}
         <motion.div
-          className='flex-shrink-0 pt-4 pb-6 justify-center items-center text-center'
+          className='flex-shrink-0 pt-4 pb-4 justify-center items-center text-center'
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -274,15 +273,10 @@ const AuthPage = () => {
           </p>
         </motion.div>
 
-        {/* Fixed Content Area with consistent positioning */}
-        <div
-          className={`flex-1 ${
-            isMobile ? 'flex flex-col' : 'flex justify-center pt-1'
-          } overflow-y-auto`}
-        >
+        {/* Fixed Toggle Buttons - Moved outside of flex container */}
+        <div className='flex-shrink-0 px-4 lg:px-6 mb-4'>
           <div className='w-full max-w-md mx-auto'>
-            {/* Fixed Toggle Buttons */}
-            <div className='flex bg-gray-100 rounded-xl p-1 mb-8'>
+            <div className='flex bg-gray-100 rounded-xl p-1'>
               <button
                 onClick={() => setView('signup')}
                 className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 text-sm ${
@@ -304,14 +298,19 @@ const AuthPage = () => {
                 Login
               </button>
             </div>
+          </div>
+        </div>
 
-            {/* Fixed height container for consistent form positioning */}
-            <div className='min-h-[600px] relative'>
+        {/* Scrollable Form Content Area */}
+        <div className='flex-1 overflow-y-auto px-4 lg:px-6'>
+          <div className='w-full max-w-md mx-auto pb-8'>
+            {/* Form container */}
+            <div className='relative'>
               <AnimatePresence mode='wait'>
                 <motion.form
                   key={view}
                   onSubmit={handleSubmit}
-                  className='space-y-4 absolute w-full top-0'
+                  className='space-y-5'
                   initial={{ opacity: 0, x: view === 'signup' ? 20 : -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: view === 'signup' ? -20 : 20 }}
@@ -319,41 +318,22 @@ const AuthPage = () => {
                 >
                   {view === 'signup' ? (
                     <>
-                      {/* Compact Name Fields */}
-                      <div className='grid grid-cols-2 gap-3'>
-                        <div>
-                          <label className='block text-xs font-medium text-gray-700 mb-1'>
-                            First Name
-                          </label>
-                          <div className='relative'>
-                            <User className='absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
-                            <input
-                              type='text'
-                              value={formData.firstName}
-                              onChange={(e) =>
-                                updateFormData('firstName', e.target.value)
-                              }
-                              className='w-full pl-8 pr-3 py-2 border-b border-gray-200 focus:border-pink-500 outline-none transition-colors bg-transparent text-sm'
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className='block text-xs font-medium text-gray-700 mb-1'>
-                            Last Name
-                          </label>
-                          <div className='relative'>
-                            <User className='absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
-                            <input
-                              type='text'
-                              value={formData.lastName}
-                              onChange={(e) =>
-                                updateFormData('lastName', e.target.value)
-                              }
-                              className='w-full pl-8 pr-3 py-2 border-b border-gray-200 focus:border-pink-500 outline-none transition-colors bg-transparent text-sm'
-                              required
-                            />
-                          </div>
+                      {/* Full Name */}
+                      <div>
+                        <label className='block text-xs font-medium text-gray-700 mb-1'>
+                          Full Name
+                        </label>
+                        <div className='relative'>
+                          <User className='absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
+                          <input
+                            type='text'
+                            value={formData.fullName}
+                            onChange={(e) =>
+                              updateFormData('fullName', e.target.value)
+                            }
+                            className='w-full pl-8 pr-3 py-2 border-b border-gray-200 focus:border-pink-500 outline-none transition-colors bg-transparent text-sm'
+                            required
+                          />
                         </div>
                       </div>
 
@@ -395,18 +375,18 @@ const AuthPage = () => {
                         </div>
                       </div>
 
-                      {/* Business Name */}
+                      {/* Birthdate */}
                       <div>
                         <label className='block text-xs font-medium text-gray-700 mb-1'>
-                          Business/Clinic Name
+                          Date of Birth
                         </label>
                         <div className='relative'>
-                          <Building2 className='absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
+                          <Calendar className='absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
                           <input
-                            type='text'
-                            value={formData.businessName}
+                            type='date'
+                            value={formData.birthdate}
                             onChange={(e) =>
-                              updateFormData('businessName', e.target.value)
+                              updateFormData('birthdate', e.target.value)
                             }
                             className='w-full pl-8 pr-3 py-2 border-b border-gray-200 focus:border-pink-500 outline-none transition-colors bg-transparent text-sm'
                             required

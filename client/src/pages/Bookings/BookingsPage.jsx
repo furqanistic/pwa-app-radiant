@@ -1,36 +1,27 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertCircle,
   Calendar,
   CheckCircle,
   ChevronDown,
   Clock,
-  DollarSign,
   Edit3,
   Eye,
-  Filter,
-  Mail,
   MoreVertical,
   Phone,
   Search,
-  Sparkles,
   Trash2,
-  TrendingUp,
-  User,
-  Users,
-  XCircle,
 } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import Layout from '../Layout/Layout'
 
-// Animation variants
+// Animation variants - optimized for mobile
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2,
+      staggerChildren: 0.05, // Reduced from 0.1
+      delayChildren: 0.1, // Reduced from 0.2
     },
   },
 }
@@ -38,15 +29,38 @@ const containerVariants = {
 const itemVariants = {
   hidden: {
     opacity: 0,
-    y: 20,
+    y: 10, // Reduced from 20
   },
   visible: {
     opacity: 1,
     y: 0,
     transition: {
       type: 'spring',
-      stiffness: 300,
+      stiffness: 400, // Increased for snappier feel
       damping: 30,
+    },
+  },
+}
+
+const cardVariants = {
+  hidden: {
+    opacity: 0,
+    scale: 0.98, // Less dramatic
+  },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 400,
+      damping: 25,
+    },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.98,
+    transition: {
+      duration: 0.15, // Faster exit
     },
   },
 }
@@ -54,7 +68,7 @@ const itemVariants = {
 const tableRowVariants = {
   hidden: {
     opacity: 0,
-    x: -20,
+    x: -10, // Reduced from -20
   },
   visible: {
     opacity: 1,
@@ -67,9 +81,9 @@ const tableRowVariants = {
   },
   exit: {
     opacity: 0,
-    x: -20,
+    x: -10,
     transition: {
-      duration: 0.2,
+      duration: 0.15,
     },
   },
 }
@@ -103,7 +117,7 @@ const dropdownVariants = {
 const headerVariants = {
   hidden: {
     opacity: 0,
-    y: -30,
+    y: -20, // Reduced from -30
   },
   visible: {
     opacity: 1,
@@ -112,7 +126,7 @@ const headerVariants = {
       type: 'spring',
       stiffness: 300,
       damping: 30,
-      delay: 0.1,
+      delay: 0.05, // Reduced from 0.1
     },
   },
 }
@@ -120,8 +134,8 @@ const headerVariants = {
 const statsCardVariants = {
   hidden: {
     opacity: 0,
-    y: 30,
-    scale: 0.95,
+    y: 15, // Reduced from 30
+    scale: 0.98, // Less dramatic
   },
   visible: {
     opacity: 1,
@@ -160,7 +174,7 @@ const StatusBadge = ({ status }) => {
 
   return (
     <motion.div
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${config.color}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${config.color}`}
       whileHover={{ scale: 1.05 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
     >
@@ -204,26 +218,26 @@ const ActionDropdown = ({ booking }) => {
               initial='hidden'
               animate='visible'
               exit='exit'
-              className='absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20'
+              className='absolute right-0 top-8 w-32 sm:w-40 bg-white rounded-lg border border-gray-200 py-1 z-20'
             >
               <motion.button
-                className='w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
+                className='w-full px-3 py-1.5 sm:py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
                 whileHover={{ x: 4 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               >
                 <Eye className='w-3 h-3' />
-                View Details
+                View
               </motion.button>
               <motion.button
-                className='w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
+                className='w-full px-3 py-1.5 sm:py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2'
                 whileHover={{ x: 4 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               >
                 <Edit3 className='w-3 h-3' />
-                Edit Booking
+                Edit
               </motion.button>
               <motion.button
-                className='w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2'
+                className='w-full px-3 py-1.5 sm:py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2'
                 whileHover={{ x: 4 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               >
@@ -238,6 +252,81 @@ const ActionDropdown = ({ booking }) => {
   )
 }
 
+// Mobile Card Component - Compact Design
+const BookingCard = ({ booking }) => {
+  return (
+    <motion.div
+      layout
+      variants={cardVariants}
+      initial='hidden'
+      animate='visible'
+      exit='exit'
+      className='bg-white rounded-lg border border-gray-200 p-3 mb-2 '
+      whileHover={{
+        y: -1,
+        transition: { type: 'spring', stiffness: 400, damping: 30 },
+      }}
+    >
+      {/* Header Row - Client & Actions */}
+      <div className='flex items-center justify-between mb-2'>
+        <div className='flex items-center gap-2 flex-1 min-w-0'>
+          <motion.div
+            className='w-7 h-7 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium text-xs flex-shrink-0'
+            whileHover={{ scale: 1.1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          >
+            {booking.client.name
+              .split(' ')
+              .map((n) => n[0])
+              .join('')}
+          </motion.div>
+          <div className='min-w-0 flex-1'>
+            <p className='font-medium text-gray-900 text-sm truncate'>
+              {booking.client.name}
+            </p>
+          </div>
+        </div>
+        <div className='flex items-center gap-2 flex-shrink-0'>
+          <StatusBadge status={booking.status} />
+          <ActionDropdown booking={booking} />
+        </div>
+      </div>
+
+      {/* Service & Price Row */}
+      <div className='flex items-center justify-between mb-2'>
+        <div className='flex-1 min-w-0'>
+          <p className='font-medium text-gray-900 text-sm truncate'>
+            {booking.service}
+          </p>
+          <p className='text-xs text-gray-500'>{booking.duration}min</p>
+        </div>
+        <motion.p
+          className='font-bold text-gray-900 text-sm ml-2'
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        >
+          ${booking.price}
+        </motion.p>
+      </div>
+
+      {/* Date & Contact Row */}
+      <div className='flex items-center justify-between text-xs text-gray-500'>
+        <div className='flex items-center gap-1'>
+          <Calendar className='w-3 h-3' />
+          <span>
+            {booking.date} • {booking.time}
+          </span>
+        </div>
+        <div className='flex items-center gap-1'>
+          <Phone className='w-3 h-3' />
+          <span className='hidden xs:inline'>{booking.client.phone}</span>
+          <span className='xs:hidden'>{booking.client.phone.slice(-4)}</span>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 // Professional Table Row Component
 const BookingRow = ({ booking }) => {
   return (
@@ -249,7 +338,7 @@ const BookingRow = ({ booking }) => {
       exit='exit'
       className='border-b border-gray-100'
     >
-      <div className='grid grid-cols-12 gap-4 items-center py-4 px-6'>
+      <div className='grid grid-cols-12 gap-4 items-center py-3 px-4'>
         {/* Client Info */}
         <div className='col-span-12 md:col-span-3'>
           <div className='flex items-center gap-3'>
@@ -264,7 +353,7 @@ const BookingRow = ({ booking }) => {
                 .join('')}
             </motion.div>
             <div className='min-w-0'>
-              <p className='font-medium text-gray-900 truncate'>
+              <p className='font-medium text-gray-900 truncate text-sm'>
                 {booking.client.name}
               </p>
               <p className='text-xs text-gray-500 truncate'>
@@ -321,19 +410,19 @@ const SearchFilterBar = ({
   return (
     <motion.div
       variants={itemVariants}
-      className='flex flex-col sm:flex-row gap-4 mb-6'
+      className='flex flex-col sm:flex-row gap-2 sm:gap-4 mb-3 sm:mb-6'
     >
       {/* Search */}
       <div className='relative flex-1'>
         <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
         <motion.input
           type='text'
-          placeholder='Search clients, services, or phone numbers...'
+          placeholder='Search clients, services...'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className='w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-1 focus:ring-pink-500 focus:border-pink-500 bg-white text-sm transition-all duration-200'
+          className='w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-pink-500 focus:border-pink-500 bg-white text-sm transition-all duration-200'
           whileFocus={{
-            scale: 1.02,
+            scale: 1.01,
             transition: { type: 'spring', stiffness: 400, damping: 30 },
           }}
         />
@@ -344,9 +433,9 @@ const SearchFilterBar = ({
         <motion.select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className='pl-4 pr-10 py-2.5 border border-gray-200 rounded-lg focus:ring-1 focus:ring-pink-500 focus:border-pink-500 bg-white appearance-none min-w-[140px] text-sm'
+          className='pl-3 pr-8 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-pink-500 focus:border-pink-500 bg-white appearance-none min-w-[120px] text-sm'
           whileFocus={{
-            scale: 1.02,
+            scale: 1.01,
             transition: { type: 'spring', stiffness: 400, damping: 30 },
           }}
         >
@@ -356,13 +445,13 @@ const SearchFilterBar = ({
           <option value='cancelled'>Cancelled</option>
           <option value='completed'>Completed</option>
         </motion.select>
-        <ChevronDown className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none' />
+        <ChevronDown className='absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none' />
       </div>
     </motion.div>
   )
 }
 
-// Simplified Modern Stats Card
+// Compact Stats Card
 const StatsCard = ({ title, value, icon: Icon, color = 'pink' }) => {
   const colorClasses = {
     pink: 'from-pink-500 to-rose-500',
@@ -373,40 +462,42 @@ const StatsCard = ({ title, value, icon: Icon, color = 'pink' }) => {
   return (
     <motion.div
       variants={statsCardVariants}
-      className='bg-white rounded-xl p-6 border border-gray-100 shadow-sm'
+      className='bg-white rounded-lg p-2 sm:p-4 border border-gray-100 '
       whileHover={{
-        y: -2,
+        y: -1,
         shadow:
           '0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         transition: { type: 'spring', stiffness: 400, damping: 30 },
       }}
     >
       <div className='flex items-center justify-between'>
-        <div className='flex-1'>
-          <p className='text-sm text-gray-600 mb-1'>{title}</p>
+        <div className='flex-1 min-w-0'>
+          <p className='text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1 truncate'>
+            {title}
+          </p>
           <motion.p
-            className='text-2xl font-bold text-gray-900'
+            className='text-base sm:text-2xl font-bold text-gray-900'
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{
               type: 'spring',
               stiffness: 400,
               damping: 30,
-              delay: 0.2,
+              delay: 0.1,
             }}
           >
             {value}
           </motion.p>
         </div>
         <motion.div
-          className={`p-3 rounded-xl bg-gradient-to-br ${colorClasses[color]} shadow-lg`}
+          className={`p-1.5 sm:p-3 rounded-lg bg-gradient-to-br ${colorClasses[color]}  flex-shrink-0`}
           whileHover={{
-            scale: 1.1,
+            scale: 1.05,
             rotate: 5,
             transition: { type: 'spring', stiffness: 400, damping: 30 },
           }}
         >
-          <Icon className='w-6 h-6 text-white' />
+          <Icon className='w-3 h-3 sm:w-6 sm:h-6 text-white' />
         </motion.div>
       </div>
     </motion.div>
@@ -416,12 +507,12 @@ const StatsCard = ({ title, value, icon: Icon, color = 'pink' }) => {
 // Professional Table Header
 const TableHeader = () => (
   <motion.div
-    className='bg-gray-50 border-b border-gray-200'
+    className='bg-gray-50 border-b border-gray-200 hidden md:block'
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
-    transition={{ delay: 0.4 }}
+    transition={{ delay: 0.3 }}
   >
-    <div className='grid grid-cols-12 gap-4 py-3 px-6'>
+    <div className='grid grid-cols-12 gap-4 py-3 px-4'>
       <div className='col-span-12 md:col-span-3'>
         <p className='text-xs font-semibold text-gray-600 uppercase tracking-wide'>
           Client
@@ -470,7 +561,7 @@ const BookingsPage = () => {
         email: 'sarah@email.com',
       },
       service: 'Facial Treatment',
-      date: 'Dec 15, 2024',
+      date: 'Dec 15, 2025',
       time: '10:00 AM',
       duration: 60,
       status: 'confirmed',
@@ -484,7 +575,7 @@ const BookingsPage = () => {
         email: 'emily@email.com',
       },
       service: 'Laser Hair Removal',
-      date: 'Dec 15, 2024',
+      date: 'Dec 15, 2025',
       time: '2:30 PM',
       duration: 45,
       status: 'pending',
@@ -498,7 +589,7 @@ const BookingsPage = () => {
         email: 'jessica@email.com',
       },
       service: 'Botox',
-      date: 'Dec 16, 2024',
+      date: 'Dec 16, 2025',
       time: '11:15 AM',
       duration: 30,
       status: 'completed',
@@ -512,7 +603,7 @@ const BookingsPage = () => {
         email: 'amanda@email.com',
       },
       service: 'Chemical Peel',
-      date: 'Dec 16, 2024',
+      date: 'Dec 16, 2025',
       time: '3:00 PM',
       duration: 90,
       status: 'cancelled',
@@ -526,7 +617,7 @@ const BookingsPage = () => {
         email: 'maria@email.com',
       },
       service: 'Microneedling',
-      date: 'Dec 17, 2024',
+      date: 'Dec 17, 2025',
       time: '9:30 AM',
       duration: 75,
       status: 'confirmed',
@@ -540,7 +631,7 @@ const BookingsPage = () => {
         email: 'rachel@email.com',
       },
       service: 'Lip Fillers',
-      date: 'Dec 17, 2024',
+      date: 'Dec 17, 2025',
       time: '1:45 PM',
       duration: 45,
       status: 'pending',
@@ -554,7 +645,7 @@ const BookingsPage = () => {
         email: 'ashley@email.com',
       },
       service: 'HydraFacial',
-      date: 'Dec 18, 2024',
+      date: 'Dec 18, 2025',
       time: '4:00 PM',
       duration: 90,
       status: 'confirmed',
@@ -568,7 +659,7 @@ const BookingsPage = () => {
         email: 'sophie@email.com',
       },
       service: 'Dermal Fillers',
-      date: 'Dec 18, 2024',
+      date: 'Dec 18, 2025',
       time: '11:30 AM',
       duration: 60,
       status: 'completed',
@@ -603,28 +694,28 @@ const BookingsPage = () => {
     <Layout>
       <div className='min-h-screen bg-gray-50'>
         <motion.div
-          className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
+          className='max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-6 lg:py-8'
           variants={containerVariants}
           initial='hidden'
           animate='visible'
         >
-          {/* Header */}
-          <motion.div variants={headerVariants} className='mb-8'>
-            <h1 className='text-3xl font-bold text-gray-900 mb-2'>
+          {/* Compact Header */}
+          <motion.div variants={headerVariants} className='mb-3 sm:mb-6'>
+            <h1 className='text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1'>
               My SPA Appointments
             </h1>
-            <p className='text-gray-600'>
-              View and manage all your spa bookings in one place
+            <p className='text-xs sm:text-base text-gray-600'>
+              View and manage all your spa bookings
             </p>
           </motion.div>
 
-          {/* Simplified Stats Cards */}
+          {/* Compact Stats Cards */}
           <motion.div
-            className='grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8'
+            className='grid grid-cols-3 gap-2 sm:gap-6 mb-3 sm:mb-8'
             variants={containerVariants}
           >
             <StatsCard
-              title='Total Bookings'
+              title='Total'
               value={stats.total}
               icon={Calendar}
               color='pink'
@@ -651,9 +742,24 @@ const BookingsPage = () => {
             setStatusFilter={setStatusFilter}
           />
 
-          {/* Professional Table */}
+          {/* Mobile Cards (visible on small screens) */}
+          <div className='md:hidden'>
+            <AnimatePresence mode='wait'>
+              <motion.div
+                variants={containerVariants}
+                initial='hidden'
+                animate='visible'
+              >
+                {filteredBookings.map((booking) => (
+                  <BookingCard key={booking.id} booking={booking} />
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Desktop Table (hidden on small screens) */}
           <motion.div
-            className='bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm'
+            className='hidden md:block bg-white rounded-lg border border-gray-200 overflow-hidden '
             variants={itemVariants}
           >
             <TableHeader />
@@ -675,14 +781,14 @@ const BookingsPage = () => {
           <AnimatePresence>
             {filteredBookings.length === 0 && (
               <motion.div
-                className='text-center py-12 bg-white rounded-lg border border-gray-200 mt-8'
+                className='text-center py-6 sm:py-12 bg-white rounded-lg border border-gray-200'
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               >
                 <motion.div
-                  className='w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4'
+                  className='w-10 h-10 sm:w-16 sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-4'
                   animate={{
                     rotate: [0, 10, -10, 0],
                     transition: {
@@ -692,13 +798,13 @@ const BookingsPage = () => {
                     },
                   }}
                 >
-                  <Search className='w-8 h-8 text-gray-400' />
+                  <Search className='w-5 h-5 sm:w-8 sm:h-8 text-gray-400' />
                 </motion.div>
-                <h3 className='text-lg font-medium text-gray-900 mb-2'>
+                <h3 className='text-sm sm:text-lg font-medium text-gray-900 mb-1 sm:mb-2'>
                   No bookings found
                 </h3>
-                <p className='text-gray-500'>
-                  Try adjusting your search criteria or filters
+                <p className='text-xs sm:text-base text-gray-500'>
+                  Try adjusting your search criteria
                 </p>
               </motion.div>
             )}
