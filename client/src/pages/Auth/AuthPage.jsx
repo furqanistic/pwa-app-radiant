@@ -153,19 +153,19 @@ const AuthPage = () => {
   // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault()
+    window.location.href = '/welcome'
+    // if (view === 'signup' && formData.password !== formData.confirmPassword) {
+    //   alert('Passwords do not match!')
+    //   return
+    // }
 
-    if (view === 'signup' && formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!')
-      return
-    }
+    // setIsSubmitting(true)
 
-    setIsSubmitting(true)
-
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Form submitted:', { view, ...formData })
-      setIsSubmitting(false)
-    }, 2000)
+    // // Simulate API call
+    // setTimeout(() => {
+    //   console.log('Form submitted:', { view, ...formData })
+    //   setIsSubmitting(false)
+    // }, 2000)
   }
 
   const updateFormData = (field, value) => {

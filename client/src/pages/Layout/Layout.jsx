@@ -158,7 +158,7 @@ const Layout = ({
       id: 'gamification',
       label: 'Scratch & Spin',
       icon: Gamepad2,
-      href: '/gamification',
+      href: '/spin',
       badge: {
         text: 'HOT',
         color: 'bg-gradient-to-r from-orange-500 to-red-500',
