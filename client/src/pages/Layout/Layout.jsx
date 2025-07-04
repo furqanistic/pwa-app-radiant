@@ -134,7 +134,7 @@ const Layout = ({
       id: 'clients',
       label: 'Client Management',
       icon: Users,
-      href: '/clients',
+      href: '/management',
       badge: null,
     },
     {
@@ -173,12 +173,7 @@ const Layout = ({
       icon: User,
       href: '/profile',
     },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      href: '/settings',
-    },
+
     {
       id: 'logout',
       label: 'Logout',

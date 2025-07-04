@@ -39,6 +39,20 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     }
   }
 
+  const handleBlur = (field) => {
+    if (field === 'spaLink' && formData.spaLink.trim()) {
+      const radiantAILinkPattern =
+        /^https:\/\/ai\.radiantmdconsulting\.com\/accounts\/detail\/[a-zA-Z0-9]+$/
+      if (!radiantAILinkPattern.test(formData.spaLink.trim())) {
+        setErrors((prev) => ({
+          ...prev,
+          spaLink:
+            'Link must be in format: https://ai.radiantmdconsulting.com/accounts/detail/[AccountID]',
+        }))
+      }
+    }
+  }
+
   const validateForm = () => {
     const newErrors = {}
 
@@ -48,10 +62,14 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     if (!formData.phoneNumber.trim())
       newErrors.phoneNumber = 'Phone number is required'
 
-    // Validate URL format for spa link
-    if (formData.spaLink && !formData.spaLink.match(/^https?:\/\/.+/)) {
-      newErrors.spaLink =
-        'Please enter a valid URL (starting with http:// or https://)'
+    // Validate RadiantAI link format
+    if (formData.spaLink && formData.spaLink.trim()) {
+      const radiantAILinkPattern =
+        /^https:\/\/ai\.radiantmdconsulting\.com\/accounts\/detail\/[a-zA-Z0-9]+$/
+      if (!radiantAILinkPattern.test(formData.spaLink.trim())) {
+        newErrors.spaLink =
+          'Link must be in format: https://ai.radiantmdconsulting.com/accounts/detail/[AccountID]'
+      }
     }
 
     // Validate phone number format
@@ -154,7 +172,6 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className='text-sm text-red-600 flex items-center gap-1'
               >
-                <AlertCircle className='w-3 h-3' />
                 {errors.spaName}
               </motion.p>
             )}
@@ -171,7 +188,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
               htmlFor='spaLink'
               className='text-sm font-medium text-gray-700'
             >
-              SPA GHL Link *
+              RadiantAI Account Link *
             </Label>
             <div className='relative'>
               <Input
@@ -179,7 +196,8 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 type='url'
                 value={formData.spaLink}
                 onChange={(e) => handleInputChange('spaLink', e.target.value)}
-                placeholder='https://example-spa.com'
+                onBlur={() => handleBlur('spaLink')}
+                placeholder='https://ai.radiantmdconsulting.com/accounts/detail/[AccountID]'
                 className={`pl-10 transition-all ${
                   errors.spaLink
                     ? 'border-red-300 focus:border-red-500'
@@ -195,10 +213,12 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className='text-sm text-red-600 flex items-center gap-1'
               >
-                <AlertCircle className='w-3 h-3' />
                 {errors.spaLink}
               </motion.p>
             )}
+            <p className='text-xs text-gray-500'>
+              Must be a valid RadiantAI account detail link
+            </p>
           </motion.div>
 
           {/* Location */}
@@ -236,7 +256,6 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className='text-sm text-red-600 flex items-center gap-1'
               >
-                <AlertCircle className='w-3 h-3' />
                 {errors.location}
               </motion.p>
             )}
@@ -279,7 +298,6 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 animate={{ opacity: 1, y: 0 }}
                 className='text-sm text-red-600 flex items-center gap-1'
               >
-                <AlertCircle className='w-3 h-3' />
                 {errors.phoneNumber}
               </motion.p>
             )}
@@ -330,9 +348,6 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
           className='mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100'
         >
           <div className='flex items-start gap-3'>
-            <div className='w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0'>
-              <Sparkles className='w-4 h-4 text-white' />
-            </div>
             <div>
               <h4 className='font-medium text-gray-900 mb-1'>
                 RadiantAI Integration
