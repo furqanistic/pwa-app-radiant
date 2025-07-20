@@ -1,3 +1,5 @@
+// server/middleware/authMiddleware.js - Updated version
+
 import jwt from 'jsonwebtoken'
 import { createError } from '../error.js'
 import User from '../models/User.js'
@@ -44,79 +46,19 @@ export const restrictTo = (...roles) => {
 }
 
 export const checkPermission = (req, res, next) => {
-  // Get the requested resource and action from the route
-  const path = req.path
-  const method = req.method
-
-  // Define permission rules based on role
-  const permissionRules = {
-    Marketing: {
-      all: true,
-    },
-    Logística: {
-      canViewEvents: true,
-      canExtendEvents: true,
-      canViewNews: true,
-      canViewDashboard: true,
-    },
-    Comercial: {
-      canCreateEvents: true,
-      canDeleteOwnEvents: true,
-      canViewOwnEvents: true,
-      canAccessRoomReservation: true,
-      canAccessMerchandising: true,
-      canViewNews: true,
-      canViewDashboard: true,
-    },
-  }
-
-  // Check if user has required permissions
+  // Simplified permission checking - admin has access to everything
   const userRole = req.user.role
-  const permissions = permissionRules[userRole]
 
-  if (!permissions) {
-    return next(createError(403, 'Invalid role'))
-  }
-
-  // Marketing users have full access
-  if (userRole === 'Marketing' || permissions.all) {
+  // Admin users have full access to all protected routes
+  if (userRole === 'admin') {
     return next()
   }
 
-  // For other roles, check specific permissions
-  let hasPermission = false
-
-  // Add your permission logic here based on path and method
-  if (path.includes('/events')) {
-    if (method === 'GET') {
-      // Logística can view all events, Comercial can only view their own
-      if (userRole === 'Logística') {
-        hasPermission = permissions.canViewEvents
-      } else if (userRole === 'Comercial') {
-        hasPermission =
-          permissions.canViewOwnEvents &&
-          (req.query.userId === req.user._id.toString() ||
-            req.params.id === req.user._id.toString())
-      }
-    } else if (method === 'POST') {
-      hasPermission = permissions.canCreateEvents
-    } else if (method === 'DELETE') {
-      // Comercial can only delete their own events
-      hasPermission =
-        userRole === 'Comercial' &&
-        permissions.canDeleteOwnEvents &&
-        req.params.userId === req.user._id.toString()
-    } else if (method === 'PATCH' || method === 'PUT') {
-      // Only Logística can extend events
-      hasPermission = userRole === 'Logística' && permissions.canExtendEvents
-    }
-  }
-
-  if (!hasPermission) {
-    return next(
-      createError(403, 'You do not have permission to perform this action')
+  // For non-admin users, deny access to admin-only routes
+  return next(
+    createError(
+      403,
+      'You do not have permission to perform this action. Admin access required.'
     )
-  }
-
-  next()
+  )
 }

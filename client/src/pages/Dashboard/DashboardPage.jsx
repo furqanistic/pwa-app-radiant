@@ -1,3 +1,6 @@
+// client/src/pages/Dashboard/DashboardPage.jsx
+import PointsCard from '@/components/Dashboard/PointsCard'
+import RewardsSection from '@/components/Dashboard/RewardsSection'
 import { motion } from 'framer-motion'
 import {
   Award,
@@ -22,7 +25,7 @@ import {
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
+import { useDispatch, useSelector } from 'react-redux'
 import Layout from '../Layout/Layout'
 
 // Mock data with enhanced rewards and points earning methods
@@ -97,7 +100,7 @@ const mockData = {
       id: 1,
       name: 'Signature HydraFacial',
       location: 'Beverly Hills, CA',
-      pointsRequired: 1000,
+      pointsRequired: 100,
       unlocked: true,
       discount: '15% Off',
       services: ['Facials', 'Massage', 'Aromatherapy'],
@@ -109,7 +112,7 @@ const mockData = {
       id: 3,
       name: 'Swedish Relaxation Massage',
       location: 'Miami, FL',
-      pointsRequired: 3000,
+      pointsRequired: 300,
       unlocked: false,
       discount: '25% Off',
       services: ['CoolSculpting', 'HydraFacial', 'RF Treatments'],
@@ -120,7 +123,7 @@ const mockData = {
       id: 4,
       name: 'LED Light Therapy Facial',
       location: 'Los Angeles, CA',
-      pointsRequired: 5000,
+      pointsRequired: 500,
       unlocked: false,
       discount: '30% Off',
       services: ['Thread Lifts', 'Plasma Pen', 'Luxury Treatments'],
@@ -195,267 +198,6 @@ const DashboardCard = ({ children, className = '', gradient = 'default' }) => {
   )
 }
 
-const PointsCard = ({ points }) => {
-  const progressToNext =
-    ((points.current - 2000) / (points.nextLevelPoints - 2000)) * 100
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5 }}
-      className='relative overflow-hidden w-full'
-    >
-      {/* Main Card */}
-      <div className='relative bg-gradient-to-br from-purple-600 via-purple-700 to-pink-600 rounded-2xl sm:rounded-3xl overflow-hidden'>
-        {/* Background Pattern */}
-        <div className='absolute top-0 right-0 w-32 h-32 sm:w-40 sm:h-40 bg-white/10 rounded-full -translate-y-16 sm:-translate-y-20 translate-x-16 sm:translate-x-20'></div>
-        <div className='absolute bottom-0 left-0 w-24 h-24 sm:w-32 sm:h-32 bg-white/5 rounded-full translate-y-12 sm:translate-y-16 -translate-x-12 sm:-translate-x-16'></div>
-
-        {/* Holographic shimmer effect */}
-        <div className='absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent transform -skew-x-12 translate-x-full animate-shimmer'></div>
-
-        <div className='relative z-10 p-4 sm:p-6 lg:p-8 text-white'>
-          {/* Card Header */}
-          <div className='flex items-center justify-between mb-4 sm:mb-6'>
-            <div className='flex items-center'>
-              <CreditCard className='w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3' />
-              <span className='text-sm sm:text-lg font-semibold'>
-                RadiantAI Points
-              </span>
-            </div>
-            <Sparkles className='w-5 h-5 sm:w-6 sm:h-6' />
-          </div>
-
-          {/* Points Display */}
-          <div className='mb-4 sm:mb-6'>
-            <p className='text-white/80 text-xs sm:text-sm mb-1 sm:mb-2'>
-              Available Points
-            </p>
-            <p className='text-3xl sm:text-4xl lg:text-5xl font-bold tracking-wide'>
-              {points.current.toLocaleString()}
-            </p>
-          </div>
-
-          {/* Level and Progress */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <p className='text-white/80 text-xs sm:text-sm'>Member Level</p>
-              <p className='text-base sm:text-lg font-semibold'>
-                {points.level}
-              </p>
-            </div>
-            <div className='text-right'>
-              <p className='text-white/80 text-xs sm:text-sm'>Next Level</p>
-              <p className='text-xs sm:text-sm font-semibold'>
-                {points.nextLevel}
-              </p>
-              <div className='w-16 sm:w-24 bg-white/20 rounded-full h-1.5 sm:h-2 mt-1'>
-                <motion.div
-                  className='bg-white rounded-full h-1.5 sm:h-2 transition-all duration-700'
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(progressToNext, 100)}%` }}
-                  transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <style jsx>{`
-        @keyframes shimmer {
-          0% {
-            transform: translateX(-100%) skewX(-12deg);
-          }
-          100% {
-            transform: translateX(200%) skewX(-12deg);
-          }
-        }
-        .animate-shimmer {
-          animation: shimmer 4s infinite;
-        }
-      `}</style>
-    </motion.div>
-  )
-}
-
-// Rewards Section
-const RewardsSection = ({ rewards, userPoints }) => {
-  return (
-    <DashboardCard gradient='pink'>
-      <div className='mb-4 sm:mb-6'>
-        {/* Mobile: Title and See More on same line */}
-        <div className='flex items-center justify-between mb-3 sm:hidden'>
-          <div className='flex items-center'>
-            <div className='bg-gradient-to-r from-pink-500 to-purple-500 p-2 rounded-xl mr-3'>
-              <Award className='w-5 h-5 text-white' />
-            </div>
-            <h2 className='text-lg font-bold text-gray-800'>Spa Rewards</h2>
-          </div>
-          <button
-            onClick={() => (window.location.href = '/loyalty')}
-            className='flex items-center gap-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:shadow-lg'
-          >
-            See More
-            <ChevronRight className='w-3 h-3' />
-          </button>
-        </div>
-        {/* Mobile: Available badge centered */}
-        <div className='flex justify-center mb-4 sm:hidden'>
-          <span className='bg-pink-200 text-pink-800 px-4 py-2 rounded-full text-sm font-semibold'>
-            {rewards.filter((r) => r.unlocked).length} Available
-          </span>
-        </div>
-
-        {/* Desktop: Original layout */}
-        <div className='hidden sm:flex sm:items-center justify-between'>
-          <div className='flex items-center'>
-            <div className='bg-gradient-to-r from-pink-500 to-purple-500 p-3 rounded-2xl mr-4'>
-              <Award className='w-6 h-6 text-white' />
-            </div>
-            <h2 className='text-xl lg:text-2xl font-bold text-gray-800'>
-              Spa Rewards
-            </h2>
-          </div>
-          <div className='flex items-center gap-3'>
-            <span className='bg-pink-200 text-pink-800 px-4 py-2 rounded-full text-sm font-semibold'>
-              {rewards.filter((r) => r.unlocked).length} Available
-            </span>
-            <button
-              onClick={() => (window.location.href = '/loyalty')}
-              className='flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-lg'
-            >
-              See More
-              <ChevronRight className='w-4 h-4' />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6'>
-        {rewards.map((reward) => (
-          <motion.div
-            key={reward.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: reward.id * 0.1 }}
-            className={`relative overflow-hidden rounded-2xl transition-all transform hover:scale-105 ${
-              reward.unlocked
-                ? 'bg-white shadow-lg hover:shadow-xl'
-                : 'bg-gray-50 shadow-md'
-            }`}
-          >
-            {/* Spa Image */}
-            <div className='relative h-32 sm:h-40 overflow-hidden'>
-              {reward.image ? (
-                <img
-                  src={reward.image}
-                  alt={reward.name}
-                  className='w-full h-full object-cover'
-                />
-              ) : (
-                <div className='w-full h-full bg-gradient-to-br from-pink-200 to-purple-200 flex items-center justify-center'>
-                  <div className='text-4xl sm:text-5xl opacity-60'>
-                    {reward.emoji || '🧖‍♀️'}
-                  </div>
-                </div>
-              )}
-
-              {/* Status Badge */}
-              <div
-                className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-sm ${
-                  reward.unlocked ? 'bg-green-500/20' : 'bg-gray-500/20'
-                }`}
-              >
-                {reward.unlocked ? (
-                  <Unlock className='w-4 h-4 text-green-600' />
-                ) : (
-                  <Lock className='w-4 h-4 text-gray-600' />
-                )}
-              </div>
-
-              {/* Discount Badge */}
-              <div className='absolute bottom-3 left-3'>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-bold ${
-                    reward.unlocked
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-500 text-white'
-                  }`}
-                >
-                  {reward.discount}
-                </span>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className='p-4'>
-              <h3
-                className={`text-lg font-bold mb-2 ${
-                  reward.unlocked ? 'text-gray-800' : 'text-gray-500'
-                }`}
-              >
-                {reward.name}
-              </h3>
-
-              <div className='flex items-center text-sm text-gray-600 mb-3'>
-                <MapPin className='w-4 h-4 mr-1' />
-                <span className='truncate'>{reward.location}</span>
-              </div>
-
-              {/* Services */}
-              <div className='flex flex-wrap gap-1 mb-4'>
-                {reward.services.slice(0, 3).map((service, index) => (
-                  <span
-                    key={index}
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      reward.unlocked
-                        ? 'bg-pink-100 text-pink-700'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {service}
-                  </span>
-                ))}
-                {reward.services.length > 3 && (
-                  <span className='text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500'>
-                    +{reward.services.length - 3}
-                  </span>
-                )}
-              </div>
-
-              {/* Points & Action */}
-              <div className='flex items-center justify-between'>
-                <div>
-                  <p className='text-xs text-gray-500'>Points needed</p>
-                  <p
-                    className={`text-sm font-bold ${
-                      reward.unlocked ? 'text-green-600' : 'text-gray-500'
-                    }`}
-                  >
-                    {reward.pointsRequired.toLocaleString()}
-                  </p>
-                </div>
-
-                <button
-                  className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all ${
-                    reward.unlocked
-                      ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 shadow-md hover:shadow-lg'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  {reward.unlocked ? 'Book Now' : 'Locked'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </DashboardCard>
-  )
-}
-
 // Need More Points Section
 const NeedMorePointsSection = ({ methods }) => {
   return (
@@ -513,6 +255,7 @@ const NeedMorePointsSection = ({ methods }) => {
 }
 
 const DashboardPage = () => {
+  const { currentUser } = useDispatch((state) => state.user)
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       weekday: 'short',
@@ -530,7 +273,7 @@ const DashboardPage = () => {
         <div className='max-w-7xl mx-auto'>
           {/* Points Card - Full Width at Top */}
           <div className='mb-4 sm:mb-6 lg:mb-8'>
-            <PointsCard points={mockData.points} />
+            <PointsCard />
           </div>
 
           {/* Rewards Section - Full Width */}

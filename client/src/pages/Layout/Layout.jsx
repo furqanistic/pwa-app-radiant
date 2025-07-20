@@ -1,6 +1,9 @@
+// client/src/pages/Layout/Layout.jsx
+import { logout } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Calendar,
+  Contact2,
   Gamepad2,
   Gift,
   LayoutDashboard,
@@ -14,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Topbar from './Topbar' // Import the Topbar component
 
@@ -68,10 +72,6 @@ const navItemVariants = {
 const Layout = ({
   children,
   className = '',
-  user = {
-    firstName: 'Sarah',
-    lastName: 'Johnson',
-  },
   showTopbarNotifications = true,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
@@ -86,6 +86,7 @@ const Layout = ({
 
   const navigate = useNavigate()
   const location = useLocation()
+  const dispatch = useDispatch()
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -124,6 +125,12 @@ const Layout = ({
       badge: null,
     },
     {
+      id: 'contacts',
+      label: 'Contacts',
+      icon: Contact2,
+      href: '/contacts',
+    },
+    {
       id: 'bookings',
       label: 'Bookings',
       icon: Calendar,
@@ -138,10 +145,10 @@ const Layout = ({
       badge: null,
     },
     {
-      id: 'loyalty',
+      id: 'services',
       label: 'Loyalty & Rewards',
       icon: Star,
-      href: '/loyalty',
+      href: '/services',
       badge: {
         text: 'NEW',
         color: 'bg-gradient-to-r from-purple-500 to-pink-500',
@@ -194,13 +201,9 @@ const Layout = ({
       setIsNavigating(true)
 
       if (isLogout) {
-        // Handle logout logic here
-        // Clear user data, tokens, etc.
+        dispatch(logout())
         localStorage.removeItem('userToken')
         sessionStorage.clear()
-
-        // Add any additional logout logic here
-        console.log('User logged out')
       }
 
       // Navigate to the new route
@@ -405,7 +408,6 @@ const Layout = ({
       >
         {/* Topbar */}
         <Topbar
-          user={user}
           showNotifications={showTopbarNotifications}
           onMenuClick={() => setIsOpen(true)}
           showMobileMenu={!isDesktop}

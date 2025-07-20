@@ -1,9 +1,11 @@
+// server/routes/location.js
 import express from 'express'
 
 import {
   createLocation,
   deleteLocation,
   getActiveLocationIds,
+  getActiveLocationsForUsers,
   getAllLocations,
   getLocation,
   toggleLocationStatus,
@@ -15,7 +17,8 @@ const router = express.Router()
 
 // All routes require authentication
 router.use(verifyToken)
-
+// PUBLIC route for users to get active locations (no admin check)
+router.get('/active', getActiveLocationsForUsers)
 // All routes require permission checking (admin only)
 router.use(checkPermission)
 

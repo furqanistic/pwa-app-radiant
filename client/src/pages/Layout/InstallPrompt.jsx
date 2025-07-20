@@ -1,3 +1,4 @@
+// client/src/pages/Layout/InstallPrompt.jsx
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   CheckCircle,
@@ -361,25 +362,25 @@ const InstallPrompt = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
-        className='mt-3 lg:mt-4 p-3 lg:p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200'
+        className='mt-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200'
       >
-        <h4 className='font-semibold text-blue-900 text-xs lg:text-sm mb-2 lg:mb-3'>
+        <h4 className='font-medium text-blue-900 text-sm mb-2'>
           {instructions.title}
         </h4>
-        <ol className='space-y-1.5 lg:space-y-2'>
+        <ol className='space-y-1.5'>
           {instructions.steps.map((step, index) => (
             <li
               key={index}
-              className='flex items-start space-x-2 text-xs lg:text-xs text-blue-800'
+              className='flex items-start space-x-2 text-xs text-blue-800'
             >
-              <span className='flex-shrink-0 w-3.5 h-3.5 lg:w-4 lg:h-4 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold'>
+              <span className='flex-shrink-0 w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5'>
                 {index + 1}
               </span>
               <span className='flex-1 leading-relaxed'>{step}</span>
             </li>
           ))}
         </ol>
-        <div className='mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-blue-200'>
+        <div className='mt-3 pt-2 border-t border-blue-200'>
           <button
             onClick={() => setShowManualInstructions(false)}
             className='text-xs text-blue-600 hover:text-blue-800 font-medium'
@@ -438,24 +439,24 @@ const InstallPrompt = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 100, scale: 0.9 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className='fixed bottom-4 left-4 right-4 max-w-sm mx-auto lg:left-auto lg:right-4 lg:max-w-none lg:w-96 lg:mx-0 bg-white border border-pink-200/60 rounded-2xl shadow-2xl p-4 lg:p-5 z-50 backdrop-blur-sm'
+        className='fixed bottom-4 left-4 right-4 max-w-sm mx-auto lg:left-auto lg:right-4 lg:max-w-none lg:w-96 lg:mx-0 bg-white border border-gray-200/80 rounded-xl shadow-xl p-4 z-50 backdrop-blur-sm'
       >
         {/* Background decorations */}
-        <div className='absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-pink-500/10 to-purple-600/10 rounded-full -translate-y-10 translate-x-10 blur-xl'></div>
-        <div className='absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-tr from-purple-500/10 to-pink-600/10 rounded-full translate-y-8 -translate-x-8 blur-xl'></div>
+        <div className='absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-pink-500/8 to-purple-600/8 rounded-full -translate-y-8 translate-x-8 blur-xl'></div>
+        <div className='absolute bottom-0 left-0 w-12 h-12 bg-gradient-to-tr from-purple-500/8 to-pink-600/8 rounded-full translate-y-6 -translate-x-6 blur-xl'></div>
 
         <div className='relative'>
-          <div className='flex items-start space-x-3'>
+          <div className='flex items-start gap-3'>
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 400 }}
-              className='w-10 h-10 lg:w-12 lg:h-12 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg'
+              className='w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm'
             >
               {deferredPrompt ? (
-                <Zap className='w-5 h-5 lg:w-6 lg:h-6 text-white' />
+                <Zap className='w-5 h-5 text-white' />
               ) : (
-                <Smartphone className='w-5 h-5 lg:w-6 lg:h-6 text-white' />
+                <Smartphone className='w-5 h-5 text-white' />
               )}
             </motion.div>
 
@@ -464,7 +465,7 @@ const InstallPrompt = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className='font-bold text-gray-900 text-sm lg:text-base mb-1'
+                className='font-semibold text-gray-900 text-sm mb-1'
               >
                 {title}
               </motion.h3>
@@ -473,7 +474,7 @@ const InstallPrompt = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.15 }}
-                className='text-xs lg:text-sm text-gray-600 leading-relaxed'
+                className='text-xs text-gray-600 leading-relaxed mb-3'
               >
                 {subtitle}
               </motion.p>
@@ -482,37 +483,35 @@ const InstallPrompt = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className='flex flex-col sm:flex-row gap-2 mt-3 lg:mt-4'
+                className='flex items-center gap-2'
               >
                 <button
                   onClick={handleInstallClick}
-                  className='px-4 lg:px-6 py-2 lg:py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs lg:text-sm font-semibold rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center space-x-2'
+                  className='px-3 py-1.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-medium rounded-md hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-1.5'
                 >
                   {deferredPrompt ? (
-                    <Zap className='w-3.5 h-3.5 lg:w-4 lg:h-4' />
+                    <Zap className='w-3.5 h-3.5' />
                   ) : (
-                    <Download className='w-3.5 h-3.5 lg:w-4 lg:h-4' />
+                    <Download className='w-3.5 h-3.5' />
                   )}
                   <span>
                     {deferredPrompt ? 'Install Now' : 'How to Install'}
                   </span>
                 </button>
 
-                <div className='flex space-x-2'>
-                  <button
-                    onClick={() => handleDismiss(false)}
-                    className='flex-1 sm:flex-none px-3 lg:px-4 py-2 lg:py-2.5 bg-gray-100 text-gray-600 text-xs lg:text-sm font-medium rounded-lg hover:bg-gray-200 transition-all duration-200'
-                  >
-                    Later
-                  </button>
+                <button
+                  onClick={() => handleDismiss(false)}
+                  className='px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-md hover:bg-gray-200 transition-all duration-200'
+                >
+                  Later
+                </button>
 
-                  <button
-                    onClick={() => handleDismiss(true)}
-                    className='px-2 lg:px-3 py-2 lg:py-2.5 text-gray-400 text-xs hover:text-gray-600 transition-colors'
-                  >
-                    Never
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleDismiss(true)}
+                  className='px-2 py-1.5 text-gray-400 text-xs hover:text-gray-600 transition-colors'
+                >
+                  Never
+                </button>
               </motion.div>
             </div>
 
@@ -521,9 +520,9 @@ const InstallPrompt = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.4 }}
               onClick={() => handleDismiss(false)}
-              className='p-1.5 lg:p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0 group'
+              className='p-1 hover:bg-gray-100 rounded-md transition-colors flex-shrink-0 group'
             >
-              <X className='w-3.5 h-3.5 lg:w-4 lg:h-4 text-gray-400 group-hover:text-gray-600' />
+              <X className='w-4 h-4 text-gray-400 group-hover:text-gray-600' />
             </motion.button>
           </div>
 
@@ -537,12 +536,15 @@ const InstallPrompt = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className='mt-3 lg:mt-4 pt-3 lg:pt-4 border-t border-gray-100'
+            className='mt-3 pt-3 border-t border-gray-100'
           >
             <div className='flex items-center justify-between text-xs text-gray-500'>
               <span>Browser: {browserInfo.name}</span>
               {isPWAReady && (
-                <span className='text-green-600 font-medium'>✓ PWA Ready</span>
+                <div className='flex items-center gap-1'>
+                  <div className='w-1.5 h-1.5 bg-green-500 rounded-full'></div>
+                  <span className='text-green-600 font-medium'>PWA Ready</span>
+                </div>
               )}
             </div>
           </motion.div>

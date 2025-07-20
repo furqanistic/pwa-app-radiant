@@ -1,10 +1,11 @@
+// server/controller/location.js
 import { createError } from '../error.js'
 import Location from '../models/Location.js'
 
 // Create a new location
 export const createLocation = async (req, res, next) => {
   try {
-    const { locationId, name, description } = req.body
+    const { locationId, name, description, address, phone } = req.body
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -25,6 +26,8 @@ export const createLocation = async (req, res, next) => {
       locationId: locationId.trim(),
       name: name?.trim() || '',
       description: description?.trim() || '',
+      address: address?.trim() || '',
+      phone: phone?.trim() || '',
       addedBy: req.user.id,
     })
 
@@ -38,6 +41,60 @@ export const createLocation = async (req, res, next) => {
   } catch (error) {
     console.error('Error creating location:', error)
     next(createError(500, 'Failed to create location'))
+  }
+}
+
+// Update a location
+export const updateLocation = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { locationId, name, description, address, phone, isActive } = req.body
+
+    // Check if user has admin permissions
+    if (req.user.role !== 'admin') {
+      return next(createError(403, 'Access denied. Admin rights required.'))
+    }
+
+    const location = await Location.findById(id)
+    if (!location) {
+      return next(createError(404, 'Location not found'))
+    }
+
+    // If updating locationId, check if new one already exists
+    if (locationId && locationId.trim() !== location.locationId) {
+      const existingLocation = await Location.findOne({
+        locationId: locationId.trim(),
+        _id: { $ne: id },
+      })
+      if (existingLocation) {
+        return next(createError(400, 'Location ID already exists'))
+      }
+    }
+
+    // Build update object
+    const updateData = {}
+    if (locationId) updateData.locationId = locationId.trim()
+    if (name !== undefined) updateData.name = name.trim()
+    if (description !== undefined) updateData.description = description.trim()
+    if (address !== undefined) updateData.address = address.trim()
+    if (phone !== undefined) updateData.phone = phone.trim()
+    if (isActive !== undefined) updateData.isActive = isActive
+
+    const updatedLocation = await Location.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    }).populate('addedBy', 'name email')
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Location updated successfully',
+      data: {
+        location: updatedLocation,
+      },
+    })
+  } catch (error) {
+    console.error('Error updating location:', error)
+    next(createError(500, 'Failed to update location'))
   }
 }
 
@@ -112,6 +169,34 @@ export const getActiveLocationIds = async (req, res, next) => {
   }
 }
 
+export const getActiveLocationsForUsers = async (req, res, next) => {
+  try {
+    // Only get active locations with essential info for users
+    const locations = await Location.find({
+      isActive: true,
+      name: { $ne: '', $exists: true, $ne: null }, // Only include locations with names
+    })
+      .select('locationId name address phone') // Only return necessary fields
+      .sort({ name: 1 }) // Sort alphabetically by name
+
+    // Filter out locations without names (extra safety)
+    const validLocations = locations.filter(
+      (location) => location.name && location.name.trim() !== ''
+    )
+
+    res.status(200).json({
+      status: 'success',
+      results: validLocations.length,
+      data: {
+        locations: validLocations,
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching active locations for users:', error)
+    next(createError(500, 'Failed to fetch locations'))
+  }
+}
+
 // Get a single location
 export const getLocation = async (req, res, next) => {
   try {
@@ -140,59 +225,6 @@ export const getLocation = async (req, res, next) => {
   } catch (error) {
     console.error('Error fetching location:', error)
     next(createError(500, 'Failed to fetch location'))
-  }
-}
-
-// Update a location
-export const updateLocation = async (req, res, next) => {
-  try {
-    const { id } = req.params
-    const { locationId, name, description, isActive } = req.body
-
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
-    const location = await Location.findById(id)
-
-    if (!location) {
-      return next(createError(404, 'Location not found'))
-    }
-
-    // If updating locationId, check if new one already exists
-    if (locationId && locationId.trim() !== location.locationId) {
-      const existingLocation = await Location.findOne({
-        locationId: locationId.trim(),
-        _id: { $ne: id },
-      })
-      if (existingLocation) {
-        return next(createError(400, 'Location ID already exists'))
-      }
-    }
-
-    // Build update object
-    const updateData = {}
-    if (locationId) updateData.locationId = locationId.trim()
-    if (name !== undefined) updateData.name = name.trim()
-    if (description !== undefined) updateData.description = description.trim()
-    if (isActive !== undefined) updateData.isActive = isActive
-
-    const updatedLocation = await Location.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    }).populate('addedBy', 'name email')
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Location updated successfully',
-      data: {
-        location: updatedLocation,
-      },
-    })
-  } catch (error) {
-    console.error('Error updating location:', error)
-    next(createError(500, 'Failed to update location'))
   }
 }
 

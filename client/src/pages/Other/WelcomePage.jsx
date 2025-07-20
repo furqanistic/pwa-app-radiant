@@ -1,6 +1,12 @@
+// client/src/pages/Other/WelcomePage.jsx
+import { authService } from '@/services/authService'
+import { locationService } from '@/services/locationService'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight,
+  Award,
+  CheckCircle,
   ChevronDown,
   Gift,
   Heart,
@@ -11,101 +17,6 @@ import {
   Users,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-
-// Updated spa data object as provided
-const spaData = [
-  {
-    id: 1,
-    name: 'Avous Med Spa & Wellness',
-    location: '10501 6 Mile Cypress Parkway Suite 110',
-    phone: '+12393554769',
-    link: 'https://avousmedspa.com',
-  },
-  {
-    id: 2,
-    name: 'Body Smoking Spa',
-    location: '15020 14st NW',
-    phone: '+12345678900',
-    link: 'https://bodysmokingspa.com',
-  },
-  {
-    id: 3,
-    name: 'Derma Lesions Medispa',
-    location: '3333 8 St SE Calgary',
-    phone: '+15874334726',
-    link: 'https://dermalesionsmedispa.com',
-  },
-  {
-    id: 4,
-    name: 'Joy Core Connection',
-    location: '20 Kingswood Drive',
-    phone: '+12899287292',
-    link: 'https://joycoreconnection.com',
-  },
-  {
-    id: 5,
-    name: 'Lux Solaris Per Aquam',
-    location: '7446 Oakmont Boulevard',
-    phone: '+16823069099',
-    link: 'https://luxsolaris.com',
-  },
-  {
-    id: 6,
-    name: 'Nano Beauty Star',
-    location: '555 6th St #130',
-    phone: '+17788193977',
-    link: 'https://nanobeautystar.com',
-  },
-  {
-    id: 7,
-    name: 'Nisa Medi Spa',
-    location: '2059 98 St NW',
-    phone: '+15874025774',
-    link: 'https://nisamedispa.com',
-  },
-  {
-    id: 8,
-    name: 'RadiantMD',
-    location: '13035 164 Ave',
-    phone: '+17097055747',
-    link: 'https://radiantmd.com',
-  },
-  {
-    id: 9,
-    name: "Relax N' Glow Spa",
-    location: '54 Marchwood Crescent',
-    phone: '+19055502604',
-    link: 'https://relaxnglowspa.com',
-  },
-  {
-    id: 10,
-    name: 'SKNN Medical Aesthetics',
-    location: '1029 17 Ave SW Suite 201, Calgary, AB T2T 0A9',
-    phone: '+14036881485',
-    link: 'https://sknnmedical.com',
-  },
-  {
-    id: 11,
-    name: 'The Beauty Rezort',
-    location: '102 Lakeshore Road East',
-    phone: '+16478382562',
-    link: 'https://thebeautyrezort.com',
-  },
-  {
-    id: 12,
-    name: 'Urban Touch Halo Wellness',
-    location: '323 McLeod Avenue Unit #204',
-    phone: '+15875708865',
-    link: 'https://urbantouchhalo.com',
-  },
-  {
-    id: 13,
-    name: 'Why Knot! Massage & Wellness',
-    location: '2212 4th Street SW',
-    phone: '+14032700854',
-    link: 'https://whyknot-wellness.com',
-  },
-]
 
 const GradientText = ({ children, className = '' }) => (
   <span
@@ -267,7 +178,7 @@ const EmojiConfetti = ({ delay = 0, emoji = '🎉' }) => {
 const CelebrationEffect = ({ show, onComplete }) => {
   useEffect(() => {
     if (show) {
-      const timer = setTimeout(onComplete, 4500) // Slightly shorter for mobile
+      const timer = setTimeout(onComplete, 5000) // Increased to 5 seconds for full animation
       return () => clearTimeout(timer)
     }
   }, [show, onComplete])
@@ -513,7 +424,7 @@ const CelebrationEffect = ({ show, onComplete }) => {
                 }}
                 transition={{ duration: 2, repeat: Infinity }}
               >
-                🎊 Congratulations! 🎊
+                🎊 Welcome to Your Spa! 🎊
               </motion.span>
             </motion.h3>
 
@@ -536,7 +447,7 @@ const CelebrationEffect = ({ show, onComplete }) => {
                   ease: 'easeInOut',
                 }}
               >
-                +100 Points!
+                🎉 Congratulations! 🎉
               </motion.div>
 
               <motion.p
@@ -561,7 +472,7 @@ const CelebrationEffect = ({ show, onComplete }) => {
                   backgroundSize: '200% 200%',
                 }}
               >
-                +100 Points!
+                🎉 Congratulations! 🎉
               </motion.p>
 
               {/* Mobile-optimized emoji row */}
@@ -613,16 +524,17 @@ const CelebrationEffect = ({ show, onComplete }) => {
   )
 }
 
-const SpaDropdown = ({ spas, onSelect }) => {
+const SpaDropdown = ({ spas, onSelect, isLoading, error }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSpa, setSelectedSpa] = useState(null)
 
-  const filteredSpas = spas.filter(
-    (spa) =>
-      spa.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      spa.location.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredSpas =
+    spas?.filter(
+      (spa) =>
+        spa.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        spa.location.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || []
 
   const handleSelect = (spa) => {
     setSelectedSpa(spa)
@@ -631,36 +543,81 @@ const SpaDropdown = ({ spas, onSelect }) => {
     onSelect(spa)
   }
 
+  // Loading Skeleton Component
+  const LoadingSkeleton = () => (
+    <div className='animate-pulse flex items-center space-x-3 flex-1 min-w-0'>
+      <div className='w-5 h-5 bg-gray-200 rounded-full flex-shrink-0'></div>
+      <div className='flex-1 min-w-0'>
+        <div className='h-4 bg-gray-200 rounded-md w-3/4 mb-2'></div>
+        <div className='h-3 bg-gray-100 rounded-md w-1/2'></div>
+      </div>
+    </div>
+  )
+
+  // Loading Spinner Component
+  const LoadingSpinner = () => (
+    <motion.div
+      className='w-5 h-5 border-2 border-pink-200 border-t-pink-500 rounded-full flex-shrink-0'
+      animate={{ rotate: 360 }}
+      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+    />
+  )
+
+  if (error) {
+    return (
+      <div className='w-full px-4 py-4 bg-red-50 border border-red-200 rounded-xl text-center'>
+        <p className='text-red-600 text-sm'>
+          Error loading spas. Please try again.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className='w-full relative'>
       <motion.button
-        className='w-full px-4 py-4 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-xl shadow-sm flex items-center justify-between group hover:shadow-md transition-all active:scale-[0.98] min-h-[56px]'
-        onClick={() => setIsOpen(!isOpen)}
-        whileTap={{ scale: 0.98 }}
+        className={`w-full px-4 py-4 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-xl shadow-sm flex items-center justify-between group hover:shadow-md transition-all active:scale-[0.98] min-h-[56px] ${
+          isLoading ? 'cursor-default' : 'cursor-pointer'
+        }`}
+        onClick={() => !isLoading && setIsOpen(!isOpen)}
+        whileTap={!isLoading ? { scale: 0.98 } : {}}
+        disabled={isLoading}
       >
-        <div className='flex items-center space-x-3 flex-1 min-w-0'>
-          <Search className='w-5 h-5 text-pink-500 flex-shrink-0' />
-          <div className='flex-1 min-w-0 text-left'>
-            <span className='text-gray-800 font-medium text-base block truncate leading-tight'>
-              {selectedSpa ? selectedSpa.name : 'Select your spa'}
-            </span>
-            {selectedSpa && (
-              <span className='text-sm text-gray-500 truncate block mt-1 leading-tight'>
-                {selectedSpa.location}
+        {isLoading ? (
+          <LoadingSkeleton />
+        ) : (
+          <div className='flex items-center space-x-3 flex-1 min-w-0'>
+            <Search className='w-5 h-5 text-pink-500 flex-shrink-0' />
+            <div className='flex-1 min-w-0 text-left'>
+              <span className='text-gray-800 font-medium text-base block truncate leading-tight'>
+                {selectedSpa ? selectedSpa.name : 'Select your spa'}
               </span>
-            )}
+              {selectedSpa && (
+                <span className='text-sm text-gray-500 truncate block mt-1 leading-tight'>
+                  {selectedSpa.location}
+                </span>
+              )}
+            </div>
           </div>
+        )}
+
+        <div className='flex items-center space-x-2'>
+          {isLoading && <LoadingSpinner />}
+          <motion.div
+            animate={{ rotate: isOpen ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ChevronDown
+              className={`w-5 h-5 ${
+                isLoading ? 'text-gray-300' : 'text-gray-400'
+              }`}
+            />
+          </motion.div>
         </div>
-        <motion.div
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <ChevronDown className='w-5 h-5 text-gray-400' />
-        </motion.div>
       </motion.button>
 
       <AnimatePresence>
-        {isOpen && (
+        {isOpen && !isLoading && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -732,7 +689,7 @@ const ReferralInput = ({ onSubmit }) => {
   return (
     <div className='mb-6'>
       <motion.button
-        className='w-full px-4 py-5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl flex items-center justify-center space-x-3 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 transition-all active:scale-[0.98] min-h-[56px]' // Minimum 56px touch target
+        className='w-full px-4 py-5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl flex items-center justify-center space-x-3 text-indigo-700 hover:from-indigo-100 hover:to-purple-100 transition-all active:scale-[0.98] min-h-[56px]'
         onClick={() => setIsExpanded(!isExpanded)}
         whileTap={{ scale: 0.98 }}
       >
@@ -750,20 +707,18 @@ const ReferralInput = ({ onSubmit }) => {
             className='mt-3 p-4 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-xl'
           >
             <div className='flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-3'>
-              {' '}
-              {/* Stack on mobile, row on larger screens */}
               <input
                 type='text'
                 placeholder='Enter referral code'
                 value={referralCode}
                 onChange={(e) => setReferralCode(e.target.value)}
-                className='flex-1 px-4 py-4 bg-gray-50/80 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent text-base min-h-[48px]' // Minimum 48px touch target
+                className='flex-1 px-4 py-4 bg-gray-50/80 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent text-base min-h-[48px]'
                 onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
               />
               <button
                 onClick={handleSubmit}
                 disabled={!referralCode.trim()}
-                className='px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all min-h-[48px] sm:min-w-[100px]' // Minimum touch target with min width on larger screens
+                className='px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all min-h-[48px] sm:min-w-[100px]'
               >
                 Apply
               </button>
@@ -782,23 +737,141 @@ const WelcomePage = () => {
   const [selectedSpa, setSelectedSpa] = useState(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationComplete, setCelebrationComplete] = useState(false)
+  const [referralCode, setReferralCode] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSpaSelect = (spa) => {
+  const queryClient = useQueryClient()
+
+  // Fetch active locations using React Query
+  const {
+    data: locationsData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['active-locations'],
+    queryFn: locationService.getActiveLocations,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+    retry: 2,
+    onError: (error) => {
+      console.error('Error fetching locations:', error)
+    },
+  })
+
+  // Check onboarding status
+  const { data: onboardingData } = useQuery({
+    queryKey: ['onboarding-status'],
+    queryFn: authService.getOnboardingStatus,
+    retry: 1,
+    enabled: !showCelebration, // Don't check while celebration is running
+  })
+
+  // Spa selection mutation
+  const spaSelectionMutation = useMutation({
+    mutationFn: ({ locationId, referralCode }) =>
+      authService.selectSpa(locationId, referralCode),
+    onSuccess: (data) => {
+      console.log('Spa selection successful:', data)
+      setShowCelebration(true)
+      setCelebrationComplete(false)
+
+      // Don't invalidate queries during celebration to prevent redirects
+      // queryClient.invalidateQueries(['onboarding-status'])
+      // queryClient.invalidateQueries(['current-user'])
+    },
+    onError: (error) => {
+      console.error('Spa selection error:', error)
+      alert(error.response?.data?.message || 'Failed to select spa')
+    },
+  })
+
+  // Transform the API data to match the component's expected format
+  const spas = React.useMemo(() => {
+    if (!locationsData?.data?.locations) return []
+
+    return locationsData.data.locations
+      .filter((location) => location.name && location.name.trim()) // Filter out locations without names
+      .map((location, index) => ({
+        id: location._id || index + 1,
+        name: location.name,
+        location: location.address || 'Address not available',
+        phone: location.phone || '',
+        locationId: location.locationId, // This is the GHL location ID
+      }))
+  }, [locationsData])
+
+  // Redirect if user has already selected spa (but not during celebration)
+  useEffect(() => {
+    if (
+      onboardingData?.data?.onboardingStatus?.hasSelectedSpa &&
+      !showCelebration &&
+      !celebrationComplete
+    ) {
+      console.log('User has already selected spa, redirecting to dashboard...')
+      window.location.href = '/dashboard'
+    }
+  }, [onboardingData, showCelebration, celebrationComplete])
+
+  const handleSpaSelect = async (spa) => {
+    if (isSubmitting) return
+
     setSelectedSpa(spa)
-    setShowCelebration(true)
-    setCelebrationComplete(false)
-    console.log('Selected spa:', spa)
+    setIsSubmitting(true)
+
+    try {
+      await spaSelectionMutation.mutateAsync({
+        locationId: spa.locationId,
+        referralCode: referralCode || null,
+      })
+    } catch (error) {
+      console.error('Error selecting spa:', error)
+      setSelectedSpa(null)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleCelebrationComplete = () => {
     setShowCelebration(false)
     setCelebrationComplete(true)
+    // Now invalidate queries after celebration is complete
+    queryClient.invalidateQueries(['onboarding-status'])
+    queryClient.invalidateQueries(['current-user'])
+  }
+
+  const handleContinueToDashboard = () => {
+    // Only redirect when user explicitly clicks continue
+    window.location.href = '/dashboard'
   }
 
   const handleReferralSubmit = (code) => {
-    console.log('Referral code submitted:', code)
-    // Add your referral code logic here
-    alert(`Referral code "${code}" applied successfully! 🎉`)
+    setReferralCode(code)
+    console.log('Referral code set:', code)
+  }
+
+  // Show error state if there's an authentication error
+  if (error?.response?.status === 401 || error?.response?.status === 403) {
+    return (
+      <div className='min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center px-4'>
+        <div className='max-w-sm mx-auto text-center'>
+          <div className='bg-white/90 backdrop-blur-sm border border-red-200 rounded-xl p-6'>
+            <h2 className='text-lg font-semibold text-red-600 mb-2'>
+              Access Required
+            </h2>
+            <p className='text-sm text-gray-600 mb-4'>
+              You need to be logged in to view available spas.
+            </p>
+            <button
+              onClick={() => (window.location.href = '/login')}
+              className='w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-medium rounded-lg'
+            >
+              Go to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -820,13 +893,9 @@ const WelcomePage = () => {
       {/* Main Content */}
       <div className='relative z-10 flex-1 px-4 py-6'>
         <div className='max-w-sm mx-auto'>
-          {' '}
-          {/* Narrower max width for mobile */}
           {/* Header - mobile-optimized */}
           <div className='text-center mb-8'>
             <h1 className='text-2xl font-bold mb-3 leading-tight'>
-              {' '}
-              {/* Smaller on mobile */}
               Welcome to <GradientText>RadiantAI</GradientText>
             </h1>
             <p className='text-base text-gray-600 mb-4 leading-relaxed'>
@@ -843,16 +912,34 @@ const WelcomePage = () => {
               </div>
             </div>
           </div>
+
           {/* Referral Code Input */}
           <ReferralInput onSubmit={handleReferralSubmit} />
+
           {/* Spa Selection */}
           <div className='mb-8'>
             <h2 className='text-xl font-semibold text-gray-800 mb-4 text-center leading-tight'>
               Choose Your <GradientText>Spa</GradientText>
             </h2>
-            <SpaDropdown spas={spaData} onSelect={handleSpaSelect} />
+            <SpaDropdown
+              spas={spas}
+              onSelect={handleSpaSelect}
+              isLoading={isLoading || isSubmitting}
+              error={error}
+            />
+
+            {/* Retry button if there's an error */}
+            {error && !isLoading && (
+              <button
+                onClick={() => refetch()}
+                className='w-full mt-2 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors'
+              >
+                Tap to retry
+              </button>
+            )}
           </div>
-          {/* Selected Spa - mobile-optimized */}
+
+          {/* Success Card with Continue Button */}
           <AnimatePresence>
             {selectedSpa && celebrationComplete && (
               <motion.div
@@ -861,29 +948,63 @@ const WelcomePage = () => {
                 exit={{ opacity: 0, y: 20 }}
                 className='bg-white/90 backdrop-blur-sm border border-gray-200 rounded-xl p-5 text-center shadow-sm'
               >
-                <div className='w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-pink-500 to-purple-500 rounded-lg flex items-center justify-center'>
-                  <Gift className='w-6 h-6 text-white' />
+                <div className='w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center'>
+                  <CheckCircle className='w-6 h-6 text-white' />
                 </div>
                 <h3 className='text-xl font-semibold text-gray-800 mb-2 leading-tight'>
-                  You earned 100 points! 🎉
+                  🎉 Successfully Joined!
                 </h3>
                 <p className='text-base text-gray-600 mb-2 leading-tight'>
-                  <span className='font-medium text-pink-600'>
+                  <span className='font-medium text-green-600'>
                     {selectedSpa.name}
                   </span>
                 </p>
-                <p className='text-sm text-gray-500 mb-6 leading-relaxed'>
+                <p className='text-sm text-gray-500 mb-4 leading-relaxed'>
                   {selectedSpa.location}
                 </p>
 
-                <button
-                  className='w-full py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-medium rounded-lg text-base active:scale-[0.98] transition-transform min-h-[48px]' // Minimum 48px touch target
-                  onClick={() => {
-                    window.location.href = '/dashboard' // Redirect to dashboard
-                  }}
+                {/* Points Earned Info */}
+                <div className='bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3 mb-4'>
+                  <div className='flex items-center justify-center gap-2 mb-1'>
+                    <Award className='w-4 h-4 text-green-600' />
+                    <span className='text-sm font-semibold text-green-800'>
+                      Points Earned!
+                    </span>
+                  </div>
+                  <p className='text-lg font-bold text-green-700'>
+                    +100 Points
+                  </p>
+                  <p className='text-xs text-green-600'>
+                    Profile completion bonus
+                  </p>
+                </div>
+
+                {/* Show referral success message if applicable */}
+                {referralCode && (
+                  <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'>
+                    <p className='text-sm text-blue-700 font-medium'>
+                      🎊 Referral code applied successfully!
+                    </p>
+                    <p className='text-xs text-blue-600 mt-1'>
+                      You and your referrer both earned bonus points!
+                    </p>
+                  </div>
+                )}
+
+                {/* Continue Button */}
+                <motion.button
+                  onClick={handleContinueToDashboard}
+                  className='w-full py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-medium rounded-lg text-base active:scale-[0.98] transition-transform min-h-[48px] shadow-lg hover:shadow-xl'
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  Continue to Dashboard
-                </button>
+                  See My Points
+                </motion.button>
+
+                {/* Additional info */}
+                <p className='text-xs text-gray-400 mt-3'>
+                  Welcome to the spa community! 🌟
+                </p>
               </motion.div>
             )}
           </AnimatePresence>

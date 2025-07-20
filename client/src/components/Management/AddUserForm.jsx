@@ -1,16 +1,29 @@
-import { motion } from 'framer-motion'
+// client/src/components/Management/AddUserForm.jsx
+import { locationService } from '@/services/locationService'
+import { useQuery } from '@tanstack/react-query'
 import {
-  AlertCircle,
   Calendar,
-  Heart,
-  MessageSquare,
+  Check,
+  ChevronsUpDown,
+  Lock,
+  Mail,
+  MapPin,
   Plus,
-  Sparkles,
+  Search,
+  User,
+  Users,
 } from 'lucide-react'
 import React, { useState } from 'react'
 
 // shadcn/ui components
 import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command'
 import {
   Dialog,
   DialogContent,
@@ -20,16 +33,35 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 
 const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
-    spaName: '',
-    spaLink: '',
-    location: '',
-    phoneNumber: '',
+    name: '',
+    email: '',
+    dateOfBirth: '',
+    password: '',
+    assignedLocation: '', // New field for location
   })
   const [errors, setErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [locationOpen, setLocationOpen] = useState(false)
+
+  // Fetch locations for dropdown
+  const {
+    data: locations = [],
+    isLoading: isLoadingLocations,
+    error: locationsError,
+  } = useQuery({
+    queryKey: ['locations'],
+    queryFn: () => locationService.getAllLocations(),
+    enabled: isOpen, // Only fetch when dialog is open
+    select: (data) => data?.data?.locations || data?.locations || [],
+  })
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -39,45 +71,44 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     }
   }
 
-  const handleBlur = (field) => {
-    if (field === 'spaLink' && formData.spaLink.trim()) {
-      const radiantAILinkPattern =
-        /^https:\/\/ai\.radiantmdconsulting\.com\/accounts\/detail\/[a-zA-Z0-9]+$/
-      if (!radiantAILinkPattern.test(formData.spaLink.trim())) {
-        setErrors((prev) => ({
-          ...prev,
-          spaLink:
-            'Link must be in format: https://ai.radiantmdconsulting.com/accounts/detail/[AccountID]',
-        }))
-      }
-    }
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const validatePassword = (password) => {
+    // At least 8 characters
+    return password.length >= 8
   }
 
   const validateForm = () => {
     const newErrors = {}
 
-    if (!formData.spaName.trim()) newErrors.spaName = 'SPA name is required'
-    if (!formData.spaLink.trim()) newErrors.spaLink = 'SPA link is required'
-    if (!formData.location.trim()) newErrors.location = 'Location is required'
-    if (!formData.phoneNumber.trim())
-      newErrors.phoneNumber = 'Phone number is required'
-
-    // Validate RadiantAI link format
-    if (formData.spaLink && formData.spaLink.trim()) {
-      const radiantAILinkPattern =
-        /^https:\/\/ai\.radiantmdconsulting\.com\/accounts\/detail\/[a-zA-Z0-9]+$/
-      if (!radiantAILinkPattern.test(formData.spaLink.trim())) {
-        newErrors.spaLink =
-          'Link must be in format: https://ai.radiantmdconsulting.com/accounts/detail/[AccountID]'
-      }
+    if (!formData.name.trim()) newErrors.name = 'Full name is required'
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email address is required'
+    } else if (!validateEmail(formData.email.trim())) {
+      newErrors.email = 'Please enter a valid email address'
     }
 
-    // Validate phone number format
-    if (
-      formData.phoneNumber &&
-      !formData.phoneNumber.match(/^[\+]?[1-9][\d\s\-\(\)]{8,}$/)
-    ) {
-      newErrors.phoneNumber = 'Please enter a valid phone number'
+    if (!formData.password) {
+      newErrors.password = 'Password is required'
+    } else if (!validatePassword(formData.password)) {
+      newErrors.password = 'Password must be at least 8 characters long'
+    }
+
+    // Location assignment is optional
+    // if (!formData.assignedLocation) {
+    //   newErrors.assignedLocation = 'Please select a location'
+    // }
+
+    // DOB is optional, but validate format if provided
+    if (formData.dateOfBirth && formData.dateOfBirth.trim()) {
+      const dobDate = new Date(formData.dateOfBirth)
+      const today = new Date()
+      if (dobDate >= today) {
+        newErrors.dateOfBirth = 'Date of birth must be in the past'
+      }
     }
 
     setErrors(newErrors)
@@ -92,22 +123,51 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     setIsSubmitting(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Prepare data for signup endpoint
+      const signupData = {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        role: 'team', // Set role to team
+        // Add location assignment if selected
+        ...(formData.assignedLocation && {
+          assignedLocation: formData.assignedLocation,
+        }),
+        // Note: You'll need to add dateOfBirth to your User schema if you want to store it
+        ...(formData.dateOfBirth && { dateOfBirth: formData.dateOfBirth }),
+      }
 
       // Call the onSubmit callback with form data
       if (onSubmit) {
-        onSubmit(formData)
+        await onSubmit(signupData)
       }
 
-      console.log('Adding new SPA user:', formData)
+      console.log('Creating new team user:', signupData)
 
       // Reset form
-      setFormData({ spaName: '', spaLink: '', location: '', phoneNumber: '' })
+      setFormData({
+        name: '',
+        email: '',
+        dateOfBirth: '',
+        password: '',
+        assignedLocation: '',
+      })
       setErrors({})
       onClose()
     } catch (error) {
-      console.error('Error adding user:', error)
+      console.error('Error creating user:', error)
+      // Handle specific error cases
+      if (error.response?.data?.message) {
+        if (error.response.data.message.includes('email already exists')) {
+          setErrors({ email: 'This email address is already registered' })
+        } else {
+          setErrors({ general: error.response.data.message })
+        }
+      } else {
+        setErrors({
+          general: 'An unexpected error occurred. Please try again.',
+        })
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -115,11 +175,22 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
 
   const handleClose = () => {
     if (!isSubmitting) {
-      setFormData({ spaName: '', spaLink: '', location: '', phoneNumber: '' })
+      setFormData({
+        name: '',
+        email: '',
+        dateOfBirth: '',
+        password: '',
+        assignedLocation: '',
+      })
       setErrors({})
       onClose()
     }
   }
+
+  // Get selected location name for display
+  const selectedLocation = locations.find(
+    (loc) => loc._id === formData.assignedLocation
+  )
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -129,187 +200,255 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
             <div className='w-8 h-8 bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg flex items-center justify-center'>
               <Plus className='w-4 h-4 text-white' />
             </div>
-            Add New Sub-Account
+            Add New Team Member
           </DialogTitle>
           <DialogDescription>
-            Create a new user account for a spa or beauty clinic
+            Create a new team user account with access to the platform
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-6 py-4'>
-          {/* SPA Name */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className='space-y-2'
-          >
-            <Label
-              htmlFor='spaName'
-              className='text-sm font-medium text-gray-700'
-            >
-              SPA Name *
-            </Label>
-            <div className='relative'>
-              <Input
-                id='spaName'
-                type='text'
-                value={formData.spaName}
-                onChange={(e) => handleInputChange('spaName', e.target.value)}
-                placeholder='Enter SPA or clinic name...'
-                className={`pl-10 transition-all ${
-                  errors.spaName
-                    ? 'border-red-300 focus:border-red-500'
-                    : 'focus:border-purple-400'
-                }`}
-                disabled={isSubmitting}
-              />
-              <Heart className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+          {/* General Error */}
+          {errors.general && (
+            <div className='p-3 bg-red-50 border border-red-200 rounded-lg'>
+              <p className='text-sm text-red-600'>{errors.general}</p>
             </div>
-            {errors.spaName && (
-              <motion.p
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className='text-sm text-red-600 flex items-center gap-1'
-              >
-                {errors.spaName}
-              </motion.p>
-            )}
-          </motion.div>
+          )}
 
-          {/* SPA Link */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className='space-y-2'
-          >
-            <Label
-              htmlFor='spaLink'
-              className='text-sm font-medium text-gray-700'
-            >
-              RadiantAI Account Link *
+          {/* Full Name */}
+          <div className='space-y-2'>
+            <Label htmlFor='name' className='text-sm font-medium text-gray-700'>
+              Full Name *
             </Label>
             <div className='relative'>
               <Input
-                id='spaLink'
-                type='url'
-                value={formData.spaLink}
-                onChange={(e) => handleInputChange('spaLink', e.target.value)}
-                onBlur={() => handleBlur('spaLink')}
-                placeholder='https://ai.radiantmdconsulting.com/accounts/detail/[AccountID]'
+                id='name'
+                type='text'
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                placeholder='Enter full name...'
                 className={`pl-10 transition-all ${
-                  errors.spaLink
+                  errors.name
                     ? 'border-red-300 focus:border-red-500'
                     : 'focus:border-purple-400'
                 }`}
                 disabled={isSubmitting}
               />
-              <Sparkles className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+              <User className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
             </div>
-            {errors.spaLink && (
-              <motion.p
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className='text-sm text-red-600 flex items-center gap-1'
-              >
-                {errors.spaLink}
-              </motion.p>
+            {errors.name && (
+              <p className='text-sm text-red-600 flex items-center gap-1'>
+                {errors.name}
+              </p>
+            )}
+          </div>
+
+          {/* Email Address */}
+          <div className='space-y-2'>
+            <Label
+              htmlFor='email'
+              className='text-sm font-medium text-gray-700'
+            >
+              Email Address *
+            </Label>
+            <div className='relative'>
+              <Input
+                id='email'
+                type='email'
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
+                placeholder='Enter email address...'
+                className={`pl-10 transition-all ${
+                  errors.email
+                    ? 'border-red-300 focus:border-red-500'
+                    : 'focus:border-purple-400'
+                }`}
+                disabled={isSubmitting}
+              />
+              <Mail className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+            </div>
+            {errors.email && (
+              <p className='text-sm text-red-600 flex items-center gap-1'>
+                {errors.email}
+              </p>
+            )}
+          </div>
+
+          {/* Assign Location */}
+          <div className='space-y-2'>
+            <Label className='text-sm font-medium text-gray-700'>
+              Assign Location
+            </Label>
+            <Popover open={locationOpen} onOpenChange={setLocationOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant='outline'
+                  role='combobox'
+                  aria-expanded={locationOpen}
+                  className={`w-full justify-between pl-10 ${
+                    errors.assignedLocation
+                      ? 'border-red-300 focus:border-red-500'
+                      : 'focus:border-purple-400'
+                  }`}
+                  disabled={isSubmitting || isLoadingLocations}
+                >
+                  <div className='flex items-center gap-2 flex-1 text-left'>
+                    <span className='ml-6'>
+                      {selectedLocation
+                        ? selectedLocation.name || selectedLocation.locationId
+                        : isLoadingLocations
+                        ? 'Loading locations...'
+                        : 'Select location...'}
+                    </span>
+                  </div>
+                  <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className='w-full p-0'>
+                <Command>
+                  <CommandInput
+                    placeholder='Search locations...'
+                    className='h-9'
+                  />
+                  <CommandEmpty>
+                    {locationsError
+                      ? 'Error loading locations'
+                      : 'No locations found.'}
+                  </CommandEmpty>
+                  <CommandGroup className='max-h-64 overflow-y-auto'>
+                    {/* Clear selection option */}
+                    <CommandItem
+                      onSelect={() => {
+                        handleInputChange('assignedLocation', '')
+                        setLocationOpen(false)
+                      }}
+                      className='text-gray-500'
+                    >
+                      <div className='flex items-center gap-2 w-full'>
+                        <div className='w-4 h-4'></div>
+                        <span>No location assigned</span>
+                      </div>
+                    </CommandItem>
+
+                    {/* Location options */}
+                    {locations.map((location) => (
+                      <CommandItem
+                        key={location._id}
+                        onSelect={() => {
+                          handleInputChange('assignedLocation', location._id)
+                          setLocationOpen(false)
+                        }}
+                      >
+                        <div className='flex items-center gap-2 w-full'>
+                          <Check
+                            className={`h-4 w-4 ${
+                              formData.assignedLocation === location._id
+                                ? 'opacity-100'
+                                : 'opacity-0'
+                            }`}
+                          />
+                          <div className='flex flex-col flex-1'>
+                            <span className='font-medium'>
+                              {location.name || 'Unnamed Location'}
+                            </span>
+                            <span className='text-xs text-gray-500'>
+                              ID: {location.locationId}
+                            </span>
+                            {location.address && (
+                              <span className='text-xs text-gray-400'>
+                                {location.address}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {errors.assignedLocation && (
+              <p className='text-sm text-red-600 flex items-center gap-1'>
+                {errors.assignedLocation}
+              </p>
             )}
             <p className='text-xs text-gray-500'>
-              Must be a valid RadiantAI account detail link
+              Optional - assign user to a specific spa location
             </p>
-          </motion.div>
+          </div>
 
-          {/* Location */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className='space-y-2'
-          >
+          {/* Date of Birth */}
+          <div className='space-y-2'>
             <Label
-              htmlFor='location'
+              htmlFor='dateOfBirth'
               className='text-sm font-medium text-gray-700'
             >
-              Location *
+              Date of Birth
             </Label>
             <div className='relative'>
               <Input
-                id='location'
-                type='text'
-                value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                placeholder='City, State/Province, Country'
+                id='dateOfBirth'
+                type='date'
+                value={formData.dateOfBirth}
+                onChange={(e) =>
+                  handleInputChange('dateOfBirth', e.target.value)
+                }
                 className={`pl-10 transition-all ${
-                  errors.location
+                  errors.dateOfBirth
                     ? 'border-red-300 focus:border-red-500'
                     : 'focus:border-purple-400'
                 }`}
                 disabled={isSubmitting}
+                max={new Date().toISOString().split('T')[0]} // Prevent future dates
               />
               <Calendar className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
             </div>
-            {errors.location && (
-              <motion.p
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className='text-sm text-red-600 flex items-center gap-1'
-              >
-                {errors.location}
-              </motion.p>
+            {errors.dateOfBirth && (
+              <p className='text-sm text-red-600 flex items-center gap-1'>
+                {errors.dateOfBirth}
+              </p>
             )}
-          </motion.div>
+            <p className='text-xs text-gray-500'>
+              Optional - used for age verification and personalization
+            </p>
+          </div>
 
-          {/* Phone Number */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className='space-y-2'
-          >
+          {/* Password */}
+          <div className='space-y-2'>
             <Label
-              htmlFor='phoneNumber'
+              htmlFor='password'
               className='text-sm font-medium text-gray-700'
             >
-              Phone Number *
+              Password *
             </Label>
             <div className='relative'>
               <Input
-                id='phoneNumber'
-                type='tel'
-                value={formData.phoneNumber}
-                onChange={(e) =>
-                  handleInputChange('phoneNumber', e.target.value)
-                }
-                placeholder='+1 (555) 123-4567'
+                id='password'
+                type='password'
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                placeholder='Enter password...'
                 className={`pl-10 transition-all ${
-                  errors.phoneNumber
+                  errors.password
                     ? 'border-red-300 focus:border-red-500'
                     : 'focus:border-purple-400'
                 }`}
                 disabled={isSubmitting}
               />
-              <MessageSquare className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+              <Lock className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
             </div>
-            {errors.phoneNumber && (
-              <motion.p
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className='text-sm text-red-600 flex items-center gap-1'
-              >
-                {errors.phoneNumber}
-              </motion.p>
+            {errors.password && (
+              <p className='text-sm text-red-600 flex items-center gap-1'>
+                {errors.password}
+              </p>
             )}
-          </motion.div>
+            <p className='text-xs text-gray-500'>
+              Must be at least 8 characters long
+            </p>
+          </div>
 
           {/* Form Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className='flex flex-col sm:flex-row gap-3 pt-4'
-          >
+          <div className='flex flex-col sm:flex-row gap-3 pt-4'>
             <Button
               type='button'
               variant='outline'
@@ -333,32 +472,34 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
               ) : (
                 <div className='flex items-center gap-2'>
                   <Plus className='w-4 h-4' />
-                  Create Sub-Account
+                  Create Team Member
                 </div>
               )}
             </Button>
-          </motion.div>
+          </div>
         </div>
 
         {/* Info Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className='mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100'
-        >
+        <div className='mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100'>
           <div className='flex items-start gap-3'>
+            <Users className='w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0' />
             <div>
               <h4 className='font-medium text-gray-900 mb-1'>
-                RadiantAI Integration
+                Team Member Access
               </h4>
               <p className='text-sm text-gray-600'>
-                This will create a new SPA user account with access to
-                RadiantAI's client management and loyalty features.
+                This will create a new team member account with team-level
+                permissions.{' '}
+                {selectedLocation && (
+                  <span className='font-medium'>
+                    User will be assigned to{' '}
+                    {selectedLocation.name || selectedLocation.locationId}.
+                  </span>
+                )}
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </DialogContent>
     </Dialog>
   )

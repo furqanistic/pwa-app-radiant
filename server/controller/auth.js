@@ -1,7 +1,10 @@
+// server/controller/auth.js
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
 import { createError } from '../error.js'
+import Location from '../models/Location.js'
 import User from '../models/User.js'
+import { createSystemNotification } from './notification.js'
 
 const signToken = (id) => {
   const jwtSecret = process.env.JWT_SECRET
@@ -45,360 +48,18 @@ const createSendToken = (user, statusCode, res) => {
   }
 }
 
-// GHL Integration Functions
-const createGHLContact = async (userData) => {
-  try {
-    if (!process.env.GHL_API_KEY) {
-      console.log('GHL_API_KEY not found, skipping GHL contact creation')
-      return { success: false, error: 'GHL not configured' }
-    }
-
-    const response = await axios.post(
-      'https://rest.gohighlevel.com/v1/contacts/',
-      {
-        firstName: userData.name?.split(' ')[0] || '',
-        lastName: userData.name?.split(' ').slice(1).join(' ') || '',
-        email: userData.email,
-        phone: userData.phone || '',
-        tags: ['app-signup'],
-        customField: [
-          {
-            key: 'signup_date',
-            value: new Date().toISOString(),
-          },
-          {
-            key: 'user_role',
-            value: userData.role || 'user',
-          },
-          {
-            key: 'auth_provider',
-            value: userData.authProvider || 'local',
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.GHL_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    console.log('✅ GHL contact created:', response.data.contact.id)
-    return { success: true, contact: response.data.contact }
-  } catch (error) {
-    console.log(
-      '❌ GHL contact creation failed:',
-      error.response?.data || error.message
-    )
-    return { success: false, error: error.message }
-  }
-}
-
-// Your location IDs - you can also store these in environment variables
-const LOCATION_IDS = [
-  'j3BAQnPNZywbuAE3QCCh',
-  '1bVLUidpHGoOWAuh9iZ9',
-  'cZENg6Hg9c94tkUzWTcX',
-  // Add more location IDs as needed
-]
-
-// Helper function to get location IDs from environment or constant
-const getLocationIds = () => {
-  // Check if location IDs are in environment variables (comma-separated)
-  if (process.env.GHL_LOCATION_IDS) {
-    return process.env.GHL_LOCATION_IDS.split(',').map((id) => id.trim())
-  }
-  // Fall back to constant array
-  return LOCATION_IDS
-}
-
-// NEW: Get all GHL subaccounts/locations using individual location calls
-export const getGHLSubaccounts = async (req, res, next) => {
-  try {
-    if (!process.env.GHL_API_KEY) {
-      return next(createError(500, 'GHL API key not configured'))
-    }
-
-    // Check if user has admin permissions to view subaccounts
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
-    const locationIds = getLocationIds()
-
-    if (locationIds.length === 0) {
-      return next(
-        createError(
-          400,
-          'No location IDs configured. Please add GHL_LOCATION_IDS to environment variables.'
-        )
-      )
-    }
-
-    console.log(`📍 Fetching details for ${locationIds.length} locations...`)
-
-    // Fetch details for each location
-    const locationPromises = locationIds.map(async (locationId) => {
-      try {
-        const response = await axios.get(
-          `https://rest.gohighlevel.com/v1/locations/${locationId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.GHL_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        )
-
-        const location = response.data.location
-        return {
-          id: location.id,
-          name: location.name,
-          address: location.address,
-          city: location.city,
-          state: location.state,
-          country: location.country,
-          phone: location.phone,
-          email: location.email,
-          website: location.website,
-          timezone: location.timezone,
-          status: location.status || 'active',
-          createdAt: location.dateAdded,
-          updatedAt: location.dateUpdated,
-          success: true,
-        }
-      } catch (locationError) {
-        console.error(
-          `❌ Failed to fetch location ${locationId}:`,
-          locationError.response?.data || locationError.message
-        )
-        return {
-          id: locationId,
-          name: 'Unknown Location',
-          error:
-            locationError.response?.data?.message ||
-            'Failed to fetch location details',
-          success: false,
-        }
-      }
-    })
-
-    // Wait for all location requests to complete
-    const locationResults = await Promise.all(locationPromises)
-
-    // Separate successful and failed results
-    const successfulLocations = locationResults.filter((loc) => loc.success)
-    const failedLocations = locationResults.filter((loc) => !loc.success)
-
-    console.log(
-      `✅ Successfully fetched ${successfulLocations.length} locations`
-    )
-    if (failedLocations.length > 0) {
-      console.log(`⚠️  Failed to fetch ${failedLocations.length} locations`)
-    }
-
-    res.status(200).json({
-      status: 'success',
-      results: successfulLocations.length,
-      totalConfigured: locationIds.length,
-      failed: failedLocations.length,
-      data: {
-        locations: successfulLocations,
-        failed: failedLocations.length > 0 ? failedLocations : undefined,
-      },
-    })
-  } catch (error) {
-    console.error(
-      'Error fetching GHL subaccounts:',
-      error.response?.data || error.message
-    )
-
-    if (error.response?.status === 401) {
-      return next(
-        createError(401, 'Invalid GHL API key or unauthorized access')
-      )
-    }
-
-    if (error.response?.status === 403) {
-      return next(
-        createError(
-          403,
-          'GHL API access forbidden. Check your API key permissions.'
-        )
-      )
-    }
-
-    next(createError(500, 'Failed to fetch GHL subaccounts'))
-  }
-}
-
-// NEW: Add a new location ID to track
-export const addLocationId = async (req, res, next) => {
-  try {
-    const { locationId, locationName } = req.body
-
-    if (!locationId) {
-      return next(createError(400, 'Location ID is required'))
-    }
-
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
-    // Test if the location ID is valid by fetching it
-    try {
-      const response = await axios.get(
-        `https://rest.gohighlevel.com/v1/locations/${locationId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.GHL_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      )
-      console.log(response)
-      const location = response.data.location
-
-      res.status(200).json({
-        status: 'success',
-        message: `Location ID ${locationId} is valid and can be added to your configuration`,
-        data: {
-          locationId: location.id,
-          name: location.name,
-          city: location.city,
-          state: location.state,
-          instructions: {
-            method1: `Add '${locationId}' to the LOCATION_IDS array in your auth controller`,
-            method2: `Add to environment variable: GHL_LOCATION_IDS="${locationId},existing_ids..."`,
-          },
-        },
-      })
-    } catch (locationError) {
-      if (locationError.response?.status === 404) {
-        return next(
-          createError(
-            404,
-            `Location ID ${locationId} not found or not accessible`
-          )
-        )
-      }
-
-      return next(
-        createError(
-          400,
-          `Invalid location ID: ${
-            locationError.response?.data?.message || locationError.message
-          }`
-        )
-      )
-    }
-  } catch (error) {
-    console.error('Error validating location ID:', error)
-    next(createError(500, 'Failed to validate location ID'))
-  }
-}
-
-// NEW: Get current configured location IDs
-export const getConfiguredLocationIds = async (req, res, next) => {
-  try {
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
-    const locationIds = getLocationIds()
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        locationIds,
-        count: locationIds.length,
-        source: process.env.GHL_LOCATION_IDS
-          ? 'environment_variable'
-          : 'hardcoded_array',
-        instructions: {
-          addMore:
-            'Use POST /auth/ghl/add-location to validate and get instructions for adding new location IDs',
-          environmentVariable:
-            'Set GHL_LOCATION_IDS="id1,id2,id3" in your .env file to override hardcoded list',
-        },
-      },
-    })
-  } catch (error) {
-    console.error('Error getting configured location IDs:', error)
-    next(createError(500, 'Failed to get configured location IDs'))
-  }
-}
-export const getGHLLocation = async (req, res, next) => {
-  try {
-    const { locationId } = req.params
-
-    if (!process.env.GHL_API_KEY) {
-      return next(createError(500, 'GHL API key not configured'))
-    }
-
-    if (!locationId) {
-      return next(createError(400, 'Location ID is required'))
-    }
-
-    const response = await axios.get(
-      `https://rest.gohighlevel.com/v1/locations/${locationId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.GHL_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    const location = response.data.location
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        location: {
-          id: location.id,
-          name: location.name,
-          address: location.address,
-          city: location.city,
-          state: location.state,
-          country: location.country,
-          phone: location.phone,
-          email: location.email,
-          website: location.website,
-          timezone: location.timezone,
-          status: location.status,
-          settings: location.settings,
-          createdAt: location.dateAdded,
-          updatedAt: location.dateUpdated,
-        },
-      },
-    })
-  } catch (error) {
-    console.error(
-      'Error fetching GHL location:',
-      error.response?.data || error.message
-    )
-
-    if (error.response?.status === 404) {
-      return next(createError(404, 'Location not found'))
-    }
-
-    if (error.response?.status === 401) {
-      return next(
-        createError(401, 'Invalid GHL API key or unauthorized access')
-      )
-    }
-
-    next(createError(500, 'Failed to fetch GHL location details'))
-  }
-}
-
 export const signup = async (req, res, next) => {
   try {
-    const { name, email, password, role, phone } = req.body
+    const {
+      name,
+      email,
+      password,
+      role,
+      phone,
+      referralCode,
+      assignedLocation,
+      dateOfBirth,
+    } = req.body
 
     // Check if all required fields are provided
     if (!name || !email || !password) {
@@ -414,28 +75,51 @@ export const signup = async (req, res, next) => {
       return next(createError(400, 'User with this email already exists'))
     }
 
-    // Create new user (password will be hashed by the pre-save middleware)
-    const newUser = await User.create({
+    // Validate assignedLocation if provided
+    let locationData = null
+    if (assignedLocation) {
+      const location = await Location.findOne({
+        _id: assignedLocation,
+        isActive: true,
+      })
+
+      if (!location) {
+        return next(createError(404, 'Selected location not found or inactive'))
+      }
+
+      locationData = {
+        locationId: location.locationId,
+        locationName: location.name,
+        locationAddress: location.address,
+        locationPhone: location.phone,
+        selectedAt: new Date(),
+      }
+    }
+
+    // Prepare user data
+    const userData = {
       name,
       email,
       password,
       role: userRole,
-    })
+    }
 
-    // Create contact in GHL
-    const ghlResult = await createGHLContact({
-      name,
-      email,
-      phone,
-      role: userRole,
-      authProvider: 'local',
-    })
+    // Add optional fields if provided
+    if (phone) userData.phone = phone
+    if (dateOfBirth) userData.dateOfBirth = dateOfBirth
+    if (locationData) userData.selectedLocation = locationData
 
-    // If GHL contact creation was successful, save the contact ID
-    if (ghlResult.success) {
-      newUser.ghlContactId = ghlResult.contact.id
-      await newUser.save()
-      console.log('✅ User linked to GHL contact:', ghlResult.contact.id)
+    // Create new user (password will be hashed by the pre-save middleware)
+    const newUser = await User.create(userData)
+
+    // Process referral if provided
+    if (referralCode) {
+      const referralResult = await processReferral(newUser._id, referralCode)
+      if (referralResult.success) {
+        console.log('✅ Referral processed:', referralResult.message)
+      } else {
+        console.log('⚠️ Referral failed:', referralResult.message)
+      }
     }
 
     // Send token to the new user
@@ -443,6 +127,89 @@ export const signup = async (req, res, next) => {
   } catch (err) {
     console.error('Error in signup:', err)
     next(createError(500, 'An unexpected error occurred during signup'))
+  }
+}
+
+// NEW: Admin function to create team members
+export const createTeamMember = async (req, res, next) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return next(createError(403, 'Access denied. Admin rights required.'))
+    }
+
+    const { name, email, password, assignedLocation, dateOfBirth } = req.body
+
+    // Check if all required fields are provided
+    if (!name || !email || !password) {
+      return next(createError(400, 'Please provide name, email and password'))
+    }
+
+    // Check if user with this email already exists
+    const existingUser = await User.findOne({ email })
+    if (existingUser) {
+      return next(createError(400, 'User with this email already exists'))
+    }
+
+    // Validate assignedLocation if provided
+    let locationData = null
+    if (assignedLocation) {
+      const location = await Location.findOne({
+        _id: assignedLocation,
+        isActive: true,
+      })
+
+      if (!location) {
+        return next(createError(404, 'Selected location not found or inactive'))
+      }
+
+      locationData = {
+        locationId: location.locationId,
+        locationName: location.name,
+        locationAddress: location.address,
+        locationPhone: location.phone,
+        selectedAt: new Date(),
+      }
+    }
+
+    // Prepare user data
+    const userData = {
+      name,
+      email,
+      password,
+      role: 'team', // Always create as team member
+      createdBy: req.user._id, // Track who created this user
+    }
+
+    // Add optional fields if provided
+    if (dateOfBirth) userData.dateOfBirth = dateOfBirth
+    if (locationData) userData.selectedLocation = locationData
+
+    // Create new team member
+    const newUser = await User.create(userData)
+
+    // Remove password from response
+    newUser.password = undefined
+
+    // Send success response (don't send token since admin is creating for someone else)
+    res.status(201).json({
+      status: 'success',
+      message: 'Team member created successfully',
+      data: {
+        user: newUser,
+      },
+    })
+  } catch (err) {
+    console.error('Error in createTeamMember:', err)
+    if (err.code === 11000) {
+      return next(createError(400, 'User with this email already exists'))
+    }
+    next(
+      createError(
+        500,
+        'An unexpected error occurred while creating team member'
+      )
+    )
   }
 }
 
@@ -645,6 +412,115 @@ export const getAllUsers = async (req, res, next) => {
   }
 }
 
+export const adjustUserPoints = async (req, res, next) => {
+  try {
+    const { userId } = req.params
+    const { type, amount, reason } = req.body
+
+    if (req.user.role !== 'admin') {
+      return next(createError(403, 'Access denied. Admin rights required.'))
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const oldPoints = user.points || 0
+    let newPoints = oldPoints
+
+    switch (type) {
+      case 'add':
+        newPoints += amount
+        break
+      case 'remove':
+        newPoints = Math.max(0, newPoints - amount)
+        break
+      case 'set':
+        newPoints = amount
+        break
+      default:
+        return next(createError(400, 'Invalid adjustment type'))
+    }
+
+    user.points = newPoints
+    await user.save()
+
+    // Send notification to user about points adjustment
+    let notificationTitle = 'Points Updated'
+    let notificationMessage = ''
+
+    switch (type) {
+      case 'add':
+        notificationMessage = `You received ${amount} points! Your balance is now ${newPoints} points.`
+        break
+      case 'remove':
+        notificationMessage = `${amount} points were deducted from your account. Your balance is now ${newPoints} points.`
+        break
+      case 'set':
+        notificationMessage = `Your points balance has been set to ${newPoints} points.`
+        break
+    }
+
+    if (reason) {
+      notificationMessage += ` Reason: ${reason}`
+    }
+
+    // Create system notification
+    await createSystemNotification(
+      userId,
+      notificationTitle,
+      notificationMessage,
+      {
+        category: 'points',
+        priority: 'normal',
+        metadata: {
+          oldPoints,
+          newPoints,
+          adjustment: amount,
+          type,
+          reason,
+          adjustedBy: req.user.name,
+        },
+      }
+    )
+
+    res.status(200).json({
+      status: 'success',
+      data: { user },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// Add notification sending
+export const sendNotifications = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return next(createError(403, 'Access denied. Admin rights required.'))
+    }
+
+    const { userIds, type, message, subject, channels } = req.body
+
+    // Your notification logic here
+    console.log('Sending notifications:', {
+      userIds,
+      type,
+      message,
+      subject,
+      channels,
+    })
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Notifications sent successfully',
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const getUserProfile = async (req, res, next) => {
   try {
     const userId = req.params.id
@@ -813,5 +689,230 @@ export const unlinkGoogleAccount = async (req, res, next) => {
     })
   } catch (error) {
     next(error)
+  }
+}
+
+// NEW: Select Spa/Location for user
+export const selectSpa = async (req, res, next) => {
+  try {
+    const { locationId, referralCode } = req.body
+    const userId = req.user.id
+
+    if (!locationId) {
+      return next(createError(400, 'Location ID is required'))
+    }
+
+    // Verify the location exists and is active
+    const location = await Location.findOne({
+      locationId: locationId,
+      isActive: true,
+    })
+
+    if (!location) {
+      return next(createError(404, 'Location not found or inactive'))
+    }
+
+    // Find the user
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Check if user already has a selected location
+    if (user.selectedLocation.locationId) {
+      return next(createError(400, 'User has already selected a spa'))
+    }
+
+    // Update user with selected location
+    user.selectedLocation = {
+      locationId: location.locationId,
+      locationName: location.name,
+      locationAddress: location.address,
+      locationPhone: location.phone,
+      selectedAt: new Date(),
+    }
+
+    // Mark profile as completed after spa selection
+    user.profileCompleted = true
+
+    // Award bonus points for completing profile
+    const profileCompletionBonus = 100
+    user.points = (user.points || 0) + profileCompletionBonus
+
+    await user.save()
+
+    // Process referral if provided
+    let referralResult = { success: false }
+    if (referralCode) {
+      referralResult = await processReferral(userId, referralCode)
+      if (referralResult.success) {
+        console.log('✅ Referral processed:', referralResult.message)
+      } else {
+        console.log('⚠️ Referral failed:', referralResult.message)
+      }
+    }
+
+    // Send success response
+    res.status(200).json({
+      status: 'success',
+      message: 'Spa selected successfully',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          points: user.points,
+          selectedLocation: user.selectedLocation,
+          profileCompleted: user.profileCompleted,
+        },
+        bonusPoints: profileCompletionBonus,
+        referral: referralResult.success
+          ? {
+              processed: true,
+              rewardAmount: referralResult.data?.rewardAmount || 0,
+              message: referralResult.message,
+            }
+          : {
+              processed: false,
+              message: referralResult.message,
+            },
+      },
+    })
+  } catch (error) {
+    console.error('Error selecting spa:', error)
+    next(createError(500, 'Failed to select spa'))
+  }
+}
+
+// NEW: Get user's onboarding status
+export const getOnboardingStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const onboardingStatus = {
+      hasSelectedSpa: !!user.selectedLocation.locationId,
+      profileCompleted: user.profileCompleted,
+      onboardingCompleted: user.onboardingCompleted,
+      selectedLocation: user.selectedLocation.locationId
+        ? user.selectedLocation
+        : null,
+      totalPoints: user.points || 0,
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        onboardingStatus,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting onboarding status:', error)
+    next(createError(500, 'Failed to get onboarding status'))
+  }
+}
+
+// NEW: Complete onboarding
+export const completeOnboarding = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (!user.selectedLocation.locationId) {
+      return next(createError(400, 'Please select a spa first'))
+    }
+
+    if (user.onboardingCompleted) {
+      return next(createError(400, 'Onboarding already completed'))
+    }
+
+    // Mark onboarding as completed
+    user.onboardingCompleted = true
+
+    // Award completion bonus
+    const onboardingBonus = 50
+    user.points = (user.points || 0) + onboardingBonus
+
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Onboarding completed successfully',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          points: user.points,
+          onboardingCompleted: user.onboardingCompleted,
+          selectedLocation: user.selectedLocation,
+        },
+        bonusPoints: onboardingBonus,
+      },
+    })
+  } catch (error) {
+    console.error('Error completing onboarding:', error)
+    next(createError(500, 'Failed to complete onboarding'))
+  }
+}
+
+// NEW: Update selected spa (allow one-time change)
+export const updateSelectedSpa = async (req, res, next) => {
+  try {
+    const { locationId } = req.body
+    const userId = req.user.id
+
+    if (!locationId) {
+      return next(createError(400, 'Location ID is required'))
+    }
+
+    // Verify the location exists and is active
+    const location = await Location.findOne({
+      locationId: locationId,
+      isActive: true,
+    })
+
+    if (!location) {
+      return next(createError(404, 'Location not found or inactive'))
+    }
+
+    // Find the user
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Update user with new selected location
+    user.selectedLocation = {
+      locationId: location.locationId,
+      locationName: location.name,
+      locationAddress: location.address,
+      locationPhone: location.phone,
+      selectedAt: new Date(),
+    }
+
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Spa updated successfully',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          selectedLocation: user.selectedLocation,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error updating spa:', error)
+    next(createError(500, 'Failed to update spa'))
   }
 }

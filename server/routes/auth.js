@@ -1,20 +1,23 @@
+// server/routes/auth.js
 import express from 'express'
 import passport from 'passport'
 import {
+  adjustUserPoints,
   changePassword,
+  completeOnboarding,
+  createTeamMember, // ADD THIS IMPORT
   deleteUser,
   getAllUsers,
-  getConfiguredLocationIds,
   getCurrentUser,
-  getGHLLocation,
-  getGHLSubaccounts,
+  getOnboardingStatus,
   getUserProfile,
-  googleAuth,
   googleCallback,
   linkGoogleAccount,
+  selectSpa,
   signin,
   signup,
   unlinkGoogleAccount,
+  updateSelectedSpa,
   updateUser,
 } from '../controller/auth.js'
 import {
@@ -36,6 +39,7 @@ router.get(
     scope: ['profile', 'email'],
   })
 )
+
 router.get(
   '/google/callback',
   passport.authenticate('google', {
@@ -53,21 +57,26 @@ router.get('/profile/:id', getUserProfile)
 router.put('/change-password', changePassword)
 router.get('/me', getCurrentUser)
 
+// NEW: Onboarding and Spa Selection routes
+router.get('/onboarding-status', getOnboardingStatus)
+router.post('/select-spa', selectSpa)
+router.put('/update-spa', updateSelectedSpa)
+router.post('/complete-onboarding', completeOnboarding)
+
 // Google account management routes
 router.post('/link-google', linkGoogleAccount)
 router.delete('/unlink-google', unlinkGoogleAccount)
 
-// GHL Integration routes (Admin only)
-router.get('/ghl/subaccounts', getGHLSubaccounts)
-router.get('/ghl/location/:locationId', getGHLLocation)
-router.get('/ghl/configured-locations', getConfiguredLocationIds)
-
-// Routes that need permission checking
+// Routes that need permission checking (admin only)
 router.use(checkPermission)
 
 // User management routes
 router.put('/update/:id', updateUser)
 router.get('/all-users', getAllUsers)
 router.delete('/delete/:id', deleteUser)
+router.post('/users/:userId/points', adjustUserPoints)
+
+// NEW: Team member creation route (admin only)
+router.post('/create-team-member', createTeamMember)
 
 export default router

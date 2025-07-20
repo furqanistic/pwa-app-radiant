@@ -1,3 +1,4 @@
+// client/src/pages/Referral/ReferralPage.jsx
 import { motion } from 'framer-motion'
 import {
   Check,
