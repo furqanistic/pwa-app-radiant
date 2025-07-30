@@ -1,3 +1,4 @@
+// File: client/src/services/rewardsService.js
 // client/src/services/rewardsService.js - Enhanced with Service Integration
 import { axiosInstance } from '@/config'
 

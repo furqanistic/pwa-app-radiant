@@ -1,3 +1,4 @@
+// File: client/src/services/authService.js
 // client/src/services/authService.js
 import { axiosInstance } from '@/config'
 

@@ -1,4 +1,4 @@
-// server/routes/services.js - Enhanced with Reward Integration
+// File: server/routes/services.js
 import express from 'express'
 import {
   createCategory,

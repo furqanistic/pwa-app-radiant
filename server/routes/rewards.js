@@ -1,4 +1,4 @@
-// server/routes/rewards.js - Enhanced with Service Integration
+// File: server/routes/rewards.js
 import express from 'express'
 import {
   adjustUserPoints,

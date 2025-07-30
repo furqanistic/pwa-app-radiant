@@ -1,3 +1,4 @@
+// File: server/controller/auth.js
 // server/controller/auth.js
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
@@ -113,8 +114,9 @@ export const signup = async (req, res, next) => {
     const newUser = await User.create(userData)
 
     // Process referral if provided
-    if (referralCode) {
-      const referralResult = await processReferral(newUser._id, referralCode)
+    let referralResult = { success: false }
+    if (referralCode && referralCode.trim()) {
+      referralResult = await processReferral(newUser._id, referralCode.trim())
       if (referralResult.success) {
         console.log('✅ Referral processed:', referralResult.message)
       } else {
@@ -122,8 +124,16 @@ export const signup = async (req, res, next) => {
       }
     }
 
+    // Create response user object (remove sensitive data)
+    const responseUser = {
+      ...newUser.toObject(),
+      password: undefined,
+      referralProcessed: referralResult.success,
+      referralMessage: referralResult.message,
+    }
+
     // Send token to the new user
-    createSendToken(newUser, 201, res)
+    createSendToken(responseUser, 201, res)
   } catch (err) {
     console.error('Error in signup:', err)
     next(createError(500, 'An unexpected error occurred during signup'))
@@ -743,8 +753,8 @@ export const selectSpa = async (req, res, next) => {
 
     // Process referral if provided
     let referralResult = { success: false }
-    if (referralCode) {
-      referralResult = await processReferral(userId, referralCode)
+    if (referralCode && referralCode.trim()) {
+      referralResult = await processReferral(userId, referralCode.trim())
       if (referralResult.success) {
         console.log('✅ Referral processed:', referralResult.message)
       } else {
@@ -770,11 +780,12 @@ export const selectSpa = async (req, res, next) => {
           ? {
               processed: true,
               rewardAmount: referralResult.data?.rewardAmount || 0,
+              referrerReward: referralResult.data?.referrerReward || 0,
               message: referralResult.message,
             }
           : {
               processed: false,
-              message: referralResult.message,
+              message: referralResult.message || 'No referral code provided',
             },
       },
     })
@@ -914,5 +925,43 @@ export const updateSelectedSpa = async (req, res, next) => {
   } catch (error) {
     console.error('Error updating spa:', error)
     next(createError(500, 'Failed to update spa'))
+  }
+}
+
+export const generateReferralCode = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+
+    // Get current user
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Check if user already has a referral code
+    if (user.referralCode) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'User already has a referral code',
+        data: {
+          referralCode: user.referralCode,
+        },
+      })
+    }
+
+    // Generate new referral code (the pre-save middleware will handle this)
+    user.referralCode = undefined // Clear it so middleware generates a new one
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Referral code generated successfully',
+      data: {
+        referralCode: user.referralCode,
+      },
+    })
+  } catch (error) {
+    console.error('Error generating referral code:', error)
+    next(createError(500, 'Failed to generate referral code'))
   }
 }

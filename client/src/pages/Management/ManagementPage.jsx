@@ -1,3 +1,4 @@
+// File: client/src/pages/Management/ManagementPage.jsx
 // client/src/pages/Management/ManagementPage.jsx
 import { axiosInstance } from '@/config'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -18,6 +19,7 @@ import {
   Settings,
   Star,
   UserCheck,
+  Users2,
   Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -774,7 +776,7 @@ const ManagementPage = () => {
                   Broadcast to All
                 </Button>
               </div>
-              <div className='flex-1 sm:flex-none'>
+              {/* <div className='flex-1 sm:flex-none'>
                 <Button
                   onClick={() => (window.location.href = '/session')}
                   variant='outline'
@@ -782,6 +784,15 @@ const ManagementPage = () => {
                 >
                   <Package className='w-4 h-4 mr-2' />
                   Session Tracker
+                </Button>
+              </div> */}
+              <div className='flex-1 sm:flex-none'>
+                <Button
+                  onClick={() => navigate('/management/referral')}
+                  className='w-full sm:w-auto bg-red-600 px-4 hover:scale-105 transition-transform hover:bg-red-700'
+                >
+                  <Users2 className='w-4 h-4 mr-2' />
+                  Manage Referrals
                 </Button>
               </div>
               <div className='flex-1 sm:flex-none'>

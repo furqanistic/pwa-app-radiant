@@ -1,3 +1,4 @@
+// File: server/models/Reward.js
 // server/models/Reward.js - Enhanced with Service Integration
 import mongoose from 'mongoose'
 

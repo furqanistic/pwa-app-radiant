@@ -1,3 +1,4 @@
+// File: server/models/User.js
 // server/models/User.js
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
@@ -181,5 +182,35 @@ UserSchema.methods.correctPassword = async function (
 UserSchema.methods.canAuthenticateWithPassword = function () {
   return this.authProvider === 'local' && this.password
 }
+
+UserSchema.pre('save', async function (next) {
+  // Generate referral code for new users OR existing users without a code
+  if (!this.referralCode) {
+    const generateCode = () => {
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+      const numbers = '0123456789'
+      let code = ''
+      for (let i = 0; i < 2; i++) {
+        code += letters.charAt(Math.floor(Math.random() * letters.length))
+      }
+      for (let i = 0; i < 4; i++) {
+        code += numbers.charAt(Math.floor(Math.random() * numbers.length))
+      }
+      return code
+    }
+
+    let code = generateCode()
+    let codeExists = await this.constructor.findOne({ referralCode: code })
+
+    // Ensure uniqueness
+    while (codeExists) {
+      code = generateCode()
+      codeExists = await this.constructor.findOne({ referralCode: code })
+    }
+
+    this.referralCode = code
+  }
+  next()
+})
 
 export default mongoose.model('User', UserSchema)

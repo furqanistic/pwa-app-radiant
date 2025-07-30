@@ -1,3 +1,4 @@
+// File: server/middleware/authMiddleware.js
 // server/middleware/authMiddleware.js - Updated version
 
 import jwt from 'jsonwebtoken'

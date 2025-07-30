@@ -1,3 +1,4 @@
+// File: server/routes/auth.js
 // server/routes/auth.js
 import express from 'express'
 import passport from 'passport'
@@ -7,6 +8,7 @@ import {
   completeOnboarding,
   createTeamMember, // ADD THIS IMPORT
   deleteUser,
+  generateReferralCode,
   getAllUsers,
   getCurrentUser,
   getOnboardingStatus,
@@ -66,6 +68,9 @@ router.post('/complete-onboarding', completeOnboarding)
 // Google account management routes
 router.post('/link-google', linkGoogleAccount)
 router.delete('/unlink-google', unlinkGoogleAccount)
+
+// NEW: Generate referral code for existing users
+router.post('/generate-referral-code', generateReferralCode)
 
 // Routes that need permission checking (admin only)
 router.use(checkPermission)

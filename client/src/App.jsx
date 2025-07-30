@@ -1,3 +1,4 @@
+// File: client/src/App.jsx
 // client/src/App.jsx
 import { Toaster } from 'react-hot-toast'
 import { useSelector } from 'react-redux'
@@ -13,6 +14,7 @@ import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
 import WelcomePage from './pages/Other/WelcomePage'
 import ProfilePage from './pages/Profile/ProfilePage'
+import ManageReferralPage from './pages/Referral/ManageReferralPage'
 import ReferralPage from './pages/Referral/ReferralPage'
 import RewardManagement from './pages/Rewards/RewardManagement'
 import RewardsCatalogPage from './pages/Rewards/RewardsCatalogPage'
@@ -160,6 +162,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <RewardManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/management/referral'
+          element={
+            <ProtectedRoute>
+              <ManageReferralPage />
             </ProtectedRoute>
           }
         />

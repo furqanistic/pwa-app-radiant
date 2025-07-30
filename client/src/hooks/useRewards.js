@@ -1,3 +1,4 @@
+// File: client/src/hooks/useRewards.js
 // client/src/hooks/useRewards.js
 import { rewardsService } from '@/services/rewardsService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
