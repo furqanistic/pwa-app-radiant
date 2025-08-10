@@ -1,3 +1,4 @@
+// File: server/models/Location.js
 // server/models/Location.js
 import mongoose from 'mongoose'
 

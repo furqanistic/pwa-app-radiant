@@ -13,8 +13,6 @@ export const verifyToken = async (req, res, next) => {
       req.headers.authorization.startsWith('Bearer')
     ) {
       token = req.headers.authorization.split(' ')[1]
-    } else if (req.cookies.jwt) {
-      token = req.cookies.jwt
     }
 
     if (!token) {
@@ -22,16 +20,24 @@ export const verifyToken = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    const currentUser = await User.findById(decoded.id)
+
+    // Fetch complete user data including selectedLocation - IMPORTANT FIX
+    const currentUser = await User.findById(decoded.id).select(
+      '+selectedLocation'
+    )
 
     if (!currentUser) {
-      return next(createError(401, 'User no longer exists'))
+      return next(
+        createError(401, 'The user belonging to this token no longer exists')
+      )
     }
 
+    // Add user to request object
     req.user = currentUser
+
     next()
-  } catch (err) {
-    next(createError(401, 'Invalid token'))
+  } catch (error) {
+    return next(createError(401, 'Invalid token'))
   }
 }
 
@@ -62,4 +68,16 @@ export const checkPermission = (req, res, next) => {
       'You do not have permission to perform this action. Admin access required.'
     )
   )
+}
+
+export const checkManagementAccess = (req, res, next) => {
+  const userRole = req.user.role
+
+  if (!['admin', 'team'].includes(userRole)) {
+    return next(
+      createError(403, 'Access denied. Admin or Team rights required.')
+    )
+  }
+
+  next()
 }

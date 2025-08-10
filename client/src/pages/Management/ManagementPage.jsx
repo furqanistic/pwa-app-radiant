@@ -455,7 +455,7 @@ const BulkActionsPanel = ({
         <div className='fixed bottom-6 right-6 z-40'>
           <button
             onClick={handleShow}
-            className='relative bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white p-4 rounded-full shadow-2xl border-4 border-white transition-all hover:scale-110'
+            className='relative bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white p-4 rounded-full  border-4 border-white transition-all hover:scale-110'
           >
             <UserCheck className='w-6 h-6' />
             {/* Badge with count */}
@@ -478,7 +478,7 @@ const BulkActionsPanel = ({
           />
 
           {/* Bottom Sheet */}
-          <div className='fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl border-t border-gray-100 transform transition-transform duration-300'>
+          <div className='fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl  border-t border-gray-100 transform transition-transform duration-300'>
             {/* Handle bar */}
             <div className='flex justify-center pt-3 pb-2'>
               <div className='w-12 h-1 bg-gray-300 rounded-full'></div>
@@ -624,7 +624,8 @@ const ManagementPage = () => {
   })
 
   // Check if user has permission to access this page
-  const hasAdminAccess = currentUser?.role === 'admin'
+  const hasManagementAccess =
+    currentUser?.role === 'admin' || currentUser?.role === 'team'
 
   // Redirect if no access
   useEffect(() => {
@@ -633,11 +634,11 @@ const ManagementPage = () => {
       return
     }
 
-    if (currentUser && !hasAdminAccess) {
+    if (currentUser && !hasManagementAccess) {
       window.location.href = '/dashboard'
       return
     }
-  }, [token, currentUser, hasAdminAccess])
+  }, [token, currentUser, hasManagementAccess])
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
@@ -703,13 +704,13 @@ const ManagementPage = () => {
     )
   }
 
-  if (!hasAdminAccess) {
+  if (!hasManagementAccess) {
     return (
       <Layout>
         <div className='min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-white p-3 md:p-6 pb-20 flex items-center justify-center'>
           <div className='text-center'>
             <p className='text-red-600 mb-4'>
-              Access Denied. Admin rights required.
+              Access Denied. Admin or Team rights required.
             </p>
             <Button onClick={() => (window.location.href = '/dashboard')}>
               Go to Dashboard
@@ -765,70 +766,152 @@ const ManagementPage = () => {
                 Manage users, points & notifications
               </p>
             </div>
-            <div className='flex flex-col sm:flex-row gap-3'>
-              <div className='flex-1 sm:flex-none'>
-                <Button
-                  onClick={() => setShowNotificationDialog(true)}
-                  variant='outline'
-                  className='w-full sm:w-auto border-purple-200 px-4 hover:scale-105 transition-transform'
-                >
-                  <Megaphone className='w-4 h-4 mr-2' />
-                  Broadcast to All
-                </Button>
+
+            {/* Improved Action Buttons Layout */}
+            {/* Quick Actions Bar */}
+            <div className='mb-8'>
+              <div className='bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100'>
+                <div className='flex flex-col sm:flex-row gap-3'>
+                  <Button
+                    onClick={() => setShowNotificationDialog(true)}
+                    variant='outline'
+                    className='sm:flex-1 w-full border-purple-200 px-4 hover:scale-105 transition-transform'
+                  >
+                    <Megaphone className='w-4 h-4 mr-2' />
+                    Broadcast to All
+                  </Button>
+                  <Button
+                    onClick={() => setShowAddUserDialog(true)}
+                    className='sm:flex-1 w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 px-4 hover:scale-105 transition-transform'
+                  >
+                    <Plus className='w-4 h-4 mr-2' />
+                    Add New Sub-Account
+                  </Button>
+                </div>
               </div>
-              {/* <div className='flex-1 sm:flex-none'>
-                <Button
-                  onClick={() => (window.location.href = '/session')}
-                  variant='outline'
-                  className='w-full sm:w-auto px-4 hover:scale-105 transition-transform'
-                >
-                  <Package className='w-4 h-4 mr-2' />
-                  Session Tracker
-                </Button>
-              </div> */}
-              <div className='flex-1 sm:flex-none'>
-                <Button
-                  onClick={() => navigate('/management/referral')}
-                  className='w-full sm:w-auto bg-red-600 px-4 hover:scale-105 transition-transform hover:bg-red-700'
-                >
-                  <Users2 className='w-4 h-4 mr-2' />
-                  Manage Referrals
-                </Button>
+            </div>
+
+            {/* Main Management Sections */}
+            <div className='grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6'>
+              {/* User & Engagement Management */}
+              <div className='bg-white rounded-xl p-6 border border-gray-100 '>
+                <h3 className='text-lg font-semibold text-gray-900 mb-2'>
+                  User & Engagement
+                </h3>
+                <p className='text-sm text-gray-600 mb-4'>
+                  Manage user rewards, referrals and engagement programs
+                </p>
+                <div className='space-y-3'>
+                  <Button
+                    onClick={() => navigate('/management/rewards')}
+                    className='w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-blue-600 hover:bg-blue-700 text-white'
+                  >
+                    <Gift className='w-4 h-4' />
+                    Manage Rewards
+                  </Button>
+                  <Button
+                    onClick={() => navigate('/management/referral')}
+                    className='w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-green-600 hover:bg-green-700 text-white'
+                  >
+                    <Users2 className='w-4 h-4' />
+                    Manage Referrals
+                  </Button>
+                  <Button
+                    onClick={() => navigate('/management/spin')}
+                    className='w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-yellow-600 hover:bg-yellow-700 text-white'
+                  >
+                    <Zap className='w-4 h-4' />
+                    Scratch & Spin
+                  </Button>
+                </div>
               </div>
-              <div className='flex-1 sm:flex-none'>
+
+              {/* Business Operations */}
+              <div className='bg-white rounded-xl p-6 border border-gray-100 '>
+                <h3 className='text-lg font-semibold text-gray-900 mb-2'>
+                  Business Operations
+                </h3>
+                <p className='text-sm text-gray-600 mb-4'>
+                  Manage your services and business locations
+                </p>
+                <div className='space-y-3'>
+                  <Button
+                    onClick={() => navigate('/management/services')}
+                    className='w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-blue-600 hover:bg-blue-700 text-white'
+                  >
+                    <Briefcase className='w-4 h-4' />
+                    Manage Services
+                  </Button>
+                  <Button
+                    onClick={() => setShowLocationDialog(true)}
+                    className='w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-green-600 hover:bg-green-700 text-white'
+                  >
+                    <MapPin className='w-4 h-4' />
+                    Add Location
+                  </Button>
+                </div>
+              </div>
+
+              {/* System Administration */}
+              <div className='bg-white rounded-xl p-6 border border-gray-100 '>
+                <h3 className='text-lg font-semibold text-gray-900 mb-2'>
+                  Administration
+                </h3>
+                <p className='text-sm text-gray-600 mb-4'>
+                  System settings and administrative functions
+                </p>
+                <div className='space-y-3'>
+                  <Button
+                    onClick={() => navigate('/admin/settings')}
+                    className='w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-gray-100 hover:bg-gray-200 text-gray-800'
+                  >
+                    <Settings className='w-4 h-4' />
+                    System Settings
+                  </Button>
+                  <Button
+                    onClick={() => navigate('/admin/analytics')}
+                    className='w-full px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-blue-600 hover:bg-blue-700 text-white'
+                  >
+                    <Megaphone className='w-4 h-4' />
+                    View Analytics
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile-First Quick Actions (visible on smaller screens) */}
+            <div className='lg:hidden mt-8'>
+              <h3 className='text-lg font-semibold mb-4 text-gray-900'>
+                Quick Actions
+              </h3>
+              <div className='grid grid-cols-2 gap-3'>
                 <Button
                   onClick={() => navigate('/management/rewards')}
-                  className='w-full sm:w-auto bg-blue-600 px-4 hover:scale-105 transition-transform hover:bg-blue-700'
+                  className='text-sm px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-blue-600 hover:bg-blue-700 text-white'
                 >
-                  <GiftIcon className='w-4 h-4 mr-2' />
-                  Manage Rewards
+                  <Gift className='w-4 h-4' />
+                  Rewards
                 </Button>
-              </div>
-              <div className='flex-1 sm:flex-none'>
+                <Button
+                  onClick={() => navigate('/management/referral')}
+                  className='text-sm px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-green-600 hover:bg-green-700 text-white'
+                >
+                  <Users2 className='w-4 h-4' />
+                  Referrals
+                </Button>
                 <Button
                   onClick={() => navigate('/management/services')}
-                  className='w-full sm:w-auto bg-yellow-600 px-4 hover:scale-105 transition-transform hover:bg-yellow-700'
+                  className='text-sm px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-yellow-600 hover:bg-yellow-700 text-white'
                 >
-                  <Briefcase className='w-4 h-4 mr-2' />
-                  Manage Services
+                  <Briefcase className='w-4 h-4' />
+                  Services
                 </Button>
-              </div>
-              <div className='flex-1 sm:flex-none'>
                 <Button
                   onClick={() => setShowLocationDialog(true)}
-                  className='w-full sm:w-auto bg-green-600 px-4 hover:scale-105 transition-transform hover:bg-green-700'
+                  className='text-sm px-4 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02] bg-red-600 hover:bg-red-700 text-white'
                 >
-                  <MapPin className='w-4 h-4 mr-2' />
-                  Add Location
-                </Button>
-              </div>
-              <div className='flex-1 sm:flex-none'>
-                <Button
-                  onClick={() => setShowAddUserDialog(true)}
-                  className='w-full sm:w-auto bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 px-4 hover:scale-105 transition-transform'
-                >
-                  <Plus className='w-4 h-4 mr-2' />
-                  Add New Sub-Account
+                  <MapPin className='w-4 h-4' />
+                  Locations
                 </Button>
               </div>
             </div>
@@ -837,7 +920,7 @@ const ManagementPage = () => {
 
         {/* Main User Management */}
         <div>
-          <Card className='border-0 shadow-lg bg-white/80 backdrop-blur-sm'>
+          <Card className='border-0 bg-white/80 backdrop-blur-sm'>
             <CardHeader>
               <div className='flex flex-col gap-4'>
                 <CardTitle className='flex items-center gap-2 text-lg md:text-xl'>
@@ -890,7 +973,7 @@ const ManagementPage = () => {
                 {filteredUsers.map((user, index) => (
                   <div
                     key={user._id || user.id}
-                    className='border border-gray-200 rounded-xl p-4 bg-white shadow-sm transition-all hover:shadow-md'
+                    className='border border-gray-200 rounded-xl p-4 bg-white transition-all '
                   >
                     {/* User Header */}
                     <div className='flex items-center justify-between mb-3'>

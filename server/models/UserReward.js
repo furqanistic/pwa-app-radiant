@@ -1,7 +1,8 @@
-// server/models/UserReward.js - Complete Fixed Version
+// File: server/models/UserReward.js
+// server/models/UserReward.js - UPDATED VERSION WITH GAME INTEGRATION
 import mongoose from 'mongoose'
 
-// Schema for tracking claimed rewards
+// Schema for tracking claimed rewards AND game wins
 const UserRewardSchema = new mongoose.Schema(
   {
     userId: {
@@ -13,17 +14,48 @@ const UserRewardSchema = new mongoose.Schema(
     rewardId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Reward',
-      required: true,
+      required: false, // Made optional for game wins
       index: true,
     },
     // Snapshot of reward data at time of claiming (in case reward gets modified later)
     rewardSnapshot: {
       name: { type: String, required: true },
       description: { type: String, required: true },
-      type: { type: String, required: true },
+      type: {
+        type: String,
+        required: true,
+        // UPDATED: Added 'game_win' to enum
+        enum: [
+          'credit',
+          'discount',
+          'service',
+          'combo',
+          'referral',
+          'service_discount',
+          'free_service',
+          'game_win',
+        ],
+      },
       pointCost: { type: Number, required: true },
       value: { type: Number, required: true },
       validDays: { type: Number, required: true, default: 30 },
+      // NEW: Game-specific fields
+      gameId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GameWheel',
+        required: false,
+      },
+      gameType: {
+        type: String,
+        enum: ['scratch', 'spin'],
+        required: false,
+      },
+      winningItem: {
+        title: String,
+        value: String,
+        valueType: String,
+        color: String,
+      },
     },
     status: {
       type: String,
@@ -40,7 +72,7 @@ const UserRewardSchema = new mongoose.Schema(
       type: Date,
       required: true,
       index: true,
-      // ✅ DEFAULT VALUE - calculates based on validDays
+      // DEFAULT VALUE - calculates based on validDays
       default: function () {
         const validDays = this.rewardSnapshot?.validDays || 30
         const expiryDate = new Date(
@@ -80,6 +112,11 @@ const UserRewardSchema = new mongoose.Schema(
         ret.daysUntilExpiry = Math.ceil(
           (ret.expiresAt - new Date()) / (1000 * 60 * 60 * 24)
         )
+        // NEW: Add game-specific display info
+        if (ret.rewardSnapshot?.type === 'game_win') {
+          ret.isGameReward = true
+          ret.gameType = ret.rewardSnapshot.gameType
+        }
         return ret
       },
     },
@@ -90,19 +127,30 @@ const UserRewardSchema = new mongoose.Schema(
 UserRewardSchema.index({ userId: 1, status: 1 })
 UserRewardSchema.index({ userId: 1, expiresAt: 1 })
 UserRewardSchema.index({ expiresAt: 1, status: 1 }) // For cleanup jobs
+// NEW: Index for game rewards
+UserRewardSchema.index({ 'rewardSnapshot.type': 1, userId: 1 })
+UserRewardSchema.index({ 'rewardSnapshot.gameId': 1 })
 
-// ✅ ENHANCED Pre-validate middleware (runs before validation)
+// Pre-validate middleware (runs before validation)
 UserRewardSchema.pre('validate', function (next) {
   // Ensure expiresAt is set before validation
   if (!this.expiresAt) {
     const validDays = this.rewardSnapshot?.validDays || 30
-    this.expiresAt = new Date(Date.now() + validDays * 24 * 60 * 60 * 1000)
+    // For game wins that are points, no expiry needed
+    if (
+      this.rewardSnapshot?.type === 'game_win' &&
+      this.rewardSnapshot?.winningItem?.valueType === 'points'
+    ) {
+      this.expiresAt = new Date() // Expires immediately as points are instant
+    } else {
+      this.expiresAt = new Date(Date.now() + validDays * 24 * 60 * 60 * 1000)
+    }
   }
 
   next()
 })
 
-// ✅ ENHANCED Pre-save middleware (runs before saving)
+// Pre-save middleware (runs before saving)
 UserRewardSchema.pre('save', function (next) {
   // Set expiry date for new documents if not already set
   if (this.isNew && !this.expiresAt && this.rewardSnapshot?.validDays) {
@@ -119,17 +167,18 @@ UserRewardSchema.pre('save', function (next) {
   next()
 })
 
-// ✅ POST-save middleware for logging
+// POST-save middleware for logging
 UserRewardSchema.post('save', function (doc) {
   console.log('✅ UserReward saved successfully:', {
     id: doc._id,
+    type: doc.rewardSnapshot?.type,
     expiresAt: doc.expiresAt,
     status: doc.status,
     validDays: doc.rewardSnapshot?.validDays,
   })
 })
 
-// ✅ Error handling middleware
+// Error handling middleware
 UserRewardSchema.post('save', function (error, doc, next) {
   if (error) {
     console.error('❌ UserReward save error:', {
@@ -160,7 +209,7 @@ UserRewardSchema.methods.markAsUsed = function (
   return this.save()
 }
 
-// ✅ ENHANCED Static method to create UserReward with explicit expiresAt
+// Static method to create UserReward with explicit expiresAt
 UserRewardSchema.statics.createUserReward = function (rewardData) {
   // Calculate expiresAt before creating
   const validDays = rewardData.rewardSnapshot?.validDays || 30
@@ -174,7 +223,7 @@ UserRewardSchema.statics.createUserReward = function (rewardData) {
   return this.create(dataWithExpiry)
 }
 
-// Static method to get user's active rewards
+// Static method to get user's active rewards (including game rewards)
 UserRewardSchema.statics.getUserActiveRewards = function (userId) {
   return this.find({
     userId,
@@ -183,6 +232,23 @@ UserRewardSchema.statics.getUserActiveRewards = function (userId) {
   })
     .populate('rewardId')
     .sort({ expiresAt: 1 })
+}
+
+// NEW: Static method to get user's game rewards
+UserRewardSchema.statics.getUserGameRewards = function (
+  userId,
+  gameType = null
+) {
+  const filter = {
+    userId,
+    'rewardSnapshot.type': 'game_win',
+  }
+
+  if (gameType) {
+    filter['rewardSnapshot.gameType'] = gameType
+  }
+
+  return this.find(filter).sort({ claimedAt: -1 })
 }
 
 // Static method to count user's claims for a specific reward this month
@@ -242,6 +308,7 @@ const PointTransactionSchema = new mongoose.Schema(
     // Reference to what caused this transaction
     referenceType: {
       type: String,
+      // UPDATED: Added 'game_play' and 'game_win'
       enum: [
         'booking',
         'reward_claim',
@@ -250,12 +317,14 @@ const PointTransactionSchema = new mongoose.Schema(
         'admin',
         'signup_bonus',
         'profile_completion',
+        'game_play', // NEW: For playing games
+        'game_win', // NEW: For winning game prizes
       ],
       required: true,
     },
     referenceId: {
       type: mongoose.Schema.Types.ObjectId,
-      default: null, // ID of booking, reward, etc.
+      default: null, // ID of booking, reward, game, etc.
     },
 
     // Admin tracking for manual adjustments
@@ -316,6 +385,14 @@ PointTransactionSchema.statics.getUserTotalEarned = function (userId) {
     },
     { $group: { _id: null, total: { $sum: '$amount' } } },
   ])
+}
+
+// NEW: Static method to get game-related transactions
+PointTransactionSchema.statics.getUserGameTransactions = function (userId) {
+  return this.find({
+    userId,
+    referenceType: { $in: ['game_play', 'game_win'] },
+  }).sort({ createdAt: -1 })
 }
 
 // Static method to create a point transaction

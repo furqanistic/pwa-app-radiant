@@ -1,15 +1,14 @@
 // File: server/index.js
-// server/index.js
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 import mongoose from 'mongoose'
 import passport from 'passport'
-// Import passport configuration (must be imported before routes)
 import './config/passport.js'
 import authRoute from './routes/auth.js'
-import ghlRoutes from './routes/ghl.js' // Add this line
+import gameWheelRoutes from './routes/gameWheel.js'
+import ghlRoutes from './routes/ghl.js'
 import locationRoute from './routes/location.js'
 import notificationRoutes from './routes/notification.js'
 import referralRoutes from './routes/referral.js'
@@ -48,6 +47,7 @@ app.use('/api/ghl', ghlRoutes)
 app.use('/api/spa-users', spaUsersRouter)
 app.use('/api/services', servicesRouter)
 app.use('/api/rewards', rewardsRouter)
+app.use('/api/games', gameWheelRoutes)
 const connect = () => {
   mongoose
     .connect(process.env.MONGO)

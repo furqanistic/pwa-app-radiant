@@ -1,5 +1,4 @@
-// File: server/models/User.js
-// server/models/User.js
+// File: server/models/User.js - UPDATED
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 
@@ -57,9 +56,10 @@ const UserSchema = new mongoose.Schema(
     // GHL Integration field
     ghlContactId: {
       type: String,
-      sparse: true, // Allows null values
+      sparse: true,
     },
-    // NEW: Selected Location/Spa
+
+    // For regular users - Selected Location/Spa
     selectedLocation: {
       locationId: {
         type: String,
@@ -82,6 +82,37 @@ const UserSchema = new mongoose.Schema(
         default: null,
       },
     },
+
+    // NEW: For team users - Their Spa Location (automatically set when team account is created)
+    spaLocation: {
+      locationId: {
+        type: String,
+        default: null,
+        required: function () {
+          return this.role === 'team'
+        },
+      },
+      locationName: {
+        type: String,
+        default: null,
+        required: function () {
+          return this.role === 'team'
+        },
+      },
+      locationAddress: {
+        type: String,
+        default: null,
+      },
+      locationPhone: {
+        type: String,
+        default: null,
+      },
+      setupAt: {
+        type: Date,
+        default: null,
+      },
+    },
+
     // Profile completion status
     profileCompleted: {
       type: Boolean,
@@ -125,8 +156,35 @@ const UserSchema = new mongoose.Schema(
 
 // Add indexes for better performance
 UserSchema.index({ 'selectedLocation.locationId': 1 })
+UserSchema.index({ 'spaLocation.locationId': 1 })
 UserSchema.index({ createdBy: 1 })
 UserSchema.index({ profileCompleted: 1 })
+
+// Method to get user's relevant location based on role
+UserSchema.methods.getRelevantLocation = function () {
+  if (this.role === 'team') {
+    return this.spaLocation
+  } else if (this.role === 'user') {
+    return this.selectedLocation
+  } else if (this.role === 'admin') {
+    return null // Admin can work with any location
+  }
+  return null
+}
+
+// Method to check if user has location configured
+UserSchema.methods.hasLocationConfigured = function () {
+  if (this.role === 'team') {
+    return !!(this.spaLocation?.locationId && this.spaLocation?.locationName)
+  } else if (this.role === 'user') {
+    return !!(
+      this.selectedLocation?.locationId && this.selectedLocation?.locationName
+    )
+  } else if (this.role === 'admin') {
+    return true // Admin doesn't need location
+  }
+  return false
+}
 
 // Pre-save middleware to hash password
 UserSchema.pre('save', async function (next) {
@@ -182,35 +240,5 @@ UserSchema.methods.correctPassword = async function (
 UserSchema.methods.canAuthenticateWithPassword = function () {
   return this.authProvider === 'local' && this.password
 }
-
-UserSchema.pre('save', async function (next) {
-  // Generate referral code for new users OR existing users without a code
-  if (!this.referralCode) {
-    const generateCode = () => {
-      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-      const numbers = '0123456789'
-      let code = ''
-      for (let i = 0; i < 2; i++) {
-        code += letters.charAt(Math.floor(Math.random() * letters.length))
-      }
-      for (let i = 0; i < 4; i++) {
-        code += numbers.charAt(Math.floor(Math.random() * numbers.length))
-      }
-      return code
-    }
-
-    let code = generateCode()
-    let codeExists = await this.constructor.findOne({ referralCode: code })
-
-    // Ensure uniqueness
-    while (codeExists) {
-      code = generateCode()
-      codeExists = await this.constructor.findOne({ referralCode: code })
-    }
-
-    this.referralCode = code
-  }
-  next()
-})
 
 export default mongoose.model('User', UserSchema)

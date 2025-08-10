@@ -1,3 +1,4 @@
+// File: client/src/pages/Auth/AuthPage.jsx
 import { axiosInstance } from '@/config'
 import {
   loginFailure,

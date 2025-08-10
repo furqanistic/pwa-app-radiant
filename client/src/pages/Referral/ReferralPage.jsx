@@ -369,7 +369,7 @@ const ReferralPage = () => {
                         ) : (
                           <Copy className='w-4 h-4 lg:w-5 lg:h-5' />
                         )}
-                        {copied ? 'Copied! ✨' : 'Copy Code ✨'}
+                        {copied ? 'Copied!' : 'Copy Code'}
                       </motion.button>
                     </div>
                   ) : (
@@ -437,7 +437,7 @@ const ReferralPage = () => {
                         ) : (
                           <Link2 className='w-4 h-4' />
                         )}
-                        {copied ? 'Copied! 💖' : 'Copy Link 💖'}
+                        {copied ? 'Copied!' : 'Copy Link'}
                       </motion.button>
 
                       <div className='grid grid-cols-4 gap-2'>

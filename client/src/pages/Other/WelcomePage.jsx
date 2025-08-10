@@ -1,3 +1,4 @@
+// File: client/src/pages/Other/WelcomePage.jsx
 // client/src/pages/Other/WelcomePage.jsx
 import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
@@ -424,7 +425,7 @@ const CelebrationEffect = ({ show, onComplete }) => {
                 }}
                 transition={{ duration: 2, repeat: Infinity }}
               >
-                🎊 Welcome to Your Spa! 🎊
+                🎊 Welcome to Our Spa! 🎊
               </motion.span>
             </motion.h3>
 

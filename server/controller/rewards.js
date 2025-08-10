@@ -1,3 +1,4 @@
+// File: server/controller/rewards.js
 // server/controller/rewards.js
 import { createError } from '../error.js'
 import Reward from '../models/Reward.js'

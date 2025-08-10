@@ -18,6 +18,7 @@ import ManageReferralPage from './pages/Referral/ManageReferralPage'
 import ReferralPage from './pages/Referral/ReferralPage'
 import RewardManagement from './pages/Rewards/RewardManagement'
 import RewardsCatalogPage from './pages/Rewards/RewardsCatalogPage'
+import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
 
 // Protected Route Component - requires authentication
@@ -26,6 +27,23 @@ const ProtectedRoute = ({ children }) => {
 
   if (!currentUser) {
     return <Navigate to='/auth' replace />
+  }
+
+  return children
+}
+
+// Role Protected Route Component - requires authentication and specific roles
+const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
+  const { currentUser } = useSelector((state) => state.user)
+
+  if (!currentUser) {
+    return <Navigate to='/auth' replace />
+  }
+
+  // Check if user has one of the allowed roles
+  if (allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role)) {
+    // Redirect to dashboard if user doesn't have required role
+    return <Navigate to='/dashboard' replace />
   }
 
   return children
@@ -141,44 +159,55 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* Management routes - only accessible by admin and team roles */}
         <Route
           path='/management'
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
               <ManagementPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
         <Route
           path='/management/services'
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
               <ServiceManagementPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path='/management/spin'
+          element={
+            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
+              <ScratchSpinManagement />
+            </RoleProtectedRoute>
           }
         />
         <Route
           path='/management/rewards'
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
               <RewardManagement />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
         <Route
           path='/management/referral'
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
               <ManageReferralPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
+
         <Route
           path='/session'
           element={
-            <ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
               <SessionTrackerPage />
-            </ProtectedRoute>
+            </RoleProtectedRoute>
           }
         />
 

@@ -1,3 +1,4 @@
+// File: server/models/Notification.js
 // server/models/Notification.js
 import mongoose from 'mongoose'
 
@@ -36,7 +37,14 @@ const NotificationSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ['general', 'points', 'system', 'promotion', 'alert'],
+      enum: [
+        'general',
+        'points',
+        'system',
+        'promotion',
+        'alert',
+        'game_reward',
+      ],
       default: 'general',
     },
     metadata: {

@@ -404,8 +404,11 @@ export const deleteUser = async (req, res, next) => {
 
 export const getAllUsers = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
+    // Allow both admin and team roles to access all users
+    if (!['admin', 'team'].includes(req.user.role)) {
+      return next(
+        createError(403, 'Access denied. Admin or Team rights required.')
+      )
     }
 
     const users = await User.find({ isDeleted: false })
