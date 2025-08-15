@@ -770,19 +770,19 @@ const ManagementPage = () => {
             {/* Improved Action Buttons Layout */}
             {/* Quick Actions Bar */}
             <div className='mb-8'>
-              <div className='bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-100'>
+              <div className=' rounded-xl p-4 border border-blue-100'>
                 <div className='flex flex-col sm:flex-row gap-3'>
                   <Button
                     onClick={() => setShowNotificationDialog(true)}
                     variant='outline'
-                    className='sm:flex-1 w-full border-purple-200 px-4 hover:scale-105 transition-transform'
+                    className='sm:flex-1 w-full border-purple-200 px-4  transition-transform'
                   >
                     <Megaphone className='w-4 h-4 mr-2' />
                     Broadcast to All
                   </Button>
                   <Button
                     onClick={() => setShowAddUserDialog(true)}
-                    className='sm:flex-1 w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 px-4 hover:scale-105 transition-transform'
+                    className='sm:flex-1 w-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 px-4  transition-transform'
                   >
                     <Plus className='w-4 h-4 mr-2' />
                     Add New Sub-Account

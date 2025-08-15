@@ -1,4 +1,4 @@
-// client/src/pages/Layout/NotificationPanel.jsx
+// File: client/src/pages/Layout/NotificationPanel.jsx - ENHANCED PWA VERSION
 import { axiosInstance } from '@/config'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -7,7 +7,9 @@ import {
   Bell,
   CheckCheck,
   Clock,
+  Crown,
   Gift,
+  Heart,
   Loader2,
   MessageSquare,
   RefreshCw,
@@ -201,23 +203,23 @@ const NotificationPanel = ({ className = '' }) => {
 
   const getIcon = (category) => {
     const icons = {
-      points: Star,
+      points: Crown,
       promotion: Gift,
       system: Sparkles,
-      general: MessageSquare,
+      general: Heart,
     }
     const Icon = icons[category] || MessageSquare
-    return <Icon className={cn(isMobile ? 'h-4 w-4' : 'h-3.5 w-3.5')} />
+    return <Icon className={cn(isMobile ? 'h-4 w-4' : 'h-4 w-4')} />
   }
 
   const getIconColor = (category) => {
     const colors = {
-      points: 'text-yellow-600 bg-yellow-100',
-      promotion: 'text-pink-600 bg-pink-100',
+      points: 'text-pink-600 bg-pink-100',
+      promotion: 'text-rose-600 bg-rose-100',
       system: 'text-purple-600 bg-purple-100',
-      general: 'text-blue-600 bg-blue-100',
+      general: 'text-pink-500 bg-pink-50',
     }
-    return colors[category] || 'text-gray-600 bg-gray-100'
+    return colors[category] || 'text-pink-500 bg-pink-50'
   }
 
   const formatTime = (date) => {
@@ -234,8 +236,8 @@ const NotificationPanel = ({ className = '' }) => {
       {/* Header */}
       <div
         className={cn(
-          'border-b border-gray-200 bg-white',
-          isMobile ? 'px-4 py-3' : 'px-4 py-3'
+          'bg-gradient-to-r from-pink-500 to-rose-500 text-white',
+          isMobile ? 'px-4 py-4' : 'px-4 py-4'
         )}
       >
         <div className='flex items-center justify-between'>
@@ -244,27 +246,30 @@ const NotificationPanel = ({ className = '' }) => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsOpen(false)}
-              className='p-1.5 -ml-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg'
+              className='p-1.5 -ml-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
             >
               <ArrowLeft className='h-5 w-5' />
             </motion.button>
           )}
 
           <div className='flex items-center gap-3'>
-            <h3
-              className={cn(
-                'font-semibold text-gray-900',
-                isMobile ? 'text-lg' : 'text-base'
-              )}
-            >
-              Notifications
-            </h3>
+            <div className='flex items-center gap-2'>
+              <Bell className='h-5 w-5 text-white' />
+              <h3
+                className={cn(
+                  'font-bold text-white',
+                  isMobile ? 'text-lg' : 'text-base'
+                )}
+              >
+                Notifications
+              </h3>
+            </div>
 
-            {/* Simple connection indicator */}
+            {/* Connection indicator */}
             <div className='flex items-center'>
-              {!isOnline && <WifiOff className='h-4 w-4 text-red-500' />}
+              {!isOnline && <WifiOff className='h-4 w-4 text-red-300' />}
               {isManualRefreshing && (
-                <Loader2 className='h-4 w-4 animate-spin text-blue-500' />
+                <Loader2 className='h-4 w-4 animate-spin text-white/80' />
               )}
             </div>
           </div>
@@ -275,7 +280,7 @@ const NotificationPanel = ({ className = '' }) => {
             whileTap={{ scale: 0.95 }}
             onClick={handleManualRefresh}
             disabled={isManualRefreshing}
-            className='p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors'
+            className='p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
             title='Refresh notifications'
           >
             <RefreshCw
@@ -294,27 +299,40 @@ const NotificationPanel = ({ className = '' }) => {
       >
         {notificationsLoading ? (
           <div className='p-8 text-center'>
-            <Loader2 className='h-6 w-6 text-blue-500 mx-auto mb-3 animate-spin' />
-            <p className='text-gray-500 text-sm'>Loading notifications...</p>
+            <div className='w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
+            <p className='text-gray-600 text-sm font-medium'>
+              Loading your updates, sweetie!
+            </p>
+            <p className='text-gray-500 text-xs mt-1'>
+              Getting everything ready for you...
+            </p>
           </div>
         ) : !isOnline ? (
           <div className='p-8 text-center'>
-            <WifiOff className='h-12 w-12 text-gray-300 mx-auto mb-3' />
-            <p className='text-gray-500 text-sm font-medium'>You're offline</p>
-            <p className='text-gray-400 text-xs mt-1'>
-              Notifications will sync when reconnected
+            <div className='w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4'>
+              <WifiOff className='h-8 h-8 text-white' />
+            </div>
+            <p className='text-gray-900 text-sm font-semibold mb-1'>
+              You're offline, sweetie!
+            </p>
+            <p className='text-gray-500 text-xs'>
+              Don't worry! Your notifications will sync when you're back online
             </p>
           </div>
         ) : !notifications?.data?.notifications?.length ? (
           <div className='p-8 text-center'>
-            <Bell className='h-12 w-12 text-gray-300 mx-auto mb-3' />
-            <p className='text-gray-500 text-sm font-medium'>
-              No notifications
+            <div className='w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4'>
+              <Heart className='h-8 w-8 text-white' />
+            </div>
+            <p className='text-gray-900 text-sm font-semibold mb-1'>
+              All caught up, sweetie!
             </p>
-            <p className='text-gray-400 text-xs mt-1'>You're all caught up!</p>
+            <p className='text-gray-500 text-xs'>
+              No new notifications right now. You're amazing!
+            </p>
           </div>
         ) : (
-          <div className='divide-y divide-gray-100'>
+          <div className='divide-y divide-pink-100'>
             <AnimatePresence>
               {notifications.data.notifications.map((notification, index) => (
                 <motion.div
@@ -324,18 +342,23 @@ const NotificationPanel = ({ className = '' }) => {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ delay: index * 0.05 }}
                   className={cn(
-                    'hover:bg-gray-50 transition-colors relative group',
+                    'hover:bg-pink-50 transition-all duration-200 relative group border-l-4',
                     isMobile ? 'p-4' : 'p-4',
-                    !notification.read && 'bg-blue-50/50'
+                    !notification.read
+                      ? 'bg-pink-50/50 border-l-pink-500'
+                      : 'border-l-transparent hover:border-l-pink-200'
                   )}
                 >
                   <div className='flex items-start gap-3'>
                     {/* Icon */}
                     <div
                       className={cn(
-                        'flex-shrink-0 rounded-lg flex items-center justify-center mt-0.5',
-                        isMobile ? 'w-9 h-9' : 'w-8 h-8',
-                        getIconColor(notification.category)
+                        'flex-shrink-0 rounded-xl flex items-center justify-center mt-0.5 border',
+                        isMobile ? 'w-10 h-10' : 'w-10 h-10',
+                        getIconColor(notification.category),
+                        !notification.read
+                          ? 'border-pink-200'
+                          : 'border-pink-100'
                       )}
                     >
                       {getIcon(notification.category)}
@@ -365,14 +388,14 @@ const NotificationPanel = ({ className = '' }) => {
                             {notification.message}
                           </p>
                           <div className='flex items-center gap-2 mt-2'>
-                            <Clock className='h-3 w-3 text-gray-400' />
-                            <p className='text-gray-400 text-xs'>
+                            <Clock className='h-3 w-3 text-pink-400' />
+                            <p className='text-pink-400 text-xs font-medium'>
                               {formatTime(notification.createdAt)}
                             </p>
                           </div>
                         </div>
 
-                        {/* Delete button - only shown on hover/mobile */}
+                        {/* Delete button */}
                         <motion.button
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
@@ -385,7 +408,7 @@ const NotificationPanel = ({ className = '' }) => {
                             })
                           }
                           className={cn(
-                            'p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors',
+                            'p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all duration-200 border border-transparent hover:border-rose-200',
                             isMobile
                               ? 'opacity-100'
                               : 'opacity-0 group-hover:opacity-100'
@@ -398,7 +421,7 @@ const NotificationPanel = ({ className = '' }) => {
 
                       {/* Unread indicator */}
                       {!notification.read && (
-                        <div className='absolute top-4 right-4 w-2 h-2 bg-blue-500 rounded-full'></div>
+                        <div className='absolute top-4 right-4 w-3 h-3 bg-pink-500 rounded-full border-2 border-white'></div>
                       )}
                     </div>
                   </div>
@@ -418,14 +441,14 @@ const NotificationPanel = ({ className = '' }) => {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        className='relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors'
+        className='relative p-2 text-gray-500 hover:text-pink-600 hover:bg-pink-50 rounded-xl transition-all duration-200 border border-transparent hover:border-pink-200'
       >
         <Bell className='h-5 w-5' />
 
         {/* Initial loading indicator */}
         {unreadLoading && unreadCount === 0 && (
-          <div className='absolute -top-1 -left-1 w-3 h-3'>
-            <Loader2 className='w-3 h-3 animate-spin text-blue-500' />
+          <div className='absolute -top-1 -left-1 w-4 h-4'>
+            <div className='w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin'></div>
           </div>
         )}
 
@@ -436,7 +459,7 @@ const NotificationPanel = ({ className = '' }) => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              className='absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold shadow-lg'
+              className='absolute -top-1 -right-1 h-5 w-5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full flex items-center justify-center font-bold border-2 border-white'
             >
               {unreadCount > 99 ? '99+' : unreadCount}
             </motion.span>
@@ -451,7 +474,7 @@ const NotificationPanel = ({ className = '' }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/20 backdrop-blur-sm z-50'
+            className='fixed inset-0 bg-black/40 backdrop-blur-sm z-50'
             onClick={() => setIsOpen(false)}
           />
         )}
@@ -471,8 +494,8 @@ const NotificationPanel = ({ className = '' }) => {
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             className={
               isMobile
-                ? 'fixed top-0 right-0 h-screen w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col'
-                : 'absolute right-0 top-full mt-2 w-96 max-w-[90vw] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden'
+                ? 'fixed top-0 right-0 h-screen w-full bg-white z-50 flex flex-col border-l border-pink-100'
+                : 'absolute right-0 top-full mt-2 w-96 max-w-[90vw] bg-white rounded-2xl border border-pink-100 z-50 overflow-hidden'
             }
           >
             <NotificationContent />

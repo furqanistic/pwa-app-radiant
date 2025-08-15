@@ -1,3 +1,4 @@
+// File: client/src/components/Dashboard/RewardsSection.jsx
 // client/src/components/Dashboard/RewardsSection.jsx
 // Rewards Section with Premium Card Design
 import { motion } from 'framer-motion'
@@ -57,14 +58,14 @@ const RewardsSection = ({ rewards, userPoints }) => {
         {/* Mobile: Title and See More on same line */}
         <div className='flex items-center justify-between mb-3 sm:hidden'>
           <div className='flex items-center'>
-            <div className='bg-gradient-to-r from-pink-500 to-purple-500 p-2 rounded-xl mr-3'>
+            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 rounded-xl mr-3'>
               <Award className='w-5 h-5 text-white' />
             </div>
             <h2 className='text-lg font-bold text-gray-800'>Spa Rewards</h2>
           </div>
           <button
             onClick={() => navigate('/services')}
-            className='flex items-center gap-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:shadow-lg'
+            className='flex items-center gap-1 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:shadow-lg'
           >
             See More
             <ChevronRight className='w-3 h-3' />
@@ -80,7 +81,7 @@ const RewardsSection = ({ rewards, userPoints }) => {
         {/* Desktop: Original layout */}
         <div className='hidden sm:flex sm:items-center justify-between'>
           <div className='flex items-center'>
-            <div className='bg-gradient-to-r from-pink-500 to-purple-500 p-3 rounded-2xl mr-4'>
+            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-3 rounded-2xl mr-4'>
               <Award className='w-6 h-6 text-white' />
             </div>
             <h2 className='text-xl lg:text-2xl font-bold text-gray-800'>
@@ -93,7 +94,7 @@ const RewardsSection = ({ rewards, userPoints }) => {
             </span>
             <button
               onClick={() => navigate('/services')}
-              className='flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-lg'
+              className='flex items-center gap-2 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-lg'
             >
               See More
               <ChevronRight className='w-4 h-4' />
@@ -232,7 +233,7 @@ const RewardsSection = ({ rewards, userPoints }) => {
               <button
                 className={`w-full py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
                   reward.unlocked
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 hover:scale-105 transform shadow-md hover:shadow-lg'
+                    ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform shadow-md hover:shadow-lg'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                 }`}
                 disabled={!reward.unlocked}

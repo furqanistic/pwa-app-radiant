@@ -1,3 +1,4 @@
+// File: client/src/pages/Layout/InstallButton.jsx
 import { Download, Smartphone } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
@@ -109,7 +110,7 @@ const InstallButton = ({ className = '' }) => {
   return (
     <button
       onClick={handleInstall}
-      className={`inline-flex items-center space-x-1.5 lg:space-x-2 px-2.5 lg:px-3 py-1.5 lg:py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs lg:text-sm font-medium rounded-lg hover:from-pink-600 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-md ${className}`}
+      className={`inline-flex items-center space-x-1.5 lg:space-x-2 px-2.5 lg:px-3 py-1.5 lg:py-2  bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs lg:text-sm font-medium rounded-lg hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-sm hover:shadow-md ${className}`}
     >
       <Download className='w-3.5 h-3.5 lg:w-4 lg:h-4' />
       <span className='hidden sm:inline'>Install App</span>

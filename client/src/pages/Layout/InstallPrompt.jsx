@@ -1,3 +1,4 @@
+// File: client/src/pages/Layout/InstallPrompt.jsx
 // client/src/pages/Layout/InstallPrompt.jsx
 import { AnimatePresence, motion } from 'framer-motion'
 import {

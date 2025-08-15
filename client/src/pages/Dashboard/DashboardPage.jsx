@@ -1,3 +1,4 @@
+// File: client/src/pages/Dashboard/DashboardPage.jsx
 // client/src/pages/Dashboard/DashboardPage.jsx
 import PointsCard from '@/components/Dashboard/PointsCard'
 import RewardsSection from '@/components/Dashboard/RewardsSection'
@@ -203,7 +204,7 @@ const NeedMorePointsSection = ({ methods }) => {
   return (
     <DashboardCard gradient='purple'>
       <div className='flex items-center mb-4 sm:mb-6'>
-        <div className='bg-gradient-to-r from-purple-500 to-indigo-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+        <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
           <Zap className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
         </div>
         <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
@@ -237,13 +238,13 @@ const NeedMorePointsSection = ({ methods }) => {
                   </div>
                 </div>
                 <div className='ml-2 flex-shrink-0'>
-                  <span className='bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold'>
+                  <span className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold'>
                     {method.points}
                   </span>
                 </div>
               </div>
 
-              <button className='w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-purple-600 hover:to-pink-600 transition-all'>
+              <button className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'>
                 {method.action}
               </button>
             </motion.div>
@@ -340,7 +341,7 @@ const DashboardPage = () => {
               <DashboardCard gradient='indigo'>
                 <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
                   <div className='flex items-center mb-2 sm:mb-0'>
-                    <div className='bg-gradient-to-r from-indigo-500 to-indigo-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                    <div className='bg-gradient-to-r from-pink-500 to-rose-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
                       <Users className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
                     </div>
                     <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
@@ -399,7 +400,7 @@ const DashboardPage = () => {
                         Invite friends and earn $30 per referral
                       </p>
                     </div>
-                    <button className='bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-indigo-600 hover:to-purple-600 transition-colors w-full sm:w-auto'>
+                    <button className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'>
                       Share Now
                     </button>
                   </div>
@@ -466,7 +467,7 @@ const DashboardPage = () => {
                 </div>
 
                 {/* Use Credits Button */}
-                <button className='w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-purple-600 hover:to-pink-600 transition-all'>
+                <button className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'>
                   Use Credits
                 </button>
               </DashboardCard>
