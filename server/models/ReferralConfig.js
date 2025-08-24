@@ -1,4 +1,4 @@
-// File: server/models/ReferralConfig.js
+// File: server/models/ReferralConfig.js - ENHANCED FOR SPA-SPECIFIC REWARDS
 import mongoose from 'mongoose'
 
 const ReferralConfigSchema = new mongoose.Schema(
@@ -11,32 +11,86 @@ const ReferralConfigSchema = new mongoose.Schema(
       default: 'default',
     },
 
-    // Signup referral rewards
+    // ENHANCED: Spa-specific configurations
+    spaConfigs: [
+      {
+        locationId: { type: String, required: true }, // GHL location ID
+        locationName: { type: String, required: true },
+        ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Team user who owns this spa
+
+        // Spa-specific signup rewards
+        signupReward: {
+          enabled: { type: Boolean, default: true },
+          referrerPoints: { type: Number, default: 200 },
+          referredPoints: { type: Number, default: 100 },
+          description: {
+            type: String,
+            default: 'Reward for successful signup through referral',
+          },
+        },
+
+        // Spa-specific first purchase rewards
+        firstPurchaseReward: {
+          enabled: { type: Boolean, default: true },
+          referrerPoints: { type: Number, default: 500 },
+          referredPoints: { type: Number, default: 250 },
+          description: {
+            type: String,
+            default: 'Reward for first purchase by referred user',
+          },
+        },
+
+        // Spa-specific milestone rewards
+        milestoneRewards: [
+          {
+            milestone: { type: String, required: true },
+            referrerPoints: { type: Number, default: 100 },
+            referredPoints: { type: Number, default: 50 },
+            description: { type: String },
+            enabled: { type: Boolean, default: true },
+          },
+        ],
+
+        // Spa-specific settings
+        settings: {
+          codeExpiryDays: { type: Number, default: 30 },
+          maxReferralsPerUser: { type: Number, default: 100 },
+          autoApprove: { type: Boolean, default: true },
+          allowSelfReferral: { type: Boolean, default: false },
+          emailNotifications: { type: Boolean, default: true },
+        },
+
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+
+    // Global/default signup referral rewards (fallback)
     signupReward: {
       enabled: { type: Boolean, default: true },
-      referrerPoints: { type: Number, default: 200 },
-      referredPoints: { type: Number, default: 100 },
+      referrerPoints: { type: Number, default: 150 },
+      referredPoints: { type: Number, default: 75 },
       description: {
         type: String,
-        default: 'Reward for successful signup through referral',
+        default: 'Global reward for successful signup through referral',
       },
     },
 
-    // First purchase referral rewards
+    // Global/default first purchase referral rewards (fallback)
     firstPurchaseReward: {
       enabled: { type: Boolean, default: true },
-      referrerPoints: { type: Number, default: 500 },
-      referredPoints: { type: Number, default: 250 },
+      referrerPoints: { type: Number, default: 400 },
+      referredPoints: { type: Number, default: 200 },
       description: {
         type: String,
-        default: 'Reward for first purchase by referred user',
+        default: 'Global reward for first purchase by referred user',
       },
     },
 
-    // Milestone-based rewards
+    // Global milestone-based rewards (fallback)
     milestoneRewards: [
       {
-        milestone: { type: String, required: true }, // e.g., 'first_booking', 'loyalty_member'
+        milestone: { type: String, required: true },
         referrerPoints: { type: Number, default: 100 },
         referredPoints: { type: Number, default: 50 },
         description: { type: String },
@@ -44,34 +98,21 @@ const ReferralConfigSchema = new mongoose.Schema(
       },
     ],
 
-    // Tier-based rewards
+    // Global tier-based rewards
     tierMultipliers: {
       bronze: { type: Number, default: 1.0 },
       gold: { type: Number, default: 1.5 },
       platinum: { type: Number, default: 2.0 },
     },
 
-    // General settings
+    // Global general settings (fallback)
     settings: {
-      // Referral code expiry in days
       codeExpiryDays: { type: Number, default: 30 },
-
-      // Maximum referrals per user
       maxReferralsPerUser: { type: Number, default: 100 },
-
-      // Minimum points to cash out
       minCashoutPoints: { type: Number, default: 1000 },
-
-      // Auto-approve referrals
       autoApprove: { type: Boolean, default: true },
-
-      // Allow self-referral
       allowSelfReferral: { type: Boolean, default: false },
-
-      // Referral code length
       codeLength: { type: Number, default: 6 },
-
-      // Enable email notifications
       emailNotifications: { type: Boolean, default: true },
     },
 
@@ -82,9 +123,9 @@ const ReferralConfigSchema = new mongoose.Schema(
         description: { type: String },
         startDate: { type: Date, required: true },
         endDate: { type: Date, required: true },
-        multiplier: { type: Number, default: 1.5 }, // Bonus multiplier
+        multiplier: { type: Number, default: 1.5 },
         enabled: { type: Boolean, default: true },
-        targetLocations: [{ type: String }], // Specific spa locations
+        targetLocations: [{ type: String }],
         conditions: {
           minPurchase: { type: Number, default: 0 },
           userTypes: [
@@ -94,13 +135,11 @@ const ReferralConfigSchema = new mongoose.Schema(
       },
     ],
 
-    // Last updated info
     lastUpdatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
 
-    // Active status
     isActive: {
       type: Boolean,
       default: true,
@@ -112,6 +151,165 @@ const ReferralConfigSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   }
 )
+
+// ENHANCED: Method to get spa-specific configuration with better fallback logic
+ReferralConfigSchema.methods.getSpaConfig = function (locationId) {
+  console.log('🔍 Looking for spa config for locationId:', locationId)
+  console.log(
+    '📋 Available spa configs:',
+    this.spaConfigs.map((c) => ({
+      locationId: c.locationId,
+      name: c.locationName,
+    }))
+  )
+
+  const spaConfig = this.spaConfigs.find(
+    (config) => config.locationId === locationId
+  )
+
+  if (spaConfig) {
+    console.log('✅ Found spa-specific config:', spaConfig.locationName)
+    return spaConfig
+  }
+
+  console.log('⚠️ No spa-specific config found, using global defaults')
+  // Return global config as fallback
+  return {
+    locationId: 'global',
+    locationName: 'Global Default',
+    signupReward: this.signupReward,
+    firstPurchaseReward: this.firstPurchaseReward,
+    milestoneRewards: this.milestoneRewards,
+    settings: this.settings,
+  }
+}
+
+// ENHANCED: Method to set spa-specific configuration
+ReferralConfigSchema.methods.setSpaConfig = function (
+  locationId,
+  locationName,
+  ownerId,
+  configData
+) {
+  const existingIndex = this.spaConfigs.findIndex(
+    (config) => config.locationId === locationId
+  )
+
+  const newConfig = {
+    locationId,
+    locationName,
+    ownerId,
+    ...configData,
+    updatedAt: new Date(),
+  }
+
+  if (existingIndex >= 0) {
+    this.spaConfigs[existingIndex] = newConfig
+  } else {
+    this.spaConfigs.push(newConfig)
+  }
+
+  return this.spaConfigs[
+    existingIndex >= 0 ? existingIndex : this.spaConfigs.length - 1
+  ]
+}
+
+// ENHANCED: Method to calculate reward points with spa-specific rules
+ReferralConfigSchema.methods.calculateSpaReward = function (
+  rewardType,
+  locationId,
+  userTier = 'bronze',
+  purchaseAmount = 0
+) {
+  console.log('💰 Calculating spa reward:', {
+    rewardType,
+    locationId,
+    userTier,
+    purchaseAmount,
+  })
+
+  const spaConfig = this.getSpaConfig(locationId)
+  let baseReward = { referrerPoints: 0, referredPoints: 0 }
+
+  console.log('⚙️ Using spa config:', {
+    locationId: spaConfig.locationId,
+    locationName: spaConfig.locationName,
+  })
+
+  // Get base reward based on type from spa-specific config
+  switch (rewardType) {
+    case 'signup':
+      if (spaConfig.signupReward?.enabled) {
+        baseReward = {
+          referrerPoints: spaConfig.signupReward.referrerPoints,
+          referredPoints: spaConfig.signupReward.referredPoints,
+        }
+        console.log('🎯 Signup reward:', baseReward)
+      }
+      break
+    case 'first_purchase':
+      if (spaConfig.firstPurchaseReward?.enabled) {
+        baseReward = {
+          referrerPoints: spaConfig.firstPurchaseReward.referrerPoints,
+          referredPoints: spaConfig.firstPurchaseReward.referredPoints,
+        }
+        console.log('🛍️ First purchase reward:', baseReward)
+      }
+      break
+    default:
+      // Check milestone rewards in spa config
+      const milestone = spaConfig.milestoneRewards?.find(
+        (m) => m.milestone === rewardType && m.enabled
+      )
+      if (milestone) {
+        baseReward = {
+          referrerPoints: milestone.referrerPoints,
+          referredPoints: milestone.referredPoints,
+        }
+        console.log('🎖️ Milestone reward:', baseReward)
+      }
+  }
+
+  // Apply tier multiplier (global)
+  const tierMultiplier = this.tierMultipliers[userTier] || 1.0
+  console.log('🥉 Tier multiplier:', userTier, '=', tierMultiplier)
+
+  // Apply campaign multiplier if active
+  const activeCampaign = this.getActiveCampaign(locationId)
+  const campaignMultiplier = activeCampaign ? activeCampaign.multiplier : 1.0
+  console.log('🎪 Campaign multiplier:', campaignMultiplier)
+
+  // Check campaign conditions
+  let campaignApplies = true
+  if (
+    activeCampaign &&
+    activeCampaign.conditions.minPurchase > purchaseAmount
+  ) {
+    campaignApplies = false
+    console.log('❌ Campaign conditions not met')
+  }
+
+  const finalMultiplier =
+    tierMultiplier * (campaignApplies ? campaignMultiplier : 1.0)
+
+  const finalReward = {
+    referrerPoints: Math.round(baseReward.referrerPoints * finalMultiplier),
+    referredPoints: Math.round(baseReward.referredPoints * finalMultiplier),
+    appliedMultipliers: {
+      tier: tierMultiplier,
+      campaign: campaignApplies ? campaignMultiplier : 1.0,
+      final: finalMultiplier,
+    },
+    activeCampaign: campaignApplies ? activeCampaign : null,
+    spaConfig: {
+      locationId: spaConfig.locationId,
+      locationName: spaConfig.locationName,
+    },
+  }
+
+  console.log('🎉 Final reward calculation:', finalReward)
+  return finalReward
+}
 
 // Method to get current active campaign
 ReferralConfigSchema.methods.getActiveCampaign = function (locationId = null) {
@@ -130,90 +328,119 @@ ReferralConfigSchema.methods.getActiveCampaign = function (locationId = null) {
   })
 }
 
-// Method to calculate reward points with tier and campaign multipliers
-ReferralConfigSchema.methods.calculateReward = function (
-  rewardType,
-  userTier = 'bronze',
-  locationId = null,
-  purchaseAmount = 0
-) {
-  let baseReward = { referrerPoints: 0, referredPoints: 0 }
-
-  // Get base reward based on type
-  switch (rewardType) {
-    case 'signup':
-      if (this.signupReward.enabled) {
-        baseReward = {
-          referrerPoints: this.signupReward.referrerPoints,
-          referredPoints: this.signupReward.referredPoints,
-        }
-      }
-      break
-    case 'first_purchase':
-      if (this.firstPurchaseReward.enabled) {
-        baseReward = {
-          referrerPoints: this.firstPurchaseReward.referrerPoints,
-          referredPoints: this.firstPurchaseReward.referredPoints,
-        }
-      }
-      break
-    default:
-      // Check milestone rewards
-      const milestone = this.milestoneRewards.find(
-        (m) => m.milestone === rewardType && m.enabled
-      )
-      if (milestone) {
-        baseReward = {
-          referrerPoints: milestone.referrerPoints,
-          referredPoints: milestone.referredPoints,
-        }
-      }
-  }
-
-  // Apply tier multiplier
-  const tierMultiplier = this.tierMultipliers[userTier] || 1.0
-
-  // Apply campaign multiplier if active
-  const activeCampaign = this.getActiveCampaign(locationId)
-  const campaignMultiplier = activeCampaign ? activeCampaign.multiplier : 1.0
-
-  // Check campaign conditions
-  let campaignApplies = true
-  if (
-    activeCampaign &&
-    activeCampaign.conditions.minPurchase > purchaseAmount
-  ) {
-    campaignApplies = false
-  }
-
-  const finalMultiplier =
-    tierMultiplier * (campaignApplies ? campaignMultiplier : 1.0)
-
-  return {
-    referrerPoints: Math.round(baseReward.referrerPoints * finalMultiplier),
-    referredPoints: Math.round(baseReward.referredPoints * finalMultiplier),
-    appliedMultipliers: {
-      tier: tierMultiplier,
-      campaign: campaignApplies ? campaignMultiplier : 1.0,
-      final: finalMultiplier,
-    },
-    activeCampaign: campaignApplies ? activeCampaign : null,
-  }
-}
-
-// Static method to get active config
+// ENHANCED: Static method to get active config with auto-initialization
 ReferralConfigSchema.statics.getActiveConfig = async function () {
   let config = await this.findOne({ name: 'default', isActive: true })
 
   if (!config) {
+    console.log('🏗️ Creating default referral config...')
     // Create default config if none exists
     config = await this.create({
       name: 'default',
       isActive: true,
+      // Add some default milestone rewards
+      milestoneRewards: [
+        {
+          milestone: 'first_booking',
+          referrerPoints: 300,
+          referredPoints: 150,
+          description: 'Reward for first booking by referred user',
+          enabled: true,
+        },
+        {
+          milestone: 'loyalty_member',
+          referrerPoints: 500,
+          referredPoints: 250,
+          description: 'Reward for loyalty program signup',
+          enabled: true,
+        },
+        {
+          milestone: 'premium_upgrade',
+          referrerPoints: 1000,
+          referredPoints: 500,
+          description: 'Reward for premium service upgrade',
+          enabled: true,
+        },
+      ],
     })
+    console.log('✅ Default config created')
   }
 
   return config
+}
+
+// NEW: Static method to create or update spa config for a team user
+ReferralConfigSchema.statics.createSpaConfig = async function (
+  locationId,
+  locationName,
+  ownerId,
+  customConfig = {}
+) {
+  console.log('🏢 Creating/updating spa config:', {
+    locationId,
+    locationName,
+    ownerId,
+  })
+
+  const config = await this.getActiveConfig()
+
+  // Default spa configuration
+  const defaultSpaConfig = {
+    signupReward: {
+      enabled: true,
+      referrerPoints: customConfig.signupReferrerPoints || 250,
+      referredPoints: customConfig.signupReferredPoints || 125,
+      description: 'Spa-specific signup reward',
+    },
+    firstPurchaseReward: {
+      enabled: true,
+      referrerPoints: customConfig.firstPurchaseReferrerPoints || 600,
+      referredPoints: customConfig.firstPurchaseReferredPoints || 300,
+      description: 'Spa-specific first purchase reward',
+    },
+    milestoneRewards: [
+      {
+        milestone: 'first_booking',
+        referrerPoints: 400,
+        referredPoints: 200,
+        description: 'First booking at this spa',
+        enabled: true,
+      },
+      {
+        milestone: 'loyalty_member',
+        referrerPoints: 600,
+        referredPoints: 300,
+        description: 'Loyalty program signup at this spa',
+        enabled: true,
+      },
+      {
+        milestone: 'premium_upgrade',
+        referrerPoints: 1200,
+        referredPoints: 600,
+        description: 'Premium service upgrade at this spa',
+        enabled: true,
+      },
+    ],
+    settings: {
+      codeExpiryDays: 30,
+      maxReferralsPerUser: 100,
+      autoApprove: true,
+      allowSelfReferral: false,
+      emailNotifications: true,
+    },
+    ...customConfig,
+  }
+
+  const spaConfig = config.setSpaConfig(
+    locationId,
+    locationName,
+    ownerId,
+    defaultSpaConfig
+  )
+  await config.save()
+
+  console.log('✅ Spa config created/updated')
+  return spaConfig
 }
 
 export default mongoose.model('ReferralConfig', ReferralConfigSchema)

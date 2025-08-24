@@ -1,5 +1,4 @@
-// File: client/src/pages/Other/WelcomePage.jsx
-// client/src/pages/Other/WelcomePage.jsx
+// File: client/src/pages/Other/WelcomePage.jsx - ENHANCED WITH REFERRAL REWARDS
 import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,12 +8,14 @@ import {
   Award,
   CheckCircle,
   ChevronDown,
+  Crown,
   Gift,
   Heart,
   MapPin,
   Phone,
   Search,
   Sparkles,
+  Star,
   Users,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -176,7 +177,7 @@ const EmojiConfetti = ({ delay = 0, emoji = '🎉' }) => {
 }
 
 // Enhanced Mobile-First Celebration Effect Component
-const CelebrationEffect = ({ show, onComplete }) => {
+const CelebrationEffect = ({ show, onComplete, rewardData }) => {
   useEffect(() => {
     if (show) {
       const timer = setTimeout(onComplete, 5000) // Increased to 5 seconds for full animation
@@ -199,6 +200,11 @@ const CelebrationEffect = ({ show, onComplete }) => {
   ]
   const confettiShapes = ['circle', 'square', 'star']
   const confettiSizes = ['small', 'normal', 'large']
+
+  // Calculate total points earned
+  const totalPoints =
+    (rewardData?.profileCompletion || 0) +
+    (rewardData?.referral?.data?.referredPoints || 0)
 
   return (
     <motion.div
@@ -425,7 +431,7 @@ const CelebrationEffect = ({ show, onComplete }) => {
                 }}
                 transition={{ duration: 2, repeat: Infinity }}
               >
-                🎊 Welcome to Our Spa! 🎊
+                🎊 Welcome to Your Spa! 🎊
               </motion.span>
             </motion.h3>
 
@@ -448,7 +454,7 @@ const CelebrationEffect = ({ show, onComplete }) => {
                   ease: 'easeInOut',
                 }}
               >
-                🎉 Congratulations! 🎉
+                You Earned {totalPoints} Points!
               </motion.div>
 
               <motion.p
@@ -473,8 +479,45 @@ const CelebrationEffect = ({ show, onComplete }) => {
                   backgroundSize: '200% 200%',
                 }}
               >
-                🎉 Congratulations! 🎉
+                You Earned {totalPoints} Points!
               </motion.p>
+
+              {/* Reward breakdown */}
+              {rewardData && (
+                <motion.div
+                  className='mt-3 space-y-1 text-sm'
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.8 }}
+                >
+                  <div className='flex items-center justify-center gap-2 text-green-600'>
+                    <Award className='w-4 h-4' />
+                    <span>Profile: +{rewardData.profileCompletion || 0}</span>
+                  </div>
+
+                  {rewardData.referral?.success && (
+                    <div className='flex items-center justify-center gap-2 text-blue-600'>
+                      <Gift className='w-4 h-4' />
+                      <span>
+                        Referral: +{rewardData.referral.data.referredPoints}
+                      </span>
+                    </div>
+                  )}
+
+                  {rewardData.referral?.success &&
+                    rewardData.referral.data.referrerName && (
+                      <div className='text-xs text-purple-600 mt-2'>
+                        Thanks to {rewardData.referral.data.referrerName}'s
+                        referral!
+                        <br />
+                        They earned {
+                          rewardData.referral.data.referrerPoints
+                        }{' '}
+                        points too! 🎁
+                      </div>
+                    )}
+                </motion.div>
+              )}
 
               {/* Mobile-optimized emoji row */}
               <motion.div
@@ -740,6 +783,7 @@ const WelcomePage = () => {
   const [celebrationComplete, setCelebrationComplete] = useState(false)
   const [referralCode, setReferralCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [rewardData, setRewardData] = useState(null)
 
   const queryClient = useQueryClient()
 
@@ -774,6 +818,7 @@ const WelcomePage = () => {
       authService.selectSpa(locationId, referralCode),
     onSuccess: (data) => {
       console.log('Spa selection successful:', data)
+      setRewardData(data.data.rewards)
       setShowCelebration(true)
       setCelebrationComplete(false)
 
@@ -888,6 +933,7 @@ const WelcomePage = () => {
         <CelebrationEffect
           show={showCelebration}
           onComplete={handleCelebrationComplete}
+          rewardData={rewardData}
         />
       </AnimatePresence>
 
@@ -973,21 +1019,33 @@ const WelcomePage = () => {
                     </span>
                   </div>
                   <p className='text-lg font-bold text-green-700'>
-                    +100 Points
+                    +
+                    {(rewardData?.profileCompletion || 0) +
+                      (rewardData?.referral?.data?.referredPoints || 0)}{' '}
+                    Points
                   </p>
-                  <p className='text-xs text-green-600'>
-                    Profile completion bonus
-                  </p>
+                  <div className='text-xs text-green-600 space-y-1'>
+                    <div>
+                      Profile completion: +{rewardData?.profileCompletion || 0}
+                    </div>
+                    {rewardData?.referral?.success && (
+                      <div>
+                        Referral bonus: +
+                        {rewardData.referral.data.referredPoints}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Show referral success message if applicable */}
-                {referralCode && (
+                {rewardData?.referral?.success && (
                   <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'>
                     <p className='text-sm text-blue-700 font-medium'>
                       🎊 Referral code applied successfully!
                     </p>
                     <p className='text-xs text-blue-600 mt-1'>
-                      You and your referrer both earned bonus points!
+                      You and {rewardData.referral.data.referrerName} both
+                      earned bonus points!
                     </p>
                   </div>
                 )}

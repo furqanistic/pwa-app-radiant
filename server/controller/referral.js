@@ -1,13 +1,15 @@
-// File: server/controller/referral.js
+// File: server/controller/referral.js - COMPLETE REFERRAL SYSTEM FIX
 import { createError } from '../error.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import { createSystemNotification } from './notification.js'
 
-// Helper function to process referral - used in auth.js
+// ENHANCED: Helper function to process referral - used in auth.js
 export const processReferral = async (referredUserId, referralCode) => {
   try {
+    console.log('🎯 Processing referral:', { referredUserId, referralCode })
+
     // Find the referrer by referral code
     const referrer = await User.findOne({
       referralCode: referralCode.toUpperCase(),
@@ -59,29 +61,23 @@ export const processReferral = async (referredUserId, referralCode) => {
       }
     }
 
-    // Get active referral config
-    const config = await ReferralConfig.getActiveConfig()
-
-    // Calculate reward points
-    const rewardCalculation = config.calculateReward(
-      'signup',
-      referrer.referralStats?.currentTier || 'bronze',
-      referredUser.selectedLocation?.locationId
-    )
-
-    // Create referral record
+    // Create referral record but DON'T award points yet - wait for spa selection
     const referral = await Referral.create({
       referrer: referrer._id,
       referred: referredUserId,
       referralCode: referralCode.toUpperCase(),
       rewardType: 'signup',
+      status: 'pending', // Keep as pending until spa is selected
       referrerReward: {
-        points: rewardCalculation.referrerPoints,
+        points: 0, // Will be calculated when spa is selected
         awarded: false,
       },
       referredReward: {
-        points: rewardCalculation.referredPoints,
+        points: 0, // Will be calculated when spa is selected
         awarded: false,
+      },
+      metadata: {
+        notes: 'Waiting for spa selection to apply rewards',
       },
     })
 
@@ -94,15 +90,83 @@ export const processReferral = async (referredUserId, referralCode) => {
     referrer.referralStats.activeReferrals += 1
     await referrer.save()
 
-    // Complete the referral immediately for signup rewards (if auto-approve is enabled)
-    if (config.settings.autoApprove) {
-      await referral.complete()
+    console.log('✅ Referral record created (pending spa selection)')
 
-      // Send notifications
+    return {
+      success: true,
+      message:
+        'Referral record created successfully. Points will be awarded when spa is selected.',
+      data: {
+        referral,
+        awaitingSpaSelection: true,
+      },
+    }
+  } catch (error) {
+    console.error('❌ Error processing referral:', error)
+    return {
+      success: false,
+      message: 'Failed to process referral',
+    }
+  }
+}
+
+// NEW: Process referral rewards when spa is selected
+export const processReferralRewards = async (referredUser, locationId) => {
+  try {
+    console.log('💰 Processing referral rewards:', {
+      referredUserId: referredUser._id,
+      locationId,
+    })
+
+    // Find pending referral for this user
+    const pendingReferral = await Referral.findOne({
+      referred: referredUser._id,
+      status: 'pending',
+      rewardType: 'signup',
+    }).populate('referrer', 'name email referralStats')
+
+    if (!pendingReferral) {
+      console.log('⚠️ No pending referral found')
+      return { success: false, message: 'No pending referral found' }
+    }
+
+    const referrer = pendingReferral.referrer
+    console.log('👤 Referrer found:', {
+      referrerId: referrer._id,
+      referrerName: referrer.name,
+    })
+
+    // Get active referral config
+    const config = await ReferralConfig.getActiveConfig()
+    console.log('⚙️ Got referral config')
+
+    // Calculate spa-specific reward points
+    const rewardCalculation = config.calculateSpaReward(
+      'signup',
+      locationId,
+      referrer.referralStats?.currentTier || 'bronze'
+    )
+
+    console.log('💎 Reward calculation result:', rewardCalculation)
+
+    // Update referral with calculated points
+    pendingReferral.referrerReward.points = rewardCalculation.referrerPoints
+    pendingReferral.referredReward.points = rewardCalculation.referredPoints
+    pendingReferral.metadata.notes = `Spa-specific rewards applied for ${rewardCalculation.spaConfig.locationName}`
+    pendingReferral.metadata.locationId = locationId
+    pendingReferral.metadata.spaConfig = rewardCalculation.spaConfig
+
+    // Complete the referral and award points
+    await pendingReferral.complete()
+
+    console.log('✅ Referral completed and points awarded')
+
+    // Send notifications
+    if (rewardCalculation.referrerPoints > 0) {
       await createSystemNotification(
         referrer._id,
-        'Referral Reward!',
-        `You earned ${rewardCalculation.referrerPoints} points for referring ${referredUser.name}!`,
+        'Referral Reward! 🎉',
+        `${referredUser.name} joined ${rewardCalculation.spaConfig.locationName}! You earned ${rewardCalculation.referrerPoints} points.`,
         {
           category: 'referral',
           priority: 'high',
@@ -110,14 +174,17 @@ export const processReferral = async (referredUserId, referralCode) => {
             type: 'referrer_reward',
             points: rewardCalculation.referrerPoints,
             referredUserName: referredUser.name,
+            spaName: rewardCalculation.spaConfig.locationName,
           },
         }
       )
+    }
 
+    if (rewardCalculation.referredPoints > 0) {
       await createSystemNotification(
-        referredUserId,
-        'Welcome Bonus!',
-        `You received ${rewardCalculation.referredPoints} points for joining through ${referrer.name}'s referral!`,
+        referredUser._id,
+        'Referral Bonus! 🎁',
+        `Welcome to ${rewardCalculation.spaConfig.locationName}! You received ${rewardCalculation.referredPoints} bonus points from ${referrer.name}'s referral.`,
         {
           category: 'referral',
           priority: 'high',
@@ -125,6 +192,7 @@ export const processReferral = async (referredUserId, referralCode) => {
             type: 'referred_reward',
             points: rewardCalculation.referredPoints,
             referrerName: referrer.name,
+            spaName: rewardCalculation.spaConfig.locationName,
           },
         }
       )
@@ -132,18 +200,20 @@ export const processReferral = async (referredUserId, referralCode) => {
 
     return {
       success: true,
-      message: 'Referral processed successfully',
+      message: 'Referral rewards processed successfully',
       data: {
-        referral,
-        rewardAmount: rewardCalculation.referredPoints,
-        referrerReward: rewardCalculation.referrerPoints,
+        referrerPoints: rewardCalculation.referrerPoints,
+        referredPoints: rewardCalculation.referredPoints,
+        spaConfig: rewardCalculation.spaConfig,
+        referrerName: referrer.name,
       },
     }
   } catch (error) {
-    console.error('Error processing referral:', error)
+    console.error('❌ Error processing referral rewards:', error)
     return {
       success: false,
-      message: 'Failed to process referral',
+      message: 'Failed to process referral rewards',
+      error: error.message,
     }
   }
 }
@@ -161,7 +231,7 @@ export const getUserReferralStats = async (req, res, next) => {
 
     // Get referrals made by this user
     const referralsMade = await Referral.find({ referrer: userId })
-      .populate('referred', 'name email createdAt')
+      .populate('referred', 'name email createdAt selectedLocation')
       .sort({ createdAt: -1 })
 
     // Get referrals where this user was referred
@@ -201,13 +271,9 @@ export const getUserReferralStats = async (req, res, next) => {
   }
 }
 
-// Get all referrals for admin
+// Get all referrals for admin or spa owner
 export const getAllReferrals = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const {
       page = 1,
       limit = 20,
@@ -217,8 +283,31 @@ export const getAllReferrals = async (req, res, next) => {
       endDate,
     } = req.query
 
-    // Build query
+    // Build query based on user role
     const query = {}
+
+    if (req.user.role === 'team') {
+      // Spa owners can only see referrals for their spa
+      const userLocation = req.user.spaLocation
+      if (!userLocation?.locationId) {
+        return next(
+          createError(400, 'Spa location not configured for your account')
+        )
+      }
+
+      // Find referrals where the referred user selected this spa
+      const usersInSpa = await User.find({
+        'selectedLocation.locationId': userLocation.locationId,
+      }).select('_id')
+
+      const userIds = usersInSpa.map((u) => u._id)
+      query.referred = { $in: userIds }
+    } else if (req.user.role !== 'admin') {
+      return next(
+        createError(403, 'Access denied. Admin or spa owner rights required.')
+      )
+    }
+
     if (status) query.status = status
     if (rewardType) query.rewardType = rewardType
     if (startDate || endDate) {
@@ -230,7 +319,7 @@ export const getAllReferrals = async (req, res, next) => {
     // Get referrals with pagination
     const referrals = await Referral.find(query)
       .populate('referrer', 'name email referralCode')
-      .populate('referred', 'name email createdAt')
+      .populate('referred', 'name email createdAt selectedLocation')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
@@ -272,22 +361,38 @@ export const getAllReferrals = async (req, res, next) => {
   }
 }
 
-// Complete referral manually (admin)
+// Complete referral manually (admin or spa owner)
 export const completeReferral = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const { referralId } = req.params
     const { notes } = req.body
 
     const referral = await Referral.findById(referralId)
       .populate('referrer', 'name email')
-      .populate('referred', 'name email')
+      .populate('referred', 'name email selectedLocation')
 
     if (!referral) {
       return next(createError(404, 'Referral not found'))
+    }
+
+    // Check permissions
+    if (req.user.role === 'team') {
+      const userLocation = req.user.spaLocation
+      if (!userLocation?.locationId) {
+        return next(createError(400, 'Spa location not configured'))
+      }
+
+      // Check if this referral belongs to their spa
+      if (
+        referral.referred.selectedLocation?.locationId !==
+        userLocation.locationId
+      ) {
+        return next(
+          createError(403, 'You can only manage referrals for your spa')
+        )
+      }
+    } else if (req.user.role !== 'admin') {
+      return next(createError(403, 'Access denied'))
     }
 
     if (referral.status === 'completed') {
@@ -348,11 +453,12 @@ export const awardMilestoneReward = async (req, res, next) => {
     // Get active config
     const config = await ReferralConfig.getActiveConfig()
 
-    // Calculate milestone reward
-    const rewardCalculation = config.calculateReward(
+    // Use spa-specific calculation
+    const locationId = referredUser.selectedLocation?.locationId
+    const rewardCalculation = config.calculateSpaReward(
       milestone,
+      locationId,
       referrer.referralStats?.currentTier || 'bronze',
-      referredUser.selectedLocation?.locationId,
       purchaseAmount
     )
 
@@ -394,6 +500,8 @@ export const awardMilestoneReward = async (req, res, next) => {
       metadata: {
         milestone,
         purchaseAmount,
+        locationId,
+        spaConfig: rewardCalculation.spaConfig,
       },
     })
 
@@ -479,6 +587,18 @@ export const getReferralLeaderboard = async (req, res, next) => {
       matchCondition.completedAt = dateFilter
     }
 
+    // For spa owners, filter by their spa's referrals
+    if (req.user.role === 'team') {
+      const userLocation = req.user.spaLocation
+      if (userLocation?.locationId) {
+        const spaUsers = await User.find({
+          'selectedLocation.locationId': userLocation.locationId,
+        }).select('_id')
+
+        matchCondition.referred = { $in: spaUsers.map((u) => u._id) }
+      }
+    }
+
     // Get top referrers
     const leaderboard = await Referral.aggregate([
       { $match: matchCondition },
@@ -532,48 +652,153 @@ export const getReferralLeaderboard = async (req, res, next) => {
 // Admin: Get referral configuration
 export const getReferralConfig = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const config = await ReferralConfig.getActiveConfig()
 
-    res.status(200).json({
-      status: 'success',
-      data: { config },
-    })
+    if (req.user.role === 'team') {
+      // Spa owners get their specific config
+      const userLocation = req.user.spaLocation
+      if (!userLocation?.locationId) {
+        return next(
+          createError(400, 'Spa location not configured for your account')
+        )
+      }
+
+      const spaConfig = config.getSpaConfig(userLocation.locationId)
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          config: spaConfig,
+          isGlobal: spaConfig.locationId === 'global',
+          location: userLocation,
+        },
+      })
+    } else if (req.user.role === 'admin') {
+      // Admins get full config
+      res.status(200).json({
+        status: 'success',
+        data: { config },
+      })
+    } else {
+      return next(createError(403, 'Access denied'))
+    }
   } catch (error) {
     console.error('Error getting referral config:', error)
     next(createError(500, 'Failed to get referral configuration'))
   }
 }
 
-// Admin: Update referral configuration
+// Update referral configuration (admin or spa owner)
 export const updateReferralConfig = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const config = await ReferralConfig.getActiveConfig()
 
-    // Update fields
-    Object.keys(req.body).forEach((key) => {
-      if (key !== '_id' && key !== 'createdAt' && key !== 'updatedAt') {
-        config[key] = req.body[key]
+    if (req.user.role === 'team') {
+      // Spa owners can only update their specific config
+      const userLocation = req.user.spaLocation
+      if (!userLocation?.locationId) {
+        return next(
+          createError(400, 'Spa location not configured for your account')
+        )
       }
-    })
 
-    config.lastUpdatedBy = req.user._id
-    await config.save()
+      // Update spa-specific configuration
+      const updatedSpaConfig = config.setSpaConfig(
+        userLocation.locationId,
+        userLocation.locationName,
+        req.user._id,
+        req.body
+      )
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Referral configuration updated successfully',
-      data: { config },
-    })
+      config.lastUpdatedBy = req.user._id
+      await config.save()
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Spa referral configuration updated successfully',
+        data: { config: updatedSpaConfig },
+      })
+    } else if (req.user.role === 'admin') {
+      // Admins can update global configuration
+      Object.keys(req.body).forEach((key) => {
+        if (key !== '_id' && key !== 'createdAt' && key !== 'updatedAt') {
+          config[key] = req.body[key]
+        }
+      })
+
+      config.lastUpdatedBy = req.user._id
+      await config.save()
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Global referral configuration updated successfully',
+        data: { config },
+      })
+    } else {
+      return next(createError(403, 'Access denied'))
+    }
   } catch (error) {
     console.error('Error updating referral config:', error)
     next(createError(500, 'Failed to update referral configuration'))
+  }
+}
+
+// NEW: Get spa-specific referral stats for spa owners
+export const getSpaReferralStats = async (req, res, next) => {
+  try {
+    if (req.user.role !== 'team') {
+      return next(createError(403, 'Access denied. Spa owner rights required.'))
+    }
+
+    const userLocation = req.user.spaLocation
+    if (!userLocation?.locationId) {
+      return next(
+        createError(400, 'Spa location not configured for your account')
+      )
+    }
+
+    // Get users who selected this spa
+    const spaUsers = await User.find({
+      'selectedLocation.locationId': userLocation.locationId,
+    }).select('_id name email selectedLocation createdAt')
+
+    const spaUserIds = spaUsers.map((u) => u._id)
+
+    // Get referrals for this spa
+    const spaReferrals = await Referral.find({
+      referred: { $in: spaUserIds },
+    })
+      .populate('referrer', 'name email')
+      .populate('referred', 'name email selectedLocation')
+
+    // Calculate stats
+    const stats = {
+      totalUsers: spaUsers.length,
+      totalReferrals: spaReferrals.length,
+      pendingReferrals: spaReferrals.filter((r) => r.status === 'pending')
+        .length,
+      completedReferrals: spaReferrals.filter((r) => r.status === 'completed')
+        .length,
+      totalPointsAwarded: spaReferrals.reduce((sum, r) => {
+        return (
+          sum +
+          (r.referrerReward.awarded ? r.referrerReward.points : 0) +
+          (r.referredReward.awarded ? r.referredReward.points : 0)
+        )
+      }, 0),
+      recentReferrals: spaReferrals.slice(0, 10),
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        stats,
+        location: userLocation,
+        users: spaUsers,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting spa referral stats:', error)
+    next(createError(500, 'Failed to get spa referral statistics'))
   }
 }

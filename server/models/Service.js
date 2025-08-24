@@ -1,5 +1,4 @@
 // File: server/models/Service.js
-// server/models/Service.js - Enhanced with Reward Integration
 import mongoose from 'mongoose'
 
 const SubTreatmentSchema = new mongoose.Schema(
@@ -24,10 +23,46 @@ const SubTreatmentSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    // ✅ NEW: Track if this sub-treatment has rewards
     hasRewards: {
       type: Boolean,
       default: false,
+    },
+  },
+  { _id: true }
+)
+
+// ✅ NEW: Schema for linked services (add-ons)
+const LinkedServiceSchema = new mongoose.Schema(
+  {
+    serviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Service',
+      required: true,
+    },
+    // Optional: Custom pricing for this service when used as add-on
+    customPrice: {
+      type: Number,
+      min: 0,
+      default: null, // If null, use original service price
+    },
+    // Optional: Custom duration when used as add-on
+    customDuration: {
+      type: Number,
+      min: 1,
+      default: null, // If null, use original service duration
+    },
+    // Display order for add-ons
+    order: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   { _id: true }
@@ -100,6 +135,9 @@ const ServiceSchema = new mongoose.Schema(
     },
     subTreatments: [SubTreatmentSchema],
 
+    // ✅ NEW: Linked services as add-ons
+    linkedServices: [LinkedServiceSchema],
+
     // Analytics fields
     bookings: {
       type: Number,
@@ -118,7 +156,7 @@ const ServiceSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // ✅ NEW REWARD-RELATED FIELDS
+    // Reward-related fields
     rewardCount: {
       type: Number,
       default: 0,
@@ -139,7 +177,6 @@ const ServiceSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
-    // Track most popular reward type for this service
     popularRewardType: {
       type: String,
       enum: [
@@ -157,7 +194,7 @@ const ServiceSchema = new mongoose.Schema(
     // Location association
     locationId: {
       type: String,
-      required: false, // Optional for global services
+      required: false,
       index: true,
     },
 
@@ -199,7 +236,6 @@ const ServiceSchema = new mongoose.Schema(
           }
         }
 
-        // ✅ ADD REWARD-RELATED COMPUTED FIELDS
         ret.hasRewards = ret.rewardCount > 0
         ret.averageRewardSaving =
           ret.totalRewardRedemptions > 0
@@ -227,155 +263,143 @@ ServiceSchema.virtual('category', {
   justOne: true,
 })
 
-// ✅ NEW VIRTUAL: Get available rewards for this service
-ServiceSchema.virtual('availableRewards', {
-  ref: 'Reward',
-  localField: '_id',
-  foreignField: 'serviceId',
-  match: { status: 'active', isDeleted: false },
+// ✅ NEW VIRTUAL: Get populated linked services
+ServiceSchema.virtual('populatedLinkedServices', {
+  ref: 'Service',
+  localField: 'linkedServices.serviceId',
+  foreignField: '_id',
 })
 
-// Method to check if discount is currently active
-ServiceSchema.methods.isDiscountActive = function () {
-  if (!this.discount.active) return false
-
-  const now = new Date()
-  const startDate = this.discount.startDate
-    ? new Date(this.discount.startDate)
-    : new Date()
-  const endDate = this.discount.endDate
-    ? new Date(this.discount.endDate)
-    : new Date()
-
-  return now >= startDate && now <= endDate
-}
-
-// Method to calculate final price
-ServiceSchema.methods.calculatePrice = function () {
-  if (this.isDiscountActive()) {
-    return this.basePrice - (this.basePrice * this.discount.percentage) / 100
-  }
-  return this.basePrice
-}
-
-// ✅ NEW METHOD: Get applicable rewards for this service
-ServiceSchema.methods.getApplicableRewards = async function (
-  userPoints = 0,
-  locationId = null
-) {
-  const Reward = mongoose.model('Reward')
-  return await Reward.getRewardsForService(
-    this._id,
-    this.categoryId,
-    userPoints,
-    locationId || this.locationId
+// ✅ NEW METHOD: Add linked service
+ServiceSchema.methods.addLinkedService = function (serviceId, options = {}) {
+  // Check if service is already linked
+  const existingLink = this.linkedServices.find(
+    (link) => link.serviceId.toString() === serviceId.toString()
   )
-}
 
-// ✅ NEW METHOD: Calculate price with reward applied
-ServiceSchema.methods.calculatePriceWithReward = function (reward) {
-  const basePrice = this.calculatePrice() // Get price with any active discounts
-  const discountAmount = reward.calculateDiscountForService(basePrice)
-  return Math.max(0, basePrice - discountAmount)
-}
+  if (existingLink) {
+    throw new Error('Service is already linked as an add-on')
+  }
 
-// ✅ NEW METHOD: Update reward statistics
-ServiceSchema.methods.updateRewardStats = async function (
-  rewardValue,
-  rewardType
-) {
-  this.totalRewardRedemptions += 1
-  this.rewardValueSaved += rewardValue
-  this.popularRewardType = rewardType
-
-  // Update hasActiveRewards flag
-  const Reward = mongoose.model('Reward')
-  const activeRewardsCount = await Reward.countDocuments({
-    $or: [
-      { serviceId: this._id },
-      { serviceIds: this._id },
-      { categoryId: this.categoryId, appliesToCategory: true },
-    ],
-    status: 'active',
-    isDeleted: false,
+  this.linkedServices.push({
+    serviceId,
+    customPrice: options.customPrice || null,
+    customDuration: options.customDuration || null,
+    order: options.order || this.linkedServices.length,
+    isActive: options.isActive !== undefined ? options.isActive : true,
   })
 
-  this.hasActiveRewards = activeRewardsCount > 0
   return this.save()
 }
 
-// Static method to get active services
-ServiceSchema.statics.getActiveServices = function (filter = {}) {
-  return this.find({
-    status: 'active',
-    isDeleted: false,
-    ...filter,
-  }).populate('category')
+// ✅ NEW METHOD: Remove linked service
+ServiceSchema.methods.removeLinkedService = function (serviceId) {
+  this.linkedServices = this.linkedServices.filter(
+    (link) => link.serviceId.toString() !== serviceId.toString()
+  )
+  return this.save()
 }
 
-// ✅ NEW STATIC METHOD: Get services with active rewards
-ServiceSchema.statics.getServicesWithRewards = function (filter = {}) {
-  return this.find({
-    status: 'active',
-    isDeleted: false,
-    hasActiveRewards: true,
-    ...filter,
-  })
-    .populate('category')
-    .populate({
-      path: 'availableRewards',
-      match: { status: 'active', isDeleted: false },
-    })
-}
+// ✅ NEW METHOD: Update linked service
+ServiceSchema.methods.updateLinkedService = function (serviceId, updates) {
+  const linkedService = this.linkedServices.find(
+    (link) => link.serviceId.toString() === serviceId.toString()
+  )
 
-// ✅ NEW STATIC METHOD: Get services by category with reward info
-ServiceSchema.statics.getServicesByCategory = function (
-  categoryId,
-  includeRewards = false
-) {
-  const query = this.find({
-    categoryId,
-    status: 'active',
-    isDeleted: false,
-  }).populate('category')
-
-  if (includeRewards) {
-    query.populate({
-      path: 'availableRewards',
-      match: { status: 'active', isDeleted: false },
-    })
+  if (!linkedService) {
+    throw new Error('Linked service not found')
   }
 
-  return query
+  Object.assign(linkedService, updates)
+  return this.save()
 }
 
-// ✅ NEW STATIC METHOD: Get reward statistics for services
-ServiceSchema.statics.getRewardStats = function (locationId = null) {
-  const matchFilter = {
+// ✅ NEW METHOD: Get active linked services with details
+ServiceSchema.methods.getActiveLinkedServices = async function () {
+  const activeLinkedServices = this.linkedServices.filter(
+    (link) => link.isActive
+  )
+
+  if (activeLinkedServices.length === 0) {
+    return []
+  }
+
+  const serviceIds = activeLinkedServices.map((link) => link.serviceId)
+  const services = await mongoose
+    .model('Service')
+    .find({
+      _id: { $in: serviceIds },
+      status: 'active',
+      isDeleted: false,
+    })
+    .populate('categoryId', 'name color')
+
+  // Combine service details with link information
+  return activeLinkedServices
+    .map((link) => {
+      const service = services.find(
+        (s) => s._id.toString() === link.serviceId.toString()
+      )
+      if (!service) return null
+
+      return {
+        ...service.toObject(),
+        linkedServiceInfo: {
+          customPrice: link.customPrice,
+          customDuration: link.customDuration,
+          order: link.order,
+          addedAt: link.addedAt,
+        },
+        // Calculate final price (custom or original)
+        finalPrice: link.customPrice || service.basePrice,
+        finalDuration: link.customDuration || service.duration,
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.linkedServiceInfo.order - b.linkedServiceInfo.order)
+}
+
+// ✅ NEW STATIC METHOD: Get services that can be used as add-ons
+ServiceSchema.statics.getAvailableAddOns = function (
+  excludeServiceId,
+  locationId = null
+) {
+  const filter = {
+    status: 'active',
     isDeleted: false,
+    _id: { $ne: excludeServiceId }, // Exclude the current service
   }
 
   if (locationId) {
-    matchFilter.$or = [
+    filter.$or = [
       { locationId: locationId },
       { locationId: { $exists: false } },
       { locationId: null },
     ]
   }
 
-  return this.aggregate([
-    { $match: matchFilter },
-    {
-      $group: {
-        _id: null,
-        totalServices: { $sum: 1 },
-        servicesWithRewards: { $sum: { $cond: ['$hasActiveRewards', 1, 0] } },
-        totalRewardRedemptions: { $sum: '$totalRewardRedemptions' },
-        totalRewardValueSaved: { $sum: '$rewardValueSaved' },
-        averageRewardSaving: { $avg: '$rewardValueSaved' },
+  return this.find(filter)
+    .select('name description basePrice duration image categoryId')
+    .populate('categoryId', 'name color')
+    .sort({ name: 1 })
+}
+
+// ✅ NEW STATIC METHOD: Get services with their linked services
+ServiceSchema.statics.getServicesWithLinkedServices = function (filter = {}) {
+  return this.find({
+    status: 'active',
+    isDeleted: false,
+    ...filter,
+  })
+    .populate('categoryId', 'name color')
+    .populate({
+      path: 'linkedServices.serviceId',
+      select: 'name description basePrice duration image categoryId',
+      populate: {
+        path: 'categoryId',
+        select: 'name color',
       },
-    },
-  ])
+    })
 }
 
 export default mongoose.model('Service', ServiceSchema)

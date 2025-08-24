@@ -1,4 +1,5 @@
-// server/middleware/serviceValidation.js
+// File: server/middleware/serviceValidation.js
+// server/middleware/serviceValidation.js - Updated with linkedServices support
 import { createError } from '../error.js'
 import Category from '../models/Category.js'
 
@@ -14,45 +15,59 @@ export const validateServiceData = async (req, res, next) => {
       limit,
       discount,
       subTreatments,
+      linkedServices, // NEW: Added linkedServices validation
     } = req.body
 
     const errors = []
 
-    // Required field validation
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      errors.push('Service name is required and must be a non-empty string')
-    }
+    // Check if this is an update (PUT) vs create (POST)
+    const isUpdate = req.method === 'PUT'
 
-    if (
-      !description ||
-      typeof description !== 'string' ||
-      description.trim().length === 0
-    ) {
-      errors.push(
-        'Service description is required and must be a non-empty string'
-      )
-    }
-
-    if (!categoryId) {
-      errors.push('Category ID is required')
-    }
-
-    // Numeric field validation
-    if (basePrice === undefined || basePrice === null) {
-      errors.push('Base price is required')
-    } else {
-      const price = parseFloat(basePrice)
-      if (isNaN(price) || price < 0) {
-        errors.push('Base price must be a valid positive number')
+    // Required field validation (more lenient for updates)
+    if (!isUpdate || name !== undefined) {
+      if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        errors.push('Service name is required and must be a non-empty string')
       }
     }
 
-    if (duration === undefined || duration === null) {
-      errors.push('Duration is required')
-    } else {
-      const dur = parseInt(duration)
-      if (isNaN(dur) || dur < 1) {
-        errors.push('Duration must be a valid positive integer (minutes)')
+    if (!isUpdate || description !== undefined) {
+      if (
+        !description ||
+        typeof description !== 'string' ||
+        description.trim().length === 0
+      ) {
+        errors.push(
+          'Service description is required and must be a non-empty string'
+        )
+      }
+    }
+
+    if (!isUpdate || categoryId !== undefined) {
+      if (!categoryId) {
+        errors.push('Category ID is required')
+      }
+    }
+
+    // Numeric field validation
+    if (!isUpdate || basePrice !== undefined) {
+      if (!isUpdate && (basePrice === undefined || basePrice === null)) {
+        errors.push('Base price is required')
+      } else if (basePrice !== undefined) {
+        const price = parseFloat(basePrice)
+        if (isNaN(price) || price < 0) {
+          errors.push('Base price must be a valid positive number')
+        }
+      }
+    }
+
+    if (!isUpdate || duration !== undefined) {
+      if (!isUpdate && (duration === undefined || duration === null)) {
+        errors.push('Duration is required')
+      } else if (duration !== undefined) {
+        const dur = parseInt(duration)
+        if (isNaN(dur) || dur < 1) {
+          errors.push('Duration must be a valid positive integer (minutes)')
+        }
       }
     }
 
@@ -132,6 +147,67 @@ export const validateServiceData = async (req, res, next) => {
       })
     }
 
+    // NEW: LinkedServices validation
+    if (linkedServices && Array.isArray(linkedServices)) {
+      linkedServices.forEach((service, index) => {
+        // Validate serviceId exists
+        if (!service.serviceId || typeof service.serviceId !== 'string') {
+          errors.push(
+            `Linked service ${
+              index + 1
+            }: Service ID is required and must be a valid string`
+          )
+        }
+
+        // Validate customPrice if provided
+        if (service.customPrice !== undefined && service.customPrice !== null) {
+          const customPrice = parseFloat(service.customPrice)
+          if (isNaN(customPrice) || customPrice < 0) {
+            errors.push(
+              `Linked service ${
+                index + 1
+              }: Custom price must be a valid positive number`
+            )
+          }
+        }
+
+        // Validate customDuration if provided
+        if (
+          service.customDuration !== undefined &&
+          service.customDuration !== null
+        ) {
+          const customDuration = parseInt(service.customDuration)
+          if (isNaN(customDuration) || customDuration < 1) {
+            errors.push(
+              `Linked service ${
+                index + 1
+              }: Custom duration must be a valid positive integer`
+            )
+          }
+        }
+
+        // Validate order if provided
+        if (service.order !== undefined && service.order !== null) {
+          const order = parseInt(service.order)
+          if (isNaN(order) || order < 0) {
+            errors.push(
+              `Linked service ${
+                index + 1
+              }: Order must be a valid non-negative integer`
+            )
+          }
+        }
+
+        // Validate isActive if provided
+        if (
+          service.isActive !== undefined &&
+          typeof service.isActive !== 'boolean'
+        ) {
+          errors.push(`Linked service ${index + 1}: isActive must be a boolean`)
+        }
+      })
+    }
+
     // If there are validation errors, return them
     if (errors.length > 0) {
       return next(createError(400, `Validation failed: ${errors.join(', ')}`))
@@ -204,7 +280,7 @@ export const validateCategoryData = (req, res, next) => {
   }
 }
 
-// Middleware to sanitize service data
+// Middleware to sanitize service data - UPDATED with linkedServices support
 export const sanitizeServiceData = (req, res, next) => {
   try {
     if (req.body.name) {
@@ -215,27 +291,78 @@ export const sanitizeServiceData = (req, res, next) => {
       req.body.description = req.body.description.trim()
     }
 
-    if (req.body.basePrice) {
+    if (req.body.basePrice !== undefined) {
       req.body.basePrice = parseFloat(req.body.basePrice)
     }
 
-    if (req.body.duration) {
+    if (req.body.duration !== undefined) {
       req.body.duration = parseInt(req.body.duration)
     }
 
-    if (req.body.limit) {
+    if (req.body.limit !== undefined) {
       req.body.limit = parseInt(req.body.limit)
+    }
+
+    // Sanitize discount object
+    if (req.body.discount && typeof req.body.discount === 'object') {
+      const discount = req.body.discount
+      req.body.discount = {
+        percentage:
+          discount.percentage !== undefined
+            ? parseFloat(discount.percentage) || 0
+            : 0,
+        startDate: discount.startDate || null,
+        endDate: discount.endDate || null,
+        active: Boolean(discount.active),
+      }
     }
 
     // Sanitize sub-treatments
     if (req.body.subTreatments && Array.isArray(req.body.subTreatments)) {
-      req.body.subTreatments = req.body.subTreatments.map((treatment) => ({
-        ...treatment,
-        name: treatment.name ? treatment.name.trim() : '',
-        description: treatment.description ? treatment.description.trim() : '',
-        price: treatment.price ? parseFloat(treatment.price) : 0,
-        duration: treatment.duration ? parseInt(treatment.duration) : 0,
-      }))
+      req.body.subTreatments = req.body.subTreatments
+        .map((treatment) => ({
+          ...treatment,
+          name: treatment.name ? treatment.name.trim() : '',
+          description: treatment.description
+            ? treatment.description.trim()
+            : '',
+          price: treatment.price ? parseFloat(treatment.price) : 0,
+          duration: treatment.duration ? parseInt(treatment.duration) : 0,
+          hasRewards: Boolean(treatment.hasRewards),
+        }))
+        .filter(
+          (treatment) =>
+            treatment.name && treatment.price >= 0 && treatment.duration > 0
+        )
+    }
+
+    // NEW: Sanitize linkedServices
+    if (req.body.linkedServices && Array.isArray(req.body.linkedServices)) {
+      req.body.linkedServices = req.body.linkedServices
+        .map((service) => {
+          // Handle different possible field names for service ID
+          const serviceId = service._id || service.serviceId || service.id
+
+          if (!serviceId) {
+            return null // Will be filtered out
+          }
+
+          return {
+            serviceId: serviceId.toString().trim(),
+            customPrice: service.customPrice
+              ? parseFloat(service.customPrice)
+              : null,
+            customDuration: service.customDuration
+              ? parseInt(service.customDuration)
+              : null,
+            order:
+              service.order !== undefined ? parseInt(service.order) || 0 : 0,
+            isActive:
+              service.isActive !== undefined ? Boolean(service.isActive) : true,
+            addedAt: service.addedAt ? new Date(service.addedAt) : new Date(),
+          }
+        })
+        .filter(Boolean) // Remove null entries
     }
 
     next()

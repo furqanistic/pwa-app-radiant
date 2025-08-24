@@ -1,4 +1,4 @@
-// File: client/src/pages/Spin/ScratchSpinPage.jsx - ENHANCED PWA VERSION
+// File: client/src/pages/Spin/ScratchSpinPage.jsx - FIXED VERSION
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -25,6 +25,7 @@ const ScratchSpinPage = () => {
       setGameResult(data.data)
       setShowResult(true)
       setIsPlaying(false)
+      // ✅ Don't close game modal here - let result modal appear on top
       refetch()
     },
     onError: () => setIsPlaying(false),
@@ -42,7 +43,7 @@ const ScratchSpinPage = () => {
   const closeResult = () => {
     setShowResult(false)
     setGameResult(null)
-    setActiveGame(null)
+    setActiveGame(null) // ✅ Close game modal when result modal is closed
   }
 
   if (isLoading) {
@@ -458,7 +459,7 @@ const SlideReveal = ({ game, onPlay, isPlaying }) => {
             <div className='w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 border border-white/30'>
               <Trophy className='w-6 h-6 text-white' />
             </div>
-            <h3 className='text-lg font-bold mb-1'>Mystery Prize 💎</h3>
+            <h3 className='text-lg font-bold mb-1'>Mystery Prize</h3>
             <p className='text-white/90 text-sm'>
               Your reward awaits, sweetie!
             </p>
@@ -513,7 +514,7 @@ const SlideReveal = ({ game, onPlay, isPlaying }) => {
         </div>
       ) : (
         <p className='text-gray-600 text-sm'>
-          Slide the control to reveal your mystery prize! 💝
+          Slide the control to reveal your mystery prize!
         </p>
       )}
     </div>
@@ -527,7 +528,7 @@ const ResultModal = ({ result, onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4'
+      className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] px-4'
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -597,7 +598,7 @@ const ResultModal = ({ result, onClose }) => {
           onClick={onClose}
           className='w-full py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform transition-all duration-200'
         >
-          Continue Playing! 💕
+          Continue Playing!
         </button>
       </motion.div>
     </motion.div>

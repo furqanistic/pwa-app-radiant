@@ -1,3 +1,4 @@
+// File: client/src/pages/Layout/Layout.jsx
 // client/src/pages/Layout/Layout.jsx
 import { logout } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -135,7 +136,11 @@ const Layout = ({
       label: 'Bookings',
       icon: Calendar,
       href: '/bookings',
-      badge: { count: 12, color: 'bg-pink-500' },
+      badge: {
+        count: 12,
+        color:
+          'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
+      },
     },
     {
       id: 'clients',
@@ -151,7 +156,8 @@ const Layout = ({
       href: '/services',
       badge: {
         text: 'NEW',
-        color: 'bg-gradient-to-r from-purple-500 to-pink-500',
+        color:
+          'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
       },
     },
     {
@@ -168,7 +174,8 @@ const Layout = ({
       href: '/spin',
       badge: {
         text: 'HOT',
-        color: 'bg-gradient-to-r from-orange-500 to-red-500',
+        color:
+          'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
       },
     },
   ]
@@ -261,7 +268,7 @@ const Layout = ({
         className={cn(
           'w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden',
           isActive
-            ? 'bg-gradient-to-r from-pink-50 to-purple-50 text-pink-700 shadow-sm border border-pink-200/60 cursor-default'
+            ? 'bg-gradient-to-r from-pink-50 to-pink-50 text-pink-700 shadow-sm border border-pink-200/60 cursor-default'
             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 cursor-pointer',
           isNavigating && !isActive && 'opacity-50 cursor-not-allowed'
         )}
@@ -295,7 +302,7 @@ const Layout = ({
         {isActive && (
           <motion.div
             layoutId='activeIndicator'
-            className='absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-pink-500 to-purple-500 rounded-r-full'
+            className='absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600  rounded-r-full'
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           />
         )}

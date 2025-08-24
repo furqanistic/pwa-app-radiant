@@ -167,17 +167,6 @@ UserRewardSchema.pre('save', function (next) {
   next()
 })
 
-// POST-save middleware for logging
-UserRewardSchema.post('save', function (doc) {
-  console.log('✅ UserReward saved successfully:', {
-    id: doc._id,
-    type: doc.rewardSnapshot?.type,
-    expiresAt: doc.expiresAt,
-    status: doc.status,
-    validDays: doc.rewardSnapshot?.validDays,
-  })
-})
-
 // Error handling middleware
 UserRewardSchema.post('save', function (error, doc, next) {
   if (error) {

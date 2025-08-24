@@ -1,23 +1,26 @@
 // File: server/routes/services.js
 import express from 'express'
 import {
-  createCategory,
-  createService,
-  deleteCategory,
-  deleteService,
-  getCategories,
-  getService,
-  getServices,
-  getServiceStats,
-  updateCategory,
-  updateService,
-} from '../controller/services.js'
-// ✅ IMPORT REWARD-RELATED CONTROLLERS
-import {
   createServiceReward,
   getServiceRewards,
   linkRewardToServices,
 } from '../controller/rewards.js'
+import {
+  createCategory,
+  createService,
+  deleteCategory,
+  deleteService,
+  getAvailableAddOnServices,
+  getCategories,
+  getService,
+  getServices,
+  getServiceStats,
+  getServiceWithLinkedServices,
+  linkServicesToService,
+  unlinkServiceFromService,
+  updateCategory,
+  updateService,
+} from '../controller/services.js'
 import {
   checkPermission,
   restrictTo,
@@ -40,33 +43,31 @@ const router = express.Router()
 // All routes require authentication
 router.use(verifyToken)
 
-// ===============================================
-// PUBLIC ROUTES (all authenticated users can access)
-// ===============================================
-
 // Get all services with filtering and search
 router.get('/', getServices)
 
-// Get single service
+// Get single service by ID
 router.get('/:id', getService)
 
-// ✅ NEW: Get rewards available for a specific service
+// Get rewards available for a specific service
 router.get('/:serviceId/rewards', getServiceRewards)
+
+// Get available services for linking as add-ons
+router.get('/:id/available-addons', getAvailableAddOnServices)
+
+// Get service with linked services details
+router.get('/:id/with-linked-services', getServiceWithLinkedServices)
 
 // Get all categories
 router.get('/categories/all', getCategories)
 
-// Get service statistics
+// Get service statistics and analytics
 router.get('/stats/overview', getServiceStats)
 
-// ===============================================
-// ADMIN/TEAM ROUTES (management)
-// ===============================================
-
-// Apply permission checking middleware for write operations
+// Apply admin/team permission checking for management routes
 router.use(restrictTo('admin', 'team'))
 
-// Service management routes
+// Create new service
 router.post(
   '/',
   sanitizeServiceData,
@@ -75,6 +76,7 @@ router.post(
   createService
 )
 
+// Update existing service
 router.put(
   '/:id',
   sanitizeServiceData,
@@ -83,9 +85,15 @@ router.put(
   updateService
 )
 
+// Delete service (soft delete)
 router.delete('/:id', deleteService)
 
-// ✅ NEW SERVICE-REWARD MANAGEMENT ROUTES
+// Link multiple services as add-ons to a service
+router.post('/:id/link-services', linkServicesToService)
+
+// Unlink a service from add-ons
+router.delete('/:id/unlink/:linkedServiceId', unlinkServiceFromService)
+
 // Create a reward specifically for a service
 router.post(
   '/:serviceId/rewards',
@@ -95,12 +103,11 @@ router.post(
   createServiceReward
 )
 
-// Link existing reward to this service
+// Link existing reward to a service
 router.post(
   '/:serviceId/link-reward/:rewardId',
   sanitizeRewardData,
   (req, res, next) => {
-    // Add serviceId to body for linkRewardToServices function
     req.body.serviceIds = [req.params.serviceId]
     req.params.rewardId = req.params.rewardId
     next()
@@ -108,7 +115,7 @@ router.post(
   linkRewardToServices
 )
 
-// Category management routes
+// Create new category
 router.post(
   '/categories',
   validateCategoryData,
@@ -116,6 +123,7 @@ router.post(
   createCategory
 )
 
+// Update existing category
 router.put(
   '/categories/:id',
   validateCategoryData,
@@ -123,6 +131,7 @@ router.put(
   updateCategory
 )
 
+// Delete category (soft delete)
 router.delete('/categories/:id', deleteCategory)
 
 export default router

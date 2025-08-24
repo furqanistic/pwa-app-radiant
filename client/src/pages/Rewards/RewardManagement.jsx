@@ -1,3 +1,4 @@
+// File: client/src/pages/Rewards/RewardManagement.jsx
 // client/src/pages/Rewards/RewardManagement.jsx
 import {
   useCreateReward,

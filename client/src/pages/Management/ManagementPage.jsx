@@ -770,7 +770,7 @@ const ManagementPage = () => {
             {/* Improved Action Buttons Layout */}
             {/* Quick Actions Bar */}
             <div className='mb-8'>
-              <div className=' rounded-xl p-4 border border-blue-100'>
+              <div className=' rounded-xl p-4'>
                 <div className='flex flex-col sm:flex-row gap-3'>
                   <Button
                     onClick={() => setShowNotificationDialog(true)}

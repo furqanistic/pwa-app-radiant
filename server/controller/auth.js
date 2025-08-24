@@ -1,9 +1,10 @@
-// File: server/controller/auth.js
-// server/controller/auth.js
+// File: server/controller/auth.js - FIXED REFERRAL SYSTEM
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
 import { createError } from '../error.js'
 import Location from '../models/Location.js'
+import Referral from '../models/Referral.js'
+import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import { createSystemNotification } from './notification.js'
 
@@ -113,12 +114,18 @@ export const signup = async (req, res, next) => {
     // Create new user (password will be hashed by the pre-save middleware)
     const newUser = await User.create(userData)
 
-    // Process referral if provided
+    // Process referral if provided - but keep it PENDING until spa selection
     let referralResult = { success: false }
     if (referralCode && referralCode.trim()) {
-      referralResult = await processReferral(newUser._id, referralCode.trim())
+      referralResult = await processInitialReferral(
+        newUser._id,
+        referralCode.trim()
+      )
       if (referralResult.success) {
-        console.log('✅ Referral processed:', referralResult.message)
+        console.log(
+          '✅ Referral created (pending spa selection):',
+          referralResult.message
+        )
       } else {
         console.log('⚠️ Referral failed:', referralResult.message)
       }
@@ -140,7 +147,347 @@ export const signup = async (req, res, next) => {
   }
 }
 
-// NEW: Admin function to create team members
+// UPDATED: Create initial referral record (pending until spa selection)
+const processInitialReferral = async (referredUserId, referralCode) => {
+  try {
+    // Find the referrer by referral code
+    const referrer = await User.findOne({
+      referralCode: referralCode.toUpperCase(),
+      isDeleted: false,
+    })
+
+    if (!referrer) {
+      return {
+        success: false,
+        message: 'Invalid referral code',
+      }
+    }
+
+    // Get referred user
+    const referredUser = await User.findById(referredUserId)
+    if (!referredUser) {
+      return {
+        success: false,
+        message: 'Referred user not found',
+      }
+    }
+
+    // Check if user is trying to refer themselves
+    if (referrer._id.toString() === referredUserId.toString()) {
+      return {
+        success: false,
+        message: 'Cannot refer yourself',
+      }
+    }
+
+    // Check if user was already referred
+    if (referredUser.referredBy) {
+      return {
+        success: false,
+        message: 'User was already referred by someone else',
+      }
+    }
+
+    // Check if referral already exists
+    const existingReferral = await Referral.findOne({
+      referrer: referrer._id,
+      referred: referredUserId,
+    })
+
+    if (existingReferral) {
+      return {
+        success: false,
+        message: 'Referral already exists',
+      }
+    }
+
+    // Create referral record but DON'T award points yet - wait for spa selection
+    const referral = await Referral.create({
+      referrer: referrer._id,
+      referred: referredUserId,
+      referralCode: referralCode.toUpperCase(),
+      rewardType: 'signup',
+      status: 'pending', // Keep as pending until spa is selected
+      referrerReward: {
+        points: 0, // Will be calculated when spa is selected
+        awarded: false,
+      },
+      referredReward: {
+        points: 0, // Will be calculated when spa is selected
+        awarded: false,
+      },
+      metadata: {
+        notes: 'Waiting for spa selection to apply rewards',
+      },
+    })
+
+    // Update referred user
+    referredUser.referredBy = referrer._id
+    await referredUser.save()
+
+    // Update referrer stats
+    referrer.referralStats.totalReferrals += 1
+    referrer.referralStats.activeReferrals += 1
+    await referrer.save()
+
+    return {
+      success: true,
+      message:
+        'Referral record created successfully. Points will be awarded when spa is selected.',
+      data: {
+        referral,
+        awaitingSpaSelection: true,
+      },
+    }
+  } catch (error) {
+    console.error('Error processing initial referral:', error)
+    return {
+      success: false,
+      message: 'Failed to process referral',
+    }
+  }
+}
+
+// NEW: Helper function to get location details
+const getLocationDetails = async (locationId) => {
+  try {
+    // First try to find in our Location collection
+    const location = await Location.findOne({
+      $or: [{ locationId: locationId }, { _id: locationId }],
+      isActive: true,
+    })
+
+    if (location) {
+      return {
+        locationId: location.locationId,
+        name: location.name,
+        address: location.address,
+        phone: location.phone,
+      }
+    }
+
+    // If not found, you might want to fetch from external API
+    // For now, return null
+    return null
+  } catch (error) {
+    console.error('Error getting location details:', error)
+    return null
+  }
+}
+
+// UPDATED: Select Spa/Location for user with proper referral reward processing
+export const selectSpa = async (req, res, next) => {
+  try {
+    const { locationId, referralCode } = req.body
+    const userId = req.user._id
+
+    console.log('🏢 Spa selection started:', {
+      userId,
+      locationId,
+      referralCode,
+    })
+
+    // Get user
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Check if user already selected a spa
+    if (user.selectedLocation?.locationId) {
+      return next(createError(400, 'You have already selected a spa'))
+    }
+
+    // Get location details
+    const location = await getLocationDetails(locationId)
+    if (!location) {
+      return next(createError(404, 'Location not found'))
+    }
+
+    console.log('📍 Location found:', location)
+
+    // Update user's selected location
+    user.selectedLocation = {
+      locationId: location.locationId || locationId,
+      locationName: location.name,
+      locationAddress: location.address,
+      locationPhone: location.phone,
+      selectedAt: new Date(),
+    }
+
+    // Award profile completion points
+    const profileCompletionPoints = 100
+    user.points = (user.points || 0) + profileCompletionPoints
+    user.profileCompleted = true
+    user.onboardingCompleted = true
+
+    await user.save()
+
+    console.log(
+      '✅ User updated with spa selection and profile completion points'
+    )
+
+    // Process referral rewards if user was referred
+    let referralRewardResult = null
+    if (user.referredBy) {
+      console.log('🎁 Processing referral rewards for existing referral')
+      referralRewardResult = await processReferralRewards(user, locationId)
+    }
+
+    // Process new referral code if provided during spa selection
+    let newReferralResult = null
+    if (referralCode && !user.referredBy) {
+      console.log('🆕 Processing new referral code during spa selection')
+      newReferralResult = await processInitialReferral(userId, referralCode)
+      if (newReferralResult.success) {
+        // Reload user to get updated referredBy field
+        const updatedUser = await User.findById(userId)
+        // Immediately process the rewards since spa is being selected
+        referralRewardResult = await processReferralRewards(
+          updatedUser,
+          locationId
+        )
+      }
+    }
+
+    // Get final user state
+    const finalUser = await User.findById(userId)
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Spa selected successfully',
+      data: {
+        user: {
+          id: finalUser._id,
+          name: finalUser.name,
+          email: finalUser.email,
+          selectedLocation: finalUser.selectedLocation,
+          points: finalUser.points,
+          profileCompleted: finalUser.profileCompleted,
+          onboardingCompleted: finalUser.onboardingCompleted,
+        },
+        rewards: {
+          profileCompletion: profileCompletionPoints,
+          referral: referralRewardResult,
+          newReferral: newReferralResult,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('❌ Error selecting spa:', error)
+    next(createError(500, error.message || 'Failed to select spa'))
+  }
+}
+
+// UPDATED: Process referral rewards with spa-specific configuration
+const processReferralRewards = async (referredUser, locationId) => {
+  try {
+    console.log('🎯 Processing referral rewards:', {
+      referredUserId: referredUser._id,
+      locationId,
+    })
+
+    // Find pending referral for this user
+    const pendingReferral = await Referral.findOne({
+      referred: referredUser._id,
+      status: 'pending',
+      rewardType: 'signup',
+    }).populate('referrer', 'name email referralStats')
+
+    if (!pendingReferral) {
+      console.log('⚠️ No pending referral found')
+      return { success: false, message: 'No pending referral found' }
+    }
+
+    const referrer = pendingReferral.referrer
+    console.log('👤 Referrer found:', {
+      referrerId: referrer._id,
+      referrerName: referrer.name,
+    })
+
+    // Get active referral config
+    const config = await ReferralConfig.getActiveConfig()
+    console.log('⚙️ Got referral config')
+
+    // Calculate spa-specific reward points
+    const rewardCalculation = config.calculateSpaReward(
+      'signup',
+      locationId,
+      referrer.referralStats?.currentTier || 'bronze'
+    )
+
+    console.log('💰 Reward calculation result:', rewardCalculation)
+
+    // Update referral with calculated points
+    pendingReferral.referrerReward.points = rewardCalculation.referrerPoints
+    pendingReferral.referredReward.points = rewardCalculation.referredPoints
+    pendingReferral.metadata.notes = `Spa-specific rewards applied for ${rewardCalculation.spaConfig.locationName}`
+    pendingReferral.metadata.locationId = locationId
+    pendingReferral.metadata.spaConfig = rewardCalculation.spaConfig
+
+    // Complete the referral and award points
+    await pendingReferral.complete()
+
+    console.log('✅ Referral completed and points awarded')
+
+    // Send notifications
+    if (rewardCalculation.referrerPoints > 0) {
+      await createSystemNotification(
+        referrer._id,
+        'Referral Reward! 🎉',
+        `${referredUser.name} joined ${rewardCalculation.spaConfig.locationName}! You earned ${rewardCalculation.referrerPoints} points.`,
+        {
+          category: 'referral',
+          priority: 'high',
+          metadata: {
+            type: 'referrer_reward',
+            points: rewardCalculation.referrerPoints,
+            referredUserName: referredUser.name,
+            spaName: rewardCalculation.spaConfig.locationName,
+          },
+        }
+      )
+    }
+
+    if (rewardCalculation.referredPoints > 0) {
+      await createSystemNotification(
+        referredUser._id,
+        'Referral Bonus! 🎁',
+        `Welcome to ${rewardCalculation.spaConfig.locationName}! You received ${rewardCalculation.referredPoints} bonus points from ${referrer.name}'s referral.`,
+        {
+          category: 'referral',
+          priority: 'high',
+          metadata: {
+            type: 'referred_reward',
+            points: rewardCalculation.referredPoints,
+            referrerName: referrer.name,
+            spaName: rewardCalculation.spaConfig.locationName,
+          },
+        }
+      )
+    }
+
+    return {
+      success: true,
+      message: 'Referral rewards processed successfully',
+      data: {
+        referrerPoints: rewardCalculation.referrerPoints,
+        referredPoints: rewardCalculation.referredPoints,
+        spaConfig: rewardCalculation.spaConfig,
+        referrerName: referrer.name,
+      },
+    }
+  } catch (error) {
+    console.error('❌ Error processing referral rewards:', error)
+    return {
+      success: false,
+      message: 'Failed to process referral rewards',
+      error: error.message,
+    }
+  }
+}
+
+// Keep all other existing functions unchanged...
 export const createTeamMember = async (req, res, next) => {
   try {
     // Check if user is admin
@@ -193,7 +540,13 @@ export const createTeamMember = async (req, res, next) => {
 
     // Add optional fields if provided
     if (dateOfBirth) userData.dateOfBirth = dateOfBirth
-    if (locationData) userData.selectedLocation = locationData
+
+    // For team members, set spaLocation instead of selectedLocation
+    if (locationData)
+      userData.spaLocation = {
+        ...locationData,
+        setupAt: new Date(),
+      }
 
     // Create new team member
     const newUser = await User.create(userData)
@@ -705,99 +1058,6 @@ export const unlinkGoogleAccount = async (req, res, next) => {
   }
 }
 
-// NEW: Select Spa/Location for user
-export const selectSpa = async (req, res, next) => {
-  try {
-    const { locationId, referralCode } = req.body
-    const userId = req.user.id
-
-    if (!locationId) {
-      return next(createError(400, 'Location ID is required'))
-    }
-
-    // Verify the location exists and is active
-    const location = await Location.findOne({
-      locationId: locationId,
-      isActive: true,
-    })
-
-    if (!location) {
-      return next(createError(404, 'Location not found or inactive'))
-    }
-
-    // Find the user
-    const user = await User.findById(userId)
-    if (!user) {
-      return next(createError(404, 'User not found'))
-    }
-
-    // Check if user already has a selected location
-    if (user.selectedLocation.locationId) {
-      return next(createError(400, 'User has already selected a spa'))
-    }
-
-    // Update user with selected location
-    user.selectedLocation = {
-      locationId: location.locationId,
-      locationName: location.name,
-      locationAddress: location.address,
-      locationPhone: location.phone,
-      selectedAt: new Date(),
-    }
-
-    // Mark profile as completed after spa selection
-    user.profileCompleted = true
-
-    // Award bonus points for completing profile
-    const profileCompletionBonus = 100
-    user.points = (user.points || 0) + profileCompletionBonus
-
-    await user.save()
-
-    // Process referral if provided
-    let referralResult = { success: false }
-    if (referralCode && referralCode.trim()) {
-      referralResult = await processReferral(userId, referralCode.trim())
-      if (referralResult.success) {
-        console.log('✅ Referral processed:', referralResult.message)
-      } else {
-        console.log('⚠️ Referral failed:', referralResult.message)
-      }
-    }
-
-    // Send success response
-    res.status(200).json({
-      status: 'success',
-      message: 'Spa selected successfully',
-      data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          points: user.points,
-          selectedLocation: user.selectedLocation,
-          profileCompleted: user.profileCompleted,
-        },
-        bonusPoints: profileCompletionBonus,
-        referral: referralResult.success
-          ? {
-              processed: true,
-              rewardAmount: referralResult.data?.rewardAmount || 0,
-              referrerReward: referralResult.data?.referrerReward || 0,
-              message: referralResult.message,
-            }
-          : {
-              processed: false,
-              message: referralResult.message || 'No referral code provided',
-            },
-      },
-    })
-  } catch (error) {
-    console.error('Error selecting spa:', error)
-    next(createError(500, 'Failed to select spa'))
-  }
-}
-
 // NEW: Get user's onboarding status
 export const getOnboardingStatus = async (req, res, next) => {
   try {
@@ -808,10 +1068,10 @@ export const getOnboardingStatus = async (req, res, next) => {
     }
 
     const onboardingStatus = {
-      hasSelectedSpa: !!user.selectedLocation.locationId,
+      hasSelectedSpa: !!user.selectedLocation?.locationId,
       profileCompleted: user.profileCompleted,
       onboardingCompleted: user.onboardingCompleted,
-      selectedLocation: user.selectedLocation.locationId
+      selectedLocation: user.selectedLocation?.locationId
         ? user.selectedLocation
         : null,
       totalPoints: user.points || 0,
@@ -838,7 +1098,7 @@ export const completeOnboarding = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
-    if (!user.selectedLocation.locationId) {
+    if (!user.selectedLocation?.locationId) {
       return next(createError(400, 'Please select a spa first'))
     }
 

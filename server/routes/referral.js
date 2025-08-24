@@ -1,4 +1,4 @@
-// File: server/routes/referral.js
+// File: server/routes/referral.js - UPDATED
 import express from 'express'
 import {
   awardMilestoneReward,
@@ -6,6 +6,7 @@ import {
   getAllReferrals,
   getReferralConfig,
   getReferralLeaderboard,
+  getSpaReferralStats,
   getUserReferralStats,
   updateReferralConfig,
 } from '../controller/referral.js'
@@ -20,16 +21,17 @@ router.use(verifyToken)
 router.get('/my-stats', getUserReferralStats)
 router.get('/leaderboard', getReferralLeaderboard)
 
-// Admin routes
+// Spa owner routes (team role)
+router.get('/spa-stats', getSpaReferralStats) // NEW: Get spa-specific stats
+router.get('/config', getReferralConfig) // Modified: Now works for spa owners too
+router.put('/config', updateReferralConfig) // Modified: Now works for spa owners too
+
+// Admin and Spa owner routes
+router.get('/all', getAllReferrals) // Modified: Spa owners see only their spa's referrals
+router.post('/complete/:referralId', completeReferral) // Modified: Spa owners can complete referrals for their spa
+
+// Admin only routes
 router.use(checkPermission) // Admin only from here
-
-// Admin referral management
-router.get('/all', getAllReferrals)
-router.post('/complete/:referralId', completeReferral)
 router.post('/award-milestone', awardMilestoneReward)
-
-// Admin configuration management
-router.get('/config', getReferralConfig)
-router.put('/config', updateReferralConfig)
 
 export default router

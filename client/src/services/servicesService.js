@@ -1,9 +1,9 @@
-// client/src/services/servicesService.js - Enhanced with Reward Integration
+// File: client/src/services/servicesService.js
 import { axiosInstance } from '@/config'
 
 export const servicesService = {
   // ===============================================
-  // CORE SERVICE OPERATIONS (Existing + Enhanced)
+  // CORE SERVICE OPERATIONS
   // ===============================================
 
   // Get all services with filtering and search
@@ -45,7 +45,51 @@ export const servicesService = {
   },
 
   // ===============================================
-  // CATEGORY OPERATIONS (Existing)
+  // SERVICE LINKING OPERATIONS
+  // ===============================================
+
+  // Get available services for linking as add-ons
+  getAvailableAddOnServices: async (serviceId, params = {}) => {
+    const response = await axiosInstance.get(
+      `/services/${serviceId}/available-addons`,
+      {
+        params,
+      }
+    )
+    return response.data
+  },
+
+  // Get service with linked services details
+  getServiceWithLinkedServices: async (serviceId) => {
+    const response = await axiosInstance.get(
+      `/services/${serviceId}/with-linked-services`
+    )
+    return response.data
+  },
+
+  // Link multiple services as add-ons
+  linkServicesToService: async (serviceId, serviceIds, options = {}) => {
+    const response = await axiosInstance.post(
+      `/services/${serviceId}/link-services`,
+      {
+        serviceIds,
+        customPrices: options.customPrices || {},
+        customDurations: options.customDurations || {},
+      }
+    )
+    return response.data
+  },
+
+  // Unlink a service from add-ons
+  unlinkServiceFromService: async (serviceId, linkedServiceId) => {
+    const response = await axiosInstance.delete(
+      `/services/${serviceId}/unlink/${linkedServiceId}`
+    )
+    return response.data
+  },
+
+  // ===============================================
+  // CATEGORY OPERATIONS
   // ===============================================
 
   // Get all categories
@@ -81,7 +125,7 @@ export const servicesService = {
   },
 
   // ===============================================
-  // SERVICE-REWARD INTEGRATION (New)
+  // SERVICE-REWARD INTEGRATION
   // ===============================================
 
   // Get rewards available for a specific service
@@ -110,8 +154,23 @@ export const servicesService = {
   },
 
   // ===============================================
-  // HELPER METHODS FOR REWARD INTEGRATION
+  // SEARCH AND FILTER OPERATIONS
   // ===============================================
+
+  // Search services with reward filtering
+  searchServicesWithRewards: async (query, filters = {}) => {
+    const response = await axiosInstance.get('/services', {
+      params: {
+        search: query,
+        hasRewards: filters.hasRewards,
+        category: filters.category,
+        minPrice: filters.minPrice,
+        maxPrice: filters.maxPrice,
+        ...filters,
+      },
+    })
+    return response.data
+  },
 
   // Get services by category with reward information
   getServicesByCategory: async (categoryId, includeRewards = false) => {
@@ -132,48 +191,7 @@ export const servicesService = {
     return response.data
   },
 
-  // Calculate service price with potential reward discount
-  calculateServicePriceWithReward: async (serviceId, rewardId) => {
-    // This would typically be handled on the frontend, but could be an API call
-    // for complex calculations or to ensure accuracy
-    const [serviceData, rewardData] = await Promise.all([
-      servicesService.getService(serviceId),
-      // Note: This would require importing rewardsService, but to keep separation,
-      // we'll return the calculation logic to be handled by the frontend
-    ])
-    return { serviceData }
-  },
-
-  // Get service analytics including reward usage
-  getServiceAnalytics: async (serviceId) => {
-    const response = await axiosInstance.get(`/services/${serviceId}/analytics`)
-    return response.data
-  },
-
-  // Get popular services (by bookings and reward redemptions)
-  getPopularServices: async (params = {}) => {
-    const response = await axiosInstance.get('/services', {
-      params: { ...params, sortBy: 'bookings' },
-    })
-    return response.data
-  },
-
-  // Search services with reward filtering
-  searchServicesWithRewards: async (query, filters = {}) => {
-    const response = await axiosInstance.get('/services', {
-      params: {
-        search: query,
-        hasRewards: filters.hasRewards,
-        category: filters.category,
-        minPrice: filters.minPrice,
-        maxPrice: filters.maxPrice,
-        ...filters,
-      },
-    })
-    return response.data
-  },
-
-  // Get services in a price range (useful for reward targeting)
+  // Get services in a price range
   getServicesByPriceRange: async (minPrice, maxPrice, params = {}) => {
     const response = await axiosInstance.get('/services', {
       params: {
@@ -186,12 +204,22 @@ export const servicesService = {
     return response.data
   },
 
-  // Bulk operations for services
-  bulkUpdateServices: async (serviceIds, updateData) => {
-    const promises = serviceIds.map((id) =>
-      servicesService.updateService(id, updateData)
-    )
-    return Promise.all(promises)
+  // ===============================================
+  // UTILITY OPERATIONS
+  // ===============================================
+
+  // Get popular services (by bookings and reward redemptions)
+  getPopularServices: async (params = {}) => {
+    const response = await axiosInstance.get('/services', {
+      params: { ...params, sortBy: 'bookings' },
+    })
+    return response.data
+  },
+
+  // Get service analytics including reward usage
+  getServiceAnalytics: async (serviceId) => {
+    const response = await axiosInstance.get(`/services/${serviceId}/analytics`)
+    return response.data
   },
 
   // Get service recommendations based on user's reward history
@@ -200,5 +228,13 @@ export const servicesService = {
       `/services/recommendations/${userId}`
     )
     return response.data
+  },
+
+  // Bulk update services
+  bulkUpdateServices: async (serviceIds, updateData) => {
+    const promises = serviceIds.map((id) =>
+      servicesService.updateService(id, updateData)
+    )
+    return Promise.all(promises)
   },
 }

@@ -1,3 +1,4 @@
+// File: server/routes/spaUsers.js
 // server/routes/spaUsers.js
 import express from 'express'
 import { getSpaUserActivity, getSpaUsers } from '../controller/spaUsers.js'

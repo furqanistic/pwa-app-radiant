@@ -1,3 +1,4 @@
+// File: client/src/components/Dashboard/PointsCard.jsx
 import { motion } from 'framer-motion'
 import { Heart, Sparkles } from 'lucide-react'
 import { useSelector } from 'react-redux'
