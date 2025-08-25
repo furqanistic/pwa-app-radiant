@@ -16,15 +16,15 @@ const getUserLocation = (user) => {
   }
 
   if (user.role === 'team') {
-    // Team users are spa owners - use their ghlContactId as locationId
-    if (!user.ghlContactId) {
+    // Team users are spa owners - use their spa location
+    if (!user.spaLocation?.locationId) {
       throw new Error(
         'Your spa location is not configured. Please contact support.'
       )
     }
     return {
-      locationId: user.ghlContactId,
-      locationName: `${user.name}'s Spa`, // Or you can store this in user profile
+      locationId: user.spaLocation.locationId,
+      locationName: user.spaLocation.locationName || `${user.name}'s Spa`,
     }
   }
 
@@ -51,13 +51,17 @@ const buildLocationQuery = (user, requestLocationId = null) => {
   }
 
   if (user.role === 'team') {
-    // Team users see only games from their spa (using ghlContactId)
-    if (!user.ghlContactId) {
+    // Team users see only games from their spa
+    if (!user.spaLocation?.locationId) {
       throw new Error(
         'Your spa location is not configured. Please contact support.'
       )
     }
-    return { locationId: { $regex: new RegExp(`^${user.ghlContactId}$`, 'i') } }
+    return {
+      locationId: {
+        $regex: new RegExp(`^${user.spaLocation.locationId}$`, 'i'),
+      },
+    }
   }
 
   // Regular users see games from their selected spa only
@@ -69,6 +73,105 @@ const buildLocationQuery = (user, requestLocationId = null) => {
     locationId: {
       $regex: new RegExp(`^${user.selectedLocation.locationId}$`, 'i'),
     },
+  }
+}
+
+// Helper function to calculate next reset time
+const getNextResetTime = (resetPeriod) => {
+  const now = new Date()
+
+  switch (resetPeriod) {
+    case 'daily':
+      const nextDay = new Date(now)
+      nextDay.setDate(nextDay.getDate() + 1)
+      nextDay.setHours(0, 0, 0, 0)
+      return nextDay
+
+    case 'weekly':
+      const nextWeek = new Date(now)
+      const daysUntilSunday = 7 - nextWeek.getDay()
+      nextWeek.setDate(nextWeek.getDate() + daysUntilSunday)
+      nextWeek.setHours(0, 0, 0, 0)
+      return nextWeek
+
+    case 'monthly':
+      const nextMonth = new Date(now)
+      nextMonth.setMonth(nextMonth.getMonth() + 1)
+      nextMonth.setDate(1)
+      nextMonth.setHours(0, 0, 0, 0)
+      return nextMonth
+
+    default:
+      return null
+  }
+}
+
+// =========================================================
+// NEW: Get game rewards that need attention for spa owners
+// =========================================================
+export const getGameRewardsForSpa = async (req, res, next) => {
+  try {
+    // Only spa owners and admins can access this
+    if (!['admin', 'team'].includes(req.user.role)) {
+      return next(createError(403, 'Access denied'))
+    }
+
+    let spaLocationId
+    if (req.user.role === 'admin') {
+      spaLocationId = req.query.locationId || req.params.locationId
+      if (!spaLocationId) {
+        return next(createError(400, 'Location ID required for admin'))
+      }
+    } else if (req.user.role === 'team') {
+      if (!req.user.spaLocation?.locationId) {
+        return next(createError(400, 'Your spa location is not configured'))
+      }
+      spaLocationId = req.user.spaLocation.locationId
+    }
+
+    const { status = 'active', limit = 50 } = req.query
+
+    // Get game rewards from this spa
+    const gameRewards = await UserReward.find({
+      locationId: spaLocationId,
+      'rewardSnapshot.type': 'game_win',
+      ...(status !== 'all' && { status }),
+    })
+      .populate('userId', 'name email avatar')
+      .sort({ claimedAt: -1 })
+      .limit(parseInt(limit))
+
+    // Group by game type for better organization
+    const scratchRewards = gameRewards.filter(
+      (r) => r.rewardSnapshot.gameType === 'scratch'
+    )
+    const spinRewards = gameRewards.filter(
+      (r) => r.rewardSnapshot.gameType === 'spin'
+    )
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        gameRewards,
+        breakdown: {
+          scratch: scratchRewards,
+          spin: spinRewards,
+        },
+        stats: {
+          total: gameRewards.length,
+          scratch: scratchRewards.length,
+          spin: spinRewards.length,
+          needsRedemption: gameRewards.filter(
+            (r) =>
+              r.status === 'active' &&
+              r.rewardSnapshot.winningItem.valueType !== 'points'
+          ).length,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching game rewards for spa:', error)
+    next(createError(500, 'Failed to fetch game rewards'))
   }
 }
 

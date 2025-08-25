@@ -1,4 +1,4 @@
-// File: server/routes/gameWheel.js - UPDATED WITH GAME HISTORY
+// File: server/routes/gameWheel.js - ENHANCED WITH SPA OWNER MANAGEMENT
 import express from 'express'
 import {
   createGame,
@@ -7,27 +7,53 @@ import {
   getAvailableGames,
   getGame,
   getGameAnalytics,
-  getUserGameHistory, // NEW: Import game history function
+  getGameRewardsForSpa,
+  getUserGameHistory, // NEW: Get game rewards for spa owners
   playGame,
   toggleGamePublication,
   toggleGameStatus,
   updateGame,
 } from '../controller/gameWheel.js'
-import { verifyToken } from '../middleware/authMiddleware.js'
+import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
 // All routes require authentication
 router.use(verifyToken)
 
-// NEW: Get user's game history - MUST be before other routes
+// ===============================================
+// PUBLIC ROUTES (for game players)
+// ===============================================
+
+// Get user's personal game history - MUST be before other routes
 router.get('/my-history', getUserGameHistory)
 
-// Get available games for customers
+// Get available games for customers to play
 router.get('/available', getAvailableGames)
 
 // Play a game - MUST be before generic /:gameId route
 router.post('/:gameId/play', playGame)
+
+// ===============================================
+// SPA OWNER ROUTES (team role management)
+// ===============================================
+
+// Apply permission checking for spa management
+router.use(restrictTo('admin', 'team'))
+
+// NEW: Get game rewards that need spa owner attention
+router.get('/spa/game-rewards', getGameRewardsForSpa)
+
+// Admin can get game rewards for specific location
+router.get(
+  '/spa/:locationId/game-rewards',
+  restrictTo('admin'),
+  getGameRewardsForSpa
+)
+
+// ===============================================
+// GAME MANAGEMENT ROUTES
+// ===============================================
 
 // Get all games (management view)
 router.get('/', getAllGames)
@@ -41,7 +67,7 @@ router.patch('/:gameId/toggle-status', toggleGameStatus)
 // Toggle game publication status
 router.patch('/:gameId/toggle-publication', toggleGamePublication)
 
-// Get game analytics (includes play history)
+// Get game analytics (includes play history and reward data)
 router.get('/:gameId/analytics', getGameAnalytics)
 
 // Get a specific game

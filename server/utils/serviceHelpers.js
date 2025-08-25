@@ -1,3 +1,4 @@
+// File: server/utils/serviceHelpers.js
 // server/utils/serviceHelpers.js
 import Category from '../models/Category.js'
 import Service from '../models/Service.js'

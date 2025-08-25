@@ -1,3 +1,4 @@
+// File: server/middleware/rewardValidation.js
 // server/middleware/rewardValidation.js - Enhanced with Service Integration
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
@@ -9,17 +10,14 @@ export const validateRewardClaim = (req, res, next) => {
   try {
     const { rewardId } = req.params
 
-    // Check if rewardId is provided
     if (!rewardId) {
       return next(createError(400, 'Reward ID is required'))
     }
 
-    // Check if rewardId is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(rewardId)) {
       return next(createError(400, 'Invalid reward ID format'))
     }
 
-    // Check if user exists
     if (!req.user || !req.user.id) {
       return next(createError(401, 'User authentication required'))
     }
@@ -36,7 +34,6 @@ export const validatePagination = (req, res, next) => {
   try {
     const { page = 1, limit = 20 } = req.query
 
-    // Convert to numbers and validate
     const pageNum = parseInt(page)
     const limitNum = parseInt(limit)
 
@@ -48,7 +45,6 @@ export const validatePagination = (req, res, next) => {
       return next(createError(400, 'Invalid limit (must be 1-100)'))
     }
 
-    // Add validated values to request
     req.query.page = pageNum
     req.query.limit = limitNum
 
@@ -71,8 +67,11 @@ export const sanitizeRewardData = (req, res, next) => {
     if (req.body.reason) {
       req.body.reason = req.body.reason.trim()
     }
+    if (req.body.notes) {
+      req.body.notes = req.body.notes.trim()
+    }
 
-    // ✅ SANITIZE SERVICE-RELATED FIELDS
+    // Sanitize service-related fields
     if (req.body.serviceIds && Array.isArray(req.body.serviceIds)) {
       req.body.serviceIds = req.body.serviceIds.filter((id) =>
         mongoose.Types.ObjectId.isValid(id)
@@ -95,6 +94,239 @@ export const sanitizeRewardData = (req, res, next) => {
   } catch (error) {
     console.error('Data sanitization error:', error)
     next(createError(500, 'Data processing error'))
+  }
+}
+
+// ... keep all your other existing validation functions ...
+
+// ===============================================
+// NEW: SPA OWNER SPECIFIC VALIDATIONS
+// ===============================================
+
+// Validate user reward ID for spa owner operations
+export const validateUserRewardAccess = async (req, res, next) => {
+  try {
+    const { userRewardId } = req.params
+
+    if (!userRewardId) {
+      return next(createError(400, 'User reward ID is required'))
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userRewardId)) {
+      return next(createError(400, 'Invalid user reward ID format'))
+    }
+
+    // Fetch the user reward to check permissions
+    const userReward = await UserReward.findById(userRewardId)
+    if (!userReward) {
+      return next(createError(404, 'User reward not found'))
+    }
+
+    // Check if user has permission to access this reward
+    if (req.user.role === 'admin') {
+      // Admin can access any reward
+    } else if (req.user.role === 'team') {
+      // Team members can only access rewards from their spa
+      if (!req.user.spaLocation?.locationId) {
+        return next(createError(400, 'Your spa location is not configured'))
+      }
+      if (userReward.locationId !== req.user.spaLocation.locationId) {
+        return next(
+          createError(403, 'You can only manage rewards from your spa')
+        )
+      }
+    } else {
+      return next(createError(403, 'Access denied'))
+    }
+
+    // Add the user reward to the request for use in the controller
+    req.userReward = userReward
+    next()
+  } catch (error) {
+    console.error('User reward validation error:', error)
+    next(createError(500, 'Validation error'))
+  }
+}
+
+// Validate manual reward data
+export const validateManualReward = (req, res, next) => {
+  try {
+    const {
+      value,
+      description,
+      rewardType = 'credit',
+      validDays = 30,
+    } = req.body
+
+    // Validate required fields
+    if (!value || value <= 0) {
+      return next(createError(400, 'Valid reward value is required'))
+    }
+
+    if (!description || description.trim().length === 0) {
+      return next(createError(400, 'Description is required'))
+    }
+
+    // Validate reward type
+    const validTypes = [
+      'credit',
+      'discount',
+      'service',
+      'combo',
+      'free_service',
+    ]
+
+    if (!validTypes.includes(rewardType)) {
+      return next(createError(400, 'Invalid reward type'))
+    }
+
+    // Validate valid days
+    if (validDays < 1 || validDays > 365) {
+      return next(createError(400, 'Valid days must be between 1 and 365'))
+    }
+
+    // Validate point cost (optional)
+    if (
+      req.body.pointCost &&
+      (req.body.pointCost < 0 || req.body.pointCost > 10000)
+    ) {
+      return next(createError(400, 'Point cost must be between 0 and 10000'))
+    }
+
+    next()
+  } catch (error) {
+    console.error('Manual reward validation error:', error)
+    next(createError(500, 'Validation error'))
+  }
+}
+
+// Check spa location access for rewards
+export const checkSpaLocationAccess = (req, res, next) => {
+  try {
+    const userRole = req.user.role
+
+    // Admin users have access to all spas
+    if (userRole === 'admin') {
+      return next()
+    }
+
+    // Team users must have a configured spa location
+    if (userRole === 'team') {
+      if (!req.user.spaLocation?.locationId) {
+        return next(
+          createError(
+            400,
+            'Your spa location is not configured. Please contact support.'
+          )
+        )
+      }
+
+      // Add spa location info to request for use in controllers
+      req.spaLocation = {
+        locationId: req.user.spaLocation.locationId,
+        locationName: req.user.spaLocation.locationName,
+      }
+
+      return next()
+    }
+
+    // Regular users cannot access spa management functions
+    return next(
+      createError(403, 'Access denied. Spa management rights required.')
+    )
+  } catch (error) {
+    console.error('Spa location access check error:', error)
+    next(createError(500, 'Access check error'))
+  }
+}
+
+// Validate mark as used request
+export const validateMarkAsUsed = (req, res, next) => {
+  try {
+    const { actualValue, notes } = req.body
+
+    // Actual value is optional, but if provided must be valid
+    if (
+      actualValue !== undefined &&
+      (actualValue < 0 || actualValue > 100000)
+    ) {
+      return next(createError(400, 'Actual value must be between 0 and 100000'))
+    }
+
+    // Notes are optional
+    if (notes && notes.length > 500) {
+      return next(createError(400, 'Notes must be less than 500 characters'))
+    }
+
+    next()
+  } catch (error) {
+    console.error('Mark as used validation error:', error)
+    next(createError(500, 'Validation error'))
+  }
+}
+
+// Validate spa analytics request
+export const validateSpaAnalytics = (req, res, next) => {
+  try {
+    const { dateFrom, dateTo } = req.query
+
+    // Validate date format if provided
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom)
+      if (isNaN(fromDate.getTime())) {
+        return next(createError(400, 'Invalid dateFrom format'))
+      }
+      req.query.dateFrom = fromDate.toISOString()
+    }
+
+    if (dateTo) {
+      const toDate = new Date(dateTo)
+      if (isNaN(toDate.getTime())) {
+        return next(createError(400, 'Invalid dateTo format'))
+      }
+      req.query.dateTo = toDate.toISOString()
+    }
+
+    // Validate date range
+    if (dateFrom && dateTo) {
+      const from = new Date(dateFrom)
+      const to = new Date(dateTo)
+
+      if (from > to) {
+        return next(createError(400, 'dateFrom must be earlier than dateTo'))
+      }
+
+      // Limit to 1 year max range
+      const maxRange = 365 * 24 * 60 * 60 * 1000 // 1 year in milliseconds
+      if (to.getTime() - from.getTime() > maxRange) {
+        return next(createError(400, 'Date range cannot exceed 1 year'))
+      }
+    }
+
+    next()
+  } catch (error) {
+    console.error('Spa analytics validation error:', error)
+    next(createError(500, 'Validation error'))
+  }
+}
+
+// Validate user ID parameter
+export const validateUserId = (req, res, next) => {
+  try {
+    const { userId } = req.params
+
+    if (!userId) {
+      return next(createError(400, 'User ID is required'))
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return next(createError(400, 'Invalid user ID format'))
+    }
+
+    next()
+  } catch (error) {
+    console.error('User ID validation error:', error)
+    next(createError(500, 'Validation error'))
   }
 }
 

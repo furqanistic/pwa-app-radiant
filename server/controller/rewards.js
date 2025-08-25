@@ -10,10 +10,6 @@ import {
   spendPoints,
 } from '../models/UserReward.js'
 
-// ===============================================
-// REWARD MANAGEMENT (ADMIN/TEAM)
-// ===============================================
-
 // Get all rewards with filtering, sorting, and searching
 export const getRewards = async (req, res, next) => {
   try {
@@ -640,10 +636,6 @@ export const getServicesWithRewards = async (req, res, next) => {
   }
 }
 
-// ===============================================
-// ENHANCED REWARD MANAGEMENT
-// ===============================================
-
 // Enhanced get rewards catalog with service integration
 export const getRewardsCatalog = async (req, res, next) => {
   try {
@@ -1231,5 +1223,510 @@ export const getRewardStats = async (req, res, next) => {
   } catch (error) {
     console.error('Error fetching reward stats:', error)
     next(createError(500, 'Failed to fetch reward statistics'))
+  }
+}
+
+// Get all rewards given to users at spa owner's location
+export const getSpaUserRewards = async (req, res, next) => {
+  try {
+    const {
+      status = 'all',
+      type = 'all',
+      page = 1,
+      limit = 20,
+      search = '',
+      dateFrom,
+      dateTo,
+    } = req.query
+
+    // Get spa owner's location
+    let spaLocationId
+    if (req.user.role === 'admin') {
+      spaLocationId = req.query.locationId || req.params.locationId
+      if (!spaLocationId) {
+        return next(createError(400, 'Location ID required for admin'))
+      }
+    } else if (req.user.role === 'team') {
+      // Team users see rewards from their spa only
+      if (!req.user.spaLocation?.locationId) {
+        return next(createError(400, 'Your spa location is not configured'))
+      }
+      spaLocationId = req.user.spaLocation.locationId
+    } else {
+      return next(createError(403, 'Access denied'))
+    }
+
+    // Build filter
+    const filter = { locationId: spaLocationId }
+
+    // Status filter
+    if (status !== 'all') {
+      filter.status = status
+    }
+
+    // Type filter
+    if (type !== 'all') {
+      filter['rewardSnapshot.type'] = type
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      filter.claimedAt = {}
+      if (dateFrom) filter.claimedAt.$gte = new Date(dateFrom)
+      if (dateTo) filter.claimedAt.$lte = new Date(dateTo)
+    }
+
+    // Search filter (by user name or reward name)
+    let searchQuery = {}
+    if (search) {
+      const searchUsers = await User.find({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ],
+      }).select('_id')
+
+      searchQuery = {
+        $or: [
+          { userId: { $in: searchUsers.map((u) => u._id) } },
+          { 'rewardSnapshot.name': { $regex: search, $options: 'i' } },
+        ],
+      }
+    }
+
+    const finalFilter = search ? { ...filter, ...searchQuery } : filter
+
+    // Pagination
+    const pageNum = parseInt(page)
+    const limitNum = parseInt(limit)
+    const skip = (pageNum - 1) * limitNum
+
+    const [userRewards, totalRewards] = await Promise.all([
+      UserReward.find(finalFilter)
+        .populate('userId', 'name email avatar')
+        .populate('rewardId', 'name type')
+        .populate('rewardSnapshot.gameId', 'title type')
+        .sort({ claimedAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      UserReward.countDocuments(finalFilter),
+    ])
+
+    // Calculate stats
+    const stats = {
+      total: totalRewards,
+      active: userRewards.filter((r) => r.status === 'active').length,
+      used: userRewards.filter((r) => r.status === 'used').length,
+      expired: userRewards.filter((r) => r.status === 'expired').length,
+      gameRewards: userRewards.filter(
+        (r) => r.rewardSnapshot.type === 'game_win'
+      ).length,
+      regularRewards: userRewards.filter(
+        (r) => r.rewardSnapshot.type !== 'game_win'
+      ).length,
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        rewards: userRewards,
+        stats,
+        pagination: {
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalRewards / limitNum),
+          totalRewards,
+          hasNext: pageNum < Math.ceil(totalRewards / limitNum),
+          hasPrev: pageNum > 1,
+          limit: limitNum,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching spa user rewards:', error)
+    next(createError(500, 'Failed to fetch spa user rewards'))
+  }
+}
+
+// Mark reward as used/redeemed (for spa owners when customer redeems)
+export const markRewardAsUsed = async (req, res, next) => {
+  try {
+    const { userRewardId } = req.params
+    const { actualValue, notes } = req.body
+
+    const userReward = await UserReward.findById(userRewardId).populate(
+      'userId',
+      'name email'
+    )
+
+    if (!userReward) {
+      return next(createError(404, 'User reward not found'))
+    }
+
+    // Check if user has permission to mark this reward as used
+    if (req.user.role === 'admin') {
+      // Admin can mark any reward as used
+    } else if (req.user.role === 'team') {
+      // Team members can only mark rewards used at their spa
+      if (!req.user.spaLocation?.locationId) {
+        return next(createError(400, 'Your spa location is not configured'))
+      }
+      if (userReward.locationId !== req.user.spaLocation.locationId) {
+        return next(
+          createError(403, 'You can only manage rewards from your spa')
+        )
+      }
+    } else {
+      return next(createError(403, 'Access denied'))
+    }
+
+    // Check if reward is already used
+    if (userReward.status === 'used') {
+      return next(createError(400, 'Reward has already been used'))
+    }
+
+    // Check if reward is expired
+    if (userReward.status === 'expired' || new Date() > userReward.expiresAt) {
+      return next(createError(400, 'Reward has expired'))
+    }
+
+    // Mark as used
+    const finalActualValue = actualValue || userReward.rewardSnapshot.value || 0
+    await userReward.markAsUsed(finalActualValue)
+
+    // Create point transaction for tracking (if applicable)
+    if (userReward.rewardSnapshot.type === 'credit') {
+      await PointTransaction.create({
+        userId: userReward.userId,
+        type: 'spent',
+        amount: -finalActualValue,
+        balance: (await User.findById(userReward.userId)).points,
+        reason: `Used reward: ${userReward.rewardSnapshot.name}`,
+        referenceType: 'reward_claim',
+        referenceId: userReward._id,
+        locationId: userReward.locationId,
+      })
+    }
+
+    // Log the redemption
+    console.log(`✅ Reward redeemed by spa staff:`, {
+      userRewardId,
+      userName: userReward.userId.name,
+      rewardName: userReward.rewardSnapshot.name,
+      actualValue: finalActualValue,
+      redeemedBy: req.user.name,
+      spaLocation: req.user.spaLocation?.locationName || 'Unknown',
+    })
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Reward marked as used successfully',
+      data: {
+        userReward,
+        redeemedBy: req.user.name,
+        redeemedAt: new Date(),
+        actualValue: finalActualValue,
+        customer: {
+          name: userReward.userId.name,
+          email: userReward.userId.email,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error marking reward as used:', error)
+    next(createError(500, 'Failed to mark reward as used'))
+  }
+}
+
+// Get spa reward analytics
+export const getSpaRewardAnalytics = async (req, res, next) => {
+  try {
+    let spaLocationId
+    if (req.user.role === 'admin') {
+      spaLocationId = req.query.locationId || req.params.locationId
+      if (!spaLocationId) {
+        return next(createError(400, 'Location ID required for admin'))
+      }
+    } else if (req.user.role === 'team') {
+      if (!req.user.spaLocation?.locationId) {
+        return next(createError(400, 'Your spa location is not configured'))
+      }
+      spaLocationId = req.user.spaLocation.locationId
+    } else {
+      return next(createError(403, 'Access denied'))
+    }
+
+    const { dateFrom, dateTo } = req.query
+    const dateFilter = {}
+    if (dateFrom || dateTo) {
+      dateFilter.claimedAt = {}
+      if (dateFrom) dateFilter.claimedAt.$gte = new Date(dateFrom)
+      if (dateTo) dateFilter.claimedAt.$lte = new Date(dateTo)
+    }
+
+    // Get all rewards for this spa
+    const filter = { locationId: spaLocationId, ...dateFilter }
+
+    const [totalStats, typeStats, statusStats, gameStats] = await Promise.all([
+      // Total stats
+      UserReward.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            totalRewards: { $sum: 1 },
+            totalValue: { $sum: '$rewardSnapshot.value' },
+            totalPointsSpent: { $sum: '$rewardSnapshot.pointCost' },
+            avgRewardValue: { $avg: '$rewardSnapshot.value' },
+            uniqueUsers: { $addToSet: '$userId' },
+          },
+        },
+      ]),
+
+      // Breakdown by reward type
+      UserReward.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: '$rewardSnapshot.type',
+            count: { $sum: 1 },
+            totalValue: { $sum: '$rewardSnapshot.value' },
+            totalPointsSpent: { $sum: '$rewardSnapshot.pointCost' },
+          },
+        },
+        { $sort: { count: -1 } },
+      ]),
+
+      // Breakdown by status
+      UserReward.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            totalValue: { $sum: '$rewardSnapshot.value' },
+          },
+        },
+      ]),
+
+      // Game-specific stats
+      UserReward.aggregate([
+        {
+          $match: {
+            ...filter,
+            'rewardSnapshot.type': 'game_win',
+          },
+        },
+        {
+          $group: {
+            _id: '$rewardSnapshot.gameType',
+            count: { $sum: 1 },
+            totalValue: { $sum: '$rewardSnapshot.value' },
+            games: { $addToSet: '$rewardSnapshot.gameId' },
+          },
+        },
+      ]),
+    ])
+
+    // Get active games for this spa
+    const activeGames = await GameWheel.find({
+      locationId: spaLocationId,
+      isActive: true,
+      isPublished: true,
+    }).select('title type totalPlays totalRewardsGiven')
+
+    const analytics = {
+      overview: totalStats[0] || {
+        totalRewards: 0,
+        totalValue: 0,
+        totalPointsSpent: 0,
+        avgRewardValue: 0,
+        uniqueUsers: [],
+      },
+      typeBreakdown: typeStats,
+      statusBreakdown: statusStats,
+      gameBreakdown: gameStats,
+      activeGames,
+      period: {
+        from: dateFrom || null,
+        to: dateTo || null,
+      },
+    }
+
+    // Add unique users count
+    analytics.overview.uniqueUsersCount =
+      analytics.overview.uniqueUsers?.length || 0
+    delete analytics.overview.uniqueUsers // Remove array, keep count
+
+    res.status(200).json({
+      status: 'success',
+      data: { analytics },
+    })
+  } catch (error) {
+    console.error('Error fetching spa reward analytics:', error)
+    next(createError(500, 'Failed to fetch spa reward analytics'))
+  }
+}
+
+// Give reward to user (spa owner can give manual rewards)
+export const giveManulaRewardToUser = async (req, res, next) => {
+  try {
+    const { userId } = req.params
+    const {
+      rewardType = 'credit',
+      value,
+      description,
+      pointCost = 0,
+      validDays = 30,
+    } = req.body
+
+    // Check permissions
+    if (!['admin', 'team'].includes(req.user.role)) {
+      return next(
+        createError(403, 'Access denied. Admin or team rights required.')
+      )
+    }
+
+    // Get spa location
+    let spaLocationId
+    let spaLocationName
+    if (req.user.role === 'admin') {
+      spaLocationId = req.body.locationId
+      spaLocationName = req.body.locationName || 'Admin Given'
+    } else if (req.user.role === 'team') {
+      if (!req.user.spaLocation?.locationId) {
+        return next(createError(400, 'Your spa location is not configured'))
+      }
+      spaLocationId = req.user.spaLocation.locationId
+      spaLocationName = req.user.spaLocation.locationName
+    }
+
+    // Validate user exists
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Validate required fields
+    if (!value || value <= 0) {
+      return next(createError(400, 'Valid reward value is required'))
+    }
+
+    if (!description || description.trim().length === 0) {
+      return next(createError(400, 'Description is required'))
+    }
+
+    // Create manual reward
+    const rewardSnapshot = {
+      name: `Manual Reward - ${rewardType}`,
+      description: description.trim(),
+      type: rewardType,
+      pointCost: pointCost,
+      value: parseFloat(value),
+      validDays: validDays,
+    }
+
+    const userRewardData = {
+      userId,
+      rewardId: null, // No specific reward ID for manual rewards
+      rewardSnapshot,
+      locationId: spaLocationId,
+    }
+
+    const userReward = await UserReward.createUserReward(userRewardData)
+
+    // Log the manual reward
+    console.log(`✅ Manual reward given:`, {
+      userRewardId: userReward._id,
+      userName: user.name,
+      rewardType,
+      value,
+      givenBy: req.user.name,
+      spaLocation: spaLocationName,
+    })
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Manual reward given successfully',
+      data: {
+        userReward,
+        recipient: {
+          name: user.name,
+          email: user.email,
+        },
+        givenBy: req.user.name,
+        spaLocation: spaLocationName,
+      },
+    })
+  } catch (error) {
+    console.error('Error giving manual reward:', error)
+    next(createError(500, 'Failed to give manual reward'))
+  }
+}
+
+// Get pending rewards that need attention (active, about to expire)
+export const getPendingSpaRewards = async (req, res, next) => {
+  try {
+    let spaLocationId
+    if (req.user.role === 'admin') {
+      spaLocationId = req.query.locationId || req.params.locationId
+      if (!spaLocationId) {
+        return next(createError(400, 'Location ID required for admin'))
+      }
+    } else if (req.user.role === 'team') {
+      if (!req.user.spaLocation?.locationId) {
+        return next(createError(400, 'Your spa location is not configured'))
+      }
+      spaLocationId = req.user.spaLocation.locationId
+    } else {
+      return next(createError(403, 'Access denied'))
+    }
+
+    const now = new Date()
+    const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)
+
+    // Get active rewards that expire soon
+    const expiringSoon = await UserReward.find({
+      locationId: spaLocationId,
+      status: 'active',
+      expiresAt: { $lte: twoDaysFromNow, $gt: now },
+    })
+      .populate('userId', 'name email')
+      .sort({ expiresAt: 1 })
+
+    // Get all active rewards
+    const activeRewards = await UserReward.find({
+      locationId: spaLocationId,
+      status: 'active',
+      expiresAt: { $gt: now },
+    })
+      .populate('userId', 'name email')
+      .sort({ expiresAt: 1 })
+
+    // Get recent game wins (last 24 hours)
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const recentGameWins = await UserReward.find({
+      locationId: spaLocationId,
+      'rewardSnapshot.type': 'game_win',
+      claimedAt: { $gte: yesterday },
+    })
+      .populate('userId', 'name email')
+      .sort({ claimedAt: -1 })
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        expiringSoon: expiringSoon.slice(0, 10), // Top 10
+        activeRewards: activeRewards.slice(0, 20), // Top 20
+        recentGameWins: recentGameWins.slice(0, 10), // Last 10
+        summary: {
+          totalActive: activeRewards.length,
+          expiringSoonCount: expiringSoon.length,
+          recentWinsCount: recentGameWins.length,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching pending spa rewards:', error)
+    next(createError(500, 'Failed to fetch pending rewards'))
   }
 }

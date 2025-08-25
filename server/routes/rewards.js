@@ -1,4 +1,4 @@
-// File: server/routes/rewards.js
+// File: server/routes/rewards.js - ENHANCED WITH SPA OWNER MANAGEMENT
 import express from 'express'
 import {
   adjustUserPoints,
@@ -6,6 +6,7 @@ import {
   createReward,
   createServiceReward,
   deleteReward,
+  getPendingSpaRewards,
   getPointHistory,
   getReward,
   getRewards,
@@ -13,8 +14,13 @@ import {
   getRewardStats,
   getServiceRewards,
   getServicesWithRewards,
+  getSpaRewardAnalytics,
+  // NEW: Spa owner management functions
+  getSpaUserRewards,
   getUserRewards,
+  giveManulaRewardToUser,
   linkRewardToServices,
+  markRewardAsUsed,
   updateReward,
 } from '../controller/rewards.js'
 import {
@@ -52,7 +58,7 @@ router.get('/my-rewards', validatePagination, getUserRewards)
 // Get user's point transaction history
 router.get('/my-points/history', validatePagination, getPointHistory)
 
-// ✅ NEW SERVICE-INTEGRATION ROUTES (PUBLIC)
+// SERVICE-INTEGRATION ROUTES (PUBLIC)
 // Get rewards available for a specific service
 router.get('/services/:serviceId/rewards', getServiceRewards)
 
@@ -63,11 +69,52 @@ router.get('/services-with-rewards', validatePagination, getServicesWithRewards)
 router.get('/:id', getReward)
 
 // ===============================================
-// ADMIN/TEAM ROUTES (management)
+// SPA OWNER ROUTES (NEW - for team role users)
 // ===============================================
 
-// Apply permission checking middleware for management operations
+// Apply permission checking for spa management
 router.use(restrictTo('admin', 'team'))
+
+// Get all user rewards at spa owner's location
+router.get('/spa/user-rewards', validatePagination, getSpaUserRewards)
+
+// Get pending rewards that need attention
+router.get('/spa/pending-rewards', getPendingSpaRewards)
+
+// Get spa reward analytics
+router.get('/spa/analytics', getSpaRewardAnalytics)
+
+// Mark a user's reward as used/redeemed
+router.patch(
+  '/spa/mark-used/:userRewardId',
+  sanitizeRewardData,
+  markRewardAsUsed
+)
+
+// Give manual reward to a user
+router.post(
+  '/spa/give-reward/:userId',
+  sanitizeRewardData,
+  giveManulaRewardToUser
+)
+
+// Admin can get spa rewards for any location
+router.get(
+  '/spa/:locationId/user-rewards',
+  restrictTo('admin'),
+  validatePagination,
+  getSpaUserRewards
+)
+
+router.get(
+  '/spa/:locationId/analytics',
+  restrictTo('admin'),
+  getSpaRewardAnalytics
+)
+
+// ===============================================
+// ADMIN/TEAM ROUTES (management)
+// ===============================================
 
 // Get all rewards for management
 router.get('/', validatePagination, getRewards)
@@ -84,7 +131,7 @@ router.post(
   createReward
 )
 
-// ✅ NEW SERVICE-REWARD MANAGEMENT ROUTES
+// SERVICE-REWARD MANAGEMENT ROUTES
 // Create a reward specifically for a service
 router.post(
   '/services/:serviceId/create-reward',
