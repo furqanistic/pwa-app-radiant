@@ -7,7 +7,6 @@ import {
   Eye,
   Filter,
   Gift,
-  GiftIcon,
   Loader2,
   MapPin,
   Megaphone,
@@ -20,11 +19,15 @@ import {
   Star,
   UserCheck,
   Users2,
+  X,
   Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import Layout from '../Layout/Layout'
+
+// Import the ClientProfile component
+import ClientProfile from '../Profile/ClientProfile'
 
 // shadcn/ui components
 import AddUserForm from '@/components/Management/AddUserForm'
@@ -156,6 +159,8 @@ const UserAvatar = ({ name, role, className = '' }) => {
     </div>
   )
 }
+
+// User Profile Dialog Component - REMOVED: Now navigating to new page instead
 
 const PointsAdjustmentDialog = ({ user, isOpen, onClose }) => {
   const [adjustmentType, setAdjustmentType] = useState('add')
@@ -583,6 +588,7 @@ const ManagementPage = () => {
   const [showNotificationDialog, setShowNotificationDialog] = useState(false)
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
   const [showLocationDialog, setShowLocationDialog] = useState(false)
+
   const navigate = useNavigate()
   // Get token from Redux
   const token = useSelector((state) => state.user.token)
@@ -688,6 +694,11 @@ const ManagementPage = () => {
       // Error is already handled in the mutation
       console.error('Team member creation failed:', error)
     }
+  }
+
+  // Function to handle viewing user profile - navigate to /client/:userId
+  const handleViewUserProfile = (user) => {
+    navigate(`/client/${user._id || user.id}`)
   }
 
   // Don't render if no token or access
@@ -977,7 +988,10 @@ const ManagementPage = () => {
                   >
                     {/* User Header */}
                     <div className='flex items-center justify-between mb-3'>
-                      <div className='flex items-center gap-3'>
+                      <div
+                        className='flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors flex-1'
+                        onClick={() => handleViewUserProfile(user)}
+                      >
                         <UserAvatar name={user.name} role={user.role} />
                         <div>
                           <p className='font-medium text-gray-900'>
@@ -1044,6 +1058,7 @@ const ManagementPage = () => {
                       <Button
                         size='sm'
                         variant='outline'
+                        onClick={() => handleViewUserProfile(user)}
                         className='text-xs hover:scale-105 transition-transform'
                       >
                         <Eye className='w-3 h-3 mr-1' />
@@ -1106,7 +1121,10 @@ const ManagementPage = () => {
                           </div>
                         </td>
                         <td className='py-4 px-4'>
-                          <div className='flex items-center gap-3'>
+                          <div
+                            className='flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors'
+                            onClick={() => handleViewUserProfile(user)}
+                          >
                             <UserAvatar name={user.name} role={user.role} />
                             <div>
                               <p className='font-medium text-gray-900'>
@@ -1177,8 +1195,9 @@ const ManagementPage = () => {
                             <Button
                               size='sm'
                               variant='outline'
+                              onClick={() => handleViewUserProfile(user)}
                               className='px-3 text-xs hover:scale-105 transition-transform'
-                              title='View Details'
+                              title='View Profile'
                             >
                               <Eye className='w-4 h-4 mr-1' />
                               View

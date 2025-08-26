@@ -160,10 +160,6 @@ router.put(
 // Delete reward (soft delete)
 router.delete('/:id', deleteReward)
 
-// ===============================================
-// ADMIN-ONLY ROUTES
-// ===============================================
-
 // Manually adjust user points (admin only)
 router.post(
   '/admin/users/:userId/points',

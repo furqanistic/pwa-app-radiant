@@ -13,6 +13,7 @@ import ManagementPage from './pages/Management/ManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
 import WelcomePage from './pages/Other/WelcomePage'
+import ClientProfile from './pages/Profile/ClientProfile'
 import ProfilePage from './pages/Profile/ProfilePage'
 import ManageReferralPage from './pages/Referral/ManageReferralPage'
 import ReferralPage from './pages/Referral/ReferralPage'
@@ -140,6 +141,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/client/:userId'
+          element={
+            <ProtectedRoute>
+              <ClientProfile />
             </ProtectedRoute>
           }
         />

@@ -1,5 +1,6 @@
 // File: client/src/pages/Dashboard/DashboardPage.jsx
 import PointsCard from '@/components/Dashboard/PointsCard'
+import { useDashboardData } from '@/hooks/useDashboard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { motion } from 'framer-motion'
 import {
@@ -29,99 +30,19 @@ import {
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 
-// Mock data for non-reward sections (appointments, referrals, etc.)
-const mockData = {
-  upcomingAppointments: [
-    {
-      id: 1,
-      service: 'HydraFacial Premium',
-      date: '2025-06-08',
-      time: '2:30 PM',
-      provider: 'Dr. Sarah Chen',
-    },
-    {
-      id: 2,
-      service: 'Botox Consultation',
-      date: '2025-06-15',
-      time: '10:00 AM',
-      provider: 'Dr. Maria Rodriguez',
-    },
-  ],
-  pastVisits: [
-    {
-      id: 1,
-      service: 'Laser Hair Removal',
-      date: '2025-05-20',
-      rating: 5,
-    },
-    {
-      id: 2,
-      service: 'Chemical Peel',
-      date: '2025-05-05',
-      rating: 5,
-    },
-    {
-      id: 3,
-      service: 'Microneedling',
-      date: '2025-04-18',
-      rating: 4,
-    },
-    {
-      id: 4,
-      service: 'Dermaplaning',
-      date: '2025-04-02',
-      rating: 5,
-    },
-  ],
-  referrals: {
-    total: 8,
-    thisMonth: 2,
-    earnings: 240,
-  },
-  credits: {
-    available: 3,
-    gifts: 1,
-    expiring: '2025-08-15',
-  },
-  pointsEarningMethods: [
-    {
-      id: 1,
-      title: 'Invite Friends',
-      description: 'Earn 500 points per referral',
-      icon: UserPlus,
-      points: '+500',
-      action: 'Share Now',
-    },
-    {
-      id: 2,
-      title: 'Book Appointments',
-      description: 'Get 50 points per booking',
-      icon: Calendar,
-      points: '+50',
-      action: 'Book Now',
-    },
-    {
-      id: 3,
-      title: 'Purchase Products',
-      description: 'Earn 1 point per $1 spent',
-      icon: ShoppingBag,
-      points: '+1/$1',
-      action: 'Shop Now',
-    },
-    {
-      id: 4,
-      title: 'Social Media Share',
-      description: 'Share your experience',
-      icon: Share2,
-      points: '+25',
-      action: 'Share',
-    },
-  ],
+// Icon mapping for string icon names from backend
+const iconMap = {
+  UserPlus: UserPlus,
+  Calendar: Calendar,
+  ShoppingBag: ShoppingBag,
+  Star: Star,
+  Share2: Share2,
 }
 
-// Reward Card Component - Copied from RewardsCatalogPage
+// Reward Card Component - Kept from original
 const RewardCard = ({ reward, onClaim, userPoints }) => {
   const [isClaiming, setIsClaiming] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
@@ -334,185 +255,6 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
   )
 }
 
-// Spa Rewards Section Component
-const SpaRewardsSection = () => {
-  // Fetch rewards data using the same hook as RewardsCatalogPage
-  const {
-    rewards = [],
-    userPoints = 0,
-    stats = {},
-    isLoading,
-    error,
-  } = useEnhancedRewardsCatalog({
-    // No filters to get all rewards, we'll slice them below
-  })
-
-  const claimRewardMutation = useClaimReward({
-    onSuccess: (data) => {
-      toast.success(
-        `🎉 Reward claimed! You now have ${data.data.newPointBalance} points.`
-      )
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to claim reward')
-    },
-  })
-
-  const handleClaimReward = async (rewardId) => {
-    claimRewardMutation.mutate(rewardId)
-  }
-
-  // Get last 3 rewards (most recent)
-  const lastThreeRewards = rewards.slice(-3).reverse()
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className='mb-4 sm:mb-6 lg:mb-8'>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className='bg-white border-2 border-pink-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6'
-        >
-          <div className='flex items-center mb-4 sm:mb-6'>
-            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-            </div>
-            <div>
-              <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
-                Spa Rewards
-              </h2>
-              <p className='text-xs sm:text-sm text-gray-600'>
-                Loading your rewards...
-              </p>
-            </div>
-          </div>
-          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6'>
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className='bg-gray-200 rounded-2xl h-80 animate-pulse'
-              ></div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-    )
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className='mb-4 sm:mb-6 lg:mb-8'>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className='bg-white border-2 border-pink-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6'
-        >
-          <div className='flex items-center mb-4'>
-            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-            </div>
-            <div>
-              <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
-                Spa Rewards
-              </h2>
-              <p className='text-xs sm:text-sm text-red-600'>
-                {error?.message || 'Failed to load rewards'}
-              </p>
-            </div>
-          </div>
-          <div className='text-center py-8'>
-            <div className='text-3xl mb-2'>💔</div>
-            <p className='text-gray-600'>Unable to load rewards at this time</p>
-          </div>
-        </motion.div>
-      </div>
-    )
-  }
-
-  // Empty state
-  if (rewards.length === 0) {
-    return (
-      <div className='mb-4 sm:mb-6 lg:mb-8'>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className='bg-white border-2 border-pink-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6'
-        >
-          <div className='flex items-center mb-4'>
-            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-            </div>
-            <div>
-              <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
-                Spa Rewards
-              </h2>
-              <p className='text-xs sm:text-sm text-gray-600'>
-                No rewards available yet
-              </p>
-            </div>
-          </div>
-          <div className='text-center py-8'>
-            <div className='text-4xl mb-3'>🎁</div>
-            <p className='text-gray-600'>New rewards coming soon!</p>
-          </div>
-        </motion.div>
-      </div>
-    )
-  }
-
-  return (
-    <div className='mb-4 sm:mb-6 lg:mb-8'>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className='bg-white border-2 border-pink-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6'
-      >
-        <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
-          <div className='flex items-center mb-2 sm:mb-0'>
-            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-            </div>
-            <div>
-              <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
-                Spa Rewards
-              </h2>
-              <p className='text-xs sm:text-sm text-gray-600'>
-                Latest rewards available for you
-              </p>
-            </div>
-          </div>
-          <div className='flex items-center gap-2'>
-            <span className='bg-pink-100 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold'>
-              {lastThreeRewards.filter((r) => r.canClaim).length} Available
-            </span>
-            <button className='text-pink-600 hover:text-pink-700 flex items-center gap-1 text-sm font-semibold'>
-              View All
-              <ChevronRight className='w-4 h-4' />
-            </button>
-          </div>
-        </div>
-
-        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6'>
-          {lastThreeRewards.map((reward) => (
-            <RewardCard
-              key={reward._id}
-              reward={reward}
-              onClaim={handleClaimReward}
-              userPoints={userPoints}
-            />
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  )
-}
-
 // Enhanced Card Component
 const DashboardCard = ({ children, className = '', gradient = 'default' }) => {
   const gradients = {
@@ -536,8 +278,159 @@ const DashboardCard = ({ children, className = '', gradient = 'default' }) => {
   )
 }
 
+// Spa Rewards Section Component
+const SpaRewardsSection = () => {
+  const navigate = useNavigate()
+  const {
+    rewards = [],
+    userPoints = 0,
+    stats = {},
+    isLoading,
+    error,
+  } = useEnhancedRewardsCatalog({})
+
+  const claimRewardMutation = useClaimReward({
+    onSuccess: (data) => {
+      toast.success(
+        `🎉 Reward claimed! You now have ${data.data.newPointBalance} points.`
+      )
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to claim reward')
+    },
+  })
+
+  const handleClaimReward = async (rewardId) => {
+    claimRewardMutation.mutate(rewardId)
+  }
+
+  const lastThreeRewards = rewards.slice(-3).reverse()
+
+  if (isLoading) {
+    return (
+      <div className='mb-4 sm:mb-6 lg:mb-8'>
+        <DashboardCard>
+          <div className='flex items-center mb-4 sm:mb-6'>
+            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+            </div>
+            <div>
+              <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
+                Spa Rewards
+              </h2>
+              <p className='text-xs sm:text-sm text-gray-600'>
+                Loading your rewards...
+              </p>
+            </div>
+          </div>
+          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6'>
+            {[...Array(3)].map((_, i) => (
+              <div
+                key={i}
+                className='bg-gray-200 rounded-2xl h-80 animate-pulse'
+              ></div>
+            ))}
+          </div>
+        </DashboardCard>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className='mb-4 sm:mb-6 lg:mb-8'>
+        <DashboardCard>
+          <div className='text-center py-8'>
+            <div className='text-3xl mb-2'>💔</div>
+            <p className='text-gray-600'>Unable to load rewards at this time</p>
+          </div>
+        </DashboardCard>
+      </div>
+    )
+  }
+
+  if (rewards.length === 0) {
+    return (
+      <div className='mb-4 sm:mb-6 lg:mb-8'>
+        <DashboardCard>
+          <div className='text-center py-8'>
+            <div className='text-4xl mb-3'>🎁</div>
+            <p className='text-gray-600'>New rewards coming soon!</p>
+          </div>
+        </DashboardCard>
+      </div>
+    )
+  }
+
+  return (
+    <div className='mb-4 sm:mb-6 lg:mb-8'>
+      <DashboardCard>
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
+          <div className='flex items-center mb-2 sm:mb-0'>
+            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+            </div>
+            <div>
+              <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
+                Spa Rewards
+              </h2>
+              <p className='text-xs sm:text-sm text-gray-600'>
+                Latest rewards available for you
+              </p>
+            </div>
+          </div>
+          <div className='flex items-center gap-2'>
+            <span className='bg-pink-100 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold'>
+              {lastThreeRewards.filter((r) => r.canClaim).length} Available
+            </span>
+            <button
+              onClick={() => navigate('/rewards')}
+              className='text-pink-600 hover:text-pink-700 flex items-center gap-1 text-sm font-semibold'
+            >
+              View All
+              <ChevronRight className='w-4 h-4' />
+            </button>
+          </div>
+        </div>
+
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6'>
+          {lastThreeRewards.map((reward) => (
+            <RewardCard
+              key={reward._id}
+              reward={reward}
+              onClaim={handleClaimReward}
+              userPoints={userPoints}
+            />
+          ))}
+        </div>
+      </DashboardCard>
+    </div>
+  )
+}
+
 // Need More Points Section
-const NeedMorePointsSection = ({ methods }) => {
+const NeedMorePointsSection = ({ methods = [] }) => {
+  const navigate = useNavigate()
+
+  const handleAction = (method) => {
+    switch (method.action) {
+      case 'Share Now':
+        navigate('/referral')
+        break
+      case 'Book Now':
+        navigate('/services')
+        break
+      case 'Shop Now':
+        navigate('/shop')
+        break
+      case 'Review':
+        navigate('/appointments')
+        break
+      default:
+        break
+    }
+  }
+
   return (
     <DashboardCard gradient='purple'>
       <div className='flex items-center mb-4 sm:mb-6'>
@@ -551,7 +444,7 @@ const NeedMorePointsSection = ({ methods }) => {
 
       <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4'>
         {methods.map((method) => {
-          const IconComponent = method.icon
+          const IconComponent = iconMap[method.icon] || Zap
           return (
             <motion.div
               key={method.id}
@@ -581,7 +474,10 @@ const NeedMorePointsSection = ({ methods }) => {
                 </div>
               </div>
 
-              <button className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'>
+              <button
+                onClick={() => handleAction(method)}
+                className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'
+              >
                 {method.action}
               </button>
             </motion.div>
@@ -593,7 +489,11 @@ const NeedMorePointsSection = ({ methods }) => {
 }
 
 const DashboardPage = () => {
+  const navigate = useNavigate()
   const { currentUser } = useSelector((state) => state.user)
+
+  // Fetch dashboard data
+  const { data: dashboardData, isLoading, error } = useDashboardData()
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -602,6 +502,42 @@ const DashboardPage = () => {
       day: 'numeric',
     })
   }
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
+          <div className='max-w-7xl mx-auto'>
+            <div className='flex items-center justify-center h-64'>
+              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500'></div>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
+          <div className='max-w-7xl mx-auto'>
+            <div className='text-center py-12'>
+              <p className='text-red-600'>Failed to load dashboard data</p>
+              <button
+                onClick={() => window.location.reload()}
+                className='mt-4 px-4 py-2 bg-pink-500 text-white rounded-lg'
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
+  const data = dashboardData?.data || {}
 
   return (
     <Layout>
@@ -616,236 +552,284 @@ const DashboardPage = () => {
           <SpaRewardsSection />
 
           {/* Need More Points Section - Full Width */}
-          <div className='mb-4 sm:mb-6 lg:mb-8'>
-            <NeedMorePointsSection methods={mockData.pointsEarningMethods} />
-          </div>
+          {data.pointsEarningMethods && (
+            <div className='mb-4 sm:mb-6 lg:mb-8'>
+              <NeedMorePointsSection methods={data.pointsEarningMethods} />
+            </div>
+          )}
 
           {/* Rest of the Dashboard - Better Balanced Layout */}
           <div className='grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8'>
             {/* Left Column - Takes 7 columns on desktop */}
             <div className='lg:col-span-7 space-y-4 sm:space-y-6 lg:space-y-8'>
               {/* Upcoming Appointments */}
-              <DashboardCard gradient='pink'>
-                <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
-                  <div className='flex items-center mb-2 sm:mb-0'>
-                    <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-                      <Calendar className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-                    </div>
-                    <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
-                      Upcoming Appointments
-                    </h2>
-                  </div>
-                  <span className='bg-pink-200 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold w-fit'>
-                    {mockData.upcomingAppointments.length} scheduled
-                  </span>
-                </div>
-                <div className='grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4'>
-                  {mockData.upcomingAppointments.map((appointment) => (
-                    <div
-                      key={appointment.id}
-                      className='bg-white border-2 border-pink-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-pink-300 transition-colors'
-                    >
-                      <h3 className='text-sm sm:text-base lg:text-lg font-bold text-gray-800 mb-1 sm:mb-2'>
-                        {appointment.service}
-                      </h3>
-                      <p className='text-xs sm:text-sm lg:text-base text-gray-600 mb-2 sm:mb-3'>
-                        {appointment.provider}
-                      </p>
-                      <div className='flex items-center bg-pink-50 rounded-lg p-2 sm:p-3'>
-                        <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-pink-500 mr-2 sm:mr-3' />
-                        <div>
-                          <p className='text-xs sm:text-sm font-semibold text-pink-700'>
-                            {formatDate(appointment.date)}
-                          </p>
-                          <p className='text-xs sm:text-sm text-pink-600'>
-                            {appointment.time}
-                          </p>
-                        </div>
+              {data.upcomingAppointments && (
+                <DashboardCard gradient='pink'>
+                  <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
+                    <div className='flex items-center mb-2 sm:mb-0'>
+                      <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+                        <Calendar className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
                       </div>
+                      <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
+                        Upcoming Appointments
+                      </h2>
                     </div>
-                  ))}
-                </div>
-              </DashboardCard>
-
-              {/* Referral Program */}
-              <DashboardCard gradient='indigo'>
-                <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
-                  <div className='flex items-center mb-2 sm:mb-0'>
-                    <div className='bg-gradient-to-r from-pink-500 to-rose-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
-                      <Users className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-                    </div>
-                    <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
-                      Referral Program
-                    </h2>
-                  </div>
-                  <div className='flex items-center bg-green-100 border-2 border-green-200 rounded-full px-2 sm:px-3 py-1 w-fit'>
-                    <TrendingUp className='w-3 h-3 sm:w-4 sm:h-4 text-green-600 mr-1 sm:mr-2' />
-                    <span className='text-green-700 font-semibold text-xs sm:text-sm'>
-                      Growing
+                    <span className='bg-pink-200 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold w-fit'>
+                      {data.upcomingAppointments.length} scheduled
                     </span>
                   </div>
-                </div>
-                <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6'>
-                  <div className='bg-white border-2 border-indigo-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-indigo-300 transition-colors'>
-                    <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                      <Users className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-indigo-600' />
+                  {data.upcomingAppointments.length > 0 ? (
+                    <div className='grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4'>
+                      {data.upcomingAppointments.map((appointment) => (
+                        <div
+                          key={appointment._id}
+                          className='bg-white border-2 border-pink-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-pink-300 transition-colors'
+                        >
+                          <h3 className='text-sm sm:text-base lg:text-lg font-bold text-gray-800 mb-1 sm:mb-2'>
+                            {appointment.serviceName}
+                          </h3>
+                          <p className='text-xs sm:text-sm lg:text-base text-gray-600 mb-2 sm:mb-3'>
+                            {appointment.providerName}
+                          </p>
+                          <div className='flex items-center bg-pink-50 rounded-lg p-2 sm:p-3'>
+                            <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-pink-500 mr-2 sm:mr-3' />
+                            <div>
+                              <p className='text-xs sm:text-sm font-semibold text-pink-700'>
+                                {formatDate(appointment.date)}
+                              </p>
+                              <p className='text-xs sm:text-sm text-pink-600'>
+                                {appointment.time}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-indigo-600 mb-1'>
-                      {mockData.referrals.total}
-                    </p>
-                    <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                      Total
-                    </p>
-                  </div>
-                  <div className='bg-white border-2 border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors'>
-                    <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                      <Calendar className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-green-600' />
-                    </div>
-                    <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-green-600 mb-1'>
-                      {mockData.referrals.thisMonth}
-                    </p>
-                    <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                      This Month
-                    </p>
-                  </div>
-                  <div className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-purple-300 transition-colors'>
-                    <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                      <Gift className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
-                    </div>
-                    <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-purple-600 mb-1'>
-                      ${mockData.referrals.earnings}
-                    </p>
-                    <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                      Earned
-                    </p>
-                  </div>
-                </div>
-                <div className='bg-white border-2 border-indigo-200 rounded-xl sm:rounded-2xl p-3 sm:p-4'>
-                  <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
-                    <div>
-                      <p className='text-sm sm:text-base lg:text-lg font-bold text-gray-800'>
-                        Share & Earn More
+                  ) : (
+                    <div className='text-center py-8'>
+                      <p className='text-gray-600 mb-4'>
+                        No upcoming appointments
                       </p>
-                      <p className='text-xs sm:text-sm text-gray-600'>
-                        Invite friends and earn $30 per referral
+                      <button
+                        onClick={() => navigate('/services')}
+                        className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-2 rounded-xl'
+                      >
+                        Book Now
+                      </button>
+                    </div>
+                  )}
+                </DashboardCard>
+              )}
+
+              {/* Referral Program */}
+              {data.referralStats && (
+                <DashboardCard gradient='indigo'>
+                  <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
+                    <div className='flex items-center mb-2 sm:mb-0'>
+                      <div className='bg-gradient-to-r from-pink-500 to-rose-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                        <Users className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+                      </div>
+                      <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
+                        Referral Program
+                      </h2>
+                    </div>
+                    <div className='flex items-center bg-green-100 border-2 border-green-200 rounded-full px-2 sm:px-3 py-1 w-fit'>
+                      <TrendingUp className='w-3 h-3 sm:w-4 sm:h-4 text-green-600 mr-1 sm:mr-2' />
+                      <span className='text-green-700 font-semibold text-xs sm:text-sm'>
+                        Active
+                      </span>
+                    </div>
+                  </div>
+                  <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6'>
+                    <div className='bg-white border-2 border-indigo-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-indigo-300 transition-colors'>
+                      <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                        <Users className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-indigo-600' />
+                      </div>
+                      <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-indigo-600 mb-1'>
+                        {data.referralStats.total}
+                      </p>
+                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                        Total
                       </p>
                     </div>
-                    <button className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'>
-                      Share Now
-                    </button>
+                    <div className='bg-white border-2 border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors'>
+                      <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                        <Calendar className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-green-600' />
+                      </div>
+                      <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-green-600 mb-1'>
+                        {data.referralStats.thisMonth}
+                      </p>
+                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                        This Month
+                      </p>
+                    </div>
+                    <div className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-purple-300 transition-colors'>
+                      <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                        <Gift className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
+                      </div>
+                      <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-purple-600 mb-1'>
+                        {data.referralStats.earnings}
+                      </p>
+                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                        Points
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </DashboardCard>
+                  <div className='bg-white border-2 border-indigo-200 rounded-xl sm:rounded-2xl p-3 sm:p-4'>
+                    <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
+                      <div>
+                        <p className='text-sm sm:text-base lg:text-lg font-bold text-gray-800'>
+                          Your Code:{' '}
+                          {data.referralStats.referralCode || 'Generate Code'}
+                        </p>
+                        <p className='text-xs sm:text-sm text-gray-600'>
+                          Share with friends and earn rewards
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => navigate('/referral')}
+                        className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'
+                      >
+                        Share Now
+                      </button>
+                    </div>
+                  </div>
+                </DashboardCard>
+              )}
             </div>
 
             {/* Right Column - Takes 5 columns on desktop */}
             <div className='lg:col-span-5 space-y-4 sm:space-y-6 lg:space-y-8'>
               {/* Available Credits & Gifts */}
-              <DashboardCard gradient='purple'>
-                <div className='flex items-center justify-between mb-4 sm:mb-6'>
-                  <div className='flex items-center'>
-                    <div className='bg-gradient-to-r from-purple-500 to-purple-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
-                      <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+              {data.credits && (
+                <DashboardCard gradient='purple'>
+                  <div className='flex items-center justify-between mb-4 sm:mb-6'>
+                    <div className='flex items-center'>
+                      <div className='bg-gradient-to-r from-purple-500 to-purple-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                        <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+                      </div>
+                      <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
+                        Credits & Gifts
+                      </h2>
                     </div>
-                    <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
-                      Credits & Gifts
-                    </h2>
-                  </div>
-                </div>
-
-                <div className='grid grid-cols-2 gap-3 sm:gap-4 mb-4'>
-                  {/* Available Credits */}
-                  <div className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-purple-300 transition-colors'>
-                    <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
-                      <CreditCard className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
-                    </div>
-                    <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-purple-600 mb-1'>
-                      {mockData.credits.available}
-                    </p>
-                    <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                      Available Credits
-                    </p>
                   </div>
 
-                  {/* Gift Cards */}
-                  <div className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-pink-300 transition-colors'>
-                    <div className='bg-gradient-to-r from-pink-100 to-pink-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
-                      <Gift className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-pink-600' />
-                    </div>
-                    <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-pink-600 mb-1'>
-                      {mockData.credits.gifts}
-                    </p>
-                    <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                      Gift Cards
-                    </p>
-                  </div>
-                </div>
-
-                {/* Expiration Warning */}
-                <div className='bg-amber-50 border-2 border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'>
-                  <div className='flex items-center'>
-                    <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mr-2 sm:mr-3' />
-                    <div>
-                      <p className='text-xs sm:text-sm font-semibold text-amber-800'>
-                        Credits Expiring Soon
+                  <div className='grid grid-cols-2 gap-3 sm:gap-4 mb-4'>
+                    {/* Available Credits */}
+                    <div className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-purple-300 transition-colors'>
+                      <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
+                        <CreditCard className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
+                      </div>
+                      <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-purple-600 mb-1'>
+                        {data.credits.available}
                       </p>
-                      <p className='text-xs sm:text-sm text-amber-700'>
-                        Expires on {formatDate(mockData.credits.expiring)}
+                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                        Available Credits
+                      </p>
+                    </div>
+
+                    {/* Gift Cards */}
+                    <div className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-pink-300 transition-colors'>
+                      <div className='bg-gradient-to-r from-pink-100 to-pink-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
+                        <Gift className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-pink-600' />
+                      </div>
+                      <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-pink-600 mb-1'>
+                        {data.credits.gifts}
+                      </p>
+                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                        Gift Cards
                       </p>
                     </div>
                   </div>
-                </div>
 
-                {/* Use Credits Button */}
-                <button className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'>
-                  Use Credits
-                </button>
-              </DashboardCard>
-
-              {/* Past Visits */}
-              <DashboardCard gradient='pink'>
-                <div className='flex items-center justify-between mb-4 sm:mb-6'>
-                  <div className='flex items-center'>
-                    <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
-                      <Heart className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-                    </div>
-                    <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
-                      Past Visits
-                    </h2>
-                  </div>
-                </div>
-                <div className='space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 lg:max-h-96 overflow-y-auto'>
-                  {mockData.pastVisits.map((visit) => (
-                    <div
-                      key={visit.id}
-                      className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-pink-300 transition-colors'
-                    >
-                      <div className='flex items-center justify-between'>
-                        <div className='flex-1 min-w-0'>
-                          <p className='font-semibold text-gray-800 text-xs sm:text-sm lg:text-base truncate'>
-                            {visit.service}
+                  {/* Expiration Warning */}
+                  {data.credits.expiring && (
+                    <div className='bg-amber-50 border-2 border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'>
+                      <div className='flex items-center'>
+                        <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mr-2 sm:mr-3' />
+                        <div>
+                          <p className='text-xs sm:text-sm font-semibold text-amber-800'>
+                            Credits Expiring Soon
                           </p>
-                          <p className='text-xs sm:text-sm text-gray-500'>
-                            {formatDate(visit.date)}
+                          <p className='text-xs sm:text-sm text-amber-700'>
+                            Expires on {formatDate(data.credits.expiring)}
                           </p>
-                        </div>
-                        <div className='flex items-center ml-2 sm:ml-3 flex-shrink-0'>
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`w-3 h-3 sm:w-4 sm:h-4 ${
-                                i < visit.rating
-                                  ? 'text-yellow-400 fill-current'
-                                  : 'text-gray-300'
-                              }`}
-                            />
-                          ))}
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </DashboardCard>
+                  )}
+
+                  {/* Use Credits Button */}
+                  <button
+                    onClick={() => navigate('/rewards')}
+                    className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'
+                  >
+                    Use Credits
+                  </button>
+                </DashboardCard>
+              )}
+
+              {/* Past Visits */}
+              {data.pastVisits && (
+                <DashboardCard gradient='pink'>
+                  <div className='flex items-center justify-between mb-4 sm:mb-6'>
+                    <div className='flex items-center'>
+                      <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                        <Heart className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+                      </div>
+                      <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
+                        Past Visits
+                      </h2>
+                    </div>
+                  </div>
+                  <div className='space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 lg:max-h-96 overflow-y-auto'>
+                    {data.pastVisits.length > 0 ? (
+                      data.pastVisits.map((visit) => (
+                        <div
+                          key={visit._id}
+                          className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-pink-300 transition-colors'
+                        >
+                          <div className='flex items-center justify-between'>
+                            <div className='flex-1 min-w-0'>
+                              <p className='font-semibold text-gray-800 text-xs sm:text-sm lg:text-base truncate'>
+                                {visit.serviceName}
+                              </p>
+                              <p className='text-xs sm:text-sm text-gray-500'>
+                                {formatDate(visit.date)}
+                              </p>
+                            </div>
+                            <div className='flex items-center ml-2 sm:ml-3 flex-shrink-0'>
+                              {visit.rating ? (
+                                [...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`w-3 h-3 sm:w-4 sm:h-4 ${
+                                      i < visit.rating
+                                        ? 'text-yellow-400 fill-current'
+                                        : 'text-gray-300'
+                                    }`}
+                                  />
+                                ))
+                              ) : (
+                                <button
+                                  onClick={() => navigate('/appointments')}
+                                  className='text-xs text-pink-600 hover:text-pink-700'
+                                >
+                                  Rate
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className='text-center py-8'>
+                        <p className='text-gray-600'>No past visits yet</p>
+                      </div>
+                    )}
+                  </div>
+                </DashboardCard>
+              )}
             </div>
           </div>
         </div>

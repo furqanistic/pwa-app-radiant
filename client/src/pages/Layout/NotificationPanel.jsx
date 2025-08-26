@@ -1,7 +1,6 @@
 // File: client/src/pages/Layout/NotificationPanel.jsx - ENHANCED PWA VERSION
 import { axiosInstance } from '@/config'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft,
   Bell,
@@ -242,14 +241,12 @@ const NotificationPanel = ({ className = '' }) => {
       >
         <div className='flex items-center justify-between'>
           {isMobile && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={() => setIsOpen(false)}
               className='p-1.5 -ml-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
             >
               <ArrowLeft className='h-5 w-5' />
-            </motion.button>
+            </button>
           )}
 
           <div className='flex items-center gap-3'>
@@ -275,9 +272,7 @@ const NotificationPanel = ({ className = '' }) => {
           </div>
 
           {/* Refresh button */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={handleManualRefresh}
             disabled={isManualRefreshing}
             className='p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
@@ -286,7 +281,7 @@ const NotificationPanel = ({ className = '' }) => {
             <RefreshCw
               className={cn('h-4 w-4', isManualRefreshing && 'animate-spin')}
             />
-          </motion.button>
+          </button>
         </div>
       </div>
 
@@ -333,101 +328,89 @@ const NotificationPanel = ({ className = '' }) => {
           </div>
         ) : (
           <div className='divide-y divide-pink-100'>
-            <AnimatePresence>
-              {notifications.data.notifications.map((notification, index) => (
-                <motion.div
-                  key={notification._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={cn(
-                    'hover:bg-pink-50 transition-all duration-200 relative group border-l-4',
-                    isMobile ? 'p-4' : 'p-4',
-                    !notification.read
-                      ? 'bg-pink-50/50 border-l-pink-500'
-                      : 'border-l-transparent hover:border-l-pink-200'
-                  )}
-                >
-                  <div className='flex items-start gap-3'>
-                    {/* Icon */}
-                    <div
-                      className={cn(
-                        'flex-shrink-0 rounded-xl flex items-center justify-center mt-0.5 border',
-                        isMobile ? 'w-10 h-10' : 'w-10 h-10',
-                        getIconColor(notification.category),
-                        !notification.read
-                          ? 'border-pink-200'
-                          : 'border-pink-100'
-                      )}
-                    >
-                      {getIcon(notification.category)}
-                    </div>
+            {notifications.data.notifications.map((notification, index) => (
+              <div
+                key={notification._id}
+                className={cn(
+                  'hover:bg-pink-50 transition-all duration-200 relative group border-l-4',
+                  isMobile ? 'p-4' : 'p-4',
+                  !notification.read
+                    ? 'bg-pink-50/50 border-l-pink-500'
+                    : 'border-l-transparent hover:border-l-pink-200'
+                )}
+              >
+                <div className='flex items-start gap-3'>
+                  {/* Icon */}
+                  <div
+                    className={cn(
+                      'flex-shrink-0 rounded-xl flex items-center justify-center mt-0.5 border',
+                      isMobile ? 'w-10 h-10' : 'w-10 h-10',
+                      getIconColor(notification.category),
+                      !notification.read ? 'border-pink-200' : 'border-pink-100'
+                    )}
+                  >
+                    {getIcon(notification.category)}
+                  </div>
 
-                    {/* Content */}
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-start justify-between'>
-                        <div className='flex-1 pr-4'>
-                          <h4
-                            className={cn(
-                              'leading-tight',
-                              isMobile ? 'text-sm' : 'text-sm',
-                              notification.read
-                                ? 'text-gray-700'
-                                : 'text-gray-900 font-semibold'
-                            )}
-                          >
-                            {notification.title}
-                          </h4>
-                          <p
-                            className={cn(
-                              'text-gray-600 leading-relaxed mt-1',
-                              isMobile ? 'text-sm' : 'text-sm'
-                            )}
-                          >
-                            {notification.message}
-                          </p>
-                          <div className='flex items-center gap-2 mt-2'>
-                            <Clock className='h-3 w-3 text-pink-400' />
-                            <p className='text-pink-400 text-xs font-medium'>
-                              {formatTime(notification.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Delete button */}
-                        <motion.button
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() =>
-                            deleteMutation.mutate({
-                              notificationId: notification._id,
-                              token,
-                            })
-                          }
+                  {/* Content */}
+                  <div className='flex-1 min-w-0'>
+                    <div className='flex items-start justify-between'>
+                      <div className='flex-1 pr-4'>
+                        <h4
                           className={cn(
-                            'p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all duration-200 border border-transparent hover:border-rose-200',
-                            isMobile
-                              ? 'opacity-100'
-                              : 'opacity-0 group-hover:opacity-100'
+                            'leading-tight',
+                            isMobile ? 'text-sm' : 'text-sm',
+                            notification.read
+                              ? 'text-gray-700'
+                              : 'text-gray-900 font-semibold'
                           )}
-                          disabled={deleteMutation.isPending}
                         >
-                          <Trash2 className='h-4 w-4' />
-                        </motion.button>
+                          {notification.title}
+                        </h4>
+                        <p
+                          className={cn(
+                            'text-gray-600 leading-relaxed mt-1',
+                            isMobile ? 'text-sm' : 'text-sm'
+                          )}
+                        >
+                          {notification.message}
+                        </p>
+                        <div className='flex items-center gap-2 mt-2'>
+                          <Clock className='h-3 w-3 text-pink-400' />
+                          <p className='text-pink-400 text-xs font-medium'>
+                            {formatTime(notification.createdAt)}
+                          </p>
+                        </div>
                       </div>
 
-                      {/* Unread indicator */}
-                      {!notification.read && (
-                        <div className='absolute top-4 right-4 w-3 h-3 bg-pink-500 rounded-full border-2 border-white'></div>
-                      )}
+                      {/* Delete button */}
+                      <button
+                        onClick={() =>
+                          deleteMutation.mutate({
+                            notificationId: notification._id,
+                            token,
+                          })
+                        }
+                        className={cn(
+                          'p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all duration-200 border border-transparent hover:border-rose-200',
+                          isMobile
+                            ? 'opacity-100'
+                            : 'opacity-0 group-hover:opacity-100'
+                        )}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className='h-4 w-4' />
+                      </button>
                     </div>
+
+                    {/* Unread indicator */}
+                    {!notification.read && (
+                      <div className='absolute top-4 right-4 w-3 h-3 bg-pink-500 rounded-full border-2 border-white'></div>
+                    )}
                   </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -437,9 +420,7 @@ const NotificationPanel = ({ className = '' }) => {
   return (
     <div className={cn('relative notification-panel', className)}>
       {/* Bell Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className='relative p-2 text-gray-500 hover:text-pink-600 hover:bg-pink-50 rounded-xl transition-all duration-200 border border-transparent hover:border-pink-200'
       >
@@ -453,55 +434,33 @@ const NotificationPanel = ({ className = '' }) => {
         )}
 
         {/* Unread count badge */}
-        <AnimatePresence>
-          {unreadCount > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className='absolute -top-1 -right-1 h-5 w-5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full flex items-center justify-center font-bold border-2 border-white'
-            >
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </motion.button>
+        {unreadCount > 0 && (
+          <span className='absolute -top-1 -right-1 h-5 w-5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full flex items-center justify-center font-bold border-2 border-white'>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
 
       {/* Mobile Overlay */}
-      <AnimatePresence>
-        {isOpen && isMobile && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className='fixed inset-0 bg-black/40 backdrop-blur-sm z-50'
-            onClick={() => setIsOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+      {isOpen && isMobile && (
+        <div
+          className='fixed inset-0 bg-black/40 backdrop-blur-sm z-50'
+          onClick={() => setIsOpen(false)}
+        />
+      )}
 
       {/* Panel */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={
-              isMobile ? { x: '100%' } : { opacity: 0, scale: 0.95, y: -10 }
-            }
-            animate={isMobile ? { x: 0 } : { opacity: 1, scale: 1, y: 0 }}
-            exit={
-              isMobile ? { x: '100%' } : { opacity: 0, scale: 0.95, y: -10 }
-            }
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className={
-              isMobile
-                ? 'fixed top-0 right-0 h-screen w-full bg-white z-50 flex flex-col border-l border-pink-100'
-                : 'absolute right-0 top-full mt-2 w-96 max-w-[90vw] bg-white rounded-2xl border border-pink-100 z-50 overflow-hidden'
-            }
-          >
-            <NotificationContent />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isOpen && (
+        <div
+          className={
+            isMobile
+              ? 'fixed top-0 right-0 h-screen w-full bg-white z-50 flex flex-col border-l border-pink-100'
+              : 'absolute right-0 top-full mt-2 w-96 max-w-[90vw] bg-white rounded-2xl border border-pink-100 z-50 overflow-hidden'
+          }
+        >
+          <NotificationContent />
+        </div>
+      )}
     </div>
   )
 }

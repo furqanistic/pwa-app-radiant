@@ -1,4 +1,4 @@
-// File: server/index.js
+// File: server/index.js - UPDATED
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'
@@ -7,6 +7,8 @@ import mongoose from 'mongoose'
 import passport from 'passport'
 import './config/passport.js'
 import authRoute from './routes/auth.js'
+import bookingsRouter from './routes/bookings.js' // NEW
+import dashboardRouter from './routes/dashboard.js' // NEW
 import gameWheelRoutes from './routes/gameWheel.js'
 import ghlRoutes from './routes/ghl.js'
 import locationRoute from './routes/location.js'
@@ -15,6 +17,7 @@ import referralRoutes from './routes/referral.js'
 import rewardsRouter from './routes/rewards.js'
 import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
+
 const app = express()
 
 // Load environment variables first
@@ -23,6 +26,9 @@ dotenv.config()
 const corsOptions = {
   origin: [
     'http://localhost:5173', // Dev
+    'http://localhost:5174', // Dev
+    'https://documnt.ai',
+    'https://www.documnt.ai',
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -48,6 +54,9 @@ app.use('/api/spa-users', spaUsersRouter)
 app.use('/api/services', servicesRouter)
 app.use('/api/rewards', rewardsRouter)
 app.use('/api/games', gameWheelRoutes)
+app.use('/api/bookings', bookingsRouter) // NEW
+app.use('/api/dashboard', dashboardRouter) // NEW
+
 const connect = () => {
   mongoose
     .connect(process.env.MONGO)
