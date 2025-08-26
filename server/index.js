@@ -26,9 +26,8 @@ dotenv.config()
 const corsOptions = {
   origin: [
     'http://localhost:5173', // Dev
-    'http://localhost:5174', // Dev
-    'https://documnt.ai',
-    'https://www.documnt.ai',
+    'https://app.radiantmdconsulting.com/',
+    'https://api.radiantmdconsulting.com/',
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],

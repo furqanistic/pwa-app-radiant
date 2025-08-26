@@ -1,4 +1,4 @@
-// File: client/src/services/referralService.js
+// File: client/src/services/referralService.js - COMPLETE
 import { axiosInstance } from '@/config'
 
 export const referralService = {
@@ -37,9 +37,7 @@ export const referralService = {
   completeReferral: async (referralId, notes = '') => {
     const response = await axiosInstance.post(
       `/referral/complete/${referralId}`,
-      {
-        notes,
-      }
+      { notes }
     )
     return response.data
   },
@@ -66,9 +64,15 @@ export const referralService = {
     return response.data
   },
 
-  // Generate referral code for current user (if they don't have one)
+  // Generate referral code for current user
   generateMyReferralCode: async () => {
     const response = await axiosInstance.post('/auth/generate-referral-code')
+    return response.data
+  },
+
+  // NEW: Get spa-specific referral stats (for spa owners)
+  getSpaReferralStats: async () => {
+    const response = await axiosInstance.get('/referral/spa-stats')
     return response.data
   },
 }
