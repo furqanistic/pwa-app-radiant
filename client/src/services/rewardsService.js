@@ -32,6 +32,39 @@ export const rewardsService = {
     })
     return response.data
   },
+  // Search users for reward giving
+  searchUsersForReward: async (params = {}) => {
+    const response = await axiosInstance.get('/rewards/users/search', {
+      params,
+    })
+    return response.data
+  },
+
+  // Give manual reward to user by email
+  giveManualReward: async (email, rewardData) => {
+    const response = await axiosInstance.post(
+      `/rewards/spa/give-reward/email/${email}`,
+      rewardData
+    )
+    return response.data
+  },
+
+  // Bulk give rewards to multiple users
+  bulkGiveRewards: async (data) => {
+    const response = await axiosInstance.post(
+      '/rewards/spa/give-rewards/bulk',
+      data
+    )
+    return response.data
+  },
+
+  // Get user's manual rewards
+  getUserManualRewards: async (params = {}) => {
+    const response = await axiosInstance.get('/rewards/my-rewards/manual', {
+      params,
+    })
+    return response.data
+  },
 
   // ===============================================
   // SERVICE-REWARD INTEGRATION (New)

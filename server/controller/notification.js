@@ -1,3 +1,4 @@
+// File: server/controller/notification.js
 // server/controller/notification.js
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'

@@ -1730,3 +1730,393 @@ export const getPendingSpaRewards = async (req, res, next) => {
     next(createError(500, 'Failed to fetch pending rewards'))
   }
 }
+
+// File: server/controller/rewards.js - ENHANCED SECTIONS
+
+// Search users for reward assignment
+export const searchUsersForReward = async (req, res, next) => {
+  try {
+    const { search, locationId, limit = 10 } = req.query
+
+    // Check permissions
+    if (!['admin', 'team'].includes(req.user.role)) {
+      return next(createError(403, 'Access denied'))
+    }
+
+    // Build search query
+    const searchQuery = {
+      isDeleted: false,
+      role: 'user', // Only search regular users
+    }
+
+    // Add search filters
+    if (search && search.trim()) {
+      searchQuery.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+      ]
+    }
+
+    // Location filter for team members
+    if (req.user.role === 'team' && req.user.spaLocation?.locationId) {
+      searchQuery['selectedLocation.locationId'] =
+        req.user.spaLocation.locationId
+    } else if (locationId) {
+      searchQuery['selectedLocation.locationId'] = locationId
+    }
+
+    const users = await User.find(searchQuery)
+      .select('name email phone avatar points selectedLocation createdAt')
+      .limit(parseInt(limit))
+      .sort({ name: 1 })
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        users,
+        total: users.length,
+      },
+    })
+  } catch (error) {
+    console.error('Error searching users:', error)
+    next(createError(500, 'Failed to search users'))
+  }
+}
+
+// Enhanced give manual reward with notifications
+export const giveManualRewardToUser = async (req, res, next) => {
+  try {
+    const { email } = req.params // Changed from userId to email
+    const {
+      rewardType = 'credit',
+      value,
+      description,
+      reason,
+      validDays = 30,
+      notifyUser = true,
+    } = req.body
+
+    // Check permissions
+    if (!['admin', 'team'].includes(req.user.role)) {
+      return next(createError(403, 'Access denied'))
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email, isDeleted: false })
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Get spa location
+    let spaLocationId, spaLocationName
+    if (req.user.role === 'admin') {
+      spaLocationId = req.body.locationId || user.selectedLocation?.locationId
+      spaLocationName =
+        req.body.locationName || user.selectedLocation?.locationName || 'Admin'
+    } else if (req.user.role === 'team') {
+      // Team members can only give rewards to users in their spa
+      if (
+        user.selectedLocation?.locationId !== req.user.spaLocation?.locationId
+      ) {
+        return next(
+          createError(403, 'You can only give rewards to users in your spa')
+        )
+      }
+      spaLocationId = req.user.spaLocation.locationId
+      spaLocationName = req.user.spaLocation.locationName
+    }
+
+    // Validate required fields
+    if (!value || value <= 0) {
+      return next(createError(400, 'Valid reward value is required'))
+    }
+
+    if (!description || description.trim().length === 0) {
+      return next(createError(400, 'Description is required'))
+    }
+
+    // Create manual reward snapshot
+    const rewardSnapshot = {
+      name: `Manual ${
+        rewardType === 'credit'
+          ? 'Credit'
+          : rewardType === 'discount'
+          ? 'Discount'
+          : 'Reward'
+      }`,
+      description: description.trim(),
+      type: rewardType,
+      pointCost: 0, // Manual rewards are free
+      value: parseFloat(value),
+      validDays: validDays,
+      isManual: true,
+      givenBy: req.user.name,
+      givenByRole: req.user.role,
+      reason: reason || 'Manual reward',
+    }
+
+    // Create user reward
+    const userRewardData = {
+      userId: user._id,
+      rewardId: null, // No specific reward ID for manual rewards
+      rewardSnapshot,
+      locationId: spaLocationId,
+      status: 'active',
+      isManualReward: true,
+      givenBy: req.user._id,
+    }
+
+    const userReward = await UserReward.createUserReward(userRewardData)
+
+    // Create point transaction record for tracking
+    await PointTransaction.create({
+      userId: user._id,
+      type: 'bonus',
+      amount: 0, // No points spent
+      balance: user.points,
+      reason: `Manual reward: ${description}`,
+      referenceType: 'reward_manual',
+      referenceId: userReward._id,
+      metadata: {
+        rewardType,
+        value,
+        givenBy: req.user.name,
+        givenByRole: req.user.role,
+      },
+      locationId: spaLocationId,
+      processedBy: req.user._id,
+    })
+
+    // Send notification to user
+    if (notifyUser) {
+      await createSystemNotification(
+        user._id,
+        '🎁 You received a reward!',
+        `${spaLocationName} has given you a ${rewardType} reward worth ${
+          rewardType === 'discount' ? `${value}%` : `$${value}`
+        }. ${reason ? `Reason: ${reason}` : ''}`,
+        {
+          category: 'reward',
+          priority: 'high',
+          metadata: {
+            type: 'manual_reward',
+            rewardId: userReward._id,
+            rewardType,
+            value,
+            givenBy: req.user.name,
+            spaLocation: spaLocationName,
+          },
+        }
+      )
+    }
+
+    // Log the manual reward
+    console.log(`✅ Manual reward given:`, {
+      userRewardId: userReward._id,
+      userName: user.name,
+      userEmail: user.email,
+      rewardType,
+      value,
+      givenBy: req.user.name,
+      spaLocation: spaLocationName,
+    })
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Reward given successfully',
+      data: {
+        userReward,
+        recipient: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          avatar: user.avatar,
+        },
+        givenBy: req.user.name,
+        spaLocation: spaLocationName,
+      },
+    })
+  } catch (error) {
+    console.error('Error giving manual reward:', error)
+    next(createError(500, 'Failed to give manual reward'))
+  }
+}
+
+// Bulk give rewards to multiple users
+export const bulkGiveRewards = async (req, res, next) => {
+  try {
+    const {
+      userEmails, // Array of emails
+      rewardType = 'credit',
+      value,
+      description,
+      reason,
+      validDays = 30,
+      notifyUsers = true,
+    } = req.body
+
+    if (!['admin', 'team'].includes(req.user.role)) {
+      return next(createError(403, 'Access denied'))
+    }
+
+    if (!userEmails || !Array.isArray(userEmails) || userEmails.length === 0) {
+      return next(createError(400, 'User emails are required'))
+    }
+
+    if (!value || value <= 0) {
+      return next(createError(400, 'Valid reward value is required'))
+    }
+
+    // Find all users
+    const users = await User.find({
+      email: { $in: userEmails },
+      isDeleted: false,
+    })
+
+    if (users.length === 0) {
+      return next(createError(404, 'No valid users found'))
+    }
+
+    const results = []
+    const errors = []
+
+    // Process each user
+    for (const user of users) {
+      try {
+        // Check spa location for team members
+        if (req.user.role === 'team') {
+          if (
+            user.selectedLocation?.locationId !==
+            req.user.spaLocation?.locationId
+          ) {
+            errors.push({
+              email: user.email,
+              error: 'User not in your spa',
+            })
+            continue
+          }
+        }
+
+        // Create reward for user
+        const rewardSnapshot = {
+          name: `Bulk ${rewardType} Reward`,
+          description: description || 'Bulk reward distribution',
+          type: rewardType,
+          pointCost: 0,
+          value: parseFloat(value),
+          validDays: validDays,
+          isManual: true,
+          givenBy: req.user.name,
+          reason: reason || 'Bulk reward',
+        }
+
+        const userReward = await UserReward.createUserReward({
+          userId: user._id,
+          rewardId: null,
+          rewardSnapshot,
+          locationId:
+            req.user.spaLocation?.locationId ||
+            user.selectedLocation?.locationId,
+          status: 'active',
+          isManualReward: true,
+          givenBy: req.user._id,
+        })
+
+        // Send notification
+        if (notifyUsers) {
+          await createSystemNotification(
+            user._id,
+            '🎁 You received a reward!',
+            `You received a ${rewardType} reward worth ${
+              rewardType === 'discount' ? `${value}%` : `$${value}`
+            }. ${reason || ''}`,
+            {
+              category: 'reward',
+              priority: 'high',
+              metadata: {
+                type: 'bulk_reward',
+                rewardId: userReward._id,
+                rewardType,
+                value,
+              },
+            }
+          )
+        }
+
+        results.push({
+          email: user.email,
+          name: user.name,
+          success: true,
+          rewardId: userReward._id,
+        })
+      } catch (error) {
+        errors.push({
+          email: user.email,
+          error: error.message,
+        })
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: `Rewards given to ${results.length} users`,
+      data: {
+        successful: results,
+        failed: errors,
+        summary: {
+          total: userEmails.length,
+          succeeded: results.length,
+          failed: errors.length,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error in bulk reward distribution:', error)
+    next(createError(500, 'Failed to distribute bulk rewards'))
+  }
+}
+
+// Get user's manual rewards
+export const getUserManualRewards = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const { page = 1, limit = 20 } = req.query
+
+    const filter = {
+      userId,
+      isManualReward: true,
+    }
+
+    const pageNum = parseInt(page)
+    const limitNum = parseInt(limit)
+    const skip = (pageNum - 1) * limitNum
+
+    const [manualRewards, totalRewards] = await Promise.all([
+      UserReward.find(filter)
+        .populate('givenBy', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      UserReward.countDocuments(filter),
+    ])
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        rewards: manualRewards,
+        pagination: {
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalRewards / limitNum),
+          totalRewards,
+          hasNext: pageNum < Math.ceil(totalRewards / limitNum),
+          hasPrev: pageNum > 1,
+          limit: limitNum,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching manual rewards:', error)
+    next(createError(500, 'Failed to fetch manual rewards'))
+  }
+}

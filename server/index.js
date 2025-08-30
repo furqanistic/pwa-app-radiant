@@ -1,4 +1,4 @@
-// File: server/index.js - UPDATED
+// File: server/index.js - FILE 1 (FIXED)
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'
@@ -23,12 +23,40 @@ const app = express()
 // Load environment variables first
 dotenv.config()
 
-const corsOptions = {
-  origin: [
+// Function to check if origin is allowed
+const isOriginAllowed = (origin) => {
+  // Allow requests with no origin (mobile apps, Postman, etc.)
+  if (!origin) return true
+
+  // List of specific allowed origins (NO TRAILING SLASHES)
+  const allowedOrigins = [
     'http://localhost:5173', // Dev
-    'https://app.radiantmdconsulting.com/',
-    'https://api.radiantmdconsulting.com/',
-  ],
+    'https://api.radiantmdconsulting.com',
+    'https://app.radiantmdconsulting.com',
+  ]
+
+  // Check if origin is in the specific allowed list
+  if (allowedOrigins.includes(origin)) {
+    return true
+  }
+
+  // Check if origin is a subdomain of radiantmdconsulting.com
+  const subdomainPattern = /^https:\/\/[\w-]+\.radiantmdconsulting\.com$/
+  if (subdomainPattern.test(origin)) {
+    return true
+  }
+
+  return false
+}
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],

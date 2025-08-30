@@ -1,7 +1,9 @@
-// File: server/routes/rewards.js - ENHANCED WITH SPA OWNER MANAGEMENT
+// File: server/routes/rewards.js - ENHANCED ROUTES
+
 import express from 'express'
 import {
   adjustUserPoints,
+  bulkGiveRewards,
   claimReward,
   createReward,
   createServiceReward,
@@ -15,12 +17,14 @@ import {
   getServiceRewards,
   getServicesWithRewards,
   getSpaRewardAnalytics,
-  // NEW: Spa owner management functions
   getSpaUserRewards,
+  getUserManualRewards,
   getUserRewards,
-  giveManulaRewardToUser,
+  giveManualRewardToUser,
   linkRewardToServices,
   markRewardAsUsed,
+  // NEW IMPORTS
+  searchUsersForReward,
   updateReward,
 } from '../controller/rewards.js'
 import {
@@ -46,7 +50,7 @@ router.use(verifyToken)
 // PUBLIC ROUTES (all authenticated users)
 // ===============================================
 
-// Get rewards catalog for users (with affordability info)
+// Get rewards catalog for users
 router.get('/catalog', validatePagination, getRewardsCatalog)
 
 // Claim a reward
@@ -55,48 +59,54 @@ router.post('/claim/:rewardId', validateRewardClaim, claimReward)
 // Get user's claimed rewards
 router.get('/my-rewards', validatePagination, getUserRewards)
 
+// NEW: Get user's manual rewards
+router.get('/my-rewards/manual', validatePagination, getUserManualRewards)
+
 // Get user's point transaction history
 router.get('/my-points/history', validatePagination, getPointHistory)
 
-// SERVICE-INTEGRATION ROUTES (PUBLIC)
-// Get rewards available for a specific service
+// SERVICE-INTEGRATION ROUTES
 router.get('/services/:serviceId/rewards', getServiceRewards)
-
-// Get services that have rewards available
 router.get('/services-with-rewards', validatePagination, getServicesWithRewards)
 
-// Get single reward details (public view)
+// Get single reward details
 router.get('/:id', getReward)
 
 // ===============================================
-// SPA OWNER ROUTES (NEW - for team role users)
+// SPA OWNER/ADMIN ROUTES
 // ===============================================
 
 // Apply permission checking for spa management
 router.use(restrictTo('admin', 'team'))
 
+// NEW: Search users for reward giving
+router.get('/users/search', searchUsersForReward)
+
 // Get all user rewards at spa owner's location
 router.get('/spa/user-rewards', validatePagination, getSpaUserRewards)
 
-// Get pending rewards that need attention
+// Get pending rewards
 router.get('/spa/pending-rewards', getPendingSpaRewards)
 
 // Get spa reward analytics
 router.get('/spa/analytics', getSpaRewardAnalytics)
 
-// Mark a user's reward as used/redeemed
+// Mark reward as used
 router.patch(
   '/spa/mark-used/:userRewardId',
   sanitizeRewardData,
   markRewardAsUsed
 )
 
-// Give manual reward to a user
+// ENHANCED: Give manual reward (now uses email instead of userId)
 router.post(
-  '/spa/give-reward/:userId',
+  '/spa/give-reward/email/:email',
   sanitizeRewardData,
-  giveManulaRewardToUser
+  giveManualRewardToUser
 )
+
+// NEW: Bulk give rewards
+router.post('/spa/give-rewards/bulk', sanitizeRewardData, bulkGiveRewards)
 
 // Admin can get spa rewards for any location
 router.get(
@@ -113,13 +123,13 @@ router.get(
 )
 
 // ===============================================
-// ADMIN/TEAM ROUTES (management)
+// ADMIN/TEAM MANAGEMENT ROUTES
 // ===============================================
 
 // Get all rewards for management
 router.get('/', validatePagination, getRewards)
 
-// Get reward statistics - MOVED BEFORE the wildcard route
+// Get reward statistics
 router.get('/stats/overview', getRewardStats)
 
 // Create new reward
@@ -131,8 +141,7 @@ router.post(
   createReward
 )
 
-// SERVICE-REWARD MANAGEMENT ROUTES
-// Create a reward specifically for a service
+// Create service-specific reward
 router.post(
   '/services/:serviceId/create-reward',
   sanitizeRewardData,
@@ -141,7 +150,7 @@ router.post(
   createServiceReward
 )
 
-// Link existing reward to multiple services
+// Link reward to services
 router.post(
   '/:rewardId/link-services',
   sanitizeRewardData,
@@ -157,10 +166,10 @@ router.put(
   updateReward
 )
 
-// Delete reward (soft delete)
+// Delete reward
 router.delete('/:id', deleteReward)
 
-// Manually adjust user points (admin only)
+// Admin only: Adjust user points
 router.post(
   '/admin/users/:userId/points',
   restrictTo('admin'),

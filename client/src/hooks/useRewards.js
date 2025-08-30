@@ -2,6 +2,7 @@
 // client/src/hooks/useRewards.js
 import { rewardsService } from '@/services/rewardsService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 
 // Query Keys
 export const rewardQueryKeys = {
@@ -368,4 +369,134 @@ export const useFilteredRewards = (filters = {}) => {
     stats,
     pagination,
   }
+}
+
+export const useSearchUsersForReward = (searchTerm = '') => {
+  return useQuery({
+    queryKey: ['rewards', 'users', 'search', searchTerm],
+    queryFn: () => rewardsService.searchUsersForReward({ search: searchTerm }),
+    enabled: searchTerm.length >= 2,
+    staleTime: 30 * 1000, // 30 seconds
+    select: (data) => data.data.users,
+  })
+}
+
+// Give manual reward to user
+export const useGiveManualReward = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ email, rewardData }) =>
+      rewardsService.giveManualReward(email, rewardData),
+    onSuccess: (data, variables) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['rewards', 'spa'] })
+      queryClient.invalidateQueries({ queryKey: ['rewards', 'manual'] })
+
+      // Show success message
+      const recipientName = data.data.recipient.name
+      const rewardValue = variables.rewardData.value
+      const rewardType = variables.rewardData.rewardType
+
+      toast.success(
+        `Reward given to ${recipientName}! ${
+          rewardType === 'discount' ? `${rewardValue}%` : `$${rewardValue}`
+        } ${rewardType}`
+      )
+
+      options.onSuccess?.(data, variables)
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || 'Failed to give reward'
+      toast.error(message)
+      options.onError?.(error)
+    },
+  })
+}
+
+// Bulk give rewards
+export const useBulkGiveRewards = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: rewardsService.bulkGiveRewards,
+    onSuccess: (data) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['rewards', 'spa'] })
+      queryClient.invalidateQueries({ queryKey: ['rewards', 'manual'] })
+
+      // Show success message with summary
+      const summary = data.data.summary
+      toast.success(
+        `Rewards given to ${summary.succeeded} users${
+          summary.failed > 0 ? ` (${summary.failed} failed)` : ''
+        }`
+      )
+
+      options.onSuccess?.(data)
+    },
+    onError: (error) => {
+      const message =
+        error.response?.data?.message || 'Failed to give bulk rewards'
+      toast.error(message)
+      options.onError?.(error)
+    },
+  })
+}
+
+// Get user's manual rewards
+export const useUserManualRewards = (params = {}) => {
+  return useQuery({
+    queryKey: ['rewards', 'manual', 'user', params],
+    queryFn: () => rewardsService.getUserManualRewards(params),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    select: (data) => data.data,
+  })
+}
+
+// Combined hook for user reward stats including manual rewards
+export const useUserRewardStats = () => {
+  const { data: regularRewards } = useUserRewards({ limit: 1000 })
+  const { data: manualRewards } = useUserManualRewards({ limit: 1000 })
+
+  const stats = {
+    regular: {
+      total: regularRewards?.userRewards?.length || 0,
+      active:
+        regularRewards?.userRewards?.filter((r) => r.status === 'active')
+          .length || 0,
+      used:
+        regularRewards?.userRewards?.filter((r) => r.status === 'used')
+          .length || 0,
+      expired:
+        regularRewards?.userRewards?.filter((r) => r.status === 'expired')
+          .length || 0,
+    },
+    manual: {
+      total: manualRewards?.rewards?.length || 0,
+      active:
+        manualRewards?.rewards?.filter((r) => r.status === 'active').length ||
+        0,
+      used:
+        manualRewards?.rewards?.filter((r) => r.status === 'used').length || 0,
+      expired:
+        manualRewards?.rewards?.filter((r) => r.status === 'expired').length ||
+        0,
+    },
+    combined: {
+      total: 0,
+      active: 0,
+      used: 0,
+      expired: 0,
+    },
+  }
+
+  stats.combined = {
+    total: stats.regular.total + stats.manual.total,
+    active: stats.regular.active + stats.manual.active,
+    used: stats.regular.used + stats.manual.used,
+    expired: stats.regular.expired + stats.manual.expired,
+  }
+
+  return stats
 }
