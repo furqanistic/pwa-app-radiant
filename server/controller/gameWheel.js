@@ -1,10 +1,11 @@
 // File: server/controller/gameWheel.js - COMPLETE VERSION WITH REWARD INTEGRATION
 import { createError } from '../error.js'
 import GameWheel from '../models/GameWheel.js'
+import PointTransaction from '../models/PointTransaction.js'
 import User from '../models/User.js'
+import UserReward from '../models/UserReward.js'
 import { createSystemNotification } from './notification.js'
 // Import UserReward models for integration
-import { PointTransaction, UserReward } from '../models/UserReward.js'
 
 // =============================================================================
 // HELPER FUNCTIONS - SIMPLIFIED

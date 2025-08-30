@@ -3,7 +3,7 @@ import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
-import { UserReward, awardPoints } from '../models/UserReward.js'
+import UserReward from '../models/UserReward.js'
 
 // Get user's upcoming appointments
 export const getUserUpcomingAppointments = async (req, res, next) => {

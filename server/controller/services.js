@@ -4,7 +4,7 @@ import { createError } from '../error.js'
 import Category from '../models/Category.js'
 import Reward from '../models/Reward.js'
 import Service from '../models/Service.js'
-import { UserReward } from '../models/UserReward.js'
+import UserReward from '../models/UserReward.js'
 
 // ===============================================
 // SERVICE MANAGEMENT (ENHANCED WITH REWARDS)

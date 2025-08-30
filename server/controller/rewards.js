@@ -1,14 +1,10 @@
 // File: server/controller/rewards.js
 // server/controller/rewards.js
 import { createError } from '../error.js'
+import PointTransaction from '../models/PointTransaction.js'
 import Reward from '../models/Reward.js'
 import User from '../models/User.js'
-import {
-  PointTransaction,
-  UserReward,
-  awardPoints,
-  spendPoints,
-} from '../models/UserReward.js'
+import UserReward from '../models/UserReward.js'
 
 // Get all rewards with filtering, sorting, and searching
 export const getRewards = async (req, res, next) => {

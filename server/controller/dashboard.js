@@ -4,7 +4,7 @@ import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Referral from '../models/Referral.js'
 import User from '../models/User.js'
-import { UserReward } from '../models/UserReward.js'
+import UserReward from '../models/UserReward.js'
 
 // Get all dashboard data in one request
 export const getDashboardData = async (req, res, next) => {
