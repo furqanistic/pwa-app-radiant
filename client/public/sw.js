@@ -4,6 +4,9 @@
 /* eslint-env serviceworker */
 /* global clients, caches, self */
 
+// REQUIRED: Workbox will inject the manifest here
+self.__WB_MANIFEST
+
 const CACHE_NAME = 'radiantai-v1'
 const OFFLINE_URL = '/offline.html'
 

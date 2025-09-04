@@ -12,7 +12,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       // CRITICAL CHANGE: Use injectManifest for custom service worker
-      strategies: 'injectManifest',
+      strategies: 'generateSW',
       srcDir: 'public',
       filename: 'sw.js',
       injectManifest: {
