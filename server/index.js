@@ -1,4 +1,4 @@
-// File: server/index.js - FILE 1 (FIXED)
+// File: server/index.js - FILE 2
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import dotenv from 'dotenv'

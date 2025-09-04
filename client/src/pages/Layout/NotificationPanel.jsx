@@ -1,9 +1,12 @@
-// File: client/src/pages/Layout/NotificationPanel.jsx - ENHANCED PWA VERSION
+// File: client/src/pages/Layout/NotificationPanel.jsx - UPDATED WITH PUSH INTEGRATION
+import PushNotificationSettings from '@/components/Layout/PushNotificationSettings'
 import { axiosInstance } from '@/config'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
   Bell,
+  BellRing,
   CheckCheck,
   Clock,
   Crown,
@@ -12,11 +15,13 @@ import {
   Loader2,
   MessageSquare,
   RefreshCw,
+  Settings,
   Sparkles,
   Star,
   Trash2,
   Wifi,
   WifiOff,
+  Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -57,6 +62,7 @@ const deleteNotification = async ({ notificationId, token }) => {
 
 const NotificationPanel = ({ className = '' }) => {
   const [isOpen, setIsOpen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
@@ -64,6 +70,9 @@ const NotificationPanel = ({ className = '' }) => {
   const token = useSelector((state) => state.user.token)
   const queryClient = useQueryClient()
   const markAsSeenTimeoutRef = useRef(null)
+
+  // Push notifications hook
+  const { isSubscribed, canEnableNotifications } = usePushNotifications()
 
   // Detect mobile
   useEffect(() => {
@@ -117,7 +126,7 @@ const NotificationPanel = ({ className = '' }) => {
     })
   }, [queryClient])
 
-  // Professional refetch intervals - less aggressive
+  // Professional refetch intervals
   const getRefetchInterval = () => {
     if (!isOnline) return false
     if (isOpen) return 30000 // 30 seconds when open
@@ -132,8 +141,8 @@ const NotificationPanel = ({ className = '' }) => {
     refetchInterval: getRefetchInterval(),
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    staleTime: 15000, // 15 seconds stale time
-    cacheTime: 300000, // 5 minutes cache
+    staleTime: 15000,
+    cacheTime: 300000,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   })
@@ -143,7 +152,7 @@ const NotificationPanel = ({ className = '' }) => {
     queryFn: () => fetchNotifications(token, { limit: 50 }),
     enabled: !!token && isOpen && isOnline,
     refetchInterval: isOpen ? 30000 : false,
-    refetchOnWindowFocus: false, // Less aggressive
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     staleTime: 15000,
     cacheTime: 300000,
@@ -154,11 +163,9 @@ const NotificationPanel = ({ className = '' }) => {
   const markAsSeenMutation = useMutation({
     mutationFn: markAllAsSeen,
     onMutate: async () => {
-      // Optimistically set unread count to 0
       queryClient.setQueryData(['notifications', 'unread-count'], 0)
     },
     onError: () => {
-      // Refetch to get correct state
       queryClient.invalidateQueries(['notifications', 'unread-count'])
     },
   })
@@ -170,23 +177,26 @@ const NotificationPanel = ({ className = '' }) => {
     },
   })
 
-  // Auto-mark as seen when panel opens (like WhatsApp, Slack)
+  // Auto-mark as seen when panel opens
   useEffect(() => {
-    if (isOpen && !hasMarkedAsSeen && unreadCount > 0 && token) {
-      // Clear any existing timeout
+    if (
+      isOpen &&
+      !hasMarkedAsSeen &&
+      unreadCount > 0 &&
+      token &&
+      !showSettings
+    ) {
       if (markAsSeenTimeoutRef.current) {
         clearTimeout(markAsSeenTimeoutRef.current)
       }
 
-      // Mark as seen after 1 second of viewing (professional delay)
       markAsSeenTimeoutRef.current = setTimeout(() => {
         markAsSeenMutation.mutate(token)
         setHasMarkedAsSeen(true)
       }, 1000)
     }
 
-    // Reset the flag when panel closes
-    if (!isOpen) {
+    if (!isOpen || showSettings) {
       setHasMarkedAsSeen(false)
       if (markAsSeenTimeoutRef.current) {
         clearTimeout(markAsSeenTimeoutRef.current)
@@ -198,7 +208,14 @@ const NotificationPanel = ({ className = '' }) => {
         clearTimeout(markAsSeenTimeoutRef.current)
       }
     }
-  }, [isOpen, hasMarkedAsSeen, unreadCount, token, markAsSeenMutation])
+  }, [
+    isOpen,
+    hasMarkedAsSeen,
+    unreadCount,
+    token,
+    markAsSeenMutation,
+    showSettings,
+  ])
 
   const getIcon = (category) => {
     const icons = {
@@ -242,7 +259,13 @@ const NotificationPanel = ({ className = '' }) => {
         <div className='flex items-center justify-between'>
           {isMobile && (
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                if (showSettings) {
+                  setShowSettings(false)
+                } else {
+                  setIsOpen(false)
+                }
+              }}
               className='p-1.5 -ml-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
             >
               <ArrowLeft className='h-5 w-5' />
@@ -251,19 +274,33 @@ const NotificationPanel = ({ className = '' }) => {
 
           <div className='flex items-center gap-3'>
             <div className='flex items-center gap-2'>
-              <Bell className='h-5 w-5 text-white' />
+              {showSettings ? (
+                <Settings className='h-5 w-5 text-white' />
+              ) : (
+                <Bell className='h-5 w-5 text-white' />
+              )}
               <h3
                 className={cn(
                   'font-bold text-white',
                   isMobile ? 'text-lg' : 'text-base'
                 )}
               >
-                Notifications
+                {showSettings ? 'Notification Settings' : 'Notifications'}
               </h3>
             </div>
 
             {/* Connection indicator */}
-            <div className='flex items-center'>
+            <div className='flex items-center gap-2'>
+              {/* Push notification status */}
+              {isSubscribed && !showSettings && (
+                <div className='flex items-center'>
+                  <BellRing
+                    className='h-4 w-4 text-green-300'
+                    title='Push notifications enabled'
+                  />
+                </div>
+              )}
+
               {!isOnline && <WifiOff className='h-4 w-4 text-red-300' />}
               {isManualRefreshing && (
                 <Loader2 className='h-4 w-4 animate-spin text-white/80' />
@@ -271,17 +308,36 @@ const NotificationPanel = ({ className = '' }) => {
             </div>
           </div>
 
-          {/* Refresh button */}
-          <button
-            onClick={handleManualRefresh}
-            disabled={isManualRefreshing}
-            className='p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
-            title='Refresh notifications'
-          >
-            <RefreshCw
-              className={cn('h-4 w-4', isManualRefreshing && 'animate-spin')}
-            />
-          </button>
+          {/* Header Actions */}
+          <div className='flex items-center gap-2'>
+            {!showSettings && (
+              <>
+                {/* Settings button */}
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className='p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
+                  title='Notification settings'
+                >
+                  <Settings className='h-4 w-4' />
+                </button>
+
+                {/* Refresh button */}
+                <button
+                  onClick={handleManualRefresh}
+                  disabled={isManualRefreshing}
+                  className='p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
+                  title='Refresh notifications'
+                >
+                  <RefreshCw
+                    className={cn(
+                      'h-4 w-4',
+                      isManualRefreshing && 'animate-spin'
+                    )}
+                  />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -292,7 +348,31 @@ const NotificationPanel = ({ className = '' }) => {
           isMobile ? 'flex-1' : 'max-h-96'
         )}
       >
-        {notificationsLoading ? (
+        {showSettings ? (
+          <div className='p-4'>
+            <PushNotificationSettings />
+
+            {/* Additional settings info */}
+            {canEnableNotifications && (
+              <div className='mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200'>
+                <div className='flex items-start gap-3'>
+                  <Zap className='h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0' />
+                  <div>
+                    <h4 className='font-medium text-blue-900'>
+                      Why enable push notifications?
+                    </h4>
+                    <ul className='text-blue-700 text-sm mt-2 space-y-1'>
+                      <li>• Get notified instantly about new messages</li>
+                      <li>• Never miss important updates</li>
+                      <li>• Works even when the app is closed</li>
+                      <li>• Available on Android and iOS devices</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : notificationsLoading ? (
           <div className='p-8 text-center'>
             <div className='w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
             <p className='text-gray-600 text-sm font-medium'>
@@ -305,7 +385,7 @@ const NotificationPanel = ({ className = '' }) => {
         ) : !isOnline ? (
           <div className='p-8 text-center'>
             <div className='w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4'>
-              <WifiOff className='h-8 h-8 text-white' />
+              <WifiOff className='h-8 w-8 text-white' />
             </div>
             <p className='text-gray-900 text-sm font-semibold mb-1'>
               You're offline, sweetie!
@@ -325,6 +405,16 @@ const NotificationPanel = ({ className = '' }) => {
             <p className='text-gray-500 text-xs'>
               No new notifications right now. You're amazing!
             </p>
+
+            {/* Push notification CTA when no notifications */}
+            {canEnableNotifications && (
+              <button
+                onClick={() => setShowSettings(true)}
+                className='mt-4 px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors'
+              >
+                Enable Push Notifications
+              </button>
+            )}
           </div>
         ) : (
           <div className='divide-y divide-pink-100'>
@@ -438,6 +528,11 @@ const NotificationPanel = ({ className = '' }) => {
           <span className='absolute -top-1 -right-1 h-5 w-5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full flex items-center justify-center font-bold border-2 border-white'>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
+        )}
+
+        {/* Push notification indicator */}
+        {isSubscribed && (
+          <div className='absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white'></div>
         )}
       </button>
 
