@@ -213,10 +213,8 @@ export default defineConfig({
 
 // Environment variables needed in your .env file:
 /*
-# VAPID Keys (generate these using the setup script)
+# For push notifications (add these after implementing custom service worker):
 VITE_VAPID_PUBLIC_KEY=your-vapid-public-key-here
-VAPID_PRIVATE_KEY=your-vapid-private-key-here  
-VAPID_MAILTO=your-email@example.com
 
 # Your existing environment variables
 VITE_API_URL=http://localhost:5000/api
