@@ -1,4 +1,3 @@
-<!-- File: client/index.html - UPDATED WITH FULL PWA SUPPORT -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -79,9 +78,6 @@
     <!-- Manifest - IMPORTANT FOR PWA -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- iOS Splash Screens (Optional but recommended for iOS PWA) -->
-    <!-- You can generate these at https://appsco.pe/developer/splash-screens -->
-
     <!-- Preconnect for Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -120,14 +116,13 @@
     <style>
       body {
         font-family: 'Roboto', sans-serif;
-      }
-
-      /* Prevent pull-to-refresh on mobile PWA */
-      body {
+        /* Prevent pull-to-refresh on mobile PWA */
         overscroll-behavior-y: contain;
+        /* Prevent mobile zoom issues */
+        touch-action: manipulation;
       }
 
-      /* Loading screen for PWA */
+      /* FIXED: Better mobile-compatible loader */
       .pwa-loader {
         position: fixed;
         top: 0;
@@ -140,17 +135,34 @@
         justify-content: center;
         z-index: 9999;
         opacity: 1;
-        transition: opacity 0.3s ease-out;
+        visibility: visible;
+        transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
+        /* Ensure it's above everything initially */
+        pointer-events: auto;
       }
 
+      /* FIXED: Better hide state - completely removes from interaction */
       .pwa-loader.hide {
         opacity: 0;
+        visibility: hidden;
         pointer-events: none;
+        /* IMPORTANT: Move it behind everything when hidden */
+        z-index: -1;
+      }
+
+      /* FIXED: Alternative complete removal class */
+      .pwa-loader.remove {
+        display: none !important;
       }
 
       .pwa-loader-content {
         text-align: center;
         color: white;
+        /* Prevent text selection on mobile */
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
       }
 
       .pwa-loader-spinner {
@@ -168,16 +180,71 @@
           transform: rotate(360deg);
         }
       }
+
+      /* FIXED: Ensure root is not blocked */
+      #root {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+      }
+
+      /* FIXED: Better mobile touch handling */
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
     </style>
 
     <script>
-      // Register Service Worker BEFORE app loads
+      // FIXED: Better loader management
+      function hideLoader() {
+        const loader = document.querySelector('.pwa-loader')
+        if (loader) {
+          // First fade out
+          loader.classList.add('hide')
+
+          // Then completely remove from DOM after transition
+          setTimeout(function () {
+            if (loader && loader.parentNode) {
+              loader.parentNode.removeChild(loader)
+            }
+          }, 500) // Match transition duration
+        }
+      }
+
+      // FIXED: Multiple fallback methods to hide loader
+      function initApp() {
+        // Hide loader when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(hideLoader, 300)
+          })
+        } else {
+          // DOM already loaded
+          setTimeout(hideLoader, 300)
+        }
+
+        // Fallback: Force hide after max time
+        setTimeout(function () {
+          const loader = document.querySelector('.pwa-loader')
+          if (loader) {
+            loader.classList.add('remove')
+          }
+        }, 3000)
+      }
+
+      // Start immediately
+      initApp()
+
+      // Register Service Worker AFTER loader logic
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
           navigator.serviceWorker
             .register('/sw.js', { scope: '/' })
             .then(function (registration) {
               console.log('ServiceWorker registration successful')
+
+              // Ensure loader is hidden after SW registration
+              setTimeout(hideLoader, 100)
 
               // Check for updates
               registration.update()
@@ -201,6 +268,8 @@
             })
             .catch(function (err) {
               console.error('ServiceWorker registration failed:', err)
+              // Hide loader even if SW fails
+              hideLoader()
             })
         })
       }
@@ -211,24 +280,23 @@
         console.log('iOS Safari - prompt to install PWA')
       }
 
-      // Hide loader when app is ready
-      // Hide loader when app is ready
-      window.addEventListener('DOMContentLoaded', function () {
-        setTimeout(function () {
-          const loader = document.querySelector('.pwa-loader')
-          if (loader) {
-            loader.classList.add('hide')
-            // Optional: Remove the loader element entirely after the fade-out
-            setTimeout(() => {
-              loader.remove() // Completely remove the element
-            }, 300) // Match the CSS transition duration (0.3s = 300ms)
-          }
-        }, 500) // Consider if 500ms is enough or if waiting for a React-specific event is better
-      })
+      // FIXED: Emergency loader removal for mobile
+      document.addEventListener(
+        'touchstart',
+        function () {
+          setTimeout(function () {
+            const loader = document.querySelector('.pwa-loader')
+            if (loader && loader.classList.contains('hide')) {
+              loader.style.display = 'none'
+            }
+          }, 100)
+        },
+        { once: true }
+      )
     </script>
   </head>
   <body>
-    <!-- PWA Loading Screen -->
+    <!-- FIXED: PWA Loading Screen with better mobile handling -->
     <div class="pwa-loader">
       <div class="pwa-loader-content">
         <div class="pwa-loader-spinner"></div>
@@ -240,7 +308,21 @@
     </div>
 
     <!-- React App Root -->
-    <div id="root"></div>
+    <div id="root">
+      <!-- Demo content to test if loader is properly removed -->
+      <div style="padding: 20px; text-align: center; padding-top: 100px">
+        <h1>App Loaded!</h1>
+        <p>
+          If you can see this and touch/tap works, the loader fix is working.
+        </p>
+        <button
+          onclick="alert('Touch events working!')"
+          style="padding: 10px 20px; margin-top: 20px; font-size: 16px"
+        >
+          Test Touch
+        </button>
+      </div>
+    </div>
 
     <!-- No Script Fallback -->
     <noscript>
