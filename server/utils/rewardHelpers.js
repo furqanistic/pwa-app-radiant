@@ -1,3 +1,4 @@
+// File: server/utils/rewardHelpers.js
 // server/utils/rewardHelpers.js
 import Reward from '../models/Reward.js'
 import User from '../models/User.js'
