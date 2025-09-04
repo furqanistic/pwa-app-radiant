@@ -212,11 +212,18 @@
       }
 
       // Hide loader when app is ready
+      // Hide loader when app is ready
       window.addEventListener('DOMContentLoaded', function () {
         setTimeout(function () {
           const loader = document.querySelector('.pwa-loader')
-          if (loader) loader.classList.add('hide')
-        }, 500)
+          if (loader) {
+            loader.classList.add('hide')
+            // Optional: Remove the loader element entirely after the fade-out
+            setTimeout(() => {
+              loader.remove() // Completely remove the element
+            }, 300) // Match the CSS transition duration (0.3s = 300ms)
+          }
+        }, 500) // Consider if 500ms is enough or if waiting for a React-specific event is better
       })
     </script>
   </head>
