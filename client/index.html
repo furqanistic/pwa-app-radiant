@@ -1,3 +1,4 @@
+<!-- File: client/index.html -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -116,212 +117,80 @@
     <style>
       body {
         font-family: 'Roboto', sans-serif;
-        /* Prevent pull-to-refresh on mobile PWA */
+        margin: 0;
+        padding: 0;
+        /* Prevent pull-to-refresh and overscroll */
         overscroll-behavior-y: contain;
-        /* Prevent mobile zoom issues */
+        /* Fix mobile touch issues */
         touch-action: manipulation;
-      }
-
-      /* FIXED: Better mobile-compatible loader */
-      .pwa-loader {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        opacity: 1;
-        visibility: visible;
-        transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
-        /* Ensure it's above everything initially */
-        pointer-events: auto;
-      }
-
-      /* FIXED: Better hide state - completely removes from interaction */
-      .pwa-loader.hide {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-        /* IMPORTANT: Move it behind everything when hidden */
-        z-index: -1;
-      }
-
-      /* FIXED: Alternative complete removal class */
-      .pwa-loader.remove {
-        display: none !important;
-      }
-
-      .pwa-loader-content {
-        text-align: center;
-        color: white;
-        /* Prevent text selection on mobile */
+        /* Prevent text selection issues */
         user-select: none;
         -webkit-user-select: none;
         -moz-user-select: none;
         -ms-user-select: none;
+        /* Prevent tap highlights */
+        -webkit-tap-highlight-color: transparent;
+        /* Ensure proper mobile rendering */
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
       }
 
-      .pwa-loader-spinner {
-        width: 50px;
-        height: 50px;
-        border: 3px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: white;
-        animation: spin 1s linear infinite;
-        margin: 0 auto 20px;
-      }
+      /* REMOVED: All loader-related CSS */
 
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      /* FIXED: Ensure root is not blocked */
+      /* Ensure root container is properly configured */
       #root {
         position: relative;
         z-index: 1;
         min-height: 100vh;
+        width: 100%;
       }
 
-      /* FIXED: Better mobile touch handling */
-      * {
-        -webkit-tap-highlight-color: transparent;
+      /* Fix for mobile viewport issues */
+      html {
+        height: 100%;
+        width: 100%;
+        overflow-x: hidden;
+      }
+
+      /* Allow text selection within input elements */
+      input,
+      textarea,
+      select {
+        user-select: text;
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
       }
     </style>
 
+    <!-- SIMPLIFIED: Minimal Service Worker Registration -->
     <script>
-      // FIXED: Better loader management
-      function hideLoader() {
-        const loader = document.querySelector('.pwa-loader')
-        if (loader) {
-          // First fade out
-          loader.classList.add('hide')
-
-          // Then completely remove from DOM after transition
-          setTimeout(function () {
-            if (loader && loader.parentNode) {
-              loader.parentNode.removeChild(loader)
-            }
-          }, 500) // Match transition duration
-        }
-      }
-
-      // FIXED: Multiple fallback methods to hide loader
-      function initApp() {
-        // Hide loader when DOM is ready
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', function () {
-            setTimeout(hideLoader, 300)
-          })
-        } else {
-          // DOM already loaded
-          setTimeout(hideLoader, 300)
-        }
-
-        // Fallback: Force hide after max time
-        setTimeout(function () {
-          const loader = document.querySelector('.pwa-loader')
-          if (loader) {
-            loader.classList.add('remove')
-          }
-        }, 3000)
-      }
-
-      // Start immediately
-      initApp()
-
-      // Register Service Worker AFTER loader logic
+      // Simple service worker registration - no complex logic
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
           navigator.serviceWorker
             .register('/sw.js', { scope: '/' })
             .then(function (registration) {
-              console.log('ServiceWorker registration successful')
-
-              // Ensure loader is hidden after SW registration
-              setTimeout(hideLoader, 100)
-
-              // Check for updates
-              registration.update()
-
-              // Handle updates
-              registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing
-                newWorker.addEventListener('statechange', () => {
-                  if (
-                    newWorker.state === 'installed' &&
-                    navigator.serviceWorker.controller
-                  ) {
-                    // New service worker available
-                    if (confirm('New version available! Reload to update?')) {
-                      newWorker.postMessage({ type: 'SKIP_WAITING' })
-                      window.location.reload()
-                    }
-                  }
-                })
-              })
+              console.log('ServiceWorker registered successfully')
             })
             .catch(function (err) {
               console.error('ServiceWorker registration failed:', err)
-              // Hide loader even if SW fails
-              hideLoader()
             })
         })
       }
 
-      // iOS PWA Detection
+      // iOS PWA Detection (optional)
       if (window.navigator.standalone === false) {
-        // iOS Safari - not installed as PWA
-        console.log('iOS Safari - prompt to install PWA')
+        console.log('iOS Safari - can be installed as PWA')
       }
-
-      // FIXED: Emergency loader removal for mobile
-      document.addEventListener(
-        'touchstart',
-        function () {
-          setTimeout(function () {
-            const loader = document.querySelector('.pwa-loader')
-            if (loader && loader.classList.contains('hide')) {
-              loader.style.display = 'none'
-            }
-          }, 100)
-        },
-        { once: true }
-      )
     </script>
   </head>
   <body>
-    <!-- FIXED: PWA Loading Screen with better mobile handling -->
-    <div class="pwa-loader">
-      <div class="pwa-loader-content">
-        <div class="pwa-loader-spinner"></div>
-        <h2 style="font-size: 24px; font-weight: 600; margin: 0">RadiantAI</h2>
-        <p style="font-size: 14px; opacity: 0.9; margin-top: 8px">
-          Loading your beauty experience...
-        </p>
-      </div>
-    </div>
+    <!-- REMOVED: PWA Loading Screen completely -->
 
     <!-- React App Root -->
     <div id="root">
-      <!-- Demo content to test if loader is properly removed -->
-      <div style="padding: 20px; text-align: center; padding-top: 100px">
-        <h1>App Loaded!</h1>
-        <p>
-          If you can see this and touch/tap works, the loader fix is working.
-        </p>
-        <button
-          onclick="alert('Touch events working!')"
-          style="padding: 10px 20px; margin-top: 20px; font-size: 16px"
-        >
-          Test Touch
-        </button>
-      </div>
+      <!-- The app will render here immediately -->
     </div>
 
     <!-- No Script Fallback -->

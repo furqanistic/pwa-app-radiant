@@ -1,4 +1,4 @@
-// File: client/src/App.jsx - UPDATED WITH SERVICE WORKER REGISTRATION
+// File: client/src/App.jsx - SIMPLIFIED VERSION FOR MOBILE
 import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useSelector } from 'react-redux'
@@ -62,130 +62,70 @@ const PublicRoute = ({ children }) => {
 }
 
 const App = () => {
-  // Service Worker Registration and Push Notification Setup
+  // SIMPLIFIED: Minimal mobile PWA setup
   useEffect(() => {
-    // Register service worker and set up push notifications
-    const setupServiceWorker = async () => {
-      if (!('serviceWorker' in navigator)) {
-        console.log('Service Workers not supported')
-        return
-      }
-
+    // Basic mobile PWA optimizations
+    const setupMobilePWA = () => {
       try {
-        // Wait for service worker to be ready
-        const registration = await navigator.serviceWorker.ready
-        console.log('Service Worker is ready:', registration)
-
-        // Listen for messages from service worker
-        navigator.serviceWorker.addEventListener('message', (event) => {
-          console.log('Message from service worker:', event.data)
-
-          if (event.data.type === 'NOTIFICATION_CLICKED') {
-            // Handle notification click
-            const { notificationId, category, url } = event.data
-
-            // You can dispatch Redux actions or navigate here
-            console.log('Notification clicked:', {
-              notificationId,
-              category,
-              url,
-            })
-
-            // Navigate to URL if provided
-            if (url && url !== window.location.pathname) {
-              window.location.href = url
-            }
-          }
-
-          if (event.data.type === 'SYNC_COMPLETE') {
-            // Handle sync complete
-            console.log('Background sync completed')
-            // You could refresh notifications or other data here
-          }
-        })
-
-        // Listen for controller changes (service worker updates)
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          console.log('Service worker updated, reloading page...')
-          window.location.reload()
-        })
-
-        // Check for updates periodically
-        setInterval(() => {
-          registration.update().catch((err) => {
-            console.error('SW update check failed:', err)
-          })
-        }, 60 * 60 * 1000) // Check every hour
-
-        // iOS PWA specific handling
+        // iOS PWA detection
         if (window.navigator.standalone) {
           console.log('Running as iOS PWA')
           document.body.classList.add('ios-pwa')
         }
 
-        // Handle visibility change for syncing
-        document.addEventListener('visibilitychange', () => {
-          if (!document.hidden) {
-            // App became visible, could refresh data
-            console.log('App became visible')
+        // Basic viewport fixes for mobile
+        const viewport = document.querySelector('meta[name="viewport"]')
+        if (viewport) {
+          viewport.setAttribute(
+            'content',
+            'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover'
+          )
+        }
 
-            // Check for new notifications when app becomes visible
-            if (registration.sync) {
-              registration.sync.register('sync-notifications').catch((err) => {
-                console.error('Background sync registration failed:', err)
-              })
-            }
+        // Prevent mobile pull-to-refresh - SIMPLIFIED version
+        let startY = 0
+        let isScrollable = false
+
+        const handleTouchStart = (e) => {
+          startY = e.touches[0].pageY
+          const scrollableElement = e.target.closest('[data-scrollable]')
+          isScrollable = scrollableElement !== null
+        }
+
+        const handleTouchMove = (e) => {
+          if (isScrollable) return // Allow scrolling in scrollable areas
+
+          const currentY = e.touches[0].pageY
+          const isAtTop = window.scrollY === 0
+          const isPullingDown = currentY > startY
+
+          // Prevent pull-to-refresh only when at top of page
+          if (isAtTop && isPullingDown) {
+            e.preventDefault()
           }
+        }
+
+        document.addEventListener('touchstart', handleTouchStart, {
+          passive: true,
+        })
+        document.addEventListener('touchmove', handleTouchMove, {
+          passive: false,
         })
 
-        // Register periodic background sync if supported
-        if ('periodicSync' in registration) {
-          try {
-            await registration.periodicSync.register('check-notifications', {
-              minInterval: 60 * 60 * 1000, // 1 hour
-            })
-            console.log('Periodic background sync registered')
-          } catch (err) {
-            console.error('Periodic sync registration failed:', err)
-          }
+        // Cleanup function
+        return () => {
+          document.removeEventListener('touchstart', handleTouchStart)
+          document.removeEventListener('touchmove', handleTouchMove)
         }
       } catch (error) {
-        console.error('Service Worker setup failed:', error)
+        console.error('Mobile PWA setup error:', error)
       }
     }
 
-    setupServiceWorker()
+    const cleanup = setupMobilePWA()
 
-    // Prevent overscroll/pull-to-refresh on mobile
-    const preventPullToRefresh = (e) => {
-      if (e.touches.length !== 1) return
-
-      const scrollY =
-        window.pageYOffset ||
-        document.body.scrollTop ||
-        document.documentElement.scrollTop
-
-      if (scrollY === 0 && e.touches[0].clientY > 0) {
-        // User is at top and pulling down
-        const target = e.target
-        if (
-          target.scrollTop === 0 &&
-          target.scrollHeight <= target.clientHeight
-        ) {
-          e.preventDefault()
-        }
-      }
-    }
-
-    // Add touch event listeners for mobile PWA experience
-    document.addEventListener('touchstart', preventPullToRefresh, {
-      passive: false,
-    })
-
-    // Cleanup
-    return () => {
-      document.removeEventListener('touchstart', preventPullToRefresh)
-    }
+    // Return cleanup function
+    return cleanup
   }, [])
 
   return (
@@ -346,7 +286,7 @@ const App = () => {
           }
         />
 
-        {/* Fallback route - redirect to auth if not logged in, dashboard if logged in */}
+        {/* Fallback route */}
         <Route path='*' element={<Navigate to='/auth' replace />} />
       </Routes>
     </BrowserRouter>
