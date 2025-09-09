@@ -6,21 +6,14 @@ import {
   bulkUpdateUsers,
   changePassword,
   changeUserRole,
-  completeOnboarding,
   createTeamMember,
   deleteUser,
-  generateReferralCode,
   getAllUsers,
   getCurrentUser,
   getOnboardingStatus,
   getUserProfile,
-  googleCallback,
-  linkGoogleAccount,
-  selectSpa,
   signin,
   signup,
-  unlinkGoogleAccount,
-  updateSelectedSpa,
   updateUser,
 } from '../controller/auth.js'
 import {
@@ -55,15 +48,6 @@ router.get(
   })
 )
 
-router.get(
-  '/google/callback',
-  passport.authenticate('google', {
-    failureRedirect: `${process.env.CLIENT_URL}/login?error=authentication_failed`,
-    session: false,
-  }),
-  googleCallback
-)
-
 // ============================================================================
 // PROTECTED ROUTES (Require Authentication)
 // ============================================================================
@@ -79,20 +63,6 @@ router.put('/change-password', changePassword)
 
 // Onboarding and Spa Selection routes
 router.get('/onboarding-status', getOnboardingStatus)
-router.post('/select-spa', selectSpa)
-router.put('/update-spa', updateSelectedSpa)
-router.post('/complete-onboarding', completeOnboarding)
-
-// Google account management routes
-router.post('/link-google', linkGoogleAccount)
-router.delete('/unlink-google', unlinkGoogleAccount)
-
-// Referral system
-router.post('/generate-referral-code', generateReferralCode)
-
-// ============================================================================
-// MANAGEMENT ROUTES (Require Management Access)
-// ============================================================================
 
 // User management routes with role-based access
 router.get('/all-users', checkManagementAccess, canViewUsers, getAllUsers)

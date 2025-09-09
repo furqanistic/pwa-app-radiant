@@ -701,30 +701,41 @@ export const signin = async (req, res, next) => {
   try {
     const { email, password } = req.body
     if (!email || !password) {
-      return next(createError(400, 'Please provide email and password'))
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide email and password',
+      })
     }
 
     const user = await User.findOne({ email }).select('+password')
 
     if (!user) {
-      return next(createError(401, 'Incorrect email or password'))
+      return res.status(401).json({
+        status: 'error',
+        message: 'Incorrect email or password',
+      })
     }
 
     if (user.isDeleted) {
-      return next(createError(401, 'This account has been deactivated'))
+      return res.status(401).json({
+        status: 'error',
+        message: 'This account has been deactivated',
+      })
     }
 
     if (user.authProvider === 'google' && !user.password) {
-      return next(
-        createError(
-          400,
-          'This account uses Google Sign-In. Please use "Continue with Google" button.'
-        )
-      )
+      return res.status(400).json({
+        status: 'error',
+        message:
+          'This account uses Google Sign-In. Please use "Continue with Google" button.',
+      })
     }
 
     if (!(await user.correctPassword(password, user.password))) {
-      return next(createError(401, 'Incorrect email or password'))
+      return res.status(401).json({
+        status: 'error',
+        message: 'Incorrect email or password',
+      })
     }
 
     user.lastLogin = new Date()
@@ -732,7 +743,10 @@ export const signin = async (req, res, next) => {
     createSendToken(user, 200, res)
   } catch (err) {
     console.error('Error in signin:', err)
-    next(createError(500, 'An unexpected error occurred'))
+    res.status(500).json({
+      status: 'error',
+      message: 'An unexpected error occurred',
+    })
   }
 }
 
@@ -1161,63 +1175,4 @@ export const changePassword = async (req, res, next) => {
   } catch (error) {
     next(error)
   }
-}
-
-// Placeholder exports for functions that need to be imported from existing implementation
-export const selectSpa = async (req, res, next) => {
-  // Implement existing selectSpa function here
-  res
-    .status(200)
-    .json({ message: 'selectSpa function - implement from existing code' })
-}
-
-export const googleAuth = async (req, res, next) => {
-  // Implement existing googleAuth function here
-  res
-    .status(200)
-    .json({ message: 'googleAuth function - implement from existing code' })
-}
-
-export const googleCallback = async (req, res, next) => {
-  // Implement existing googleCallback function here
-  res
-    .status(200)
-    .json({ message: 'googleCallback function - implement from existing code' })
-}
-
-export const linkGoogleAccount = async (req, res, next) => {
-  // Implement existing linkGoogleAccount function here
-  res.status(200).json({
-    message: 'linkGoogleAccount function - implement from existing code',
-  })
-}
-
-export const unlinkGoogleAccount = async (req, res, next) => {
-  // Implement existing unlinkGoogleAccount function here
-  res.status(200).json({
-    message: 'unlinkGoogleAccount function - implement from existing code',
-  })
-}
-
-// File: server/controller/auth.js - ADD/UPDATE ONBOARDING STATUS FUNCTION
-
-export const completeOnboarding = async (req, res, next) => {
-  // Implement existing completeOnboarding function here
-  res.status(200).json({
-    message: 'completeOnboarding function - implement from existing code',
-  })
-}
-
-export const updateSelectedSpa = async (req, res, next) => {
-  // Implement existing updateSelectedSpa function here
-  res.status(200).json({
-    message: 'updateSelectedSpa function - implement from existing code',
-  })
-}
-
-export const generateReferralCode = async (req, res, next) => {
-  // Implement existing generateReferralCode function here
-  res.status(200).json({
-    message: 'generateReferralCode function - implement from existing code',
-  })
 }
