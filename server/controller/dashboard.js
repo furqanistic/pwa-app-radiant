@@ -9,10 +9,20 @@ import UserReward from '../models/UserReward.js'
 // Get all dashboard data in one request
 export const getDashboardData = async (req, res, next) => {
   try {
-    const userId = req.user.id
+    // Add defensive check
+    if (!req.user) {
+      return next(createError(401, 'User not authenticated'))
+    }
+
+    // Use _id with fallback to id (Mongoose virtual)
+    const userId = req.user._id || req.user.id
     const user = req.user
 
-    // Get upcoming appointments
+    if (!userId) {
+      return next(createError(401, 'User ID not found'))
+    }
+
+    // Rest of your dashboard code...
     const upcomingAppointments = await Booking.find({
       userId,
       date: { $gte: new Date() },

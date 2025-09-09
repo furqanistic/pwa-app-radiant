@@ -1,4 +1,4 @@
-// File: server/models/User.js - ENHANCED WITH BETTER SPA LOCATION SUPPORT
+// File: server/models/User.js - ENHANCED WITH SUPER-ADMIN ROLE
 import bcrypt from 'bcryptjs'
 import mongoose from 'mongoose'
 
@@ -29,7 +29,7 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'user', 'team', 'enterprise'],
+      enum: ['super-admin', 'admin', 'team', 'enterprise', 'user'], // Added super-admin as highest role
       default: 'user',
     },
     points: {
@@ -53,7 +53,6 @@ const UserSchema = new mongoose.Schema(
       enum: ['local', 'google'],
       default: 'local',
     },
-    // GHL Integration field
     ghlContactId: {
       type: String,
       sparse: true,
@@ -83,7 +82,7 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
-    // ENHANCED: For team users (spa owners) - Their Spa Location
+    // For team users (spa owners) - Their Spa Location
     spaLocation: {
       locationId: {
         type: String,
@@ -111,7 +110,6 @@ const UserSchema = new mongoose.Schema(
         type: String,
         default: null,
       },
-      // NEW: Additional spa owner fields
       businessHours: {
         monday: {
           open: String,
@@ -200,6 +198,20 @@ const UserSchema = new mongoose.Schema(
         default: 'bronze',
       },
     },
+    // NEW: Role management metadata
+    roleChangedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    roleChangedAt: {
+      type: Date,
+      default: null,
+    },
+    previousRole: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 )
@@ -210,20 +222,62 @@ UserSchema.index({ 'spaLocation.locationId': 1 })
 UserSchema.index({ role: 1 })
 UserSchema.index({ profileCompleted: 1 })
 UserSchema.index({ email: 1, role: 1 })
+UserSchema.index({ createdAt: -1 }) // For pagination
+UserSchema.index({ isDeleted: 1, role: 1 }) // For filtered queries
 
-// ENHANCED: Method to get user's relevant location based on role
+// NEW: Method to check role hierarchy
+UserSchema.methods.canManageRole = function (targetRole) {
+  const roleHierarchy = {
+    'super-admin': 5,
+    admin: 4,
+    team: 3,
+    enterprise: 2,
+    user: 1,
+  }
+
+  const currentLevel = roleHierarchy[this.role] || 0
+  const targetLevel = roleHierarchy[targetRole] || 0
+
+  return currentLevel > targetLevel
+}
+
+// NEW: Method to check if user can change another user's role
+UserSchema.methods.canChangeUserRole = function (targetUser, newRole) {
+  // Super-admin can change anyone's role (except other super-admins to super-admin)
+  if (this.role === 'super-admin') {
+    if (newRole === 'super-admin' && targetUser.role !== 'super-admin') {
+      return false // Only existing super-admins can create new super-admins
+    }
+    return this._id.toString() !== targetUser._id.toString() // Can't change own role
+  }
+
+  // Admin can change roles below admin level
+  if (this.role === 'admin') {
+    return (
+      this.canManageRole(targetUser.role) &&
+      this.canManageRole(newRole) &&
+      newRole !== 'super-admin' &&
+      newRole !== 'admin' &&
+      this._id.toString() !== targetUser._id.toString()
+    )
+  }
+
+  return false
+}
+
+// Method to get user's relevant location based on role
 UserSchema.methods.getRelevantLocation = function () {
   if (this.role === 'team') {
     return this.spaLocation
   } else if (this.role === 'user') {
     return this.selectedLocation
-  } else if (this.role === 'admin') {
+  } else if (['admin', 'super-admin'].includes(this.role)) {
     return null // Admin can work with any location
   }
   return null
 }
 
-// ENHANCED: Method to check if user has location configured
+// Method to check if user has location configured
 UserSchema.methods.hasLocationConfigured = function () {
   if (this.role === 'team') {
     return !!(this.spaLocation?.locationId && this.spaLocation?.locationName)
@@ -231,13 +285,13 @@ UserSchema.methods.hasLocationConfigured = function () {
     return !!(
       this.selectedLocation?.locationId && this.selectedLocation?.locationName
     )
-  } else if (this.role === 'admin') {
+  } else if (['admin', 'super-admin'].includes(this.role)) {
     return true // Admin doesn't need location
   }
   return false
 }
 
-// NEW: Method to setup spa location for team users
+// Rest of the methods remain the same...
 UserSchema.methods.setupSpaLocation = function (locationData) {
   if (this.role !== 'team') {
     throw new Error('Only team users can have spa locations')
@@ -256,53 +310,6 @@ UserSchema.methods.setupSpaLocation = function (locationData) {
   }
 
   return this.save()
-}
-
-// NEW: Method to check if spa is open now
-UserSchema.methods.isSpaOpenNow = function () {
-  if (this.role !== 'team' || !this.spaLocation?.businessHours) {
-    return true // Default to open if no hours configured
-  }
-
-  const now = new Date()
-  const dayNames = [
-    'sunday',
-    'monday',
-    'tuesday',
-    'wednesday',
-    'thursday',
-    'friday',
-    'saturday',
-  ]
-  const currentDay = dayNames[now.getDay()]
-  const todayHours = this.spaLocation.businessHours[currentDay]
-
-  if (!todayHours || todayHours.closed) {
-    return false
-  }
-
-  if (!todayHours.open || !todayHours.close) {
-    return true // Default to open if hours not set
-  }
-
-  const currentTime = now.toTimeString().slice(0, 5) // HH:MM format
-  return currentTime >= todayHours.open && currentTime <= todayHours.close
-}
-
-// NEW: Method to get spa business status
-UserSchema.methods.getSpaBusinessStatus = function () {
-  if (this.role !== 'team') {
-    return null
-  }
-
-  return {
-    locationId: this.spaLocation?.locationId,
-    locationName: this.spaLocation?.locationName,
-    isOpenNow: this.isSpaOpenNow(),
-    businessHours: this.spaLocation?.businessHours,
-    timezone: this.spaLocation?.timezone,
-    setupCompleted: this.spaLocation?.setupCompleted,
-  }
 }
 
 // Pre-save middleware to hash password
@@ -336,26 +343,12 @@ UserSchema.pre('save', async function (next) {
     let code = generateCode()
     let codeExists = await this.constructor.findOne({ referralCode: code })
 
-    // Ensure uniqueness
     while (codeExists) {
       code = generateCode()
       codeExists = await this.constructor.findOne({ referralCode: code })
     }
 
     this.referralCode = code
-  }
-  next()
-})
-
-// ENHANCED: Pre-save validation for team users
-UserSchema.pre('save', function (next) {
-  if (this.role === 'team') {
-    // Team users must have spa location configured
-    if (!this.spaLocation?.locationId || !this.spaLocation?.locationName) {
-      const error = new Error('Team users must have spa location configured')
-      error.statusCode = 400
-      return next(error)
-    }
   }
   next()
 })
@@ -369,40 +362,37 @@ UserSchema.methods.correctPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword)
 }
 
-// Method to check if user can authenticate with password
-UserSchema.methods.canAuthenticateWithPassword = function () {
-  return this.authProvider === 'local' && this.password
-}
+// Static method to get paginated users
+UserSchema.statics.getPaginatedUsers = async function (
+  page = 1,
+  limit = 10,
+  filters = {}
+) {
+  const skip = (page - 1) * limit
 
-// NEW: Static method to find team users by location
-UserSchema.statics.findSpaOwnersByLocation = function (locationId) {
-  return this.find({
-    role: 'team',
-    'spaLocation.locationId': locationId,
-    isDeleted: false,
-  })
-}
+  // Build query
+  const query = { isDeleted: false, ...filters }
 
-// NEW: Static method to get spa owner dashboard data
-UserSchema.statics.getSpaOwnerDashboardData = async function (userId) {
-  const user = await this.findById(userId)
-  if (!user || user.role !== 'team') {
-    throw new Error('User not found or not a spa owner')
-  }
+  // Get total count for pagination info
+  const total = await this.countDocuments(query)
 
-  // You can add more dashboard data aggregation here
-  const dashboardData = {
-    spaInfo: user.getSpaBusinessStatus(),
-    userInfo: {
-      name: user.name,
-      email: user.email,
-      joinedAt: user.createdAt,
-      lastLogin: user.lastLogin,
+  // Get users with pagination
+  const users = await this.find(query)
+    .sort({ createdAt: -1 }) // Most recent first
+    .skip(skip)
+    .limit(limit)
+    .select('-password') // Exclude password field
+
+  return {
+    users,
+    pagination: {
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalUsers: total,
+      hasNextPage: page < Math.ceil(total / limit),
+      hasPreviousPage: page > 1,
     },
-    // Add more dashboard metrics as needed
   }
-
-  return dashboardData
 }
 
 export default mongoose.model('User', UserSchema)

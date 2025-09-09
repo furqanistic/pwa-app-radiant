@@ -1,23 +1,24 @@
-// File: client/src/config.js
-// client/src/config.js
+// File: client/src/config/axios.js - FIXED API BASE URL
 import axios from 'axios'
-import { store } from './redux/store'
+
+// Create axios instance with proper base URL for development
 
 export const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true, // This ensures cookies are sent
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 })
 
-// Add a request interceptor to automatically add auth token from Redux
+// Request interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Get token from Redux store
-    const token = store.getState().user.token
-
+    const token =
+      localStorage.getItem('token') || sessionStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-
     return config
   },
   (error) => {
@@ -25,15 +26,21 @@ axiosInstance.interceptors.request.use(
   }
 )
 
-// Optional: Add response interceptor for handling auth errors
+// Response interceptor
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
+    console.error('API Error:', error.response?.data || error.message)
+
+    // Handle auth errors
     if (error.response?.status === 401) {
-      // Handle token expiration - you can dispatch logout action here
-      // store.dispatch(logout())
-      console.error('Authentication failed:', error.response?.data?.message)
+      localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
+      window.location.href = '/auth'
     }
+
     return Promise.reject(error)
   }
 )
+
+export default axiosInstance

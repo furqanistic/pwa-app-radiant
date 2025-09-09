@@ -1,6 +1,5 @@
 // File: client/src/pages/Layout/Layout.jsx
-// client/src/pages/Layout/Layout.jsx
-import { logout } from '@/redux/userSlice'
+import { logout, selectIsAdmin } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Calendar,
@@ -18,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux' // Add useSelector
 import { useLocation, useNavigate } from 'react-router-dom'
 import Topbar from './Topbar' // Import the Topbar component
 
@@ -89,6 +88,9 @@ const Layout = ({
   const location = useLocation()
   const dispatch = useDispatch()
 
+  // Add selector to check if user is admin
+  const isAdmin = useSelector(selectIsAdmin)
+
   useEffect(() => {
     const checkScreenSize = () => {
       setIsDesktop(window.innerWidth >= 1024)
@@ -117,7 +119,8 @@ const Layout = ({
     setIsNavigating(false)
   }, [location.pathname, location.search, location.hash])
 
-  const navigationItems = [
+  // Base navigation items
+  const baseNavigationItems = [
     {
       id: 'dashboard',
       label: 'Dashboard',
@@ -130,6 +133,7 @@ const Layout = ({
       label: 'Contacts',
       icon: Contact2,
       href: '/contacts',
+      adminOnly: true, // Mark this as admin-only
     },
     {
       id: 'bookings',
@@ -179,6 +183,16 @@ const Layout = ({
       },
     },
   ]
+
+  // Filter navigation items based on user role
+  const navigationItems = baseNavigationItems.filter((item) => {
+    // If item is admin-only, only show it to admins
+    if (item.adminOnly) {
+      return isAdmin
+    }
+    // Show all other items to everyone
+    return true
+  })
 
   const bottomItems = [
     {

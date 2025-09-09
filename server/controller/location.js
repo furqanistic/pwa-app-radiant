@@ -1,4 +1,4 @@
-// server/controller/location.js
+// File: server/controller/location.js - OPTIMIZED
 import { createError } from '../error.js'
 import Location from '../models/Location.js'
 
@@ -9,11 +9,6 @@ export const createLocation = async (req, res, next) => {
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
-    }
-
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
     }
 
     // Check if location ID already exists
@@ -34,9 +29,7 @@ export const createLocation = async (req, res, next) => {
     res.status(201).json({
       status: 'success',
       message: 'Location added successfully',
-      data: {
-        location: newLocation,
-      },
+      data: { location: newLocation },
     })
   } catch (error) {
     console.error('Error creating location:', error)
@@ -49,11 +42,6 @@ export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
     const { locationId, name, description, address, phone, isActive } = req.body
-
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
 
     const location = await Location.findById(id)
     if (!location) {
@@ -88,9 +76,7 @@ export const updateLocation = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       message: 'Location updated successfully',
-      data: {
-        location: updatedLocation,
-      },
+      data: { location: updatedLocation },
     })
   } catch (error) {
     console.error('Error updating location:', error)
@@ -98,32 +84,26 @@ export const updateLocation = async (req, res, next) => {
   }
 }
 
-// Get all locations
+// Get all locations (admin only)
 export const getAllLocations = async (req, res, next) => {
   try {
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const { isActive, page = 1, limit = 50 } = req.query
 
-    // Build query
     const query = {}
     if (isActive !== undefined) {
       query.isActive = isActive === 'true'
     }
 
-    // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit)
 
-    const locations = await Location.find(query)
-      .populate('addedBy', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-
-    const total = await Location.countDocuments(query)
+    const [locations, total] = await Promise.all([
+      Location.find(query)
+        .populate('addedBy', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Location.countDocuments(query),
+    ])
 
     res.status(200).json({
       status: 'success',
@@ -131,9 +111,7 @@ export const getAllLocations = async (req, res, next) => {
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
-      data: {
-        locations,
-      },
+      data: { locations },
     })
   } catch (error) {
     console.error('Error fetching locations:', error)
@@ -141,14 +119,34 @@ export const getAllLocations = async (req, res, next) => {
   }
 }
 
-// Get active location IDs only (for GHL API calls)
+// Get active locations for users (public to authenticated users)
+export const getActiveLocationsForUsers = async (req, res, next) => {
+  try {
+    const locations = await Location.find({
+      isActive: true,
+      name: { $ne: '', $exists: true, $ne: null },
+    })
+      .select('locationId name address phone')
+      .sort({ name: 1 })
+
+    const validLocations = locations.filter(
+      (location) => location.name && location.name.trim() !== ''
+    )
+
+    res.status(200).json({
+      status: 'success',
+      results: validLocations.length,
+      data: { locations: validLocations },
+    })
+  } catch (error) {
+    console.error('Error fetching active locations:', error)
+    next(createError(500, 'Failed to fetch locations'))
+  }
+}
+
+// Get active location IDs only (admin only)
 export const getActiveLocationIds = async (req, res, next) => {
   try {
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const locations = await Location.find({ isActive: true })
       .select('locationId name')
       .sort({ createdAt: -1 })
@@ -158,10 +156,7 @@ export const getActiveLocationIds = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       count: locationIds.length,
-      data: {
-        locationIds,
-        locations,
-      },
+      data: { locationIds, locations },
     })
   } catch (error) {
     console.error('Error fetching active location IDs:', error)
@@ -169,43 +164,10 @@ export const getActiveLocationIds = async (req, res, next) => {
   }
 }
 
-export const getActiveLocationsForUsers = async (req, res, next) => {
-  try {
-    // Only get active locations with essential info for users
-    const locations = await Location.find({
-      isActive: true,
-      name: { $ne: '', $exists: true, $ne: null }, // Only include locations with names
-    })
-      .select('locationId name address phone') // Only return necessary fields
-      .sort({ name: 1 }) // Sort alphabetically by name
-
-    // Filter out locations without names (extra safety)
-    const validLocations = locations.filter(
-      (location) => location.name && location.name.trim() !== ''
-    )
-
-    res.status(200).json({
-      status: 'success',
-      results: validLocations.length,
-      data: {
-        locations: validLocations,
-      },
-    })
-  } catch (error) {
-    console.error('Error fetching active locations for users:', error)
-    next(createError(500, 'Failed to fetch locations'))
-  }
-}
-
-// Get a single location
+// Get a single location (admin only)
 export const getLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
 
     const location = await Location.findById(id).populate(
       'addedBy',
@@ -218,9 +180,7 @@ export const getLocation = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: {
-        location,
-      },
+      data: { location },
     })
   } catch (error) {
     console.error('Error fetching location:', error)
@@ -228,18 +188,12 @@ export const getLocation = async (req, res, next) => {
   }
 }
 
-// Delete a location
+// Delete a location (admin only)
 export const deleteLocation = async (req, res, next) => {
   try {
     const { id } = req.params
 
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const location = await Location.findById(id)
-
     if (!location) {
       return next(createError(404, 'Location not found'))
     }
@@ -256,17 +210,12 @@ export const deleteLocation = async (req, res, next) => {
   }
 }
 
+// Toggle location status (admin only)
 export const toggleLocationStatus = async (req, res, next) => {
   try {
     const { id } = req.params
 
-    // Check if user has admin permissions
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
-    }
-
     const location = await Location.findById(id)
-
     if (!location) {
       return next(createError(404, 'Location not found'))
     }
@@ -279,9 +228,7 @@ export const toggleLocationStatus = async (req, res, next) => {
       message: `Location ${
         location.isActive ? 'activated' : 'deactivated'
       } successfully`,
-      data: {
-        location,
-      },
+      data: { location },
     })
   } catch (error) {
     console.error('Error toggling location status:', error)

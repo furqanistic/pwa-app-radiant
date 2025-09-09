@@ -1,7 +1,5 @@
-// File: server/routes/location.js
-// server/routes/location.js
+// File: server/routes/location.js - FIXED TO ALLOW PUBLIC ACCESS TO ACTIVE LOCATIONS
 import express from 'express'
-
 import {
   createLocation,
   deleteLocation,
@@ -12,24 +10,27 @@ import {
   toggleLocationStatus,
   updateLocation,
 } from '../controller/location.js'
-import { checkPermission, verifyToken } from '../middleware/authMiddleware.js'
+import {
+  requireAdminOrAbove,
+  verifyToken,
+} from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-// All routes require authentication
-router.use(verifyToken)
-// PUBLIC route for users to get active locations (no admin check)
-router.get('/active', getActiveLocationsForUsers)
-// All routes require permission checking (admin only)
-router.use(checkPermission)
+// PUBLIC route for authenticated users to get active locations
+// This MUST come BEFORE the middleware that requires admin access
+router.get('/active', verifyToken, getActiveLocationsForUsers)
 
-// CRUD Routes
-router.post('/', createLocation) // POST /locations
-router.get('/', getAllLocations) // GET /locations
-router.get('/active-ids', getActiveLocationIds) // GET /locations/active-ids
-router.get('/:id', getLocation) // GET /locations/:id
-router.put('/:id', updateLocation) // PUT /locations/:id
-router.delete('/:id', deleteLocation) // DELETE /locations/:id
-router.patch('/:id/toggle-status', toggleLocationStatus) // PATCH /locations/:id/toggle-status
+// ALL OTHER routes require admin access
+router.use(verifyToken, requireAdminOrAbove)
+
+// Admin-only CRUD Routes
+router.post('/', createLocation)
+router.get('/', getAllLocations)
+router.get('/active-ids', getActiveLocationIds)
+router.get('/:id', getLocation)
+router.put('/:id', updateLocation)
+router.delete('/:id', deleteLocation)
+router.patch('/:id/toggle-status', toggleLocationStatus)
 
 export default router

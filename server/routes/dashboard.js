@@ -1,14 +1,12 @@
 // File: server/routes/dashboard.js
+// server/routes/dashboard.js (or wherever your routes are defined)
 import express from 'express'
 import { getDashboardData } from '../controller/dashboard.js'
 import { verifyToken } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-// All routes require authentication
-router.use(verifyToken)
-
-// Get complete dashboard data
-router.get('/data', getDashboardData)
+// Make sure verifyToken is applied before the controller
+router.get('/data', verifyToken, getDashboardData)
 
 export default router

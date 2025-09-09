@@ -353,8 +353,20 @@ export const getUserNotifications = async (req, res, next) => {
 
 export const getUnreadCount = async (req, res, next) => {
   try {
+    // Add defensive check
+    if (!req.user) {
+      return next(createError(401, 'User not authenticated'))
+    }
+
+    // Use _id with fallback to id
+    const userId = req.user._id || req.user.id
+
+    if (!userId) {
+      return next(createError(401, 'User ID not found'))
+    }
+
     const unreadCount = await Notification.countDocuments({
-      recipient: req.user.id,
+      recipient: userId,
       read: false,
     })
 

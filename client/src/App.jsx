@@ -1,8 +1,15 @@
-// File: client/src/App.jsx - SIMPLIFIED VERSION FOR MOBILE
+// File: client/src/App.jsx - FIXED SPA SELECTION GUARD
+import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { useSelector } from 'react-redux'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom'
 import AuthPage from './pages/Auth/AuthPage'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
@@ -21,8 +28,78 @@ import RewardManagement from './pages/Rewards/RewardManagement'
 import RewardsCatalogPage from './pages/Rewards/RewardsCatalogPage'
 import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
+import { authService } from './services/authService'
 
-// Protected Route Component - requires authentication
+// Fixed Spa Selection Guard
+const SpaSelectionGuard = ({ children }) => {
+  const { currentUser } = useSelector((state) => state.user)
+  const location = useLocation()
+
+  // Get onboarding status
+  const {
+    data: onboardingData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['onboarding-status'],
+    queryFn: authService.getOnboardingStatus,
+    enabled: !!currentUser,
+    retry: 1,
+  })
+
+  // Show loading while checking onboarding status
+  if (isLoading) {
+    return (
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+        <div className='text-center'>
+          <div className='w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-4'></div>
+          <p className='text-gray-600'>Checking spa selection...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Handle errors
+  if (error) {
+    console.error('Onboarding status error:', error)
+    return (
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+        <div className='text-center'>
+          <p className='text-red-600'>
+            Error checking spa selection. Please refresh.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if user has selected spa - updated logic
+  const hasSelectedSpa = onboardingData?.data?.onboardingStatus?.hasSelectedSpa
+  const isOnWelcomePage = location.pathname === '/welcome'
+
+  console.log('SpaSelectionGuard Debug:', {
+    hasSelectedSpa,
+    isOnWelcomePage,
+    onboardingData: onboardingData?.data?.onboardingStatus,
+    currentPath: location.pathname,
+  })
+
+  // If user hasn't selected spa and not on welcome page, redirect to welcome
+  if (!hasSelectedSpa && !isOnWelcomePage) {
+    console.log('Redirecting to welcome page - no spa selected')
+    return <Navigate to='/welcome' replace />
+  }
+
+  // If user has selected spa and is on welcome page, redirect to dashboard
+  if (hasSelectedSpa && isOnWelcomePage) {
+    console.log('Redirecting to dashboard - spa already selected')
+    return <Navigate to='/dashboard' replace />
+  }
+
+  return children
+}
+
+// Protected Route - requires authentication
 const ProtectedRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
 
@@ -30,10 +107,10 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to='/auth' replace />
   }
 
-  return children
+  return <SpaSelectionGuard>{children}</SpaSelectionGuard>
 }
 
-// Role Protected Route Component - requires authentication and specific roles
+// Role Protected Route - requires authentication and specific roles
 const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { currentUser } = useSelector((state) => state.user)
 
@@ -41,16 +118,14 @@ const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to='/auth' replace />
   }
 
-  // Check if user has one of the allowed roles
   if (allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role)) {
-    // Redirect to dashboard if user doesn't have required role
     return <Navigate to='/dashboard' replace />
   }
 
-  return children
+  return <SpaSelectionGuard>{children}</SpaSelectionGuard>
 }
 
-// Public Route Component - redirects to dashboard if already logged in
+// Public Route - redirects to dashboard if already logged in
 const PublicRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
 
@@ -61,19 +136,28 @@ const PublicRoute = ({ children }) => {
   return children
 }
 
+// Welcome Route - special route that bypasses spa selection guard
+const WelcomeRoute = ({ children }) => {
+  const { currentUser } = useSelector((state) => state.user)
+
+  if (!currentUser) {
+    return <Navigate to='/auth' replace />
+  }
+
+  return children
+}
+
 const App = () => {
-  // SIMPLIFIED: Minimal mobile PWA setup
+  // PWA setup
   useEffect(() => {
-    // Basic mobile PWA optimizations
-    const setupMobilePWA = () => {
+    const setupPWA = () => {
       try {
         // iOS PWA detection
         if (window.navigator.standalone) {
-          console.log('Running as iOS PWA')
           document.body.classList.add('ios-pwa')
         }
 
-        // Basic viewport fixes for mobile
+        // Viewport optimization
         const viewport = document.querySelector('meta[name="viewport"]')
         if (viewport) {
           viewport.setAttribute(
@@ -82,25 +166,22 @@ const App = () => {
           )
         }
 
-        // Prevent mobile pull-to-refresh - SIMPLIFIED version
+        // Prevent pull-to-refresh
         let startY = 0
-        let isScrollable = false
-
         const handleTouchStart = (e) => {
           startY = e.touches[0].pageY
-          const scrollableElement = e.target.closest('[data-scrollable]')
-          isScrollable = scrollableElement !== null
         }
 
         const handleTouchMove = (e) => {
-          if (isScrollable) return // Allow scrolling in scrollable areas
-
           const currentY = e.touches[0].pageY
           const isAtTop = window.scrollY === 0
           const isPullingDown = currentY > startY
 
-          // Prevent pull-to-refresh only when at top of page
-          if (isAtTop && isPullingDown) {
+          if (
+            isAtTop &&
+            isPullingDown &&
+            !e.target.closest('[data-scrollable]')
+          ) {
             e.preventDefault()
           }
         }
@@ -112,28 +193,34 @@ const App = () => {
           passive: false,
         })
 
-        // Cleanup function
         return () => {
           document.removeEventListener('touchstart', handleTouchStart)
           document.removeEventListener('touchmove', handleTouchMove)
         }
       } catch (error) {
-        console.error('Mobile PWA setup error:', error)
+        console.error('PWA setup error:', error)
       }
     }
 
-    const cleanup = setupMobilePWA()
-
-    // Return cleanup function
-    return cleanup
+    return setupPWA()
   }, [])
 
   return (
     <BrowserRouter>
-      <Toaster position='top-center' />
+      <Toaster
+        position='top-center'
+        toastOptions={{
+          duration: 3000,
+          style: {
+            fontSize: '14px',
+            padding: '12px 16px',
+          },
+        }}
+      />
       <InstallPrompt />
+
       <Routes>
-        {/* Public routes - only accessible when not logged in */}
+        {/* Public routes */}
         <Route
           path='/'
           element={
@@ -151,7 +238,26 @@ const App = () => {
           }
         />
 
-        {/* Protected routes - only accessible when logged in */}
+        {/* Welcome route - special handling */}
+        <Route
+          path='/welcome'
+          element={
+            <WelcomeRoute>
+              <WelcomePage />
+            </WelcomeRoute>
+          }
+        />
+
+        {/* Protected routes - require auth and spa selection */}
+        <Route
+          path='/dashboard'
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path='/spin'
           element={
@@ -160,6 +266,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
           path='/bookings'
           element={
@@ -168,27 +275,12 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
           path='/bookings/:serviceId'
           element={
             <ProtectedRoute>
               <ServiceDetailPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/contacts'
-          element={
-            <ProtectedRoute>
-              <ContactsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/dashboard'
-          element={
-            <ProtectedRoute>
-              <DashboardPage />
             </ProtectedRoute>
           }
         />
@@ -210,6 +302,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
           path='/client/:userId'
           element={
@@ -218,6 +311,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
           path='/referrals'
           element={
@@ -226,52 +320,58 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
+        {/* Admin-only routes */}
         <Route
-          path='/welcome'
+          path='/contacts'
           element={
-            <ProtectedRoute>
-              <WelcomePage />
-            </ProtectedRoute>
+            <RoleProtectedRoute allowedRoles={['admin', 'super-admin']}>
+              <ContactsPage />
+            </RoleProtectedRoute>
           }
         />
 
-        {/* Management routes - only accessible by admin and team roles */}
+        {/* Management routes - admin and team */}
         <Route
           path='/management'
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
+            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
               <ManagementPage />
             </RoleProtectedRoute>
           }
         />
+
         <Route
           path='/management/services'
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
+            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
               <ServiceManagementPage />
             </RoleProtectedRoute>
           }
         />
+
         <Route
           path='/management/spin'
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
+            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
               <ScratchSpinManagement />
             </RoleProtectedRoute>
           }
         />
+
         <Route
           path='/management/rewards'
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
+            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
               <RewardManagement />
             </RoleProtectedRoute>
           }
         />
+
         <Route
           path='/management/referral'
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
+            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
               <ManageReferralPage />
             </RoleProtectedRoute>
           }
@@ -280,7 +380,7 @@ const App = () => {
         <Route
           path='/session'
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team']}>
+            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
               <SessionTrackerPage />
             </RoleProtectedRoute>
           }
