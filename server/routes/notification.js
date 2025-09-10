@@ -1,4 +1,4 @@
-// File: server/routes/notification.js - UPDATED WITH PUSH ROUTES
+// File: server/routes/notification.js - UPDATED WITH ELEVATED USER PERMISSIONS
 import express from 'express'
 import {
   deleteAllReadNotifications,
@@ -13,7 +13,10 @@ import {
   testPushNotification,
   unsubscribeFromPush,
 } from '../controller/notification.js'
-import { verifyToken } from '../middleware/authMiddleware.js'
+import {
+  checkManagementAccess,
+  verifyToken,
+} from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
@@ -46,7 +49,7 @@ router.delete('/:notificationId', deleteNotification)
 // Delete all read notifications
 router.delete('/read/all', deleteAllReadNotifications)
 
-// Send notifications (admin only)
-router.post('/send', sendNotifications)
+// UPDATED: Send notifications (elevated users: admin, team, enterprise, super-admin)
+router.post('/send', checkManagementAccess, sendNotifications)
 
 export default router

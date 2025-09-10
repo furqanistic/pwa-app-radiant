@@ -1,5 +1,4 @@
-// File: server/models/UserReward.js - ENHANCED VERSION
-
+// File: server/models/UserReward.js - FIXED VERSION with missing methods
 import mongoose from 'mongoose'
 
 const UserRewardSchema = new mongoose.Schema(
@@ -13,57 +12,57 @@ const UserRewardSchema = new mongoose.Schema(
     rewardId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Reward',
-      default: null, // Can be null for manual rewards
-      index: true,
+      default: null, // Can be null for game wins
     },
+    // FIXED: Changed from String to Mixed/Object type
     rewardSnapshot: {
-      // Store reward details at time of claiming
-      name: String,
-      description: String,
-      type: String,
-      pointCost: Number,
-      value: Number,
-      validDays: Number,
-      serviceId: mongoose.Schema.Types.ObjectId,
-      serviceName: String,
-      categoryId: mongoose.Schema.Types.ObjectId,
-      categoryName: String,
-
-      // Manual reward specific fields
-      isManual: { type: Boolean, default: false },
-      givenBy: String,
-      givenByRole: String,
-      reason: String,
+      type: mongoose.Schema.Types.Mixed, // FIXED: This allows objects
+      required: true,
     },
     status: {
       type: String,
-      enum: ['active', 'used', 'expired', 'cancelled'],
+      enum: ['active', 'used', 'expired', 'pending'],
       default: 'active',
-      index: true,
-    },
-    claimedAt: {
-      type: Date,
-      default: Date.now,
-    },
-    expiresAt: {
-      type: Date,
-      required: true,
-      index: true,
-    },
-    usedAt: {
-      type: Date,
-      default: null,
-    },
-    usedValue: {
-      type: Number,
-      default: null,
     },
     locationId: {
       type: String,
       index: true,
     },
-
-    // NEW: Manual reward tracking
+    locationName: {
+      type: String,
+    },
+    claimedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    usedAt: {
+      type: Date,
+      default: null,
+    },
+    usedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    // FIXED: Made expiresAt optional since point rewards don't expire
+    expiresAt: {
+      type: Date,
+      default: null, // FIXED: Not required, defaults to null
+    },
+    actualValue: {
+      type: Number,
+      default: 0,
+    },
+    notes: {
+      type: String,
+      default: '',
+    },
+    metadata: {
+      type: Map,
+      of: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+    // ADDED: Fields for manual rewards compatibility
     isManualReward: {
       type: Boolean,
       default: false,
@@ -78,10 +77,6 @@ const UserRewardSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-    notificationSent: {
-      type: Boolean,
-      default: false,
-    },
   },
   {
     timestamps: true,
@@ -92,62 +87,70 @@ const UserRewardSchema = new mongoose.Schema(
 
 // Indexes for better performance
 UserRewardSchema.index({ userId: 1, status: 1 })
+UserRewardSchema.index({ userId: 1, claimedAt: -1 })
+UserRewardSchema.index({ locationId: 1, status: 1 })
+UserRewardSchema.index({ status: 1, expiresAt: 1 })
+UserRewardSchema.index({ 'rewardSnapshot.type': 1 })
+UserRewardSchema.index({ 'rewardSnapshot.gameId': 1 })
 UserRewardSchema.index({ userId: 1, isManualReward: 1 })
 UserRewardSchema.index({ userId: 1, createdAt: -1 })
-UserRewardSchema.index({ expiresAt: 1 })
 
-// Virtual to check if reward is still valid
+// Virtual for checking if reward is expired
+UserRewardSchema.virtual('isExpired').get(function () {
+  if (!this.expiresAt) return false // No expiry date means never expires
+  return new Date() > this.expiresAt
+})
+
+// Virtual for time remaining until expiry
+UserRewardSchema.virtual('timeUntilExpiry').get(function () {
+  if (!this.expiresAt) return null
+  const now = new Date()
+  if (now > this.expiresAt) return 0
+  return Math.max(0, this.expiresAt - now)
+})
+
+// ADDED: Virtual to check if reward is still valid (for backward compatibility)
 UserRewardSchema.virtual('isValid').get(function () {
   return (
-    this.status === 'active' && this.expiresAt && new Date() < this.expiresAt
+    this.status === 'active' && (!this.expiresAt || new Date() < this.expiresAt)
   )
 })
 
-// Virtual to check if expired
-UserRewardSchema.virtual('isExpired').get(function () {
-  return this.expiresAt && new Date() > this.expiresAt
-})
-
-// Virtual for days remaining
+// ADDED: Virtual for days remaining (for backward compatibility)
 UserRewardSchema.virtual('daysRemaining').get(function () {
   if (!this.expiresAt || this.status !== 'active') return 0
   const msRemaining = this.expiresAt - new Date()
   return Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)))
 })
 
-// Enhanced method to create user reward
-UserRewardSchema.statics.createUserReward = async function (data) {
-  const {
-    userId,
-    rewardId,
-    rewardSnapshot,
-    locationId,
-    status = 'active',
-    isManualReward = false,
-    givenBy = null,
-  } = data
+// Pre-save middleware to handle expiration
+UserRewardSchema.pre('save', function (next) {
+  // Auto-expire rewards that are past their expiry date
+  if (
+    this.expiresAt &&
+    new Date() > this.expiresAt &&
+    this.status === 'active'
+  ) {
+    this.status = 'expired'
+  }
+  next()
+})
 
-  // Calculate expiry date
-  const validDays = rewardSnapshot.validDays || 30
-  const expiresAt = new Date(Date.now() + validDays * 24 * 60 * 60 * 1000)
-
-  const userReward = new this({
-    userId,
-    rewardId,
-    rewardSnapshot,
-    status,
-    expiresAt,
-    locationId,
-    isManualReward,
-    givenBy,
-    givenReason: rewardSnapshot.reason,
-  })
-
-  await userReward.save()
-  return userReward
+// Method to check if reward can be used
+UserRewardSchema.methods.canBeUsed = function () {
+  return this.status === 'active' && !this.isExpired
 }
 
-// Method to mark reward as used
+// Method to mark as used
+UserRewardSchema.methods.markAsUsed = function (usedBy = null, notes = '') {
+  this.status = 'used'
+  this.usedAt = new Date()
+  if (usedBy) this.usedBy = usedBy
+  if (notes) this.notes = notes
+  return this.save()
+}
+
+// ADDED: Enhanced method to mark reward as used (for backward compatibility)
 UserRewardSchema.methods.markAsUsed = async function (actualValue = null) {
   if (this.status === 'used') {
     throw new Error('Reward has already been used')
@@ -161,13 +164,43 @@ UserRewardSchema.methods.markAsUsed = async function (actualValue = null) {
 
   this.status = 'used'
   this.usedAt = new Date()
-  this.usedValue = actualValue || this.rewardSnapshot.value
+  this.actualValue = actualValue || this.rewardSnapshot.value || 0
 
   await this.save()
   return this
 }
 
-// Static method to get user's monthly claim count
+// Static method to find active rewards by user
+UserRewardSchema.statics.findActiveByUser = function (userId, options = {}) {
+  const query = {
+    userId,
+    status: 'active',
+    $or: [
+      { expiresAt: null }, // Never expires
+      { expiresAt: { $gt: new Date() } }, // Not yet expired
+    ],
+  }
+
+  if (options.type) {
+    query['rewardSnapshot.type'] = options.type
+  }
+
+  if (options.locationId) {
+    query.locationId = options.locationId
+  }
+
+  return this.find(query).sort({ claimedAt: -1 })
+}
+
+// Static method to find expired rewards that need cleanup
+UserRewardSchema.statics.findExpiredRewards = function () {
+  return this.find({
+    status: 'active',
+    expiresAt: { $lt: new Date() },
+  })
+}
+
+// ADDED: Static method to get user's monthly claim count (CRITICAL for rewards to work)
 UserRewardSchema.statics.getUserMonthlyClaimCount = async function (
   userId,
   rewardId
@@ -185,7 +218,43 @@ UserRewardSchema.statics.getUserMonthlyClaimCount = async function (
   return count
 }
 
-// Static method to get user's manual rewards count
+// ADDED: Enhanced method to create user reward (CRITICAL for rewards to work)
+UserRewardSchema.statics.createUserReward = async function (data) {
+  const {
+    userId,
+    rewardId,
+    rewardSnapshot,
+    locationId,
+    status = 'active',
+    isManualReward = false,
+    givenBy = null,
+  } = data
+
+  // Calculate expiry date based on reward snapshot
+  let expiresAt = null
+  if (rewardSnapshot.validDays && rewardSnapshot.validDays > 0) {
+    expiresAt = new Date(
+      Date.now() + rewardSnapshot.validDays * 24 * 60 * 60 * 1000
+    )
+  }
+
+  const userReward = new this({
+    userId,
+    rewardId,
+    rewardSnapshot,
+    status,
+    expiresAt,
+    locationId,
+    isManualReward,
+    givenBy,
+    givenReason: rewardSnapshot.reason,
+  })
+
+  await userReward.save()
+  return userReward
+}
+
+// ADDED: Static method to get user's manual rewards count (for backward compatibility)
 UserRewardSchema.statics.getUserManualRewardsCount = async function (userId) {
   return await this.countDocuments({
     userId,
@@ -194,7 +263,7 @@ UserRewardSchema.statics.getUserManualRewardsCount = async function (userId) {
   })
 }
 
-// Update expired rewards (cron job)
+// ADDED: Update expired rewards (cron job compatibility)
 UserRewardSchema.statics.updateExpiredRewards = async function () {
   const now = new Date()
 
@@ -209,6 +278,47 @@ UserRewardSchema.statics.updateExpiredRewards = async function () {
   )
 
   return result.modifiedCount
+}
+
+// Static method to get user's game statistics
+UserRewardSchema.statics.getUserGameStats = async function (userId) {
+  const gameRewards = await this.find({
+    userId,
+    'rewardSnapshot.type': 'game_win',
+  }).lean()
+
+  const stats = {
+    totalGames: gameRewards.length,
+    scratchGames: gameRewards.filter(
+      (r) => r.rewardSnapshot.gameType === 'scratch'
+    ).length,
+    spinGames: gameRewards.filter((r) => r.rewardSnapshot.gameType === 'spin')
+      .length,
+    pointsEarned: 0,
+    activeRewards: 0,
+    usedRewards: 0,
+    recentGames: [],
+  }
+
+  gameRewards.forEach((reward) => {
+    if (reward.rewardSnapshot.winningItem?.valueType === 'points') {
+      stats.pointsEarned +=
+        parseInt(reward.rewardSnapshot.winningItem.value) || 0
+    }
+
+    if (reward.status === 'active') stats.activeRewards++
+    if (reward.status === 'used') stats.usedRewards++
+  })
+
+  stats.recentGames = gameRewards.slice(0, 5).map((r) => ({
+    gameTitle: r.rewardSnapshot.gameTitle,
+    gameType: r.rewardSnapshot.gameType,
+    winningItem: r.rewardSnapshot.winningItem,
+    playedAt: r.claimedAt,
+    status: r.status,
+  }))
+
+  return stats
 }
 
 export default mongoose.model('UserReward', UserRewardSchema)

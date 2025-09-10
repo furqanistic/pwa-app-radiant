@@ -1,8 +1,9 @@
-// File: client/src/App.jsx - FIXED SPA SELECTION GUARD
+// File: client/src/App.jsx - UPDATED SpaSelectionGuard with better UX
+
 import { useQuery } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Toaster } from 'react-hot-toast'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   BrowserRouter,
   Navigate,
@@ -28,14 +29,27 @@ import RewardManagement from './pages/Rewards/RewardManagement'
 import RewardsCatalogPage from './pages/Rewards/RewardsCatalogPage'
 import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
+import { updateProfile } from './redux/userSlice'
 import { authService } from './services/authService'
 
-// Fixed Spa Selection Guard
+// IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
   const location = useLocation()
+  const dispatch = useDispatch()
+  const [hasInitialCheck, setHasInitialCheck] = useState(false)
 
-  // Get onboarding status
+  // Check if user already has spa data in Redux
+  const userHasSpaInRedux = !!(
+    currentUser?.selectedLocation?.locationId &&
+    currentUser?.selectedLocation?.locationName &&
+    currentUser?.selectedLocation?.locationName.trim() !== ''
+  )
+
+  // Only query onboarding status if we don't have spa data in Redux
+  const shouldCheckOnboarding =
+    !!currentUser && !userHasSpaInRedux && !hasInitialCheck
+
   const {
     data: onboardingData,
     isLoading,
@@ -43,63 +57,76 @@ const SpaSelectionGuard = ({ children }) => {
   } = useQuery({
     queryKey: ['onboarding-status'],
     queryFn: authService.getOnboardingStatus,
-    enabled: !!currentUser,
+    enabled: shouldCheckOnboarding,
     retry: 1,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    onSuccess: (data) => {
+      setHasInitialCheck(true)
+      // Update Redux with the latest user data
+      if (data?.data?.onboardingStatus) {
+        const updatedUser = {
+          ...currentUser,
+          selectedLocation: data.data.onboardingStatus.selectedLocation,
+          hasSelectedSpa: data.data.onboardingStatus.hasSelectedSpa,
+        }
+        dispatch(updateProfile(updatedUser))
+      }
+    },
+    onError: () => {
+      setHasInitialCheck(true)
+    },
   })
 
-  // Show loading while checking onboarding status
-  if (isLoading) {
-    return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-4'></div>
-          <p className='text-gray-600'>Checking spa selection...</p>
-        </div>
-      </div>
-    )
+  // Determine spa selection status from Redux first, then API
+  let hasSelectedSpa = userHasSpaInRedux
+
+  if (!userHasSpaInRedux && onboardingData?.data?.onboardingStatus) {
+    hasSelectedSpa = onboardingData.data.onboardingStatus.hasSelectedSpa
   }
 
-  // Handle errors
-  if (error) {
-    console.error('Onboarding status error:', error)
-    return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <div className='text-center'>
-          <p className='text-red-600'>
-            Error checking spa selection. Please refresh.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // Check if user has selected spa - updated logic
-  const hasSelectedSpa = onboardingData?.data?.onboardingStatus?.hasSelectedSpa
   const isOnWelcomePage = location.pathname === '/welcome'
+
+  // IMPROVED: Only show loader when actually needed
+  if (shouldCheckOnboarding && isLoading && !hasInitialCheck) {
+    return (
+      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
+        <div className='text-center'>
+          <div className='w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-2'></div>
+          <p className='text-gray-500 text-sm'>Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Handle errors gracefully without blocking navigation
+  if (error && !hasInitialCheck) {
+    console.error('Onboarding status error:', error)
+    // Allow navigation but log the error - don't block user
+    setHasInitialCheck(true)
+  }
 
   console.log('SpaSelectionGuard Debug:', {
     hasSelectedSpa,
     isOnWelcomePage,
-    onboardingData: onboardingData?.data?.onboardingStatus,
+    userHasSpaInRedux,
+    shouldCheckOnboarding,
     currentPath: location.pathname,
+    hasInitialCheck,
   })
 
-  // If user hasn't selected spa and not on welcome page, redirect to welcome
+  // Redirect logic remains the same
   if (!hasSelectedSpa && !isOnWelcomePage) {
-    console.log('Redirecting to welcome page - no spa selected')
     return <Navigate to='/welcome' replace />
   }
 
-  // If user has selected spa and is on welcome page, redirect to dashboard
   if (hasSelectedSpa && isOnWelcomePage) {
-    console.log('Redirecting to dashboard - spa already selected')
     return <Navigate to='/dashboard' replace />
   }
 
   return children
 }
 
-// Protected Route - requires authentication
+// Rest of the component remains the same...
 const ProtectedRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
 
@@ -110,7 +137,6 @@ const ProtectedRoute = ({ children }) => {
   return <SpaSelectionGuard>{children}</SpaSelectionGuard>
 }
 
-// Role Protected Route - requires authentication and specific roles
 const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { currentUser } = useSelector((state) => state.user)
 
@@ -125,7 +151,6 @@ const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
   return <SpaSelectionGuard>{children}</SpaSelectionGuard>
 }
 
-// Public Route - redirects to dashboard if already logged in
 const PublicRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
 
@@ -136,7 +161,6 @@ const PublicRoute = ({ children }) => {
   return children
 }
 
-// Welcome Route - special route that bypasses spa selection guard
 const WelcomeRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
 
@@ -148,16 +172,14 @@ const WelcomeRoute = ({ children }) => {
 }
 
 const App = () => {
-  // PWA setup
+  // PWA setup (keep existing code)
   useEffect(() => {
     const setupPWA = () => {
       try {
-        // iOS PWA detection
         if (window.navigator.standalone) {
           document.body.classList.add('ios-pwa')
         }
 
-        // Viewport optimization
         const viewport = document.querySelector('meta[name="viewport"]')
         if (viewport) {
           viewport.setAttribute(
@@ -166,7 +188,6 @@ const App = () => {
           )
         }
 
-        // Prevent pull-to-refresh
         let startY = 0
         const handleTouchStart = (e) => {
           startY = e.touches[0].pageY
@@ -238,7 +259,7 @@ const App = () => {
           }
         />
 
-        {/* Welcome route - special handling */}
+        {/* Welcome route */}
         <Route
           path='/welcome'
           element={
@@ -248,7 +269,7 @@ const App = () => {
           }
         />
 
-        {/* Protected routes - require auth and spa selection */}
+        {/* Protected routes */}
         <Route
           path='/dashboard'
           element={
@@ -331,7 +352,7 @@ const App = () => {
           }
         />
 
-        {/* Management routes - admin and team */}
+        {/* Management routes */}
         <Route
           path='/management'
           element={

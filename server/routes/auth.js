@@ -1,17 +1,20 @@
-// File: server/routes/auth.js - ENHANCED WITH ROLE MANAGEMENT AND PAGINATION
+// File: server/routes/auth.js
 import express from 'express'
 import passport from 'passport'
 import {
   adjustUserPoints,
+  assignLocationToUser,
   bulkUpdateUsers,
   changePassword,
   changeUserRole,
   createTeamMember,
   deleteUser,
   getAllUsers,
+  getAssignableUsers,
   getCurrentUser,
   getOnboardingStatus,
   getUserProfile,
+  selectSpa,
   signin,
   signup,
   updateUser,
@@ -23,24 +26,20 @@ import {
   canPerformBulkOperations,
   canViewUsers,
   checkManagementAccess,
-  checkPermission,
   requireAdminOrAbove,
   requireSuperAdmin,
-  restrictTo,
   verifyToken,
 } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-// ============================================================================
-// PUBLIC ROUTES
-// ============================================================================
-
-// Authentication routes
+// Public user registration
 router.post('/signup', signup)
+
+// User login
 router.post('/signin', signin)
 
-// Google OAuth routes
+// Google OAuth login initiation
 router.get(
   '/google',
   passport.authenticate('google', {
@@ -48,25 +47,31 @@ router.get(
   })
 )
 
-// ============================================================================
-// PROTECTED ROUTES (Require Authentication)
-// ============================================================================
-
-// Apply authentication middleware to all routes below
+// Protected routes - require authentication
 router.use(verifyToken)
 
-// Basic user profile routes
+// Get current user profile
 router.get('/me', getCurrentUser)
+
+// Get specific user profile
 router.get('/profile/:id', getUserProfile)
+
+// Update user profile
 router.put('/profile/:id', updateUser)
+
+// Change user password
 router.put('/change-password', changePassword)
 
-// Onboarding and Spa Selection routes
+// Get user onboarding status
 router.get('/onboarding-status', getOnboardingStatus)
 
-// User management routes with role-based access
+// Select spa location for user
+router.post('/select-spa', selectSpa)
+
+// Get all users with pagination and filters
 router.get('/all-users', checkManagementAccess, canViewUsers, getAllUsers)
 
+// Delete user account
 router.delete(
   '/delete/:id',
   requireAdminOrAbove,
@@ -75,11 +80,7 @@ router.delete(
   deleteUser
 )
 
-// ============================================================================
-// ADMIN+ ROUTES (Admin or Super-Admin Required)
-// ============================================================================
-
-// Points management
+// Adjust user points (add/remove/set)
 router.post(
   '/users/:userId/points',
   requireAdminOrAbove,
@@ -88,19 +89,15 @@ router.post(
   adjustUserPoints
 )
 
-// Team member creation
+// Create new team member or user
 router.post(
   '/create-team-member',
   requireAdminOrAbove,
-  auditLog('team_member_creation'),
+  auditLog('user_creation'),
   createTeamMember
 )
 
-// ============================================================================
-// ROLE MANAGEMENT ROUTES
-// ============================================================================
-
-// Single user role change
+// Change user role
 router.put(
   '/users/:userId/role',
   requireAdminOrAbove,
@@ -109,11 +106,7 @@ router.put(
   changeUserRole
 )
 
-// ============================================================================
-// BULK OPERATIONS ROUTES
-// ============================================================================
-
-// Bulk operations for multiple users
+// Bulk operations on multiple users
 router.post(
   '/bulk-operations',
   requireAdminOrAbove,
@@ -122,37 +115,23 @@ router.post(
   bulkUpdateUsers
 )
 
-// ============================================================================
-// SUPER-ADMIN ONLY ROUTES
-// ============================================================================
+// Assign location to existing user
+router.post(
+  '/assign-location',
+  requireAdminOrAbove,
+  auditLog('location_assignment'),
+  assignLocationToUser
+)
 
-// Routes that only super-admins can access
+// Get users eligible for location assignment (admin/team only)
+router.get('/assignable-users', requireAdminOrAbove, getAssignableUsers)
+
+// Create admin user (super-admin only)
 router.post(
   '/create-admin',
   requireSuperAdmin,
   auditLog('admin_creation'),
-  createTeamMember // Can be reused with role parameter
-)
-
-// System-level operations (if needed)
-router.get('/system-stats', requireSuperAdmin, (req, res) => {
-  // Implement system statistics endpoint
-  res.json({ message: 'System statistics endpoint - TODO' })
-})
-
-// ============================================================================
-// DEPRECATED ROUTES (Keep for backward compatibility)
-// ============================================================================
-
-// Legacy notification route (consider moving to separate notification routes)
-router.post(
-  '/send-notifications',
-  requireAdminOrAbove,
-  auditLog('bulk_notification'),
-  (req, res) => {
-    // Implement notification sending or redirect to notification service
-    res.json({ message: 'Use /api/notifications/send instead' })
-  }
+  createTeamMember
 )
 
 export default router

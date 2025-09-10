@@ -1,4 +1,6 @@
-// File: client/src/pages/Other/WelcomePage.jsx - OPTIMIZED FOR PWA
+// File: client/src/pages/Other/WelcomePage.jsx - IMPROVED with Redux updates
+
+import { updateProfile } from '@/redux/userSlice'
 import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,6 +18,7 @@ import {
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import { useDispatch } from 'react-redux'
 
 const SpaDropdown = ({ spas, onSelect, isLoading, error }) => {
   const [isOpen, setIsOpen] = useState(false)
@@ -239,6 +242,7 @@ const WelcomePage = () => {
   const [isComplete, setIsComplete] = useState(false)
   const [rewardData, setRewardData] = useState(null)
 
+  const dispatch = useDispatch()
   const queryClient = useQueryClient()
 
   // Fetch active locations
@@ -253,25 +257,41 @@ const WelcomePage = () => {
     retry: 2,
   })
 
-  // Check onboarding status
+  // Check onboarding status (but don't block UI)
   const { data: onboardingData } = useQuery({
     queryKey: ['onboarding-status'],
     queryFn: authService.getOnboardingStatus,
     enabled: !isComplete,
+    staleTime: 30 * 1000, // Short cache since we're on welcome page
   })
 
-  // Spa selection mutation
+  // Spa selection mutation with Redux update
   const spaSelectionMutation = useMutation({
     mutationFn: ({ locationId, referralCode }) =>
       authService.selectSpa(locationId, referralCode),
     onSuccess: (data) => {
-      console.log('Spa selection response:', data) // Debug log
+      console.log('Spa selection response:', data)
 
-      // Safe access to rewards data
+      // Update Redux immediately with new spa selection
+      if (data?.data?.user) {
+        dispatch(
+          updateProfile({
+            selectedLocation: data.data.user.selectedLocation,
+            profileCompleted: data.data.user.profileCompleted,
+            points: data.data.user.points,
+            hasSelectedSpa: true, // Explicitly set this
+          })
+        )
+      }
+
       const rewards = data?.data?.rewards || null
       setRewardData(rewards)
       setIsComplete(true)
       toast.success('Spa selected successfully!')
+
+      // Invalidate queries to ensure fresh data
+      queryClient.invalidateQueries(['onboarding-status'])
+      queryClient.invalidateQueries(['current-user'])
     },
     onError: (error) => {
       console.error('Spa selection error:', error)
@@ -293,10 +313,12 @@ const WelcomePage = () => {
       }))
   }, [locationsData])
 
-  // Redirect if spa already selected
+  // Redirect if spa already selected (but don't block render)
   useEffect(() => {
     if (onboardingData?.data?.onboardingStatus?.hasSelectedSpa && !isComplete) {
-      window.location.href = '/dashboard'
+      setTimeout(() => {
+        window.location.href = '/dashboard'
+      }, 100)
     }
   }, [onboardingData, isComplete])
 
@@ -309,9 +331,14 @@ const WelcomePage = () => {
   }
 
   const handleContinue = () => {
+    // Ensure all caches are updated
     queryClient.invalidateQueries(['onboarding-status'])
     queryClient.invalidateQueries(['current-user'])
-    window.location.href = '/dashboard'
+
+    // Small delay to ensure Redux is updated
+    setTimeout(() => {
+      window.location.href = '/dashboard'
+    }, 100)
   }
 
   const handleReferralSubmit = (code) => {

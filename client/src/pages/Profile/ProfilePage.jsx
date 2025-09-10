@@ -1,3 +1,4 @@
+// File: client/src/pages/Profile/ProfilePage.jsx
 import { axiosInstance } from '@/config'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'

@@ -1,4 +1,4 @@
-// File: server/middleware/authMiddleware.js - OPTIMIZED
+// File: server/middleware/authMiddleware.js - FIXED WITH ENHANCED ROLE PERMISSIONS
 import jwt from 'jsonwebtoken'
 import { createError } from '../error.js'
 import User from '../models/User.js'
@@ -37,7 +37,7 @@ export const verifyToken = async (req, res, next) => {
   }
 }
 
-// Role-based access control
+// ENHANCED: Role-based access control with better game management permissions
 export const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -65,15 +65,29 @@ export const requireAdminOrAbove = (req, res, next) => {
   next()
 }
 
-// Management access (admin, team, super-admin)
+// ENHANCED: Management access - includes all roles that can manage games
 export const checkManagementAccess = (req, res, next) => {
-  if (!['admin', 'team', 'super-admin'].includes(req.user.role)) {
+  if (!['admin', 'team', 'super-admin', 'enterprise'].includes(req.user.role)) {
     return next(createError(403, 'Management access required'))
   }
   next()
 }
 
-// Check if user can manage another user
+// NEW: Game management access - specifically for game operations
+export const checkGameManagementAccess = (req, res, next) => {
+  // Allow admin, super-admin, and team roles to manage games
+  if (!['admin', 'team', 'super-admin'].includes(req.user.role)) {
+    return next(
+      createError(
+        403,
+        'Game management access required. Only spa owners (team), admins, and super-admins can manage games.'
+      )
+    )
+  }
+  next()
+}
+
+// ENHANCED: Check if user can manage another user
 export const canManageUser = async (req, res, next) => {
   try {
     const targetUserId = req.params.userId || req.params.id
@@ -136,7 +150,7 @@ export const canManageUser = async (req, res, next) => {
   }
 }
 
-// Check if user can view user list with filters
+// ENHANCED: Check if user can view user list with filters
 export const canViewUsers = (req, res, next) => {
   const userRole = req.user.role
 
@@ -228,7 +242,7 @@ export const auditLog = (action) => {
   }
 }
 
-// Add the missing checkPermission export for backward compatibility
+// ENHANCED: Permission checker with game management support
 export const checkPermission = (requiredLevel = 'admin') => {
   return (req, res, next) => {
     const userRole = req.user.role
@@ -256,4 +270,82 @@ export const checkPermission = (requiredLevel = 'admin') => {
 
     next()
   }
+}
+
+// NEW: Check if user can access game management routes
+export const checkGameAccess = async (req, res, next) => {
+  try {
+    const currentUser = req.user
+    const gameId = req.params.gameId
+
+    // Super-admin and admin can access any game
+    if (['super-admin', 'admin'].includes(currentUser.role)) {
+      return next()
+    }
+
+    // Team users can only access games from their spa
+    if (currentUser.role === 'team') {
+      if (!currentUser.spaLocation?.locationId) {
+        return next(
+          createError(400, 'Team user must have spa location configured')
+        )
+      }
+
+      // If gameId is provided, check if game belongs to their spa
+      if (gameId) {
+        const GameWheel = (await import('../models/GameWheel.js')).default
+        const game = await GameWheel.findById(gameId)
+
+        if (!game) {
+          return next(createError(404, 'Game not found'))
+        }
+
+        if (game.locationId !== currentUser.spaLocation.locationId) {
+          return next(
+            createError(403, 'You can only access games from your spa')
+          )
+        }
+      }
+
+      return next()
+    }
+
+    // Regular users shouldn't access management routes
+    return next(createError(403, 'Access denied'))
+  } catch (error) {
+    next(error)
+  }
+}
+
+// NEW: Location-based access control for games
+export const checkLocationAccess = (req, res, next) => {
+  const currentUser = req.user
+
+  // Admin and super-admin can access all locations
+  if (['admin', 'super-admin'].includes(currentUser.role)) {
+    return next()
+  }
+
+  // Team users can only access their spa location
+  if (currentUser.role === 'team') {
+    if (!currentUser.spaLocation?.locationId) {
+      return next(
+        createError(400, 'Team user must have spa location configured')
+      )
+    }
+    // Add location filter to request
+    req.locationFilter = currentUser.spaLocation.locationId
+    return next()
+  }
+
+  // Regular users can only access their selected location
+  if (currentUser.role === 'user') {
+    if (!currentUser.selectedLocation?.locationId) {
+      return next(createError(400, 'Please select a spa location first'))
+    }
+    req.locationFilter = currentUser.selectedLocation.locationId
+    return next()
+  }
+
+  return next(createError(403, 'Access denied'))
 }

@@ -135,13 +135,14 @@ export const getVapidPublicKey = async (req, res, next) => {
 // Send notifications (updated with push support)
 export const sendNotifications = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return next(createError(403, 'Access denied. Admin rights required.'))
+    const allowedRoles = ['super-admin', 'admin', 'team', 'enterprise']
+    if (!allowedRoles.includes(req.user.role)) {
+      return next(createError(403, 'Access denied. Elevated rights required.'))
     }
 
     const { userIds, type, message, subject, channels, priority, category } =
       req.body
-
+    console.log(userIds, type, message, subject)
     if (!message || !subject) {
       return next(createError(400, 'Message and subject are required'))
     }

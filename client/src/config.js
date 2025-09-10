@@ -1,3 +1,4 @@
+// File: client/src/config.js
 import axios from 'axios'
 
 // Create axios instance with proper base URL for development

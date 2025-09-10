@@ -19,7 +19,6 @@ export const userSlice = createSlice({
     loginSuccess: (state, action) => {
       state.loading = false
       state.error = false
-
       // Handle different payload structures with defensive checks
       if (action.payload?.data?.user) {
         state.currentUser = action.payload.data.user
@@ -63,9 +62,22 @@ export const { loginStart, loginSuccess, loginFailure, updateProfile, logout } =
 
 // Selectors for easy access to state
 export const selectCurrentUser = (state) => state.user.currentUser
-export const selectIsAdmin = (state) => state.user.currentUser?.role === 'admin'
+export const selectUserRole = (state) => state.user.currentUser?.role
 export const selectIsAuthenticated = (state) => !!state.user.currentUser
 export const selectToken = (state) => state.user.token
 export const selectIsLoading = (state) => state.user.loading
+
+// Role-based selectors
+export const selectIsSuperAdmin = (state) =>
+  state.user.currentUser?.role === 'super-admin'
+export const selectIsAdmin = (state) => {
+  const role = state.user.currentUser?.role
+  return ['admin', 'team', 'enterprise'].includes(role)
+}
+export const selectIsElevatedUser = (state) => {
+  const role = state.user.currentUser?.role
+  return ['super-admin', 'admin', 'team', 'enterprise'].includes(role)
+}
+export const selectIsUser = (state) => state.user.currentUser?.role === 'user'
 
 export default userSlice.reducer

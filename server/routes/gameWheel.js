@@ -1,20 +1,26 @@
-// File: server/routes/gameWheel.js - ENHANCED WITH SPA OWNER MANAGEMENT
+// File: server/routes/gameWheel.js - COMPLETE WITH USER GAME HISTORY ROUTES
 import express from 'express'
 import {
   createGame,
   deleteGame,
   getAllGames,
+  getAnyUserGameHistory,
   getAvailableGames,
   getGame,
   getGameAnalytics,
   getGameRewardsForSpa,
-  getUserGameHistory, // NEW: Get game rewards for spa owners
+  getUserGameHistory, // NEW: For admin/team to view user's game history
   playGame,
   toggleGamePublication,
   toggleGameStatus,
   updateGame,
 } from '../controller/gameWheel.js'
-import { restrictTo, verifyToken } from '../middleware/authMiddleware.js'
+import {
+  checkGameManagementAccess,
+  checkLocationAccess,
+  restrictTo,
+  verifyToken,
+} from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
@@ -22,44 +28,52 @@ const router = express.Router()
 router.use(verifyToken)
 
 // ===============================================
-// PUBLIC ROUTES (for game players)
+// PUBLIC ROUTES (for game players - role: user)
 // ===============================================
 
-// Get user's personal game history - MUST be before other routes
-router.get('/my-history', getUserGameHistory)
+// Get user's personal game history
+router.get('/my-history', restrictTo('user'), getUserGameHistory)
 
-// Get available games for customers to play
-router.get('/available', getAvailableGames)
+// Get available games for customers to play (only for role: user)
+router.get('/available', restrictTo('user'), getAvailableGames)
 
-// Play a game - MUST be before generic /:gameId route
-router.post('/:gameId/play', playGame)
+// Play a game (only for role: user)
+router.post('/:gameId/play', restrictTo('user'), playGame)
 
 // ===============================================
-// SPA OWNER ROUTES (team role management)
+// ADMIN/TEAM ROUTES - View user game history
 // ===============================================
 
-// Apply permission checking for spa management
-router.use(restrictTo('admin', 'team'))
-
-// NEW: Get game rewards that need spa owner attention
-router.get('/spa/game-rewards', getGameRewardsForSpa)
-
-// Admin can get game rewards for specific location
+// Get any user's game history (admin/team can view)
 router.get(
-  '/spa/:locationId/game-rewards',
-  restrictTo('admin'),
-  getGameRewardsForSpa
+  '/user/:userId/history',
+  restrictTo('admin', 'super-admin', 'team'),
+  getAnyUserGameHistory
 )
 
 // ===============================================
 // GAME MANAGEMENT ROUTES
+// (admin, super-admin, team roles)
 // ===============================================
+
+// Apply game management permission checking
+router.use(checkGameManagementAccess)
 
 // Get all games (management view)
 router.get('/', getAllGames)
 
 // Create a new game
 router.post('/', createGame)
+
+// Get game rewards that need spa owner attention
+router.get('/spa/game-rewards', getGameRewardsForSpa)
+
+// Admin can get game rewards for specific location
+router.get(
+  '/spa/:locationId/game-rewards',
+  restrictTo('admin', 'super-admin'),
+  getGameRewardsForSpa
+)
 
 // Toggle game active status
 router.patch('/:gameId/toggle-status', toggleGameStatus)

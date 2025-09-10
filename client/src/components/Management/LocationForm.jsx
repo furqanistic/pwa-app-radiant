@@ -1,3 +1,4 @@
+// File: client/src/components/Management/LocationForm.jsx
 // client/src/components/Management/LocationForm.jsx
 import { locationService } from '@/services/locationService'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -271,7 +272,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess }) => {
             </Button>
             <Button
               type='submit'
-              className='flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+              className='flex-1 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700'
               disabled={
                 createLocationMutation.isPending ||
                 !formData.locationId ||

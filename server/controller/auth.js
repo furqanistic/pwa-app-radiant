@@ -68,6 +68,7 @@ export const getAllUsers = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 10
     const search = req.query.search || ''
     const role = req.query.role || ''
+    const locationId = req.query.locationId || '' // NEW: Location filtering
     const sortBy = req.query.sortBy || 'createdAt'
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1
 
@@ -95,6 +96,14 @@ export const getAllUsers = async (req, res, next) => {
       } else {
         filters.role = role
       }
+    }
+
+    // NEW: Location filter for users in same location
+    if (locationId) {
+      filters.$or = [
+        { 'selectedLocation.locationId': locationId },
+        { 'spaLocation.locationId': locationId },
+      ]
     }
 
     // Role-based access control
@@ -170,6 +179,7 @@ export const getAllUsers = async (req, res, next) => {
         filters: {
           search,
           role,
+          locationId,
           sortBy,
           sortOrder: req.query.sortOrder || 'desc',
         },
@@ -178,6 +188,46 @@ export const getAllUsers = async (req, res, next) => {
   } catch (error) {
     console.error('Error in getAllUsers:', error)
     next(error)
+  }
+}
+
+export const getAssignableUsers = async (req, res, next) => {
+  try {
+    // Check permissions
+    if (!['admin', 'super-admin'].includes(req.user.role)) {
+      return next(
+        createError(403, 'Access denied. Admin or Super-Admin rights required.')
+      )
+    }
+
+    // Build filters for assignable users
+    const filters = {
+      isDeleted: false,
+      role: { $in: ['admin', 'team'] }, // Only admin and team users
+    }
+
+    // Additional role-based filtering
+    if (req.user.role === 'admin') {
+      // Admin can only assign locations to team users
+      filters.role = 'team'
+    }
+    // Super-admin can assign to both admin and team (no additional filter needed)
+
+    const users = await User.find(filters)
+      .sort({ name: 1 })
+      .select('-password')
+      .limit(100) // Reasonable limit
+
+    res.status(200).json({
+      status: 'success',
+      results: users.length,
+      data: {
+        users,
+      },
+    })
+  } catch (error) {
+    console.error('Error getting assignable users:', error)
+    next(createError(500, 'Failed to get assignable users'))
   }
 }
 
@@ -607,35 +657,46 @@ export const signup = async (req, res, next) => {
 
 export const createTeamMember = async (req, res, next) => {
   try {
+    const { name, email, password, assignedLocation, dateOfBirth, role } =
+      req.body
+
+    // Check permissions
     if (!['admin', 'super-admin'].includes(req.user.role)) {
       return next(
         createError(403, 'Access denied. Admin or Super-Admin rights required.')
       )
     }
 
-    const { name, email, password, assignedLocation, dateOfBirth, role } =
-      req.body
-
     if (!name || !email || !password) {
       return next(createError(400, 'Please provide name, email and password'))
     }
 
+    // Validate role assignment based on current user's role
+    let userRole = role || 'user'
+    if (req.user.role === 'admin') {
+      // Admin can only create user and team roles
+      if (!['user', 'team'].includes(userRole)) {
+        return next(
+          createError(403, 'Admin can only create user and team roles')
+        )
+      }
+    } else if (req.user.role === 'super-admin') {
+      // Super-admin can create user, team, and admin roles
+      if (!['user', 'team', 'admin'].includes(userRole)) {
+        return next(createError(400, 'Invalid role specified'))
+      }
+    }
+
+    // Check if email already exists
     const existingUser = await User.findOne({ email })
     if (existingUser) {
       return next(createError(400, 'User with this email already exists'))
     }
 
-    // Determine role - allow creating admin if super-admin
-    let userRole = 'team'
-    if (
-      role &&
-      req.user.role === 'super-admin' &&
-      ['admin', 'team'].includes(role)
-    ) {
-      userRole = role
-    }
-
+    // Handle location assignment
     let locationData = null
+    let spaLocationData = null
+
     if (assignedLocation) {
       const location = await Location.findOne({
         _id: assignedLocation,
@@ -646,15 +707,33 @@ export const createTeamMember = async (req, res, next) => {
         return next(createError(404, 'Selected location not found or inactive'))
       }
 
-      locationData = {
-        locationId: location.locationId,
-        locationName: location.name,
-        locationAddress: location.address,
-        locationPhone: location.phone,
-        selectedAt: new Date(),
+      // Prepare location data based on role
+      if (userRole === 'team') {
+        // Team users get spaLocation
+        spaLocationData = {
+          locationId: location.locationId,
+          locationName: location.name,
+          locationAddress: location.address,
+          locationPhone: location.phone,
+          setupAt: new Date(),
+          setupCompleted: true,
+        }
+      } else {
+        // Other roles get selectedLocation
+        locationData = {
+          locationId: location.locationId,
+          locationName: location.name,
+          locationAddress: location.address,
+          locationPhone: location.phone,
+          selectedAt: new Date(),
+        }
       }
+    } else if (userRole === 'team' && req.user.role === 'admin') {
+      // Admin creating team member must provide location
+      return next(createError(400, 'Location is required for team members'))
     }
 
+    // Create user data
     const userData = {
       name,
       email,
@@ -664,17 +743,8 @@ export const createTeamMember = async (req, res, next) => {
     }
 
     if (dateOfBirth) userData.dateOfBirth = dateOfBirth
-
-    if (locationData) {
-      if (userRole === 'team') {
-        userData.spaLocation = {
-          ...locationData,
-          setupAt: new Date(),
-        }
-      } else {
-        userData.selectedLocation = locationData
-      }
-    }
+    if (locationData) userData.selectedLocation = locationData
+    if (spaLocationData) userData.spaLocation = spaLocationData
 
     const newUser = await User.create(userData)
     newUser.password = undefined
@@ -682,8 +752,8 @@ export const createTeamMember = async (req, res, next) => {
     res.status(201).json({
       status: 'success',
       message: `${
-        userRole === 'admin' ? 'Admin' : 'Team member'
-      } created successfully`,
+        userRole.charAt(0).toUpperCase() + userRole.slice(1)
+      } user created successfully`,
       data: {
         user: newUser,
       },
@@ -694,6 +764,102 @@ export const createTeamMember = async (req, res, next) => {
       return next(createError(400, 'User with this email already exists'))
     }
     next(createError(500, 'An unexpected error occurred while creating user'))
+  }
+}
+
+export const assignLocationToUser = async (req, res, next) => {
+  try {
+    const { userId, locationId } = req.body
+
+    // Check permissions
+    if (!['admin', 'super-admin'].includes(req.user.role)) {
+      return next(
+        createError(403, 'Access denied. Admin or Super-Admin rights required.')
+      )
+    }
+
+    if (!userId || !locationId) {
+      return next(createError(400, 'User ID and Location ID are required'))
+    }
+
+    // Find the user
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Check if current user can assign location to this user
+    const canAssign =
+      req.user.role === 'super-admin' ||
+      (req.user.role === 'admin' && user.role === 'team')
+
+    if (!canAssign) {
+      return next(
+        createError(403, 'You can only assign locations to eligible users')
+      )
+    }
+
+    // Find the location
+    const location = await Location.findById(locationId)
+    if (!location) {
+      return next(createError(404, 'Location not found'))
+    }
+
+    if (!location.isActive) {
+      return next(createError(400, 'Cannot assign inactive location'))
+    }
+
+    // Prepare location data based on user role
+    const locationData = {
+      locationId: location.locationId,
+      locationName: location.name,
+      locationAddress: location.address,
+      locationPhone: location.phone,
+    }
+
+    if (user.role === 'team') {
+      // Team users get spaLocation
+      user.spaLocation = {
+        ...locationData,
+        setupAt: new Date(),
+        setupCompleted: true,
+      }
+      // Clear selectedLocation if it exists
+      user.selectedLocation = {
+        locationId: null,
+        locationName: null,
+        locationAddress: null,
+        locationPhone: null,
+        selectedAt: null,
+      }
+    } else {
+      // Other roles get selectedLocation
+      user.selectedLocation = {
+        ...locationData,
+        selectedAt: new Date(),
+      }
+    }
+
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Location assigned successfully',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          selectedLocation: user.selectedLocation,
+          spaLocation: user.spaLocation,
+        },
+        assignedLocation: location,
+      },
+    })
+  } catch (error) {
+    console.error('Error assigning location:', error)
+    next(createError(500, 'Failed to assign location'))
   }
 }
 
@@ -760,15 +926,13 @@ export const getOnboardingStatus = async (req, res, next) => {
       return next(createError(401, 'User not found'))
     }
 
-    // FIXED: More thorough check for selectedLocation
-    // Check if selectedLocation exists and has either locationId OR locationName
+    // IMPROVED: Check if user has actually selected a spa with real data
     const hasSelectedSpa = !!(
       user.selectedLocation &&
-      ((user.selectedLocation.locationId &&
-        user.selectedLocation.locationId !== null) ||
-        (user.selectedLocation.locationName &&
-          user.selectedLocation.locationName !== null &&
-          user.selectedLocation.locationName.trim() !== ''))
+      user.selectedLocation.locationId &&
+      user.selectedLocation.locationId.trim() !== '' &&
+      user.selectedLocation.locationName &&
+      user.selectedLocation.locationName.trim() !== ''
     )
 
     // Debug logging to see what we're checking
@@ -777,6 +941,7 @@ export const getOnboardingStatus = async (req, res, next) => {
       hasSelectedLocation: !!user.selectedLocation,
       locationId: user.selectedLocation?.locationId,
       locationName: user.selectedLocation?.locationName,
+      locationAddress: user.selectedLocation?.locationAddress,
       hasSelectedSpa,
       selectedLocationObject: user.selectedLocation,
     })
@@ -814,15 +979,20 @@ export const getCurrentUser = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
-    // SAME logic as onboarding status
+    // SAME improved logic as onboarding status
     const hasSelectedSpa = !!(
       user.selectedLocation &&
-      ((user.selectedLocation.locationId &&
-        user.selectedLocation.locationId !== null) ||
-        (user.selectedLocation.locationName &&
-          user.selectedLocation.locationName !== null &&
-          user.selectedLocation.locationName.trim() !== ''))
+      user.selectedLocation.locationId &&
+      user.selectedLocation.locationId.trim() !== '' &&
+      user.selectedLocation.locationName &&
+      user.selectedLocation.locationName.trim() !== ''
     )
+
+    console.log('getCurrentUser Debug:', {
+      userId: user._id,
+      hasSelectedSpa,
+      selectedLocation: user.selectedLocation,
+    })
 
     // Add hasSelectedSpa to user object for frontend
     const userWithStatus = {
@@ -1174,5 +1344,212 @@ export const changePassword = async (req, res, next) => {
     })
   } catch (error) {
     next(error)
+  }
+}
+
+export const selectSpa = async (req, res, next) => {
+  try {
+    const { locationId, referralCode } = req.body
+    const userId = req.user.id
+
+    console.log('selectSpa called with:', { locationId, referralCode, userId })
+
+    if (!locationId) {
+      return next(createError(400, 'Location ID is required'))
+    }
+
+    // Find the user
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Find the location data
+    const location = await Location.findOne({
+      locationId: locationId,
+      isActive: true,
+    })
+
+    if (!location) {
+      return next(createError(404, 'Location not found or inactive'))
+    }
+
+    console.log('Found location:', location)
+
+    // Update user's selected location with actual data
+    const locationData = {
+      locationId: location.locationId,
+      locationName: location.name,
+      locationAddress: location.address,
+      locationPhone: location.phone,
+      selectedAt: new Date(),
+    }
+
+    user.selectedLocation = locationData
+
+    // Mark profile as completed since they selected a spa
+    user.profileCompleted = true
+
+    await user.save()
+
+    console.log('User updated with location:', user.selectedLocation)
+
+    // Initialize rewards response
+    let rewardResponse = {
+      profileCompletion: 50, // Base points for completing profile
+      referral: { success: false },
+    }
+
+    // Process referral if provided
+    if (referralCode && referralCode.trim()) {
+      try {
+        const referralResult = await processReferralOnSpaSelection(
+          userId,
+          referralCode.trim()
+        )
+        rewardResponse.referral = referralResult
+        console.log('Referral processing result:', referralResult)
+      } catch (error) {
+        console.error('Referral processing error:', error)
+        // Don't fail the entire request if referral fails
+      }
+    }
+
+    // Award profile completion points
+    user.points = (user.points || 0) + rewardResponse.profileCompletion
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Spa selected successfully',
+      data: {
+        user: {
+          id: user._id,
+          selectedLocation: user.selectedLocation,
+          profileCompleted: user.profileCompleted,
+          points: user.points,
+        },
+        rewards: rewardResponse,
+      },
+    })
+  } catch (error) {
+    console.error('Error in selectSpa:', error)
+    next(createError(500, 'Failed to select spa'))
+  }
+}
+
+// Helper function for referral processing when spa is selected
+const processReferralOnSpaSelection = async (referredUserId, referralCode) => {
+  try {
+    // Find the referrer
+    const referrer = await User.findOne({
+      referralCode: referralCode.toUpperCase(),
+      isDeleted: false,
+    })
+
+    if (!referrer) {
+      return {
+        success: false,
+        message: 'Invalid referral code',
+      }
+    }
+
+    const referredUser = await User.findById(referredUserId)
+    if (!referredUser) {
+      return {
+        success: false,
+        message: 'Referred user not found',
+      }
+    }
+
+    // Check if already referred
+    if (referredUser.referredBy) {
+      return {
+        success: false,
+        message: 'User was already referred by someone else',
+      }
+    }
+
+    // Get referral config (you might want to create this model)
+    const referralRewards = {
+      referrerPoints: 100,
+      referredPoints: 50,
+    }
+
+    // Create or update referral record
+    let referral = await Referral.findOne({
+      referrer: referrer._id,
+      referred: referredUserId,
+    })
+
+    if (!referral) {
+      referral = await Referral.create({
+        referrer: referrer._id,
+        referred: referredUserId,
+        referralCode: referralCode.toUpperCase(),
+        rewardType: 'spa_selection',
+        status: 'completed',
+        referrerReward: {
+          points: referralRewards.referrerPoints,
+          awarded: true,
+          awardedAt: new Date(),
+        },
+        referredReward: {
+          points: referralRewards.referredPoints,
+          awarded: true,
+          awardedAt: new Date(),
+        },
+      })
+    } else {
+      // Update existing referral
+      referral.status = 'completed'
+      referral.referrerReward.points = referralRewards.referrerPoints
+      referral.referrerReward.awarded = true
+      referral.referrerReward.awardedAt = new Date()
+      referral.referredReward.points = referralRewards.referredPoints
+      referral.referredReward.awarded = true
+      referral.referredReward.awardedAt = new Date()
+      await referral.save()
+    }
+
+    // Award points to both users
+    referrer.points = (referrer.points || 0) + referralRewards.referrerPoints
+    referredUser.points =
+      (referredUser.points || 0) + referralRewards.referredPoints
+    referredUser.referredBy = referrer._id
+
+    await Promise.all([referrer.save(), referredUser.save()])
+
+    // Create notifications
+    await createSystemNotification(
+      referrer._id,
+      'Referral Bonus!',
+      `${referredUser.name} joined your spa! You earned ${referralRewards.referrerPoints} bonus points.`,
+      {
+        category: 'referral',
+        priority: 'normal',
+        metadata: {
+          type: 'referral_reward',
+          referredUser: referredUser.name,
+          points: referralRewards.referrerPoints,
+        },
+      }
+    )
+
+    return {
+      success: true,
+      message: 'Referral bonus applied successfully',
+      data: {
+        referrerName: referrer.name,
+        referrerPoints: referralRewards.referrerPoints,
+        referredPoints: referralRewards.referredPoints,
+      },
+    }
+  } catch (error) {
+    console.error('Error processing referral:', error)
+    return {
+      success: false,
+      message: 'Failed to process referral bonus',
+    }
   }
 }

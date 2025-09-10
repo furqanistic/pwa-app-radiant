@@ -191,6 +191,18 @@ export const authService = {
       return false
     })
   },
+  assignLocationToUser: async (userId, locationId) => {
+    const response = await axiosInstance.post('/auth/assign-location', {
+      userId,
+      locationId,
+    })
+    return response.data
+  },
+
+  getAssignableUsers: async () => {
+    const response = await axiosInstance.get('/auth/assignable-users')
+    return response.data
+  },
 
   formatRoleName: (role) => {
     const roleMap = {

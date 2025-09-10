@@ -1,5 +1,9 @@
 // File: client/src/pages/Layout/Layout.jsx
-import { logout, selectIsAdmin } from '@/redux/userSlice'
+import {
+  logout,
+  selectIsElevatedUser,
+  selectIsSuperAdmin,
+} from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Calendar,
@@ -88,8 +92,9 @@ const Layout = ({
   const location = useLocation()
   const dispatch = useDispatch()
 
-  // Add selector to check if user is admin
-  const isAdmin = useSelector(selectIsAdmin)
+  // Add selectors to check user roles
+  const isSuperAdmin = useSelector(selectIsSuperAdmin)
+  const isElevatedUser = useSelector(selectIsElevatedUser)
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -119,7 +124,7 @@ const Layout = ({
     setIsNavigating(false)
   }, [location.pathname, location.search, location.hash])
 
-  // Base navigation items
+  // Base navigation items with role-based access control
   const baseNavigationItems = [
     {
       id: 'dashboard',
@@ -127,13 +132,14 @@ const Layout = ({
       icon: LayoutDashboard,
       href: '/dashboard',
       badge: null,
+      // Available to everyone
     },
     {
       id: 'contacts',
       label: 'Contacts',
       icon: Contact2,
       href: '/contacts',
-      adminOnly: true, // Mark this as admin-only
+      superAdminOnly: true, // Only super-admin can access
     },
     {
       id: 'bookings',
@@ -145,6 +151,7 @@ const Layout = ({
         color:
           'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
       },
+      // Available to everyone
     },
     {
       id: 'clients',
@@ -152,6 +159,7 @@ const Layout = ({
       icon: Users,
       href: '/management',
       badge: null,
+      elevatedAccessRequired: true, // Requires elevated access (super-admin, admin, team, enterprise)
     },
     {
       id: 'services',
@@ -163,6 +171,7 @@ const Layout = ({
         color:
           'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
       },
+      // Available to everyone
     },
     {
       id: 'referrals',
@@ -170,6 +179,7 @@ const Layout = ({
       icon: Gift,
       href: '/referrals',
       badge: null,
+      // Available to everyone
     },
     {
       id: 'gamification',
@@ -181,16 +191,16 @@ const Layout = ({
         color:
           'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
       },
+      hideForElevated: true,
+      // Available to everyone
     },
   ]
 
   // Filter navigation items based on user role
   const navigationItems = baseNavigationItems.filter((item) => {
-    // If item is admin-only, only show it to admins
-    if (item.adminOnly) {
-      return isAdmin
-    }
-    // Show all other items to everyone
+    if (item.superAdminOnly) return isSuperAdmin
+    if (item.elevatedAccessRequired) return isElevatedUser
+    if (item.hideForElevated && isElevatedUser) return false // 👈 hide for elevated
     return true
   })
 

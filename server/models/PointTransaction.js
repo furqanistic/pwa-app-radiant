@@ -1,4 +1,4 @@
-// File: server/models/PointTransaction.js
+// File: server/models/PointTransaction.js - FIXED ENUM VALUES
 import mongoose from 'mongoose'
 
 const PointTransactionSchema = new mongoose.Schema(
@@ -19,6 +19,9 @@ const PointTransactionSchema = new mongoose.Schema(
         'refund',
         'bonus',
         'adjustment',
+        'spent', // ADDED: For spending points on games
+        'earned', // ADDED: For earning points from games
+        'game_play', // ADDED: For game-related transactions
       ],
       required: true,
     },
@@ -36,11 +39,40 @@ const PointTransactionSchema = new mongoose.Schema(
     },
     reference: {
       type: mongoose.Schema.Types.ObjectId,
-      refId: true, // Can reference different models
+      refPath: 'referenceModel', // FIXED: Use refPath for dynamic references
     },
     referenceModel: {
       type: String,
-      enum: ['Referral', 'Reward', 'Withdrawal', 'Booking'],
+      enum: [
+        'Referral',
+        'Reward',
+        'Withdrawal',
+        'Booking',
+        'GameWheel',
+        'UserReward',
+      ],
+    },
+    // NEW: Game-specific metadata
+    gameMetadata: {
+      gameId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'GameWheel',
+      },
+      gameType: {
+        type: String,
+        enum: ['spin', 'scratch'],
+      },
+      gameTitle: String,
+      winningItem: {
+        title: String,
+        value: String,
+        valueType: String,
+      },
+    },
+    // Location tracking
+    locationId: {
+      type: String,
+      index: true,
     },
     metadata: {
       type: Map,
@@ -56,6 +88,8 @@ const PointTransactionSchema = new mongoose.Schema(
 PointTransactionSchema.index({ user: 1, createdAt: -1 })
 PointTransactionSchema.index({ type: 1, createdAt: -1 })
 PointTransactionSchema.index({ reference: 1 })
+PointTransactionSchema.index({ 'gameMetadata.gameId': 1 })
+PointTransactionSchema.index({ locationId: 1 })
 
 // Pre-save middleware to calculate balance
 PointTransactionSchema.pre('save', async function (next) {

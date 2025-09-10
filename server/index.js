@@ -17,7 +17,7 @@ import referralRoutes from './routes/referral.js'
 import rewardsRouter from './routes/rewards.js'
 import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
-
+import userRewardsRouter from './routes/userRewards.js'
 const app = express()
 
 // Load environment variables first
@@ -83,6 +83,7 @@ app.use('/api/rewards', rewardsRouter)
 app.use('/api/games', gameWheelRoutes)
 app.use('/api/bookings', bookingsRouter) // NEW
 app.use('/api/dashboard', dashboardRouter) // NEW
+app.use('/api/user-rewards', userRewardsRouter)
 
 const connect = () => {
   mongoose
