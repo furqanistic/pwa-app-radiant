@@ -1,4 +1,5 @@
-// File: client/src/pages/Management/ManagementPage.jsx
+// File: client/src/pages/Management/ManagementPage.jsx - COMPLETE FIXED VERSION
+
 import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -6,6 +7,7 @@ import {
   Award,
   Bell,
   Building,
+  Calculator,
   ChevronLeft,
   ChevronRight,
   Edit,
@@ -33,6 +35,7 @@ import AddUserForm from '@/components/Management/AddUserForm'
 import LocationAssignmentForm from '@/components/Management/LocationAssignmentForm'
 import LocationForm from '@/components/Management/LocationForm'
 import NotificationSender from '@/components/Management/NotificationSender'
+import PointsManager from '@/components/Management/PointsManager'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -48,13 +51,17 @@ const ManagementPage = () => {
   const queryClient = useQueryClient()
   const { currentUser } = useSelector((state) => state.user)
 
-  // State management
+  // State management - ALL STATES DEFINED
   const [isAddUserOpen, setIsAddUserOpen] = useState(false)
   const [isLocationFormOpen, setIsLocationFormOpen] = useState(false)
   const [isLocationAssignmentOpen, setIsLocationAssignmentOpen] =
     useState(false)
   const [isNotificationSenderOpen, setIsNotificationSenderOpen] =
     useState(false)
+  const [isPointsManagerOpen, setIsPointsManagerOpen] = useState(false)
+  const [selectedUserForNotification, setSelectedUserForNotification] =
+    useState(null)
+  const [selectedUserForPoints, setSelectedUserForPoints] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
@@ -133,7 +140,7 @@ const ManagementPage = () => {
       icon: Settings,
       path: '/management/services',
       color: 'from-blue-500 to-blue-600',
-      visible: isElevatedUser, // Changed from isAdminOrAbove to isElevatedUser
+      visible: isElevatedUser,
     },
     {
       title: 'Spin & Games',
@@ -141,7 +148,7 @@ const ManagementPage = () => {
       icon: Zap,
       path: '/management/spin',
       color: 'from-purple-500 to-purple-600',
-      visible: isElevatedUser, // Changed from isAdminOrAbove to isElevatedUser
+      visible: isElevatedUser,
     },
     {
       title: 'Rewards System',
@@ -149,7 +156,7 @@ const ManagementPage = () => {
       icon: Gift,
       path: '/management/rewards',
       color: 'from-green-500 to-green-600',
-      visible: isElevatedUser, // Changed from isAdminOrAbove to isElevatedUser
+      visible: isElevatedUser,
     },
     {
       title: 'Referral Program',
@@ -157,7 +164,7 @@ const ManagementPage = () => {
       icon: Award,
       path: '/management/referral',
       color: 'from-pink-500 to-pink-600',
-      visible: isElevatedUser, // Changed from isAdminOrAbove to isElevatedUser
+      visible: isElevatedUser,
     },
   ]
 
@@ -179,6 +186,27 @@ const ManagementPage = () => {
 
   const handleCreateUser = async (userData) => {
     await createUserMutation.mutateAsync(userData)
+  }
+
+  // ALL HANDLER FUNCTIONS DEFINED
+  const handleOpenNotificationSender = (user = null) => {
+    setSelectedUserForNotification(user)
+    setIsNotificationSenderOpen(true)
+  }
+
+  const handleCloseNotificationSender = () => {
+    setSelectedUserForNotification(null)
+    setIsNotificationSenderOpen(false)
+  }
+
+  const handleOpenPointsManager = (user = null) => {
+    setSelectedUserForPoints(user)
+    setIsPointsManagerOpen(true)
+  }
+
+  const handleClosePointsManager = () => {
+    setSelectedUserForPoints(null)
+    setIsPointsManagerOpen(false)
   }
 
   const renderPagination = () => {
@@ -304,7 +332,7 @@ const ManagementPage = () => {
             </p>
           </div>
 
-          {/* UPDATED: Navigation Cards - Now for Elevated Users (admin, team, enterprise, super-admin) */}
+          {/* Navigation Cards */}
           {isElevatedUser && (
             <div className='mb-8'>
               <h2 className='text-xl font-semibold text-gray-900 mb-4'>
@@ -340,10 +368,10 @@ const ManagementPage = () => {
               Add User
             </Button>
 
-            {/* NEW: Send Notification Button - For Elevated Users */}
+            {/* Send Notification Button - For Elevated Users */}
             {isElevatedUser && (
               <Button
-                onClick={() => setIsNotificationSenderOpen(true)}
+                onClick={() => handleOpenNotificationSender()}
                 className='bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700'
               >
                 <Bell className='w-4 h-4 mr-2' />
@@ -451,7 +479,11 @@ const ManagementPage = () => {
                     </thead>
                     <tbody className='bg-white divide-y divide-gray-200'>
                       {users.map((user) => (
-                        <tr key={user._id} className='hover:bg-gray-50'>
+                        <tr
+                          key={user._id}
+                          className='hover:bg-gray-50 cursor-pointer'
+                          onClick={() => navigate(`/client/${user._id}`)}
+                        >
                           <td className='px-6 py-4 whitespace-nowrap'>
                             <div className='flex items-center'>
                               <div className='flex-shrink-0 h-10 w-10'>
@@ -502,32 +534,68 @@ const ManagementPage = () => {
                           <td className='px-6 py-4 whitespace-nowrap text-sm font-medium'>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant='ghost' size='sm'>
+                                <Button
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={(e) => e.stopPropagation()} // Prevent row click when clicking dropdown
+                                >
                                   <MoreVertical className='w-4 h-4' />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align='end'>
-                                <DropdownMenuItem>
-                                  <Edit className='w-4 h-4 mr-2' />
-                                  Edit User
-                                </DropdownMenuItem>
-                                {/* NEW: Send Notification to specific user */}
+                                {/* Edit User - Only admin and super-admin */}
+                                {isAdminOrAbove && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      navigate(`/client/${user._id}`)
+                                    }}
+                                  >
+                                    <Edit className='w-4 h-4 mr-2' />
+                                    Edit User
+                                  </DropdownMenuItem>
+                                )}
+                                {/* Points Management for elevated users */}
                                 {isElevatedUser && (
                                   <DropdownMenuItem
-                                    onClick={() => {
-                                      setIsNotificationSenderOpen(true)
-                                      // You can pass the specific user to the notification sender
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenPointsManager(user)
+                                    }}
+                                  >
+                                    <Calculator className='w-4 h-4 mr-2' />
+                                    Manage Points
+                                  </DropdownMenuItem>
+                                )}
+                                {/* Send Notification to specific user */}
+                                {isElevatedUser && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenNotificationSender(user)
                                     }}
                                   >
                                     <Send className='w-4 h-4 mr-2' />
                                     Send Notification
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className='text-red-600'>
-                                  <Trash2 className='w-4 h-4 mr-2' />
-                                  Delete User
-                                </DropdownMenuItem>
+                                {/* Separator only if there are actions above and delete below */}
+                                {(isAdminOrAbove || isElevatedUser) &&
+                                  isAdminOrAbove && <DropdownMenuSeparator />}
+                                {/* Delete User - Only admin and super-admin */}
+                                {isAdminOrAbove && (
+                                  <DropdownMenuItem
+                                    className='text-red-600'
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      // Add delete functionality here
+                                      console.log('Delete user:', user._id)
+                                    }}
+                                  >
+                                    <Trash2 className='w-4 h-4 mr-2' />
+                                    Delete User
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>
@@ -626,20 +694,30 @@ const ManagementPage = () => {
           )}
         </div>
 
-        {/* Modals */}
+        {/* ALL MODALS DEFINED */}
         <AddUserForm
           isOpen={isAddUserOpen}
           onClose={() => setIsAddUserOpen(false)}
           onSubmit={handleCreateUser}
         />
 
-        {/* NEW: Notification Sender Modal */}
+        {/* Notification Sender Modal */}
         {isElevatedUser && (
           <NotificationSender
             isOpen={isNotificationSenderOpen}
-            onClose={() => setIsNotificationSenderOpen(false)}
+            onClose={handleCloseNotificationSender}
             users={users}
             currentUser={currentUser}
+            preSelectedUser={selectedUserForNotification}
+          />
+        )}
+
+        {/* Points Manager Modal */}
+        {isElevatedUser && (
+          <PointsManager
+            isOpen={isPointsManagerOpen}
+            onClose={handleClosePointsManager}
+            user={selectedUserForPoints}
           />
         )}
 

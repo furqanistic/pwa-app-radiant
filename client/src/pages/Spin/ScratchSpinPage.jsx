@@ -5,6 +5,7 @@ import {
   CheckCircle,
   Clock,
   Coins,
+  Gift,
   Heart,
   Loader2,
   MapPin,

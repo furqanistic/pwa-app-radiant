@@ -193,7 +193,7 @@ const SuccessMessage = ({ selectedSpa, rewardData, onContinue }) => (
     <p className='text-sm text-gray-500 mb-4'>{selectedSpa.address}</p>
 
     {rewardData && (
-      <div className='bg-gradient-to-r from-pink-50 to-emerald-50 border border-pink-200 rounded-lg p-4 mb-4'>
+      <div className='bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-lg p-4 mb-4'>
         <div className='flex items-center justify-center gap-2 mb-2'>
           <Award className='w-5 h-5 text-pink-600' />
           <span className='font-semibold text-pink-800'>Points Earned!</span>

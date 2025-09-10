@@ -105,15 +105,6 @@ const SpaSelectionGuard = ({ children }) => {
     setHasInitialCheck(true)
   }
 
-  console.log('SpaSelectionGuard Debug:', {
-    hasSelectedSpa,
-    isOnWelcomePage,
-    userHasSpaInRedux,
-    shouldCheckOnboarding,
-    currentPath: location.pathname,
-    hasInitialCheck,
-  })
-
   // Redirect logic remains the same
   if (!hasSelectedSpa && !isOnWelcomePage) {
     return <Navigate to='/welcome' replace />
