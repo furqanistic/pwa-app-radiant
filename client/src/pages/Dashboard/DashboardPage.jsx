@@ -1,11 +1,13 @@
-// File: client/src/pages/Dashboard/DashboardPage.jsx
+// File: client/src/pages/Dashboard/DashboardPage.jsx - COMPLETE ENHANCED VERSION
 import PointsCard from '@/components/Dashboard/PointsCard'
 import { useDashboardData } from '@/hooks/useDashboard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
+  AlertCircle,
   Award,
   Calendar,
+  CheckCircle,
   ChevronRight,
   Clock,
   CreditCard,
@@ -16,6 +18,7 @@ import {
   MapPin,
   Percent,
   Plus,
+  RefreshCw,
   Share2,
   ShoppingBag,
   Sparkles,
@@ -25,12 +28,13 @@ import {
   Unlock,
   UserPlus,
   Users,
+  XCircle,
   Zap,
 } from 'lucide-react'
-import React, { useState } from 'react'
-import { toast } from 'react-hot-toast'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
 // Icon mapping for string icon names from backend
@@ -42,12 +46,18 @@ const iconMap = {
   Share2: Share2,
 }
 
-// Reward Card Component - Kept from original
-const RewardCard = ({ reward, onClaim, userPoints }) => {
+// Enhanced Reward Card Component with better UX
+const RewardCard = ({
+  reward,
+  onClaim,
+  userPoints,
+  isOptimisticUpdate = false,
+}) => {
   const [isClaiming, setIsClaiming] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
+  const [claimStatus, setClaimStatus] = useState(null) // 'success', 'error', null
 
-  const canAfford = reward.canClaim
+  const canAfford = reward.canClaim && !isOptimisticUpdate
   const isAffordable = reward.isAffordable
 
   const getRewardIcon = (type) => {
@@ -88,13 +98,24 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
     if (!canAfford || isClaiming) return
 
     setIsClaiming(true)
-    setShowConfetti(true)
+    setClaimStatus(null)
 
     try {
       await onClaim(reward._id)
-      setTimeout(() => setShowConfetti(false), 2000)
+      setShowConfetti(true)
+      setClaimStatus('success')
+
+      // Auto-hide confetti
+      setTimeout(() => {
+        setShowConfetti(false)
+        setClaimStatus(null)
+      }, 3000)
     } catch (error) {
       setShowConfetti(false)
+      setClaimStatus('error')
+
+      // Auto-hide error status
+      setTimeout(() => setClaimStatus(null), 3000)
     } finally {
       setIsClaiming(false)
     }
@@ -102,47 +123,88 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
   const getButtonText = () => {
     if (isClaiming) return 'Claiming...'
+    if (claimStatus === 'success') return 'Claimed!'
+    if (claimStatus === 'error') return 'Failed - Retry'
+    if (isOptimisticUpdate) return 'Processing...'
     if (canAfford) return 'Claim'
     if (!reward.canClaimMoreThisMonth) return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
   }
 
+  const getButtonIcon = () => {
+    if (isClaiming)
+      return (
+        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
+      )
+    if (claimStatus === 'success') return <CheckCircle className='w-4 h-4' />
+    if (claimStatus === 'error') return <XCircle className='w-4 h-4' />
+    if (isOptimisticUpdate) return <Clock className='w-4 h-4' />
+    return null
+  }
+
   return (
-    <div
-      className={`relative bg-white rounded-2xl overflow-hidden transition-all border ${
-        canAfford
-          ? 'hover:border-pink-300 cursor-pointer group border-pink-100'
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      whileHover={{ y: canAfford ? -2 : 0 }}
+      className={`relative bg-white rounded-2xl overflow-hidden transition-all border-2 ${
+        canAfford && !isOptimisticUpdate
+          ? 'border-pink-200 hover:border-pink-300 cursor-pointer group hover:shadow-lg'
+          : isOptimisticUpdate
+          ? 'border-blue-200 opacity-75'
           : 'opacity-60 border-gray-100'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
       {/* Confetti Animation */}
-      {showConfetti && (
-        <div className='absolute inset-0 z-50 pointer-events-none overflow-hidden'>
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={i}
-              className='absolute w-2 h-2 bg-pink-400 rounded-full animate-ping'
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 0.5}s`,
-                animationDuration: `${1 + Math.random()}s`,
-              }}
-            />
-          ))}
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={`heart-${i}`}
-              className='absolute text-pink-500 animate-bounce'
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 0.3}s`,
-              }}
-            >
-              <Heart className='w-3 h-3' />
-            </div>
-          ))}
+      <AnimatePresence>
+        {showConfetti && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className='absolute inset-0 z-50 pointer-events-none overflow-hidden'
+          >
+            {[...Array(12)].map((_, i) => (
+              <motion.div
+                key={i}
+                initial={{ y: -20, x: Math.random() * 100 + '%', rotate: 0 }}
+                animate={{
+                  y: '120%',
+                  rotate: 360,
+                  transition: {
+                    duration: 2 + Math.random(),
+                    delay: Math.random() * 0.5,
+                  },
+                }}
+                className='absolute w-3 h-3 bg-gradient-to-r from-pink-400 to-purple-400 rounded-full'
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Status Indicator */}
+      {(claimStatus || isOptimisticUpdate) && (
+        <div className='absolute top-2 right-2 z-40'>
+          <div
+            className={`p-2 rounded-full ${
+              claimStatus === 'success'
+                ? 'bg-green-500 text-white'
+                : claimStatus === 'error'
+                ? 'bg-red-500 text-white'
+                : 'bg-blue-500 text-white'
+            }`}
+          >
+            {claimStatus === 'success' ? (
+              <CheckCircle className='w-4 h-4' />
+            ) : claimStatus === 'error' ? (
+              <XCircle className='w-4 h-4' />
+            ) : (
+              <Clock className='w-4 h-4' />
+            )}
+          </div>
         </div>
       )}
 
@@ -154,7 +216,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
           }
           alt={reward.name}
           className={`w-full h-full object-cover transition-transform duration-300 ${
-            canAfford ? 'group-hover:scale-105' : ''
+            canAfford && !isOptimisticUpdate ? 'group-hover:scale-105' : ''
           }`}
         />
 
@@ -163,7 +225,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
           <span
             className={`bg-gradient-to-r ${getRewardColor(
               reward.type
-            )} text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1`}
+            )} text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 backdrop-blur-sm`}
           >
             {getRewardIcon(reward.type)}
             <span className='hidden sm:inline'>
@@ -174,7 +236,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
         {/* Point Cost */}
         <div className='absolute top-3 right-3'>
-          <span className='bg-black/70 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
+          <span className='bg-black/70 backdrop-blur-sm text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
             <Zap className='w-3 h-3' />
             {reward.pointCost}
           </span>
@@ -183,10 +245,10 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
         {/* Status Badge */}
         <div className='absolute bottom-3 left-3'>
           <span
-            className={`px-2 py-1 rounded-full text-xs font-bold ${
+            className={`px-2 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${
               reward.status === 'active'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-500 text-white'
+                ? 'bg-green-500/90 text-white'
+                : 'bg-gray-500/90 text-white'
             }`}
           >
             {reward.status}
@@ -204,7 +266,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
         </p>
 
         {/* Reward Value */}
-        <div className='bg-pink-50 p-3 rounded-xl mb-3'>
+        <div className='bg-gradient-to-r from-pink-50 to-purple-50 p-3 rounded-xl mb-3'>
           <div className='flex items-center justify-between'>
             <span className='text-sm font-semibold text-gray-700'>Value:</span>
             <span className='font-bold text-base text-gray-900'>
@@ -213,7 +275,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
           </div>
         </div>
 
-        {/* Details */}
+        {/* Details Grid */}
         <div className='grid grid-cols-2 gap-3 mb-4'>
           <div className='text-center bg-gray-50 rounded-xl p-3'>
             <div className='text-xs text-gray-500 mb-1'>Valid For</div>
@@ -230,33 +292,41 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
         </div>
 
         {/* Claim Button */}
-        <button
+        <motion.button
           onClick={handleClaim}
-          disabled={!canAfford || isClaiming}
+          disabled={!canAfford || isClaiming || isOptimisticUpdate}
+          whileTap={{ scale: canAfford ? 0.98 : 1 }}
           className={`w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
             isClaiming
               ? 'bg-pink-400 text-white cursor-wait'
+              : claimStatus === 'success'
+              ? 'bg-green-500 text-white'
+              : claimStatus === 'error'
+              ? 'bg-red-500 text-white hover:bg-red-600'
+              : isOptimisticUpdate
+              ? 'bg-blue-400 text-white cursor-not-allowed'
               : canAfford
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform'
+              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 hover:scale-[1.02] transform'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-          } ${isClaiming ? 'animate-pulse' : ''}`}
+          }`}
         >
-          {isClaiming ? (
-            <>
-              <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin' />
-              Claiming...
-            </>
-          ) : (
-            getButtonText()
-          )}
-        </button>
+          {getButtonIcon()}
+          {getButtonText()}
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
-// Enhanced Card Component
-const DashboardCard = ({ children, className = '', gradient = 'default' }) => {
+// Enhanced Card Component with loading states
+const DashboardCard = ({
+  children,
+  className = '',
+  gradient = 'default',
+  isLoading = false,
+  title = '',
+  description = '',
+}) => {
   const gradients = {
     default: 'bg-white border-2 border-pink-100',
     pink: 'bg-gradient-to-br from-pink-50 to-pink-100 border-2 border-pink-200',
@@ -264,6 +334,29 @@ const DashboardCard = ({ children, className = '', gradient = 'default' }) => {
       'bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200',
     indigo:
       'bg-gradient-to-br from-indigo-50 to-indigo-100 border-2 border-indigo-200',
+  }
+
+  if (isLoading) {
+    return (
+      <div
+        className={`${gradients[gradient]} rounded-2xl sm:rounded-3xl p-4 sm:p-6 ${className}`}
+      >
+        <div className='animate-pulse'>
+          <div className='flex items-center mb-4'>
+            <div className='w-12 h-12 bg-gray-300 rounded-xl mr-4'></div>
+            <div>
+              <div className='h-6 bg-gray-300 rounded w-32 mb-2'></div>
+              <div className='h-4 bg-gray-300 rounded w-24'></div>
+            </div>
+          </div>
+          <div className='space-y-3'>
+            <div className='h-4 bg-gray-300 rounded'></div>
+            <div className='h-4 bg-gray-300 rounded w-3/4'></div>
+            <div className='h-4 bg-gray-300 rounded w-1/2'></div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -278,60 +371,136 @@ const DashboardCard = ({ children, className = '', gradient = 'default' }) => {
   )
 }
 
-// Spa Rewards Section Component
+// Enhanced Spa Rewards Section with optimistic updates
 const SpaRewardsSection = () => {
   const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const { currentUser } = useSelector((state) => state.user)
+  const [optimisticRewards, setOptimisticRewards] = useState(new Set())
+
   const {
     rewards = [],
     userPoints = 0,
     stats = {},
     isLoading,
     error,
+    refetch,
   } = useEnhancedRewardsCatalog({})
 
   const claimRewardMutation = useClaimReward({
-    onSuccess: (data) => {
-      toast.success(
-        `🎉 Reward claimed! You now have ${data.data.newPointBalance} points.`
-      )
+    onSuccess: (data, rewardId) => {
+      // Remove from optimistic updates
+      setOptimisticRewards((prev) => {
+        const next = new Set(prev)
+        next.delete(rewardId)
+        return next
+      })
+
+      // Update user points in Redux store
+      dispatch({
+        type: 'user/setPoints',
+        payload: data.data.newPointBalance,
+      })
+
+      // Sonner success notification
+      toast.success('Reward claimed successfully!', {
+        description: `You spent ${data.data.pointsSpent} points. New balance: ${data.data.newPointBalance}`,
+        duration: 4000,
+      })
+
+      // Refresh rewards data
+      refetch()
     },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to claim reward')
+    onError: (error, rewardId) => {
+      // Remove from optimistic updates
+      setOptimisticRewards((prev) => {
+        const next = new Set(prev)
+        next.delete(rewardId)
+        return next
+      })
+
+      // Sonner error notification
+      toast.error('Failed to claim reward', {
+        description: error.response?.data?.message || 'Please try again later',
+        duration: 5000,
+      })
     },
   })
 
   const handleClaimReward = async (rewardId) => {
+    // Add optimistic update
+    setOptimisticRewards((prev) => new Set([...prev, rewardId]))
+
+    // Optimistically update user points in Redux
+    const reward = rewards.find((r) => r._id === rewardId)
+    if (reward) {
+      dispatch({
+        type: 'user/subtractPoints',
+        payload: reward.pointCost,
+      })
+    }
+
     claimRewardMutation.mutate(rewardId)
   }
 
   const lastThreeRewards = rewards.slice(-3).reverse()
 
+  // Pull to refresh handler for PWA
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      await refetch()
+      toast.success('Rewards refreshed!')
+    } catch (error) {
+      toast.error('Failed to refresh')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [refetch])
+
+  // Add pull-to-refresh gesture
+  useEffect(() => {
+    let startY = 0
+    let currentY = 0
+    let pullDistance = 0
+
+    const handleTouchStart = (e) => {
+      startY = e.touches[0].clientY
+    }
+
+    const handleTouchMove = (e) => {
+      currentY = e.touches[0].clientY
+      pullDistance = currentY - startY
+
+      if (pullDistance > 100 && window.scrollY === 0) {
+        e.preventDefault()
+      }
+    }
+
+    const handleTouchEnd = () => {
+      if (pullDistance > 100 && window.scrollY === 0) {
+        handleRefresh()
+      }
+      pullDistance = 0
+    }
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: true })
+    document.addEventListener('touchmove', handleTouchMove, { passive: false })
+    document.addEventListener('touchend', handleTouchEnd, { passive: true })
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [handleRefresh])
+
   if (isLoading) {
     return (
       <div className='mb-4 sm:mb-6 lg:mb-8'>
-        <DashboardCard>
-          <div className='flex items-center mb-4 sm:mb-6'>
-            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-            </div>
-            <div>
-              <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
-                Spa Rewards
-              </h2>
-              <p className='text-xs sm:text-sm text-gray-600'>
-                Loading your rewards...
-              </p>
-            </div>
-          </div>
-          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6'>
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className='bg-gray-200 rounded-2xl h-80 animate-pulse'
-              ></div>
-            ))}
-          </div>
-        </DashboardCard>
+        <DashboardCard isLoading={true} />
       </div>
     )
   }
@@ -341,8 +510,16 @@ const SpaRewardsSection = () => {
       <div className='mb-4 sm:mb-6 lg:mb-8'>
         <DashboardCard>
           <div className='text-center py-8'>
-            <div className='text-3xl mb-2'>💔</div>
-            <p className='text-gray-600'>Unable to load rewards at this time</p>
+            <AlertCircle className='w-12 h-12 text-red-500 mx-auto mb-3' />
+            <p className='text-gray-600 mb-4'>
+              Unable to load rewards at this time
+            </p>
+            <button
+              onClick={handleRefresh}
+              className='bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors'
+            >
+              Try Again
+            </button>
           </div>
         </DashboardCard>
       </div>
@@ -354,8 +531,15 @@ const SpaRewardsSection = () => {
       <div className='mb-4 sm:mb-6 lg:mb-8'>
         <DashboardCard>
           <div className='text-center py-8'>
-            <div className='text-4xl mb-3'>🎁</div>
-            <p className='text-gray-600'>New rewards coming soon!</p>
+            <Gift className='w-12 h-12 text-gray-400 mx-auto mb-3' />
+            <p className='text-gray-600 mb-4'>New rewards coming soon!</p>
+            <button
+              onClick={handleRefresh}
+              className='bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors flex items-center gap-2 mx-auto'
+            >
+              <RefreshCw className='w-4 h-4' />
+              Refresh
+            </button>
           </div>
         </DashboardCard>
       </div>
@@ -381,11 +565,25 @@ const SpaRewardsSection = () => {
           </div>
           <div className='flex items-center gap-2'>
             <span className='bg-pink-100 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold'>
-              {lastThreeRewards.filter((r) => r.canClaim).length} Available
+              {
+                lastThreeRewards.filter(
+                  (r) => r.canClaim && !optimisticRewards.has(r._id)
+                ).length
+              }{' '}
+              Available
             </span>
             <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className='text-pink-600 hover:text-pink-700 p-2 rounded-lg hover:bg-pink-50 transition-colors'
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+              />
+            </button>
+            <button
               onClick={() => navigate('/rewards')}
-              className='text-pink-600 hover:text-pink-700 flex items-center gap-1 text-sm font-semibold'
+              className='text-pink-600 hover:text-pink-700 flex items-center gap-1 text-sm font-semibold hover:bg-pink-50 px-3 py-2 rounded-lg transition-colors'
             >
               View All
               <ChevronRight className='w-4 h-4' />
@@ -394,14 +592,17 @@ const SpaRewardsSection = () => {
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6'>
-          {lastThreeRewards.map((reward) => (
-            <RewardCard
-              key={reward._id}
-              reward={reward}
-              onClaim={handleClaimReward}
-              userPoints={userPoints}
-            />
-          ))}
+          <AnimatePresence mode='wait'>
+            {lastThreeRewards.map((reward) => (
+              <RewardCard
+                key={reward._id}
+                reward={reward}
+                onClaim={handleClaimReward}
+                userPoints={currentUser?.points || userPoints}
+                isOptimisticUpdate={optimisticRewards.has(reward._id)}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       </DashboardCard>
     </div>
@@ -451,7 +652,9 @@ const NeedMorePointsSection = ({ methods = [] }) => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.4, delay: method.id * 0.1 }}
-              className='bg-white border-2 border-purple-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-purple-300 transition-all'
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className='bg-white border-2 border-purple-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-purple-300 transition-all cursor-pointer'
             >
               <div className='flex items-start justify-between mb-3 sm:mb-4'>
                 <div className='flex items-start flex-1 min-w-0'>
@@ -476,7 +679,7 @@ const NeedMorePointsSection = ({ methods = [] }) => {
 
               <button
                 onClick={() => handleAction(method)}
-                className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'
+                className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-600 transition-all'
               >
                 {method.action}
               </button>
@@ -493,7 +696,7 @@ const DashboardPage = () => {
   const { currentUser } = useSelector((state) => state.user)
 
   // Fetch dashboard data
-  const { data: dashboardData, isLoading, error } = useDashboardData()
+  const { data: dashboardData, isLoading, error, refetch } = useDashboardData()
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -507,9 +710,16 @@ const DashboardPage = () => {
     return (
       <Layout>
         <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
-          <div className='max-w-7xl mx-auto'>
-            <div className='flex items-center justify-center h-64'>
-              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500'></div>
+          <div className='max-w-7xl mx-auto space-y-6'>
+            <DashboardCard isLoading={true} />
+            <DashboardCard isLoading={true} />
+            <div className='grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8'>
+              <div className='lg:col-span-7'>
+                <DashboardCard isLoading={true} />
+              </div>
+              <div className='lg:col-span-5'>
+                <DashboardCard isLoading={true} />
+              </div>
             </div>
           </div>
         </div>
@@ -523,11 +733,15 @@ const DashboardPage = () => {
         <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
           <div className='max-w-7xl mx-auto'>
             <div className='text-center py-12'>
-              <p className='text-red-600'>Failed to load dashboard data</p>
+              <AlertCircle className='w-16 h-16 text-red-500 mx-auto mb-4' />
+              <p className='text-red-600 mb-4 text-lg'>
+                Failed to load dashboard data
+              </p>
               <button
-                onClick={() => window.location.reload()}
-                className='mt-4 px-4 py-2 bg-pink-500 text-white rounded-lg'
+                onClick={() => refetch()}
+                className='bg-pink-500 text-white px-6 py-3 rounded-lg hover:bg-pink-600 transition-colors flex items-center gap-2 mx-auto'
               >
+                <RefreshCw className='w-4 h-4' />
                 Retry
               </button>
             </div>
@@ -581,9 +795,10 @@ const DashboardPage = () => {
                   {data.upcomingAppointments.length > 0 ? (
                     <div className='grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4'>
                       {data.upcomingAppointments.map((appointment) => (
-                        <div
+                        <motion.div
                           key={appointment._id}
-                          className='bg-white border-2 border-pink-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-pink-300 transition-colors'
+                          whileHover={{ scale: 1.02 }}
+                          className='bg-white border-2 border-pink-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-pink-300 transition-colors cursor-pointer'
                         >
                           <h3 className='text-sm sm:text-base lg:text-lg font-bold text-gray-800 mb-1 sm:mb-2'>
                             {appointment.serviceName}
@@ -602,17 +817,18 @@ const DashboardPage = () => {
                               </p>
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   ) : (
                     <div className='text-center py-8'>
+                      <Calendar className='w-12 h-12 text-gray-400 mx-auto mb-4' />
                       <p className='text-gray-600 mb-4'>
                         No upcoming appointments
                       </p>
                       <button
                         onClick={() => navigate('/services')}
-                        className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-2 rounded-xl'
+                        className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-xl hover:from-pink-600 hover:to-rose-600 transition-all'
                       >
                         Book Now
                       </button>
@@ -641,7 +857,10 @@ const DashboardPage = () => {
                     </div>
                   </div>
                   <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6'>
-                    <div className='bg-white border-2 border-indigo-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-indigo-300 transition-colors'>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className='bg-white border-2 border-indigo-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-indigo-300 transition-colors cursor-pointer'
+                    >
                       <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
                         <Users className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-indigo-600' />
                       </div>
@@ -651,8 +870,11 @@ const DashboardPage = () => {
                       <p className='text-xs sm:text-sm font-semibold text-gray-700'>
                         Total
                       </p>
-                    </div>
-                    <div className='bg-white border-2 border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors'>
+                    </motion.div>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className='bg-white border-2 border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors cursor-pointer'
+                    >
                       <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
                         <Calendar className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-green-600' />
                       </div>
@@ -662,8 +884,11 @@ const DashboardPage = () => {
                       <p className='text-xs sm:text-sm font-semibold text-gray-700'>
                         This Month
                       </p>
-                    </div>
-                    <div className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-purple-300 transition-colors'>
+                    </motion.div>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
+                    >
                       <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
                         <Gift className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
                       </div>
@@ -673,7 +898,7 @@ const DashboardPage = () => {
                       <p className='text-xs sm:text-sm font-semibold text-gray-700'>
                         Points
                       </p>
-                    </div>
+                    </motion.div>
                   </div>
                   <div className='bg-white border-2 border-indigo-200 rounded-xl sm:rounded-2xl p-3 sm:p-4'>
                     <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
@@ -686,12 +911,14 @@ const DashboardPage = () => {
                           Share with friends and earn rewards
                         </p>
                       </div>
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => navigate('/referral')}
                         className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'
                       >
                         Share Now
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
                 </DashboardCard>
@@ -716,7 +943,10 @@ const DashboardPage = () => {
 
                   <div className='grid grid-cols-2 gap-3 sm:gap-4 mb-4'>
                     {/* Available Credits */}
-                    <div className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-purple-300 transition-colors'>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
+                    >
                       <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
                         <CreditCard className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
                       </div>
@@ -726,10 +956,13 @@ const DashboardPage = () => {
                       <p className='text-xs sm:text-sm font-semibold text-gray-700'>
                         Available Credits
                       </p>
-                    </div>
+                    </motion.div>
 
                     {/* Gift Cards */}
-                    <div className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-pink-300 transition-colors'>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-pink-300 transition-colors cursor-pointer'
+                    >
                       <div className='bg-gradient-to-r from-pink-100 to-pink-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
                         <Gift className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-pink-600' />
                       </div>
@@ -739,12 +972,16 @@ const DashboardPage = () => {
                       <p className='text-xs sm:text-sm font-semibold text-gray-700'>
                         Gift Cards
                       </p>
-                    </div>
+                    </motion.div>
                   </div>
 
                   {/* Expiration Warning */}
                   {data.credits.expiring && (
-                    <div className='bg-amber-50 border-2 border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className='bg-amber-50 border-2 border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'
+                    >
                       <div className='flex items-center'>
                         <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mr-2 sm:mr-3' />
                         <div>
@@ -756,16 +993,18 @@ const DashboardPage = () => {
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
 
                   {/* Use Credits Button */}
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => navigate('/rewards')}
-                    className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-60 transition-all'
+                    className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-600 transition-all'
                   >
                     Use Credits
-                  </button>
+                  </motion.button>
                 </DashboardCard>
               )}
 
@@ -785,9 +1024,10 @@ const DashboardPage = () => {
                   <div className='space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 lg:max-h-96 overflow-y-auto'>
                     {data.pastVisits.length > 0 ? (
                       data.pastVisits.map((visit) => (
-                        <div
+                        <motion.div
                           key={visit._id}
-                          className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-pink-300 transition-colors'
+                          whileHover={{ scale: 1.02 }}
+                          className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-pink-300 transition-colors cursor-pointer'
                         >
                           <div className='flex items-center justify-between'>
                             <div className='flex-1 min-w-0'>
@@ -813,17 +1053,18 @@ const DashboardPage = () => {
                               ) : (
                                 <button
                                   onClick={() => navigate('/appointments')}
-                                  className='text-xs text-pink-600 hover:text-pink-700'
+                                  className='text-xs text-pink-600 hover:text-pink-700 bg-pink-50 px-2 py-1 rounded'
                                 >
                                   Rate
                                 </button>
                               )}
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       ))
                     ) : (
                       <div className='text-center py-8'>
+                        <Heart className='w-12 h-12 text-gray-400 mx-auto mb-4' />
                         <p className='text-gray-600'>No past visits yet</p>
                       </div>
                     )}

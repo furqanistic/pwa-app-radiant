@@ -160,6 +160,7 @@ export const getReward = async (req, res, next) => {
 }
 
 // Create new reward
+// Create new reward
 export const createReward = async (req, res, next) => {
   try {
     // Check permissions
@@ -336,6 +337,83 @@ export const deleteReward = async (req, res, next) => {
   } catch (error) {
     console.error('Error deleting reward:', error)
     next(createError(500, 'Failed to delete reward'))
+  }
+}
+
+// Get reward analytics/stats
+export const getRewardStats = async (req, res, next) => {
+  try {
+    const { locationId } = req.query
+
+    // Build filter based on location
+    const filter = { isDeleted: false }
+    if (locationId) {
+      filter.$or = [
+        { locationId: locationId },
+        { locationId: { $exists: false } },
+        { locationId: null },
+      ]
+    } else if (req.user.selectedLocation?.locationId) {
+      filter.$or = [
+        { locationId: req.user.selectedLocation.locationId },
+        { locationId: { $exists: false } },
+        { locationId: null },
+      ]
+    }
+
+    const stats = await Reward.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalRewards: { $sum: 1 },
+          activeRewards: {
+            $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] },
+          },
+          totalClaims: { $sum: '$redeemCount' },
+          totalValueGiven: { $sum: '$totalValue' },
+          averagePointCost: { $avg: '$pointCost' },
+        },
+      },
+    ])
+
+    const typeStats = await Reward.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$type',
+          count: { $sum: 1 },
+          totalClaims: { $sum: '$redeemCount' },
+          averagePointCost: { $avg: '$pointCost' },
+        },
+      },
+      {
+        $sort: { count: -1 },
+      },
+    ])
+
+    const result = stats[0] || {
+      totalRewards: 0,
+      activeRewards: 0,
+      totalClaims: 0,
+      totalValueGiven: 0,
+      averagePointCost: 0,
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        overview: {
+          ...result,
+          averagePointCost: Math.round(result.averagePointCost || 0),
+          totalValueGiven: Math.round(result.totalValueGiven * 100) / 100,
+        },
+        typeBreakdown: typeStats,
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching reward stats:', error)
+    next(createError(500, 'Failed to fetch reward statistics'))
   }
 }
 
@@ -633,6 +711,7 @@ export const getServicesWithRewards = async (req, res, next) => {
 }
 
 // Enhanced get rewards catalog with service integration
+// Enhanced get rewards catalog with service integration
 export const getRewardsCatalog = async (req, res, next) => {
   try {
     const {
@@ -760,7 +839,8 @@ export const getRewardsCatalog = async (req, res, next) => {
   }
 }
 
-// Enhanced claim reward with service integration
+// Replace your existing claimReward function with this:
+// Replace your claimReward function with this inline version:
 export const claimReward = async (req, res, next) => {
   try {
     console.log('=== CLAIM REWARD START ===')
@@ -773,18 +853,13 @@ export const claimReward = async (req, res, next) => {
       userPoints: req.user.points,
     })
 
-    // Get reward with service information
-    console.log('Fetching reward with service data...')
+    // Get reward
     const reward = await Reward.findById(rewardId)
-      .populate('serviceId', 'name basePrice categoryId')
-      .populate('serviceIds', 'name basePrice categoryId')
-      .populate('categoryId', 'name')
-
     if (!reward || reward.isDeleted || reward.status !== 'active') {
       return next(createError(404, 'Reward not found or inactive'))
     }
 
-    // Get user (fresh from DB to ensure latest points)
+    // Get user (fresh from DB)
     const user = await User.findById(userId)
     if (!user) {
       return next(createError(404, 'User not found'))
@@ -812,29 +887,37 @@ export const claimReward = async (req, res, next) => {
       return next(createError(400, 'Monthly limit reached for this reward'))
     }
 
-    // Check location restrictions
-    const userLocation = req.user.selectedLocation?.locationId
-    if (reward.locationId && userLocation !== reward.locationId) {
-      return next(
-        createError(400, 'This reward is not available at your location')
-      )
-    }
+    // INLINE POINT DEDUCTION - No external function needed
+    const newBalance = userPoints - reward.pointCost
 
-    // Spend points
-    const pointResult = await spendPoints(
+    // Update user's points
+    await User.findByIdAndUpdate(userId, { points: newBalance })
+
+    // Create transaction record
+    await PointTransaction.create({
+      user: userId,
+      type: 'reward',
+      points: -reward.pointCost, // Negative for spending
+      balance: newBalance,
+      description: `Claimed reward: ${reward.name}`,
+      reference: rewardId,
+      referenceModel: 'UserReward',
+      locationId: req.user.selectedLocation?.locationId,
+      metadata: {
+        previousBalance: userPoints,
+        amountSpent: reward.pointCost,
+        transactionType: 'debit',
+      },
+    })
+
+    console.log('✅ Points deducted successfully:', {
       userId,
-      reward.pointCost,
-      `Claimed reward: ${reward.name}`,
-      'reward_claim',
-      rewardId,
-      userLocation
-    )
+      amountSpent: reward.pointCost,
+      previousBalance: userPoints,
+      newBalance,
+    })
 
-    if (!pointResult.success) {
-      return next(createError(400, pointResult.error))
-    }
-
-    // Prepare enhanced reward snapshot with service data
+    // Create reward snapshot
     const rewardSnapshot = {
       name: reward.name,
       description: reward.description,
@@ -842,18 +925,14 @@ export const claimReward = async (req, res, next) => {
       pointCost: reward.pointCost,
       value: reward.value,
       validDays: reward.validDays,
-      serviceId: reward.serviceId?._id || null,
-      serviceName: reward.serviceId?.name || null,
-      categoryId: reward.categoryId?._id || null,
-      categoryName: reward.categoryId?.name || null,
     }
 
-    // Create user reward record using the enhanced static method
+    // Create user reward record
     const userRewardData = {
       userId,
       rewardId,
       rewardSnapshot,
-      locationId: userLocation,
+      locationId: req.user.selectedLocation?.locationId,
     }
 
     const userReward = await UserReward.createUserReward(userRewardData)
@@ -866,14 +945,6 @@ export const claimReward = async (req, res, next) => {
       },
     })
 
-    // Update service statistics if this is a service-specific reward
-    if (reward.serviceId) {
-      await reward.serviceId.updateRewardStats(reward.value, reward.type)
-    }
-
-    // Populate user reward for response
-    await userReward.populate('rewardId')
-
     console.log('=== CLAIM REWARD SUCCESS ===')
 
     res.status(200).json({
@@ -881,15 +952,9 @@ export const claimReward = async (req, res, next) => {
       message: 'Reward claimed successfully!',
       data: {
         userReward,
-        newPointBalance: pointResult.newBalance,
+        newPointBalance: newBalance,
         pointsSpent: reward.pointCost,
-        serviceInfo: reward.serviceId
-          ? {
-              id: reward.serviceId._id,
-              name: reward.serviceId.name,
-              basePrice: reward.serviceId.basePrice,
-            }
-          : null,
+        previousBalance: userPoints,
       },
     })
   } catch (error) {
@@ -901,24 +966,31 @@ export const claimReward = async (req, res, next) => {
       userId: req.user?.id,
     })
 
-    // Auto-refund on UserReward creation failure
+    // If UserReward creation failed, refund the points
     if (
       error.name === 'ValidationError' ||
       error.message.includes('UserReward')
     ) {
       console.log('🔄 UserReward creation failed, attempting refund...')
       try {
-        const user = await User.findById(req.user.id)
         const reward = await Reward.findById(req.params.rewardId)
+        if (reward) {
+          // Refund points by adding them back
+          const user = await User.findById(req.user.id)
+          const refundBalance = (user.points || 0) + reward.pointCost
 
-        if (user && reward) {
-          await refundPoints(
-            req.user.id,
-            reward.pointCost,
-            `Refund for failed reward claim: ${reward.name}`,
-            null,
-            req.user.selectedLocation?.locationId
-          )
+          await User.findByIdAndUpdate(req.user.id, { points: refundBalance })
+
+          // Create refund transaction
+          await PointTransaction.create({
+            user: req.user.id,
+            type: 'refund',
+            points: reward.pointCost,
+            balance: refundBalance,
+            description: `Refund for failed reward claim: ${reward.name}`,
+            locationId: req.user.selectedLocation?.locationId,
+          })
+
           console.log('✅ Points refunded successfully')
         }
       } catch (refundError) {
@@ -1000,7 +1072,7 @@ export const getPointHistory = async (req, res, next) => {
     const { page = 1, limit = 20, type = 'all' } = req.query
 
     // Build filter
-    const filter = { userId }
+    const filter = { user: userId }
     if (type !== 'all') {
       filter.type = type
     }
@@ -1023,15 +1095,15 @@ export const getPointHistory = async (req, res, next) => {
       PointTransaction.aggregate([
         {
           $match: {
-            userId: req.user._id,
+            user: req.user._id,
             type: { $in: ['earned', 'bonus', 'refund'] },
           },
         },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
+        { $group: { _id: null, total: { $sum: '$points' } } },
       ]),
       PointTransaction.aggregate([
-        { $match: { userId: req.user._id, type: 'spent' } },
-        { $group: { _id: null, total: { $sum: { $abs: '$amount' } } } },
+        { $match: { user: req.user._id, type: 'spent' } },
+        { $group: { _id: null, total: { $sum: { $abs: '$points' } } } },
       ]),
     ])
 
@@ -1064,10 +1136,6 @@ export const getPointHistory = async (req, res, next) => {
   }
 }
 
-// ===============================================
-// ADMIN POINT MANAGEMENT
-// ===============================================
-
 // Manually adjust user points (admin only)
 export const adjustUserPoints = async (req, res, next) => {
   try {
@@ -1096,35 +1164,44 @@ export const adjustUserPoints = async (req, res, next) => {
     }
 
     const currentBalance = user.points || 0
-    let newBalance
+    let result
 
     switch (type) {
       case 'add':
-        newBalance = currentBalance + amount
+        result = await addPoints(
+          userId,
+          amount,
+          `Admin adjustment: ${reason}`,
+          'adjustment',
+          null,
+          req.user.selectedLocation?.locationId
+        )
         break
       case 'remove':
-        newBalance = Math.max(0, currentBalance - amount)
+        result = await spendPoints(
+          userId,
+          amount,
+          `Admin adjustment: ${reason}`,
+          'adjustment',
+          null,
+          req.user.selectedLocation?.locationId
+        )
         break
       case 'set':
-        newBalance = amount
+        const { setUserPoints } = await import('../utils/pointHelpers.js')
+        result = await setUserPoints(
+          userId,
+          amount,
+          `Admin adjustment: ${reason}`,
+          req.user.id,
+          req.user.selectedLocation?.locationId
+        )
         break
     }
 
-    // Update user's points
-    await User.findByIdAndUpdate(userId, { points: newBalance })
-
-    // Create transaction record
-    await PointTransaction.create({
-      userId,
-      type: 'admin_adjustment',
-      amount: newBalance - currentBalance,
-      balance: newBalance,
-      reason: `Admin adjustment: ${reason}`,
-      referenceType: 'admin',
-      adminNote: reason,
-      processedBy: req.user.id,
-      locationId: req.user.selectedLocation?.locationId,
-    })
+    if (!result.success) {
+      return next(createError(400, result.error))
+    }
 
     res.status(200).json({
       status: 'success',
@@ -1133,92 +1210,15 @@ export const adjustUserPoints = async (req, res, next) => {
         user: {
           id: userId,
           name: user.name,
-          previousBalance: currentBalance,
-          newBalance,
-          adjustment: newBalance - currentBalance,
+          previousBalance: result.previousBalance,
+          newBalance: result.newBalance,
+          adjustment: result.newBalance - result.previousBalance,
         },
       },
     })
   } catch (error) {
     console.error('Error adjusting user points:', error)
     next(createError(500, 'Failed to adjust user points'))
-  }
-}
-
-// Get reward analytics/stats
-export const getRewardStats = async (req, res, next) => {
-  try {
-    const { locationId } = req.query
-
-    // Build filter based on location
-    const filter = { isDeleted: false }
-    if (locationId) {
-      filter.$or = [
-        { locationId: locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    } else if (req.user.selectedLocation?.locationId) {
-      filter.$or = [
-        { locationId: req.user.selectedLocation.locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    }
-
-    const stats = await Reward.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          totalRewards: { $sum: 1 },
-          activeRewards: {
-            $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] },
-          },
-          totalClaims: { $sum: '$redeemCount' },
-          totalValueGiven: { $sum: '$totalValue' },
-          averagePointCost: { $avg: '$pointCost' },
-        },
-      },
-    ])
-
-    const typeStats = await Reward.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: '$type',
-          count: { $sum: 1 },
-          totalClaims: { $sum: '$redeemCount' },
-          averagePointCost: { $avg: '$pointCost' },
-        },
-      },
-      {
-        $sort: { count: -1 },
-      },
-    ])
-
-    const result = stats[0] || {
-      totalRewards: 0,
-      activeRewards: 0,
-      totalClaims: 0,
-      totalValueGiven: 0,
-      averagePointCost: 0,
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        overview: {
-          ...result,
-          averagePointCost: Math.round(result.averagePointCost || 0),
-          totalValueGiven: Math.round(result.totalValueGiven * 100) / 100,
-        },
-        typeBreakdown: typeStats,
-      },
-    })
-  } catch (error) {
-    console.error('Error fetching reward stats:', error)
-    next(createError(500, 'Failed to fetch reward statistics'))
   }
 }
 

@@ -1,10 +1,19 @@
-// File: client/src/hooks/useRewards.js
-// client/src/hooks/useRewards.js
+// File: client/src/hooks/useRewards.js - Complete rewards hooks with Redux integration
 import { rewardsService } from '@/services/rewardsService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { useDispatch } from 'react-redux'
+// Import from your existing userSlice
+import {
+  rollbackPoints,
+  setPoints,
+  subtractPoints,
+  updatePoints,
+} from '@/redux/userSlice'
 
-// Query Keys
+// ===============================================
+// QUERY KEYS - Centralized cache key management
+// ===============================================
 export const rewardQueryKeys = {
   all: ['rewards'],
   lists: () => [...rewardQueryKeys.all, 'list'],
@@ -31,229 +40,61 @@ export const rewardQueryKeys = {
     'overview',
     { locationId },
   ],
+  services: ['serviceRewards'],
+  serviceRewards: (serviceId) => [...rewardQueryKeys.services, serviceId],
+  spaRewards: ['spaRewards'],
+  spaRewardsList: (filters) => [
+    ...rewardQueryKeys.spaRewards,
+    'list',
+    { filters },
+  ],
 }
 
-// =====================================
-// USER REWARD QUERY HOOKS
-// =====================================
+// ===============================================
+// USER REWARD HOOKS - For regular users
+// ===============================================
 
-// Get rewards catalog with affordability info
+// Get rewards catalog with affordability info (for users to browse and claim)
 export const useRewardsCatalog = (filters = {}) => {
   return useQuery({
     queryKey: rewardQueryKeys.catalogList(filters),
     queryFn: () => rewardsService.getRewardsCatalog(filters),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    select: (data) => data.data,
-  })
-}
-
-// Get user's claimed rewards
-export const useUserRewards = (filters = {}) => {
-  return useQuery({
-    queryKey: rewardQueryKeys.userRewardsList(filters),
-    queryFn: () => rewardsService.getUserRewards(filters),
     staleTime: 2 * 60 * 1000, // 2 minutes
-    select: (data) => data.data,
-  })
-}
+    refetchOnWindowFocus: false,
+    select: (data) => {
+      if (!data?.data) return { rewards: [], userPoints: 0 }
 
-// Get user's point transaction history
-export const usePointHistory = (filters = {}) => {
-  return useQuery({
-    queryKey: rewardQueryKeys.pointHistoryList(filters),
-    queryFn: () => rewardsService.getPointHistory(filters),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    select: (data) => data.data,
-  })
-}
-
-// =====================================
-// ADMIN REWARD MANAGEMENT HOOKS
-// =====================================
-
-// Get all rewards for management
-export const useRewards = (filters = {}) => {
-  return useQuery({
-    queryKey: rewardQueryKeys.list(filters),
-    queryFn: () => rewardsService.getRewards(filters),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    select: (data) => data.data,
-  })
-}
-
-// Get single reward
-export const useReward = (id, options = {}) => {
-  return useQuery({
-    queryKey: rewardQueryKeys.detail(id),
-    queryFn: () => rewardsService.getReward(id),
-    enabled: !!id,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    select: (data) => data.data.reward,
-    ...options,
-  })
-}
-
-// Get reward statistics
-export const useRewardStats = (locationId = null) => {
-  return useQuery({
-    queryKey: rewardQueryKeys.statsOverview(locationId),
-    queryFn: () => rewardsService.getRewardStats(locationId),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    select: (data) => data.data,
-  })
-}
-
-// =====================================
-// REWARD MUTATION HOOKS
-// =====================================
-
-// Claim a reward
-export const useClaimReward = (options = {}) => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: rewardsService.claimReward,
-    onSuccess: (data, rewardId) => {
-      // Invalidate and refetch relevant queries
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.userRewards })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.pointHistory })
-
-      // Update user points in any cached user data
-      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
-
-      // Run success callback with reward data
-      options.onSuccess?.(data, rewardId)
-    },
-    onError: (error) => {
-      console.error('Error claiming reward:', error)
-      options.onError?.(error)
+      return {
+        rewards: data.data.rewards || [],
+        userPoints: data.data.userPoints || 0,
+        affordableCount: data.data.affordableCount || 0,
+        pagination: data.data.pagination || {},
+      }
     },
   })
 }
 
-// Create reward
-export const useCreateReward = (options = {}) => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: rewardsService.createReward,
-    onSuccess: (data) => {
-      // Invalidate reward lists
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.stats })
-
-      options.onSuccess?.(data)
-    },
-    onError: (error) => {
-      console.error('Error creating reward:', error)
-      options.onError?.(error)
-    },
-  })
-}
-
-// Update reward
-export const useUpdateReward = (options = {}) => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ id, ...rewardData }) =>
-      rewardsService.updateReward(id, rewardData),
-    onSuccess: (data, variables) => {
-      // Update the specific reward in cache
-      queryClient.setQueryData(
-        rewardQueryKeys.detail(variables.id),
-        (oldData) =>
-          oldData ? { ...oldData, data: { reward: data.data.reward } } : data
-      )
-
-      // Invalidate lists
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.stats })
-
-      options.onSuccess?.(data, variables)
-    },
-    onError: (error) => {
-      console.error('Error updating reward:', error)
-      options.onError?.(error)
-    },
-  })
-}
-
-// Delete reward
-export const useDeleteReward = (options = {}) => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: rewardsService.deleteReward,
-    onSuccess: (data, rewardId) => {
-      // Remove from cache
-      queryClient.removeQueries({ queryKey: rewardQueryKeys.detail(rewardId) })
-
-      // Invalidate lists
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.stats })
-
-      options.onSuccess?.(data, rewardId)
-    },
-    onError: (error) => {
-      console.error('Error deleting reward:', error)
-      options.onError?.(error)
-    },
-  })
-}
-
-// Adjust user points (admin only)
-export const useAdjustUserPoints = (options = {}) => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ userId, ...adjustmentData }) =>
-      rewardsService.adjustUserPoints(userId, adjustmentData),
-    onSuccess: (data, variables) => {
-      // Invalidate user-related queries
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.pointHistory })
-
-      options.onSuccess?.(data, variables)
-    },
-    onError: (error) => {
-      console.error('Error adjusting user points:', error)
-      options.onError?.(error)
-    },
-  })
-}
-
-// =====================================
-// UTILITY HOOKS
-// =====================================
-
-// Get affordable rewards (rewards user can claim)
-export const useAffordableRewards = (filters = {}) => {
-  const { data: catalogData, ...queryResult } = useRewardsCatalog(filters)
-
-  const affordableRewards =
-    catalogData?.rewards?.filter((reward) => reward.canClaim) || []
-
-  return {
-    ...queryResult,
-    affordableRewards,
-    userPoints: catalogData?.userPoints || 0,
-    affordableCount: catalogData?.affordableCount || 0,
-  }
-}
-
-// Get user rewards by status
-export const useUserRewardsByStatus = (status = 'active') => {
-  return useUserRewards({ status })
-}
-
-// Get rewards catalog with computed properties
+// Enhanced rewards catalog hook with computed properties
 export const useEnhancedRewardsCatalog = (filters = {}) => {
-  const { data: catalogData, ...queryResult } = useRewardsCatalog(filters)
+  const { data: catalogData, ...queryResult } = useQuery({
+    queryKey: rewardQueryKeys.catalogList(filters),
+    queryFn: () => rewardsService.getRewardsCatalog(filters),
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    select: (data) => {
+      if (!data?.data) return { rewards: [], userPoints: 0 }
+
+      return {
+        rewards: data.data.rewards || [],
+        userPoints: data.data.userPoints || 0,
+        affordableCount: data.data.affordableCount || 0,
+        pagination: data.data.pagination || {},
+      }
+    },
+  })
 
   const rewards = catalogData?.rewards || []
   const userPoints = catalogData?.userPoints || 0
@@ -261,14 +102,10 @@ export const useEnhancedRewardsCatalog = (filters = {}) => {
   // Add computed properties
   const enhancedRewards = rewards.map((reward) => ({
     ...reward,
-    // Add display formatting
     displayValue: reward.displayValue || calculateDisplayValue(reward),
-    // Check affordability
     isAffordable: reward.isAffordable || userPoints >= reward.pointCost,
-    // Calculate points needed if can't afford
     pointsNeeded: Math.max(0, reward.pointCost - userPoints),
-    // Check if at monthly limit
-    canClaimMoreThisMonth: reward.userClaimsThisMonth < reward.limit,
+    canClaimMoreThisMonth: (reward.userClaimsThisMonth || 0) < reward.limit,
   }))
 
   return {
@@ -282,10 +119,489 @@ export const useEnhancedRewardsCatalog = (filters = {}) => {
         (r) => !r.canClaim && r.pointsNeeded <= 50
       ).length,
     },
+    refetch: queryResult.refetch,
   }
 }
 
-// Helper function for display value calculation
+// Claim reward with Redux integration and optimistic updates
+export const useClaimReward = (options = {}) => {
+  const queryClient = useQueryClient()
+  const dispatch = useDispatch()
+
+  return useMutation({
+    mutationFn: rewardsService.claimReward,
+    onMutate: async (rewardId) => {
+      // Find the reward to get point cost
+      const rewardsData = queryClient.getQueryData(
+        rewardQueryKeys.catalogList({})
+      )
+      const reward = rewardsData?.rewards?.find((r) => r._id === rewardId)
+
+      if (reward) {
+        // Optimistically subtract points
+        dispatch(subtractPoints(reward.pointCost))
+      }
+
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: rewardQueryKeys.catalog })
+
+      // Snapshot the previous values
+      const previousRewards = queryClient.getQueryData(
+        rewardQueryKeys.catalogList({})
+      )
+      const previousUser = queryClient.getQueryData(['auth', 'me'])
+
+      return { previousRewards, previousUser, rewardId, reward }
+    },
+    onSuccess: (data, rewardId, context) => {
+      console.log('✅ Reward claim successful:', data)
+
+      // Update user points with exact server response
+      if (data.data?.newPointBalance !== undefined) {
+        dispatch(setPoints(data.data.newPointBalance))
+      }
+
+      // Update auth cache with new points
+      queryClient.setQueryData(['auth', 'me'], (old) => {
+        if (old?.data?.user) {
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              user: {
+                ...old.data.user,
+                points: data.data.newPointBalance,
+              },
+            },
+          }
+        }
+        return old
+      })
+
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.userRewards })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.pointHistory })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+
+      // Show success toast
+      const pointsSpent =
+        data.data?.pointsSpent || context.reward?.pointCost || 0
+      const newBalance = data.data?.newPointBalance || 0
+
+      toast.success(
+        `🎉 Reward claimed! Spent ${pointsSpent} points. New balance: ${newBalance}`,
+        {
+          duration: 4000,
+          style: {
+            background: '#10b981',
+            color: 'white',
+          },
+        }
+      )
+
+      options.onSuccess?.(data, rewardId)
+    },
+    onError: (error, rewardId, context) => {
+      console.error('❌ Reward claim failed:', error)
+
+      // Rollback Redux state
+      dispatch(rollbackPoints())
+
+      // Rollback React Query cache
+      if (context?.previousRewards) {
+        queryClient.setQueryData(
+          rewardQueryKeys.catalogList({}),
+          context.previousRewards
+        )
+      }
+      if (context?.previousUser) {
+        queryClient.setQueryData(['auth', 'me'], context.previousUser)
+      }
+
+      // Show error toast
+      const errorMessage =
+        error.response?.data?.message || 'Failed to claim reward'
+      toast.error(errorMessage, {
+        duration: 5000,
+        style: {
+          background: '#ef4444',
+          color: 'white',
+        },
+      })
+
+      options.onError?.(error, rewardId)
+    },
+    onSettled: () => {
+      // Always refetch after delay to ensure consistency
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
+        queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
+      }, 2000)
+    },
+  })
+}
+
+// Get user's claimed rewards
+export const useUserRewards = (filters = {}) => {
+  return useQuery({
+    queryKey: rewardQueryKeys.userRewardsList(filters),
+    queryFn: () => rewardsService.getUserRewards(filters),
+    staleTime: 2 * 60 * 1000,
+    select: (data) => data.data,
+  })
+}
+
+// Get user's manual rewards
+export const useUserManualRewards = (filters = {}) => {
+  return useQuery({
+    queryKey: [...rewardQueryKeys.userRewards, 'manual', { filters }],
+    queryFn: () => rewardsService.getUserManualRewards(filters),
+    staleTime: 2 * 60 * 1000,
+    select: (data) => data.data,
+  })
+}
+
+// Get user's point transaction history
+export const usePointHistory = (filters = {}) => {
+  return useQuery({
+    queryKey: rewardQueryKeys.pointHistoryList(filters),
+    queryFn: () => rewardsService.getPointHistory(filters),
+    staleTime: 2 * 60 * 1000,
+    select: (data) => data.data,
+  })
+}
+
+// ===============================================
+// MANAGEMENT HOOKS - For admin/team reward management
+// ===============================================
+
+// Get filtered rewards for management (admin/team view)
+export const useFilteredRewards = (filters = {}) => {
+  return useQuery({
+    queryKey: rewardQueryKeys.list(filters),
+    queryFn: () => rewardsService.getRewards(filters),
+    staleTime: 2 * 60 * 1000,
+    select: (data) => {
+      if (!data?.data) {
+        return {
+          rewards: [],
+          stats: { total: 0, active: 0 },
+          pagination: {},
+        }
+      }
+
+      return {
+        rewards: data.data.rewards || [],
+        stats: data.data.stats || { total: 0, active: 0 },
+        pagination: data.data.pagination || {},
+      }
+    },
+  })
+}
+
+// Get single reward for editing
+export const useReward = (id) => {
+  return useQuery({
+    queryKey: rewardQueryKeys.detail(id),
+    queryFn: () => rewardsService.getReward(id),
+    staleTime: 2 * 60 * 1000,
+    select: (data) => data.data.reward,
+    enabled: !!id,
+  })
+}
+
+// Create reward mutation
+export const useCreateReward = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: rewardsService.createReward,
+    onSuccess: (data) => {
+      // Invalidate and refetch rewards list
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.stats })
+
+      toast.success('Reward created successfully!')
+      options.onSuccess?.(data)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to create reward'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// Update reward mutation
+export const useUpdateReward = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, ...data }) => rewardsService.updateReward(id, data),
+    onSuccess: (data, variables) => {
+      // Invalidate and refetch rewards list
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.stats })
+
+      // Update specific reward in cache
+      queryClient.setQueryData(rewardQueryKeys.detail(variables.id), data)
+
+      toast.success('Reward updated successfully!')
+      options.onSuccess?.(data, variables)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to update reward'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// Delete reward mutation
+export const useDeleteReward = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: rewardsService.deleteReward,
+    onSuccess: (data, rewardId) => {
+      // Invalidate and refetch rewards list
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.stats })
+
+      toast.success('Reward deleted successfully!')
+      options.onSuccess?.(data, rewardId)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to delete reward'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// Get reward statistics
+export const useRewardStats = (locationId = null) => {
+  return useQuery({
+    queryKey: rewardQueryKeys.statsOverview(locationId),
+    queryFn: () => rewardsService.getRewardStats(locationId),
+    staleTime: 5 * 60 * 1000,
+    select: (data) => data.data,
+  })
+}
+
+// ===============================================
+// SERVICE INTEGRATION HOOKS
+// ===============================================
+
+// Get rewards for a specific service
+export const useServiceRewards = (serviceId, userPoints = 0) => {
+  return useQuery({
+    queryKey: rewardQueryKeys.serviceRewards(serviceId),
+    queryFn: () => rewardsService.getServiceRewards(serviceId, { userPoints }),
+    staleTime: 2 * 60 * 1000,
+    select: (data) => data.data,
+    enabled: !!serviceId,
+  })
+}
+
+// Get services with rewards
+export const useServicesWithRewards = (filters = {}) => {
+  return useQuery({
+    queryKey: [...rewardQueryKeys.services, 'with-rewards', { filters }],
+    queryFn: () => rewardsService.getServicesWithRewards(filters),
+    staleTime: 5 * 60 * 1000,
+    select: (data) => data.data,
+  })
+}
+
+// Create service-specific reward
+export const useCreateServiceReward = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ serviceId, ...rewardData }) =>
+      rewardsService.createServiceReward(serviceId, rewardData),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.services })
+
+      toast.success('Service reward created successfully!')
+      options.onSuccess?.(data, variables)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to create service reward'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// Link reward to services
+export const useLinkRewardToServices = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ rewardId, ...serviceData }) =>
+      rewardsService.linkRewardToServices(rewardId, serviceData),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.services })
+
+      toast.success('Reward linked to services successfully!')
+      options.onSuccess?.(data, variables)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to link reward to services'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// ===============================================
+// SPA MANAGEMENT HOOKS
+// ===============================================
+
+// Search users for reward giving
+export const useSearchUsersForReward = (searchParams) => {
+  return useQuery({
+    queryKey: ['users', 'search', searchParams],
+    queryFn: () => rewardsService.searchUsersForReward(searchParams),
+    staleTime: 30 * 1000, // 30 seconds
+    select: (data) => data.data,
+    enabled: !!searchParams.search && searchParams.search.length > 2,
+  })
+}
+
+// Give manual reward to user
+export const useGiveManualReward = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ email, ...rewardData }) =>
+      rewardsService.giveManualReward(email, rewardData),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.spaRewards })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.userRewards })
+
+      toast.success(`Manual reward given to ${variables.email}!`)
+      options.onSuccess?.(data, variables)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to give manual reward'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// Bulk give rewards
+export const useBulkGiveRewards = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: rewardsService.bulkGiveRewards,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.spaRewards })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.userRewards })
+
+      const successCount = data.data?.successful?.length || 0
+      toast.success(`Bulk rewards distributed to ${successCount} users!`)
+      options.onSuccess?.(data)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to distribute bulk rewards'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// ===============================================
+// ADMIN HOOKS
+// ===============================================
+
+// Adjust user points (admin only)
+export const useAdjustUserPoints = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ userId, ...adjustmentData }) =>
+      rewardsService.adjustUserPoints(userId, adjustmentData),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.pointHistory })
+
+      toast.success('User points adjusted successfully!')
+      options.onSuccess?.(data, variables)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message || 'Failed to adjust user points'
+      toast.error(errorMessage)
+      options.onError?.(error)
+    },
+  })
+}
+
+// ===============================================
+// UTILITY HOOKS
+// ===============================================
+
+// Hook to refresh all reward-related data
+export const useRefreshRewards = () => {
+  const queryClient = useQueryClient()
+
+  return async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog }),
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.userRewards }),
+      queryClient.invalidateQueries({ queryKey: rewardQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    ])
+  }
+}
+
+// Prefetch rewards for performance
+export const usePrefetchRewards = () => {
+  const queryClient = useQueryClient()
+
+  const prefetchCatalog = (filters = {}) => {
+    queryClient.prefetchQuery({
+      queryKey: rewardQueryKeys.catalogList(filters),
+      queryFn: () => rewardsService.getRewardsCatalog(filters),
+      staleTime: 2 * 60 * 1000,
+    })
+  }
+
+  const prefetchUserRewards = (filters = {}) => {
+    queryClient.prefetchQuery({
+      queryKey: rewardQueryKeys.userRewardsList(filters),
+      queryFn: () => rewardsService.getUserRewards(filters),
+      staleTime: 2 * 60 * 1000,
+    })
+  }
+
+  return { prefetchCatalog, prefetchUserRewards }
+}
+
+// ===============================================
+// HELPER FUNCTIONS
+// ===============================================
+
+// Helper function to calculate display value
 function calculateDisplayValue(reward) {
   switch (reward.type) {
     case 'credit':
@@ -301,202 +617,26 @@ function calculateDisplayValue(reward) {
   }
 }
 
-// Get user's point summary
-export const useUserPointSummary = () => {
-  const { data: pointHistoryData } = usePointHistory({ limit: 1000 })
-  const { data: userRewardsData } = useUserRewards({ limit: 1000 })
-
-  return useQuery({
-    queryKey: ['userPointSummary'],
-    queryFn: () => {
-      if (!pointHistoryData || !userRewardsData) return null
-
-      const transactions = pointHistoryData.transactions || []
-      const userRewards = userRewardsData.userRewards || []
-
-      const summary = {
-        currentBalance: pointHistoryData.currentBalance || 0,
-        totalEarned: pointHistoryData.summary?.totalEarned || 0,
-        totalSpent: pointHistoryData.summary?.totalSpent || 0,
-        rewardsStats: {
-          totalClaimed: userRewards.length,
-          activeClaimed: userRewards.filter((ur) => ur.isActive).length,
-          expiredRewards: userRewards.filter((ur) => ur.isExpired).length,
-          usedRewards: userRewards.filter((ur) => ur.status === 'used').length,
-        },
-        recentActivity: transactions.slice(0, 5),
-      }
-
-      return summary
-    },
-    enabled: !!pointHistoryData && !!userRewardsData,
-    staleTime: 1 * 60 * 1000, // 1 minute
-  })
-}
-
-// Prefetch reward details
-export const usePrefetchReward = () => {
-  const queryClient = useQueryClient()
-
-  return (id) => {
-    queryClient.prefetchQuery({
-      queryKey: rewardQueryKeys.detail(id),
-      queryFn: () => rewardsService.getReward(id),
-      staleTime: 10 * 60 * 1000,
-    })
+// Helper to format reward type for display
+export const formatRewardType = (type) => {
+  const typeMap = {
+    credit: 'Service Credit',
+    discount: 'Discount %',
+    service: 'Free Service',
+    combo: 'Combo Deal',
+    referral: 'Referral Reward',
+    service_discount: 'Service Discount',
+    free_service: 'Free Specific Service',
   }
+  return typeMap[type] || type
 }
 
-// Get filtered rewards (admin management)
-export const useFilteredRewards = (filters = {}) => {
-  const { data: rewardsData, ...queryResult } = useRewards(filters)
-
-  const rewards = rewardsData?.rewards || []
-  const stats = rewardsData?.stats || {}
-  const pagination = rewardsData?.pagination || {}
-
-  // Add computed properties for management
-  const processedRewards = rewards.map((reward) => ({
-    ...reward,
-    displayValue: calculateDisplayValue(reward),
-    isActive: reward.status === 'active',
-    claimRate: reward.redeemCount > 0 ? reward.redeemCount / 100 : 0, // Placeholder calculation
-  }))
-
-  return {
-    ...queryResult,
-    rewards: processedRewards,
-    stats,
-    pagination,
-  }
+// Helper to check if reward is affordable
+export const isRewardAffordable = (reward, userPoints) => {
+  return userPoints >= reward.pointCost && reward.status === 'active'
 }
 
-export const useSearchUsersForReward = (searchTerm = '') => {
-  return useQuery({
-    queryKey: ['rewards', 'users', 'search', searchTerm],
-    queryFn: () => rewardsService.searchUsersForReward({ search: searchTerm }),
-    enabled: searchTerm.length >= 2,
-    staleTime: 30 * 1000, // 30 seconds
-    select: (data) => data.data.users,
-  })
-}
-
-// Give manual reward to user
-export const useGiveManualReward = (options = {}) => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ email, rewardData }) =>
-      rewardsService.giveManualReward(email, rewardData),
-    onSuccess: (data, variables) => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['rewards', 'spa'] })
-      queryClient.invalidateQueries({ queryKey: ['rewards', 'manual'] })
-
-      // Show success message
-      const recipientName = data.data.recipient.name
-      const rewardValue = variables.rewardData.value
-      const rewardType = variables.rewardData.rewardType
-
-      toast.success(
-        `Reward given to ${recipientName}! ${
-          rewardType === 'discount' ? `${rewardValue}%` : `$${rewardValue}`
-        } ${rewardType}`
-      )
-
-      options.onSuccess?.(data, variables)
-    },
-    onError: (error) => {
-      const message = error.response?.data?.message || 'Failed to give reward'
-      toast.error(message)
-      options.onError?.(error)
-    },
-  })
-}
-
-// Bulk give rewards
-export const useBulkGiveRewards = (options = {}) => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: rewardsService.bulkGiveRewards,
-    onSuccess: (data) => {
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['rewards', 'spa'] })
-      queryClient.invalidateQueries({ queryKey: ['rewards', 'manual'] })
-
-      // Show success message with summary
-      const summary = data.data.summary
-      toast.success(
-        `Rewards given to ${summary.succeeded} users${
-          summary.failed > 0 ? ` (${summary.failed} failed)` : ''
-        }`
-      )
-
-      options.onSuccess?.(data)
-    },
-    onError: (error) => {
-      const message =
-        error.response?.data?.message || 'Failed to give bulk rewards'
-      toast.error(message)
-      options.onError?.(error)
-    },
-  })
-}
-
-// Get user's manual rewards
-export const useUserManualRewards = (params = {}) => {
-  return useQuery({
-    queryKey: ['rewards', 'manual', 'user', params],
-    queryFn: () => rewardsService.getUserManualRewards(params),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    select: (data) => data.data,
-  })
-}
-
-// Combined hook for user reward stats including manual rewards
-export const useUserRewardStats = () => {
-  const { data: regularRewards } = useUserRewards({ limit: 1000 })
-  const { data: manualRewards } = useUserManualRewards({ limit: 1000 })
-
-  const stats = {
-    regular: {
-      total: regularRewards?.userRewards?.length || 0,
-      active:
-        regularRewards?.userRewards?.filter((r) => r.status === 'active')
-          .length || 0,
-      used:
-        regularRewards?.userRewards?.filter((r) => r.status === 'used')
-          .length || 0,
-      expired:
-        regularRewards?.userRewards?.filter((r) => r.status === 'expired')
-          .length || 0,
-    },
-    manual: {
-      total: manualRewards?.rewards?.length || 0,
-      active:
-        manualRewards?.rewards?.filter((r) => r.status === 'active').length ||
-        0,
-      used:
-        manualRewards?.rewards?.filter((r) => r.status === 'used').length || 0,
-      expired:
-        manualRewards?.rewards?.filter((r) => r.status === 'expired').length ||
-        0,
-    },
-    combined: {
-      total: 0,
-      active: 0,
-      used: 0,
-      expired: 0,
-    },
-  }
-
-  stats.combined = {
-    total: stats.regular.total + stats.manual.total,
-    active: stats.regular.active + stats.manual.active,
-    used: stats.regular.used + stats.manual.used,
-    expired: stats.regular.expired + stats.manual.expired,
-  }
-
-  return stats
+// Helper to calculate points needed
+export const calculatePointsNeeded = (reward, userPoints) => {
+  return Math.max(0, reward.pointCost - userPoints)
 }

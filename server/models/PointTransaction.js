@@ -1,9 +1,10 @@
-// File: server/models/PointTransaction.js - FIXED ENUM VALUES
+// File: server/models/PointTransaction.js - FIXED VERSION
 import mongoose from 'mongoose'
 
 const PointTransactionSchema = new mongoose.Schema(
   {
     user: {
+      // CHANGED: Make sure this field is 'user' not 'userId'
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
@@ -13,15 +14,15 @@ const PointTransactionSchema = new mongoose.Schema(
       type: String,
       enum: [
         'referral',
-        'reward',
+        'reward', // For reward claims
         'redemption',
         'withdrawal',
         'refund',
         'bonus',
         'adjustment',
-        'spent', // ADDED: For spending points on games
-        'earned', // ADDED: For earning points from games
-        'game_play', // ADDED: For game-related transactions
+        'spent', // For spending points on rewards/games
+        'earned', // For earning points from activities
+        'game_play', // For game-related transactions
       ],
       required: true,
     },
@@ -39,7 +40,7 @@ const PointTransactionSchema = new mongoose.Schema(
     },
     reference: {
       type: mongoose.Schema.Types.ObjectId,
-      refPath: 'referenceModel', // FIXED: Use refPath for dynamic references
+      refPath: 'referenceModel',
     },
     referenceModel: {
       type: String,
@@ -52,7 +53,7 @@ const PointTransactionSchema = new mongoose.Schema(
         'UserReward',
       ],
     },
-    // NEW: Game-specific metadata
+    // Game-specific metadata
     gameMetadata: {
       gameId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -74,6 +75,12 @@ const PointTransactionSchema = new mongoose.Schema(
       type: String,
       index: true,
     },
+    // Admin who processed this transaction (for adjustments)
+    processedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     metadata: {
       type: Map,
       of: mongoose.Schema.Types.Mixed,
@@ -91,17 +98,7 @@ PointTransactionSchema.index({ reference: 1 })
 PointTransactionSchema.index({ 'gameMetadata.gameId': 1 })
 PointTransactionSchema.index({ locationId: 1 })
 
-// Pre-save middleware to calculate balance
-PointTransactionSchema.pre('save', async function (next) {
-  if (this.isNew) {
-    // Get user's current balance
-    const User = mongoose.model('User')
-    const user = await User.findById(this.user)
-    if (user) {
-      this.balance = user.points + this.points
-    }
-  }
-  next()
-})
+// REMOVED: Pre-save middleware that was causing issues
+// The balance will be calculated by the helper functions
 
 export default mongoose.model('PointTransaction', PointTransactionSchema)
