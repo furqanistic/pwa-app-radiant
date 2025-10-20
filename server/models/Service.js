@@ -198,6 +198,24 @@ const ServiceSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Stripe integration (optional)
+    stripe: {
+      productId: {
+        type: String,
+        default: null,
+        sparse: true,
+      },
+      priceId: {
+        type: String,
+        default: null,
+        sparse: true,
+      },
+      syncedAt: {
+        type: Date,
+        default: null,
+      },
+    },
+
     // Admin tracking
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

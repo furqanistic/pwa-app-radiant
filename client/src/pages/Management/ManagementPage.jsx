@@ -36,6 +36,7 @@ import LocationAssignmentForm from '@/components/Management/LocationAssignmentFo
 import LocationForm from '@/components/Management/LocationForm'
 import NotificationSender from '@/components/Management/NotificationSender'
 import PointsManager from '@/components/Management/PointsManager'
+import StripeConnect from '@/components/Stripe/StripeConnect'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -355,6 +356,13 @@ const ManagementPage = () => {
                     </button>
                   ))}
               </div>
+            </div>
+          )}
+
+          {/* Stripe Connect - Team Role Only */}
+          {currentUser?.role === 'team' && (
+            <div className='mb-8'>
+              <StripeConnect />
             </div>
           )}
 

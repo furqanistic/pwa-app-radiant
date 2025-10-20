@@ -161,6 +161,44 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
+    // Stripe Connect Integration (for team role - spa owners)
+    stripe: {
+      accountId: {
+        type: String,
+        default: null,
+        sparse: true,
+      },
+      accountStatus: {
+        type: String,
+        enum: ['pending', 'active', 'restricted', 'inactive'],
+        default: null,
+      },
+      onboardingCompleted: {
+        type: Boolean,
+        default: false,
+      },
+      chargesEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      payoutsEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      detailsSubmitted: {
+        type: Boolean,
+        default: false,
+      },
+      connectedAt: {
+        type: Date,
+        default: null,
+      },
+      lastUpdated: {
+        type: Date,
+        default: null,
+      },
+    },
+
     // Profile completion status
     profileCompleted: {
       type: Boolean,

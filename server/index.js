@@ -17,6 +17,7 @@ import referralRoutes from './routes/referral.js'
 import rewardsRouter from './routes/rewards.js'
 import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
+import stripeRoutes from './routes/stripe.js' // STRIPE INTEGRATION
 import userRewardsRouter from './routes/userRewards.js'
 const app = express()
 
@@ -64,6 +65,10 @@ const corsOptions = {
 
 app.use(cors(corsOptions))
 app.use(cookieParser())
+
+// Stripe webhook needs raw body - mount before express.json()
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }))
+
 app.use(express.json())
 
 // Initialize Passport middleware
@@ -84,6 +89,7 @@ app.use('/api/games', gameWheelRoutes)
 app.use('/api/bookings', bookingsRouter) // NEW
 app.use('/api/dashboard', dashboardRouter) // NEW
 app.use('/api/user-rewards', userRewardsRouter)
+app.use('/api/stripe', stripeRoutes) // STRIPE INTEGRATION
 
 const connect = () => {
   mongoose
