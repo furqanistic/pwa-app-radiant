@@ -143,39 +143,26 @@ const ServiceDetailPage = () => {
     const totalPrice = calculateTotalPrice()
     const totalDuration = calculateTotalDuration()
 
-    // Create booking summary
-    let bookingSummary = `Booking confirmed!\n`
-    bookingSummary += `Service: ${service.name}\n`
-    if (selectedTreatment) {
-      bookingSummary += `Treatment: ${selectedTreatment.name}\n`
+    // Prepare booking data for checkout
+    const bookingData = {
+      serviceId: service._id,
+      serviceName: service.name,
+      price: totalPrice,
+      duration: totalDuration,
+      date: selectedDate,
+      time: selectedTime,
+      treatment: selectedTreatment?.name || null,
+      subTreatmentId: selectedTreatment?._id || null,
+      addOns: selectedAddOns.map((addon) => ({
+        serviceId: addon.serviceId,
+        name: addon.name,
+        price: addon.finalPrice || addon.customPrice || addon.basePrice,
+        duration: addon.finalDuration || addon.customDuration || addon.duration,
+      })),
     }
-    if (selectedAddOns.length > 0) {
-      bookingSummary += `Add-ons: ${selectedAddOns
-        .map((addon) => addon.name)
-        .join(', ')}\n`
-    }
-    bookingSummary += `Total Price: $${totalPrice.toFixed(2)}\n`
-    bookingSummary += `Total Duration: ${totalDuration} minutes\n`
-    bookingSummary += `Date: ${selectedDate}\n`
-    bookingSummary += `Time: ${selectedTime}`
 
-    toast.success(bookingSummary)
-
-    // TODO: Replace with actual booking API call
-    // const bookingData = {
-    //   serviceId: service._id,
-    //   subTreatmentId: selectedTreatment?._id,
-    //   addOnServices: selectedAddOns.map(addon => ({
-    //     serviceId: addon.serviceId,
-    //     price: addon.finalPrice || addon.customPrice || addon.basePrice,
-    //     duration: addon.finalDuration || addon.customDuration || addon.duration
-    //   })),
-    //   date: selectedDate,
-    //   time: selectedTime,
-    //   totalPrice: totalPrice,
-    //   totalDuration: totalDuration
-    // }
-    // bookingMutation.mutate(bookingData)
+    // Navigate to checkout page with booking data
+    navigate('/checkout', { state: { bookingData } })
   }
 
   const handleBackClick = () => {

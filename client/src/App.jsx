@@ -14,6 +14,9 @@ import {
 import AuthPage from './pages/Auth/AuthPage'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
+import CheckoutPage from './pages/Checkout/CheckoutPage'
+import PaymentSuccess from './pages/Checkout/PaymentSuccess'
+import PaymentCancel from './pages/Checkout/PaymentCancel'
 import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import InstallPrompt from './pages/Layout/InstallPrompt'
@@ -293,6 +296,33 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ServiceDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/checkout'
+          element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/checkout/success'
+          element={
+            <ProtectedRoute>
+              <PaymentSuccess />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/checkout/cancel'
+          element={
+            <ProtectedRoute>
+              <PaymentCancel />
             </ProtectedRoute>
           }
         />
