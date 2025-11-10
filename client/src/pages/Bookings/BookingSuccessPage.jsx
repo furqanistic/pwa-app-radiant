@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { CircularProgress, Container, Paper, Typography, Button, Box } from '@mui/material'
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
-import { useAuth } from '../../context/AuthContext'
+import { useDispatch } from 'react-redux'
+import { CheckCircle, AlertCircle, Calendar, ShoppingBag, Loader } from 'lucide-react'
+import { toast } from 'react-hot-toast'
+import Layout from '@/pages/Layout/Layout'
+import { clearCart } from '../../redux/cartSlice'
 
 const BookingSuccessPage = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const dispatch = useDispatch()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -18,91 +19,118 @@ const BookingSuccessPage = () => {
     // Give the webhook time to process
     const timer = setTimeout(() => {
       setLoading(false)
+
+      // Clear the cart after successful payment
+      dispatch(clearCart())
+
+      // Show success notification
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Booking Confirmed! 🎉', {
+          body: 'Your payment was successful and your booking is confirmed.',
+          icon: '/icon-192x192.png',
+          badge: '/icon-192x192.png',
+        })
+      }
+
+      // Show toast notification as fallback
+      toast.success('Booking confirmed! Check your email for details.', {
+        duration: 5000,
+        icon: '🎉',
+      })
     }, 2000)
 
     return () => clearTimeout(timer)
-  }, [sessionId])
+  }, [sessionId, dispatch])
 
   if (loading) {
     return (
-      <Container maxWidth="sm" sx={{ mt: 8, textAlign: 'center' }}>
-        <CircularProgress size={60} />
-        <Typography variant="h6" sx={{ mt: 3 }}>
-          Processing your payment...
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          Please wait while we confirm your booking.
-        </Typography>
-      </Container>
+      <Layout>
+        <div className='flex items-center justify-center min-h-[70vh]'>
+          <div className='text-center'>
+            <Loader className='w-16 h-16 mx-auto mb-4 text-pink-500 animate-spin' />
+            <h2 className='text-2xl font-bold text-gray-900 mb-2'>
+              Processing your payment...
+            </h2>
+            <p className='text-gray-600'>
+              Please wait while we confirm your booking.
+            </p>
+          </div>
+        </div>
+      </Layout>
     )
   }
 
   if (error) {
     return (
-      <Container maxWidth="sm" sx={{ mt: 8 }}>
-        <Paper elevation={3} sx={{ p: 4, textAlign: 'center' }}>
-          <ErrorOutlineIcon color="error" sx={{ fontSize: 80, mb: 2 }} />
-          <Typography variant="h5" gutterBottom>
-            Payment Processing Error
-          </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            {error}
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate('/services')}
-          >
-            Return to Services
-          </Button>
-        </Paper>
-      </Container>
+      <Layout>
+        <div className='px-4 py-8 max-w-2xl mx-auto'>
+          <div className='bg-white rounded-lg shadow-sm p-8 text-center'>
+            <AlertCircle className='w-20 h-20 mx-auto mb-4 text-red-500' />
+            <h2 className='text-2xl font-bold text-gray-900 mb-2'>
+              Payment Processing Error
+            </h2>
+            <p className='text-gray-600 mb-6'>{error}</p>
+            <button
+              onClick={() => navigate('/bookings')}
+              className='bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700'
+            >
+              Return to Services
+            </button>
+          </div>
+        </div>
+      </Layout>
     )
   }
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
-      <Paper elevation={3} sx={{ p: 4, textAlign: 'center' }}>
-        <CheckCircleOutlineIcon color="success" sx={{ fontSize: 80, mb: 2 }} />
+    <Layout>
+      <div className='px-4 py-8 max-w-2xl mx-auto'>
+        <div className='bg-white rounded-lg shadow-sm p-8'>
+          <div className='text-center'>
+            <CheckCircle className='w-20 h-20 mx-auto mb-4 text-green-500' />
 
-        <Typography variant="h4" gutterBottom>
-          Payment Successful!
-        </Typography>
+            <h1 className='text-3xl font-bold text-gray-900 mb-2'>
+              Payment Successful!
+            </h1>
 
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Your booking has been confirmed and payment processed successfully.
-        </Typography>
+            <p className='text-lg text-gray-600 mb-6'>
+              Your booking has been confirmed and payment processed successfully.
+            </p>
 
-        <Box sx={{ mb: 3, p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
-          <Typography variant="body2" color="success.dark">
-            A confirmation email has been sent to your email address.
-          </Typography>
-        </Box>
+            <div className='bg-green-50 border border-green-200 rounded-lg p-4 mb-6'>
+              <p className='text-sm text-green-800'>
+                A confirmation email has been sent to your email address with all
+                the booking details.
+              </p>
+            </div>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          You can view your booking details and upcoming appointments in your dashboard.
-        </Typography>
+            <div className='bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6'>
+              <p className='text-sm text-blue-800'>
+                You can view your booking details and upcoming appointments in your
+                dashboard. You'll receive a reminder 24 hours before your appointment.
+              </p>
+            </div>
 
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate('/dashboard')}
-            size="large"
-          >
-            View My Bookings
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={() => navigate('/services')}
-            size="large"
-          >
-            Browse Services
-          </Button>
-        </Box>
-      </Paper>
-    </Container>
+            <div className='flex flex-col sm:flex-row gap-3 justify-center mt-8'>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className='flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700'
+              >
+                <Calendar className='w-5 h-5' />
+                View My Bookings
+              </button>
+              <button
+                onClick={() => navigate('/bookings')}
+                className='flex items-center justify-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-6 h-10 rounded-lg font-semibold hover:bg-gray-50'
+              >
+                <ShoppingBag className='w-5 h-5' />
+                Browse Services
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
   )
 }
 
