@@ -18,12 +18,14 @@ import {
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useSelector } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
 import stripeService from '../../services/stripeService'
+import { addToCart } from '../../redux/cartSlice'
 
 const ServiceDetailPage = () => {
   const { serviceId } = useParams()
   const navigate = useNavigate()
+  const dispatch = useDispatch()
   const { currentUser } = useSelector((state) => state.user)
 
   const [selectedTreatment, setSelectedTreatment] = useState(null)
@@ -132,6 +134,56 @@ const ServiceDetailPage = () => {
     }, 0)
 
     return baseDuration + addOnsDuration
+  }
+
+  const handleAddToCart = () => {
+    if (!selectedTreatment && service.subTreatments?.length > 0) {
+      toast.error('Please select a treatment option')
+      return
+    }
+    if (!selectedDate || !selectedTime) {
+      toast.error('Please select date and time')
+      return
+    }
+
+    const totalPrice = calculateTotalPrice()
+    const totalDuration = calculateTotalDuration()
+
+    // Create cart item
+    const cartItem = {
+      serviceId: service._id,
+      serviceName: service.name,
+      image: service.image || service.images?.[0],
+      date: selectedDate,
+      time: selectedTime,
+      duration: totalDuration,
+      totalPrice: totalPrice,
+      treatment: selectedTreatment
+        ? {
+            id: selectedTreatment._id || selectedTreatment.id,
+            name: selectedTreatment.name,
+            price: selectedTreatment.price,
+            duration: selectedTreatment.duration,
+          }
+        : null,
+      addOns: selectedAddOns.map((addon) => ({
+        serviceId: addon.serviceId,
+        name: addon.name,
+        price: addon.finalPrice || addon.customPrice || addon.basePrice,
+        duration: addon.finalDuration || addon.customDuration || addon.duration,
+      })),
+    }
+
+    dispatch(addToCart(cartItem))
+    toast.success('Added to cart!', {
+      icon: '🛒',
+    })
+
+    // Reset selections
+    setSelectedDate('')
+    setSelectedTime('')
+    setSelectedTreatment(null)
+    setSelectedAddOns([])
   }
 
   const handleBooking = async () => {
@@ -816,29 +868,44 @@ const ServiceDetailPage = () => {
                   </div>
                 )}
 
-              {/* Book Button */}
-              <button
-                onClick={handleBooking}
-                disabled={
-                  isProcessing ||
-                  !selectedDate ||
-                  !selectedTime ||
-                  (service.subTreatments?.length > 0 && !selectedTreatment)
-                }
-                className='w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2'
-              >
-                {isProcessing ? (
-                  <>
-                    <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin' />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Calendar className='w-5 h-5' />
-                    Book Appointment
-                  </>
-                )}
-              </button>
+              {/* Action Buttons */}
+              <div className='space-y-2'>
+                <button
+                  onClick={handleAddToCart}
+                  disabled={
+                    !selectedDate ||
+                    !selectedTime ||
+                    (service.subTreatments?.length > 0 && !selectedTreatment)
+                  }
+                  className='w-full bg-green-500 text-white h-10 rounded-lg font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2'
+                >
+                  <Plus className='w-5 h-5' />
+                  Add to Cart
+                </button>
+
+                <button
+                  onClick={handleBooking}
+                  disabled={
+                    isProcessing ||
+                    !selectedDate ||
+                    !selectedTime ||
+                    (service.subTreatments?.length > 0 && !selectedTreatment)
+                  }
+                  className='w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2'
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin' />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className='w-5 h-5' />
+                      Book Now
+                    </>
+                  )}
+                </button>
+              </div>
 
               <p className='text-xs text-gray-500 mt-3 text-center'>
                 You can cancel or reschedule up to 24 hours before your

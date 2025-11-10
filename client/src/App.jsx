@@ -15,6 +15,7 @@ import AuthPage from './pages/Auth/AuthPage'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
 import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
+import CartPage from './pages/Cart/CartPage'
 import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import InstallPrompt from './pages/Layout/InstallPrompt'
@@ -303,6 +304,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <BookingSuccessPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/cart'
+          element={
+            <ProtectedRoute>
+              <CartPage />
             </ProtectedRoute>
           }
         />

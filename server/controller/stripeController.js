@@ -247,10 +247,141 @@ export const getAccountDashboard = async (req, res, next) => {
 
 /**
  * Create a Stripe Checkout session for service booking (with redirect)
+ * Handles both single service and multiple services (cart checkout)
  */
 export const createCheckoutSession = async (req, res, next) => {
   try {
     const customerId = req.user.id
+    const { items, locationId: cartLocationId } = req.body
+
+    // Check if this is a cart checkout (multiple items) or single service
+    const isCartCheckout = Array.isArray(items) && items.length > 0
+
+    if (isCartCheckout) {
+      // === CART CHECKOUT - MULTIPLE SERVICES ===
+      if (!cartLocationId) {
+        return next(createError(400, 'Location ID is required'))
+      }
+
+      const bookings = []
+      const lineItems = []
+      let totalAmount = 0
+      let totalPlatformFee = 0
+      let spaOwnerId = null
+
+      // Process each cart item
+      for (const item of items) {
+        const service = await Service.findById(item.serviceId).populate('createdBy')
+
+        if (!service || service.status !== 'active' || service.isDeleted) {
+          return next(createError(404, `Service ${item.serviceName} not found or inactive`))
+        }
+
+        const spaOwner = service.createdBy
+        if (!spaOwner || spaOwner.role !== 'team') {
+          return next(createError(400, `Service owner for ${item.serviceName} is not valid`))
+        }
+
+        if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
+          return next(createError(400, `${item.serviceName}'s spa has not connected payment account`))
+        }
+
+        // For simplicity, all services should be from same spa owner
+        if (!spaOwnerId) {
+          spaOwnerId = spaOwner._id.toString()
+        } else if (spaOwnerId !== spaOwner._id.toString()) {
+          return next(createError(400, 'All services must be from the same spa location'))
+        }
+
+        const amount = Math.round(item.price * 100) // Convert to cents
+        const platformFee = Math.round(item.price * 0.1 * 100)
+
+        totalAmount += amount
+        totalPlatformFee += platformFee
+
+        // Create temporary booking
+        const booking = await Booking.create({
+          userId: customerId,
+          serviceId: item.serviceId,
+          serviceName: item.serviceName,
+          servicePrice: item.price,
+          finalPrice: item.price,
+          discountApplied: 0,
+          date: new Date(item.date),
+          time: item.time,
+          duration: item.duration,
+          locationId: item.locationId || cartLocationId,
+          notes: item.notes || '',
+          status: 'scheduled',
+          paymentStatus: 'pending',
+        })
+
+        bookings.push(booking)
+
+        // Add line item for Stripe
+        lineItems.push({
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `${item.serviceName}`,
+              description: `Booking on ${new Date(item.date).toLocaleDateString()} at ${item.time}`,
+            },
+            unit_amount: amount,
+          },
+          quantity: 1,
+        })
+      }
+
+      // Get spa owner for payment
+      const spaOwner = await User.findById(spaOwnerId)
+
+      // Create Stripe Checkout Session
+      const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
+      const cancelUrl = `${process.env.CLIENT_URL}/cart`
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: lineItems,
+        mode: 'payment',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        customer_email: req.user.email,
+        payment_intent_data: {
+          application_fee_amount: totalPlatformFee,
+          transfer_data: {
+            destination: spaOwner.stripe.accountId,
+          },
+          metadata: {
+            customerId: customerId.toString(),
+            spaOwnerId: spaOwner._id.toString(),
+            bookingIds: bookings.map(b => b._id.toString()).join(','),
+            isCartCheckout: 'true',
+          },
+        },
+        metadata: {
+          customerId: customerId.toString(),
+          bookingIds: bookings.map(b => b._id.toString()).join(','),
+          isCartCheckout: 'true',
+        },
+      })
+
+      // Update bookings with session ID
+      await Promise.all(
+        bookings.map(booking => {
+          booking.stripeSessionId = session.id
+          return booking.save()
+        })
+      )
+
+      return res.status(201).json({
+        success: true,
+        sessionId: session.id,
+        sessionUrl: session.url,
+        bookingIds: bookings.map(b => b._id),
+      })
+    }
+
+    // === SINGLE SERVICE CHECKOUT ===
     const {
       serviceId,
       date,
@@ -805,8 +936,89 @@ async function handleAccountUpdated(account) {
 
 async function handleCheckoutSessionCompleted(session) {
   const bookingId = session.metadata.bookingId
+  const bookingIds = session.metadata.bookingIds
   const customerId = session.metadata.customerId
+  const isCartCheckout = session.metadata.isCartCheckout === 'true'
 
+  // Get payment intent details
+  const paymentIntentId = session.payment_intent
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+
+  if (isCartCheckout && bookingIds) {
+    // === HANDLE MULTIPLE BOOKINGS (CART CHECKOUT) ===
+    const bookingIdArray = bookingIds.split(',')
+
+    if (bookingIdArray.length === 0) {
+      console.error('No booking IDs in cart checkout session')
+      return
+    }
+
+    // Find all bookings
+    const bookings = await Booking.find({ _id: { $in: bookingIdArray } })
+
+    if (bookings.length === 0) {
+      console.error('No bookings found for IDs:', bookingIdArray)
+      return
+    }
+
+    let totalPointsEarned = 0
+
+    // Create payment records and update each booking
+    for (const booking of bookings) {
+      const pointsEarned = Math.floor(booking.finalPrice)
+      totalPointsEarned += pointsEarned
+
+      // Create payment record for this booking
+      const payment = await Payment.create({
+        stripePaymentIntentId: paymentIntentId,
+        customer: customerId,
+        spaOwner: paymentIntent.metadata.spaOwnerId,
+        stripeAccountId: paymentIntent.transfer_data.destination,
+        service: booking.serviceId,
+        booking: booking._id,
+        amount: Math.round(booking.finalPrice * 100),
+        currency: session.currency,
+        subtotal: booking.servicePrice * 100,
+        discount: {
+          amount: booking.discountApplied * 100,
+          type: booking.discountApplied > 0 ? 'service_discount' : null,
+          code: null,
+          description: booking.discountApplied > 0 ? 'Service discount applied' : null,
+        },
+        tax: { amount: 0, rate: 0 },
+        platformFee: {
+          amount: Math.round(booking.finalPrice * 0.1 * 100),
+          percentage: 10,
+        },
+        status: 'succeeded',
+        processedAt: new Date(),
+        pointsEarned: pointsEarned,
+        paymentMethod: {
+          type: paymentIntent.payment_method_types[0] || 'card',
+          brand: paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand || null,
+          last4: paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 || null,
+        },
+      })
+
+      // Update booking status
+      booking.paymentStatus = 'paid'
+      booking.paymentId = payment._id
+      booking.pointsEarned = pointsEarned
+      await booking.save()
+    }
+
+    // Award points to customer
+    const customer = await User.findById(customerId)
+    if (customer) {
+      customer.points += totalPointsEarned
+      await customer.save()
+    }
+
+    console.log(`Cart checkout completed: ${bookings.length} bookings, ${totalPointsEarned} points earned`)
+    return
+  }
+
+  // === HANDLE SINGLE BOOKING ===
   if (!bookingId) {
     console.error('No booking ID in checkout session metadata')
     return
@@ -819,12 +1031,6 @@ async function handleCheckoutSessionCompleted(session) {
     console.error('Booking not found:', bookingId)
     return
   }
-
-  // Get payment intent from the session
-  const paymentIntentId = session.payment_intent
-
-  // Retrieve payment intent details
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
 
   // Create payment record
   const payment = await Payment.create({

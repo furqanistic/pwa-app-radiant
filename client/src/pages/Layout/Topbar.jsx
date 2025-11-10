@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
-import { Menu } from 'lucide-react'
+import { Menu, ShoppingCart } from 'lucide-react'
 import React from 'react'
 import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import InstallButton from './InstallButton' // Add this import
 import NotificationPanel from './NotificationPanel'
 
@@ -14,6 +15,8 @@ const Topbar = ({
   onMenuClick,
 }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { totalItems } = useSelector((state) => state.cart)
+  const navigate = useNavigate()
 
   return (
     <div className={cn('bg-white border-b border-gray-200', className)}>
@@ -34,8 +37,21 @@ const Topbar = ({
             <InstallButton />
           </div>
 
-          {/* Right side - Notifications and User Profile */}
+          {/* Right side - Cart, Notifications and User Profile */}
           <div className='flex items-center space-x-2 lg:space-x-4'>
+            {/* Shopping Cart */}
+            <button
+              onClick={() => navigate('/cart')}
+              className='relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors'
+            >
+              <ShoppingCart className='h-5 w-5' />
+              {totalItems > 0 && (
+                <span className='absolute -top-1 -right-1 bg-pink-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center'>
+                  {totalItems}
+                </span>
+              )}
+            </button>
+
             {/* Notifications */}
             {showNotifications && <NotificationPanel />}
 
