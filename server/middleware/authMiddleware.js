@@ -349,3 +349,40 @@ export const checkLocationAccess = (req, res, next) => {
 
   return next(createError(403, 'Access denied'))
 }
+
+// NEW: Check if team user has connected Stripe account
+export const requireStripeConnection = async (req, res, next) => {
+  try {
+    const currentUser = req.user
+
+    // Only check for team users
+    if (currentUser.role !== 'team') {
+      return next()
+    }
+
+    // Check if user has Stripe account connected
+    if (!currentUser.stripe?.accountId) {
+      return next(
+        createError(
+          403,
+          'You must connect your Stripe account before creating services or rewards. Please go to Management > Stripe Connect to set up your payment account.'
+        )
+      )
+    }
+
+    // Check if Stripe account is fully set up and can accept payments
+    if (!currentUser.stripe?.chargesEnabled) {
+      return next(
+        createError(
+          403,
+          'Your Stripe account is not fully set up yet. Please complete the onboarding process to start accepting payments.'
+        )
+      )
+    }
+
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+

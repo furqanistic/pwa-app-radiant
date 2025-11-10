@@ -23,6 +23,7 @@ import {
 } from '../controller/services.js'
 import {
   checkPermission,
+  requireStripeConnection,
   restrictTo,
   verifyToken,
 } from '../middleware/authMiddleware.js'
@@ -70,6 +71,7 @@ router.use(restrictTo('admin', 'team'))
 // Create new service
 router.post(
   '/',
+  requireStripeConnection,
   sanitizeServiceData,
   validateServiceData,
   checkLocationAccess,
@@ -97,6 +99,7 @@ router.delete('/:id/unlink/:linkedServiceId', unlinkServiceFromService)
 // Create a reward specifically for a service
 router.post(
   '/:serviceId/rewards',
+  requireStripeConnection,
   sanitizeRewardData,
   validateRewardData,
   checkRewardLocationAccess,
