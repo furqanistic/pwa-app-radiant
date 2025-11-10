@@ -14,6 +14,7 @@ import {
 import AuthPage from './pages/Auth/AuthPage'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
+import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import InstallPrompt from './pages/Layout/InstallPrompt'
@@ -293,6 +294,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ServiceDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/booking-success'
+          element={
+            <ProtectedRoute>
+              <BookingSuccessPage />
             </ProtectedRoute>
           }
         />

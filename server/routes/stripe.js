@@ -6,6 +6,7 @@ import {
   getAccountStatus,
   disconnectAccount,
   getAccountDashboard,
+  createCheckoutSession,
   createPaymentIntent,
   confirmPayment,
   getPaymentHistory,
@@ -35,6 +36,9 @@ router.delete('/connect/disconnect', verifyToken, checkManagementAccess, disconn
 router.get('/connect/dashboard', verifyToken, checkManagementAccess, getAccountDashboard);
 
 // ==================== PAYMENT ROUTES ====================
+
+// Create checkout session (for service booking with redirect)
+router.post('/payment/create-checkout-session', verifyToken, createCheckoutSession);
 
 // Create payment intent (for customers)
 router.post('/payment/create-intent', verifyToken, createPaymentIntent);

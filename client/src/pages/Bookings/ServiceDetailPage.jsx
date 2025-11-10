@@ -18,15 +18,19 @@ import {
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import stripeService from '../../services/stripeService'
 
 const ServiceDetailPage = () => {
   const { serviceId } = useParams()
   const navigate = useNavigate()
+  const { currentUser } = useSelector((state) => state.user)
 
   const [selectedTreatment, setSelectedTreatment] = useState(null)
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTime, setSelectedTime] = useState('')
   const [selectedAddOns, setSelectedAddOns] = useState([]) // New state for add-ons
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // API call to get service details with linked services
   const {
@@ -130,7 +134,7 @@ const ServiceDetailPage = () => {
     return baseDuration + addOnsDuration
   }
 
-  const handleBooking = () => {
+  const handleBooking = async () => {
     if (!selectedTreatment && service.subTreatments?.length > 0) {
       toast.error('Please select a treatment option')
       return
@@ -140,42 +144,46 @@ const ServiceDetailPage = () => {
       return
     }
 
-    const totalPrice = calculateTotalPrice()
-    const totalDuration = calculateTotalDuration()
-
-    // Create booking summary
-    let bookingSummary = `Booking confirmed!\n`
-    bookingSummary += `Service: ${service.name}\n`
-    if (selectedTreatment) {
-      bookingSummary += `Treatment: ${selectedTreatment.name}\n`
+    if (!currentUser?.selectedLocation?.locationId) {
+      toast.error('Please select a spa location first')
+      return
     }
-    if (selectedAddOns.length > 0) {
-      bookingSummary += `Add-ons: ${selectedAddOns
-        .map((addon) => addon.name)
-        .join(', ')}\n`
+
+    setIsProcessing(true)
+
+    try {
+      const totalDuration = calculateTotalDuration()
+
+      // Prepare booking data for checkout session
+      const bookingData = {
+        serviceId: service._id,
+        date: selectedDate,
+        time: selectedTime,
+        duration: totalDuration,
+        locationId: currentUser.selectedLocation.locationId,
+        notes: '',
+        rewardUsed: null,
+        pointsUsed: 0,
+      }
+
+      // Create Stripe Checkout session
+      const response = await stripeService.createCheckoutSession(bookingData)
+
+      if (response.success && response.sessionUrl) {
+        // Redirect to Stripe Checkout
+        window.location.href = response.sessionUrl
+      } else {
+        toast.error('Failed to create payment session')
+        setIsProcessing(false)
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error)
+      toast.error(
+        error.response?.data?.message ||
+          'Failed to process booking. Please try again.'
+      )
+      setIsProcessing(false)
     }
-    bookingSummary += `Total Price: $${totalPrice.toFixed(2)}\n`
-    bookingSummary += `Total Duration: ${totalDuration} minutes\n`
-    bookingSummary += `Date: ${selectedDate}\n`
-    bookingSummary += `Time: ${selectedTime}`
-
-    toast.success(bookingSummary)
-
-    // TODO: Replace with actual booking API call
-    // const bookingData = {
-    //   serviceId: service._id,
-    //   subTreatmentId: selectedTreatment?._id,
-    //   addOnServices: selectedAddOns.map(addon => ({
-    //     serviceId: addon.serviceId,
-    //     price: addon.finalPrice || addon.customPrice || addon.basePrice,
-    //     duration: addon.finalDuration || addon.customDuration || addon.duration
-    //   })),
-    //   date: selectedDate,
-    //   time: selectedTime,
-    //   totalPrice: totalPrice,
-    //   totalDuration: totalDuration
-    // }
-    // bookingMutation.mutate(bookingData)
   }
 
   const handleBackClick = () => {
@@ -812,14 +820,24 @@ const ServiceDetailPage = () => {
               <button
                 onClick={handleBooking}
                 disabled={
+                  isProcessing ||
                   !selectedDate ||
                   !selectedTime ||
                   (service.subTreatments?.length > 0 && !selectedTreatment)
                 }
                 className='w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2'
               >
-                <Calendar className='w-5 h-5' />
-                Book Appointment
+                {isProcessing ? (
+                  <>
+                    <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin' />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Calendar className='w-5 h-5' />
+                    Book Appointment
+                  </>
+                )}
               </button>
 
               <p className='text-xs text-gray-500 mt-3 text-center'>

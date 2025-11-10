@@ -50,6 +50,17 @@ const stripeService = {
   // ==================== PAYMENTS ====================
 
   /**
+   * Create a checkout session for booking with payment
+   */
+  createCheckoutSession: async (bookingData) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/create-checkout-session',
+      bookingData
+    )
+    return response.data
+  },
+
+  /**
    * Create a payment intent
    */
   createPaymentIntent: async (

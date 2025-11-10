@@ -246,6 +246,160 @@ export const getAccountDashboard = async (req, res, next) => {
 // ==================== PAYMENT FUNCTIONS ====================
 
 /**
+ * Create a Stripe Checkout session for service booking (with redirect)
+ */
+export const createCheckoutSession = async (req, res, next) => {
+  try {
+    const customerId = req.user.id
+    const {
+      serviceId,
+      date,
+      time,
+      duration,
+      locationId,
+      notes,
+      rewardUsed,
+      pointsUsed
+    } = req.body
+
+    // Validate required fields
+    if (!serviceId || !date || !time || !locationId) {
+      return next(createError(400, 'Missing required booking fields'))
+    }
+
+    // Fetch service details
+    const service = await Service.findById(serviceId).populate('createdBy')
+
+    if (!service || service.status !== 'active' || service.isDeleted) {
+      return next(createError(404, 'Service not found or inactive'))
+    }
+
+    // Get spa owner (creator of the service)
+    const spaOwner = service.createdBy
+
+    if (!spaOwner || spaOwner.role !== 'team') {
+      return next(createError(400, 'Service owner is not a valid spa account'))
+    }
+
+    // Check if spa owner has Stripe connected
+    if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
+      return next(
+        createError(400, 'This spa has not connected their payment account yet')
+      )
+    }
+
+    // Calculate pricing
+    let subtotal = service.basePrice
+    let discountAmount = 0
+
+    // Apply service discount if active
+    if (service.discount?.active && service.discount.percentage > 0) {
+      const now = new Date()
+      const startDate = service.discount.startDate
+        ? new Date(service.discount.startDate)
+        : new Date()
+      const endDate = service.discount.endDate
+        ? new Date(service.discount.endDate)
+        : new Date()
+
+      if (now >= startDate && now <= endDate) {
+        discountAmount = (subtotal * service.discount.percentage) / 100
+      }
+    }
+
+    // Apply points discount
+    if (pointsUsed && pointsUsed > 0) {
+      const customer = await User.findById(customerId)
+      if (customer && customer.points >= pointsUsed) {
+        discountAmount += pointsUsed // $1 per point
+      }
+    }
+
+    // Calculate final amount
+    const finalPrice = Math.max(subtotal - discountAmount, 0)
+    const amount = Math.round(finalPrice * 100) // Convert to cents
+    const platformFee = Math.round(finalPrice * 0.1 * 100) // 10% platform fee
+
+    // Create temporary booking record
+    const booking = await Booking.create({
+      userId: customerId,
+      serviceId,
+      serviceName: service.name,
+      servicePrice: subtotal,
+      finalPrice,
+      discountApplied: discountAmount,
+      rewardUsed: rewardUsed || null,
+      pointsUsed: pointsUsed || 0,
+      date: new Date(date),
+      time,
+      duration: duration || service.duration,
+      locationId,
+      notes: notes || '',
+      status: 'scheduled',
+      paymentStatus: 'pending',
+    })
+
+    // Create Stripe Checkout Session
+    const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
+    const cancelUrl = `${process.env.CLIENT_URL}/services/${serviceId}`
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: service.name,
+              description: `Booking on ${new Date(date).toLocaleDateString()} at ${time}`,
+              images: service.images?.length > 0 ? [service.images[0]] : [],
+            },
+            unit_amount: amount,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: req.user.email,
+      payment_intent_data: {
+        application_fee_amount: platformFee,
+        transfer_data: {
+          destination: spaOwner.stripe.accountId,
+        },
+        metadata: {
+          customerId: customerId.toString(),
+          spaOwnerId: spaOwner._id.toString(),
+          serviceId: serviceId.toString(),
+          serviceName: service.name,
+          bookingId: booking._id.toString(),
+        },
+      },
+      metadata: {
+        customerId: customerId.toString(),
+        bookingId: booking._id.toString(),
+        serviceId: serviceId.toString(),
+      },
+    })
+
+    // Update booking with session ID
+    booking.stripeSessionId = session.id
+    await booking.save()
+
+    res.status(201).json({
+      success: true,
+      sessionId: session.id,
+      sessionUrl: session.url,
+      bookingId: booking._id,
+    })
+  } catch (error) {
+    console.error('Error creating checkout session:', error)
+    next(error)
+  }
+}
+
+/**
  * Create a payment intent for a service booking
  */
 export const createPaymentIntent = async (req, res, next) => {
@@ -605,6 +759,10 @@ export const handleWebhook = async (req, res, next) => {
         await handleAccountUpdated(event.data.object)
         break
 
+      case 'checkout.session.completed':
+        await handleCheckoutSessionCompleted(event.data.object)
+        break
+
       case 'payment_intent.succeeded':
         await handlePaymentSucceeded(event.data.object)
         break
@@ -643,6 +801,83 @@ async function handleAccountUpdated(account) {
 
     await user.save()
   }
+}
+
+async function handleCheckoutSessionCompleted(session) {
+  const bookingId = session.metadata.bookingId
+  const customerId = session.metadata.customerId
+
+  if (!bookingId) {
+    console.error('No booking ID in checkout session metadata')
+    return
+  }
+
+  // Find the booking
+  const booking = await Booking.findById(bookingId)
+
+  if (!booking) {
+    console.error('Booking not found:', bookingId)
+    return
+  }
+
+  // Get payment intent from the session
+  const paymentIntentId = session.payment_intent
+
+  // Retrieve payment intent details
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+
+  // Create payment record
+  const payment = await Payment.create({
+    stripePaymentIntentId: paymentIntentId,
+    customer: customerId,
+    spaOwner: paymentIntent.metadata.spaOwnerId,
+    stripeAccountId: paymentIntent.transfer_data.destination,
+    service: booking.serviceId,
+    booking: booking._id,
+    amount: session.amount_total,
+    currency: session.currency,
+    subtotal: booking.servicePrice * 100,
+    discount: {
+      amount: booking.discountApplied * 100,
+      type: booking.discountApplied > 0 ? 'service_discount' : null,
+      code: null,
+      description: booking.discountApplied > 0 ? 'Service discount applied' : null,
+    },
+    tax: { amount: 0, rate: 0 },
+    platformFee: {
+      amount: paymentIntent.application_fee_amount,
+      percentage: 10,
+    },
+    status: 'succeeded',
+    processedAt: new Date(),
+    pointsEarned: Math.floor(booking.finalPrice), // 1 point per dollar
+    paymentMethod: {
+      type: paymentIntent.payment_method_types[0] || 'card',
+      brand: paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand || null,
+      last4: paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 || null,
+    },
+  })
+
+  // Update booking status
+  booking.paymentStatus = 'paid'
+  booking.paymentId = payment._id
+  booking.pointsEarned = payment.pointsEarned
+  await booking.save()
+
+  // Award points to customer
+  const customer = await User.findById(customerId)
+  if (customer) {
+    customer.points += payment.pointsEarned
+
+    // Deduct points if they were used for discount
+    if (booking.pointsUsed > 0) {
+      customer.points = Math.max(0, customer.points - booking.pointsUsed)
+    }
+
+    await customer.save()
+  }
+
+  console.log(`Booking ${bookingId} payment completed successfully`)
 }
 
 async function handlePaymentSucceeded(paymentIntent) {

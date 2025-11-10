@@ -103,6 +103,21 @@ const BookingSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    paymentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payment',
+      default: null,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'paid', 'failed', 'refunded'],
+      default: 'pending',
+      index: true,
+    },
+    stripeSessionId: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
