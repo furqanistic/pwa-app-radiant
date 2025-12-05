@@ -265,7 +265,7 @@ const ScratchSpinPage = () => {
 
         {/* Game Modal */}
         <AnimatePresence>
-          {activeGame && (
+          {activeGame && !showResult && (
             <GameModal
               game={activeGame}
               onClose={() => setActiveGame(null)}
@@ -700,32 +700,32 @@ const SpinWheel = ({ game, onPlay, isPlaying, canPlay }) => {
   )
 }
 
-// Enhanced Slide Reveal with Eligibility Check
+// Enhanced Scratch Card with Click to Reveal - Stays open
 const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
-  const [sliderValue, setSliderValue] = useState(0)
-  const [isRevealed, setIsRevealed] = useState(false)
+  const [isRevealing, setIsRevealing] = useState(false)
 
-  const handleSliderChange = (e) => {
-    if (!canPlay) return
+  const handleRevealCard = () => {
+    if (!canPlay || isRevealing || isPlaying) return
 
-    const value = parseInt(e.target.value)
-    setSliderValue(value)
-
-    if (value >= 85 && !isRevealed) {
-      setIsRevealed(true)
-      setTimeout(() => onPlay(), 300)
-    }
+    setIsRevealing(true)
+    // Give animation time to complete before calling onPlay
+    setTimeout(() => {
+      onPlay()
+    }, 600)
   }
 
   return (
     <div className='text-center py-3'>
       {/* Card */}
-      <div
-        className={`relative w-full h-40 mx-auto mb-6 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl overflow-hidden border border-pink-200 ${
-          !canPlay ? 'opacity-50' : ''
+      <motion.div
+        onClick={handleRevealCard}
+        className={`relative w-full h-40 mx-auto mb-6 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl overflow-hidden border border-pink-200 cursor-pointer ${
+          !canPlay ? 'opacity-50 cursor-not-allowed' : ''
         }`}
+        whileHover={canPlay && !isRevealing ? { scale: 1.02 } : {}}
+        whileTap={canPlay && !isRevealing ? { scale: 0.98 } : {}}
       >
-        {/* Hidden Content */}
+        {/* Hidden Content - Prize */}
         <div className='absolute inset-0 flex items-center justify-center text-white'>
           <div className='text-center'>
             <div className='w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 border border-white/30'>
@@ -738,55 +738,39 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
           </div>
         </div>
 
-        {/* Sliding Overlay */}
-        <div
-          className='absolute inset-0 bg-gradient-to-r from-gray-800 to-gray-900 flex items-center justify-center text-white transition-transform duration-200 border-r-4 border-pink-200'
-          style={{
-            transform: `translateX(${sliderValue - 100}%)`,
-          }}
+        {/* Scratch Overlay - Animates away on click */}
+        <motion.div
+          className='absolute inset-0 bg-gradient-to-r from-gray-800 to-gray-900 flex items-center justify-center text-white'
+          animate={isRevealing ? { opacity: 0, y: -50 } : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          pointerEvents={isRevealing ? 'none' : 'auto'}
         >
           <div className='text-center'>
-            <Sparkles className='w-8 h-8 mx-auto mb-2' />
-            <div className='text-lg font-bold mb-2'>
-              {canPlay ? 'Slide to Reveal ✨' : 'Play Limit Reached'}
-            </div>
-            <div className='w-8 h-1 bg-white/60 rounded mx-auto'></div>
+            {isRevealing ? (
+              <>
+                <Loader2 className='w-8 h-8 mx-auto mb-2 animate-spin' />
+                <div className='text-lg font-bold mb-2'>Revealing... ✨</div>
+              </>
+            ) : (
+              <>
+                <Sparkles className='w-8 h-8 mx-auto mb-2 animate-bounce' />
+                <div className='text-lg font-bold mb-2'>
+                  {canPlay ? 'Tap to Scratch!' : 'Play Limit Reached'}
+                </div>
+                <div className='text-xs opacity-75 mt-2'>
+                  Click the card to reveal
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
-      {/* Slider */}
-      <div className='mb-4'>
-        <div className='relative'>
-          <input
-            type='range'
-            min='0'
-            max='100'
-            value={sliderValue}
-            onChange={handleSliderChange}
-            disabled={isPlaying || !canPlay}
-            className={`w-full h-3 bg-pink-100 rounded-lg appearance-none cursor-pointer border border-pink-200 ${
-              !canPlay ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-            style={{
-              background: `linear-gradient(to right, #ec4899 0%, #ec4899 ${sliderValue}%, #fce7f3 ${sliderValue}%, #fce7f3 100%)`,
-            }}
-          />
-          <div className='flex justify-between text-gray-600 mt-2'>
-            <span className='text-xs'>Start</span>
-            <span className='text-xs font-semibold text-pink-600'>
-              {sliderValue}%
-            </span>
-            <span className='text-xs'>Reveal</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Status */}
+      {/* Status Text */}
       {isPlaying ? (
         <div className='flex items-center justify-center gap-2 text-pink-600'>
           <Loader2 className='w-4 h-4 animate-spin' />
-          <span className='text-sm font-medium'>Revealing your prize...</span>
+          <span className='text-sm font-medium'>Processing your win...</span>
         </div>
       ) : !canPlay ? (
         <p className='text-gray-500 text-sm'>
@@ -794,14 +778,13 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
         </p>
       ) : (
         <p className='text-gray-600 text-sm'>
-          Slide the control to reveal your mystery prize!
+          Click the card to scratch and reveal your mystery prize!
         </p>
       )}
     </div>
   )
 }
 
-// Enhanced Result Modal with Updated Play Limits
 // Enhanced Result Modal with Complete Prize Information
 const ResultModal = ({ result, onClose }) => {
   const eligibility = result.result.eligibilityAfterPlay

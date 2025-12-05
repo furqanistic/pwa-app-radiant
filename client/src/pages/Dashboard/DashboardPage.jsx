@@ -1,4 +1,5 @@
 // File: client/src/pages/Dashboard/DashboardPage.jsx - COMPLETE ENHANCED VERSION
+import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
 import { useDashboardData } from '@/hooks/useDashboard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
@@ -764,7 +765,9 @@ const DashboardPage = () => {
 
           {/* Spa Rewards Section - Full Width */}
           <SpaRewardsSection />
-
+          <div className='mb-4 sm:mb-6 lg:mb-8'>
+            <GamesSection />
+          </div>
           {/* Need More Points Section - Full Width */}
           {data.pointsEarningMethods && (
             <div className='mb-4 sm:mb-6 lg:mb-8'>

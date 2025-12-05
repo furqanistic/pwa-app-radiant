@@ -595,7 +595,7 @@ const ServiceCatalogPage = () => {
   const navigate = useNavigate()
 
   const handleServiceSelect = (service) => {
-    navigate(`/bookings/${service._id}`)
+    navigate(`/services/${service._id}`)
   }
 
   return <ServiceCatalog onServiceSelect={handleServiceSelect} />

@@ -12,9 +12,9 @@ import {
   useLocation,
 } from 'react-router-dom'
 import AuthPage from './pages/Auth/AuthPage'
+import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
-import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 import CartPage from './pages/Cart/CartPage'
 import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
@@ -282,7 +282,7 @@ const App = () => {
         />
 
         <Route
-          path='/bookings'
+          path='/services'
           element={
             <ProtectedRoute>
               <ServiceCatalogPage />
@@ -291,7 +291,7 @@ const App = () => {
         />
 
         <Route
-          path='/bookings/:serviceId'
+          path='/services/:serviceId'
           element={
             <ProtectedRoute>
               <ServiceDetailPage />
@@ -318,10 +318,19 @@ const App = () => {
         />
 
         <Route
-          path='/services'
+          path='/rewards'
           element={
             <ProtectedRoute>
               <RewardsCatalogPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/Booking'
+          element={
+            <ProtectedRoute>
+              <BookingSuccessPage />
             </ProtectedRoute>
           }
         />

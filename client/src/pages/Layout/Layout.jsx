@@ -7,6 +7,7 @@ import {
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Calendar,
+  CompassIcon,
   Contact2,
   Gamepad2,
   Gift,
@@ -142,15 +143,17 @@ const Layout = ({
       superAdminOnly: true, // Only super-admin can access
     },
     {
-      id: 'bookings',
-      label: 'Bookings',
+      id: 'services',
+      label: 'Services',
+      icon: CompassIcon,
+      href: '/services',
+    },
+    {
+      id: 'booking',
+      label: 'Booking',
       icon: Calendar,
-      href: '/bookings',
-      badge: {
-        count: 12,
-        color:
-          'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
-      },
+      href: '/Booking',
+      badge: null,
       // Available to everyone
     },
     {
@@ -162,10 +165,10 @@ const Layout = ({
       elevatedAccessRequired: true, // Requires elevated access (super-admin, admin, team, enterprise)
     },
     {
-      id: 'services',
+      id: 'rewards',
       label: 'Loyalty & Rewards',
       icon: Star,
-      href: '/services',
+      href: '/rewards',
       badge: {
         text: 'NEW',
         color:

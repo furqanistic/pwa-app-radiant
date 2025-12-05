@@ -1,9 +1,13 @@
-// File: client/vite.config.js - UPDATED FOR PUSH NOTIFICATIONS
+// File: client/vite.config.js - UPDATED FOR PWA WITH CUSTOM SERVICE WORKER
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
+import path, { dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 export default defineConfig({
   plugins: [
@@ -11,8 +15,8 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      // CRITICAL CHANGE: Use injectManifest for custom service worker
-      strategies: 'generateSW',
+      // Use injectManifest since we have a custom sw.js
+      strategies: 'injectManifest',
       srcDir: 'public',
       filename: 'sw.js',
       injectManifest: {
@@ -23,12 +27,7 @@ export default defineConfig({
           '**/*.{js,css,html,ico,png,svg,jpg,jpeg,gif,webp,woff,woff2}',
         ],
         // Don't precache these
-        globIgnores: [
-          'node_modules/**/*',
-          'sw.js',
-          'workbox-*.js',
-          'manifest.json',
-        ],
+        globIgnores: ['node_modules/**/*', 'sw.js', 'workbox-*.js'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
       },
       includeAssets: [
@@ -73,6 +72,20 @@ export default defineConfig({
             purpose: 'any',
           },
         ],
+        screenshots: [
+          {
+            src: '/favicon_io/android-chrome-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            form_factor: 'wide',
+          },
+          {
+            src: '/favicon_io/android-chrome-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            form_factor: 'narrow',
+          },
+        ],
         shortcuts: [
           {
             name: 'Dashboard',
@@ -107,7 +120,7 @@ export default defineConfig({
       // Workbox configuration for runtime caching
       workbox: {
         cleanupOutdatedCaches: true,
-        skipWaiting: false, // Let service worker handle this
+        skipWaiting: false,
         clientsClaim: true,
         runtimeCaching: [
           {

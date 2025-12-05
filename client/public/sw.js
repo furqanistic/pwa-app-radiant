@@ -8,12 +8,12 @@
 self.__WB_MANIFEST
 
 const CACHE_NAME = 'radiantai-v1'
-const OFFLINE_URL = '/offline.html'
+const OFFLINE_URL = './offline.html'
 
 // Essential files to cache
 const urlsToCache = [
   '/',
-  '/offline.html',
+  './offline.html',
   '/manifest.json',
   '/favicon_io/android-chrome-192x192.png',
   '/favicon_io/android-chrome-512x512.png',
