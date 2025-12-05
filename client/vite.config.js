@@ -1,4 +1,4 @@
-// File: client/vite.config.js - UPDATED FOR PWA WITH CUSTOM SERVICE WORKER
+// File: client/vite.config.js - FIXED PWA CONFIG
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import path, { dirname } from 'path'
@@ -15,26 +15,40 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Use injectManifest since we have a custom sw.js
-      strategies: 'injectManifest',
-      srcDir: 'public',
-      filename: 'sw.js',
-      injectManifest: {
-        swSrc: 'public/sw.js',
-        swDest: 'dist/sw.js',
-        globDirectory: 'dist',
+      // Use generateSW strategy - simpler, no injection needed
+      strategies: 'generateSW',
+      workbox: {
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg,jpg,jpeg,gif,webp,woff,woff2}',
         ],
-        // Don't precache these
         globIgnores: ['node_modules/**/*', 'sw.js', 'workbox-*.js'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\./i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
       },
       includeAssets: [
         'favicon_io/favicon.ico',
         'favicon_io/apple-touch-icon.png',
         'favicon_io/android-chrome-192x192.png',
         'favicon_io/android-chrome-512x512.png',
+        'icon.png',
       ],
       manifest: {
         name: 'RadiantAI - Beauty & Wellness AI',
@@ -70,6 +84,12 @@ export default defineConfig({
             sizes: '180x180',
             type: 'image/png',
             purpose: 'any',
+          },
+          {
+            src: '/icon.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable',
           },
         ],
         screenshots: [
@@ -116,28 +136,6 @@ export default defineConfig({
       devOptions: {
         enabled: true,
         type: 'module',
-      },
-      // Workbox configuration for runtime caching
-      workbox: {
-        cleanupOutdatedCaches: true,
-        skipWaiting: false,
-        clientsClaim: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\./i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24, // 24 hours
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
       },
     }),
   ],
