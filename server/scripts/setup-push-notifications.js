@@ -76,7 +76,7 @@ for (const icon of requiredIcons) {
 }
 
 // Create offline.html if it doesn't exist
-const offlineHtmlPath = 'public/offline.html'
+const offlineHtmlPath = '../public/offline.html'
 if (!fs.existsSync(offlineHtmlPath)) {
   const offlineHtml = `<!DOCTYPE html>
 <html lang="en">

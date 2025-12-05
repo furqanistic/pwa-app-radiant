@@ -253,7 +253,7 @@ export const createCheckoutSession = async (req, res, next) => {
   try {
     const customerId = req.user.id
     const { items, locationId: cartLocationId } = req.body
-
+    console.log(customerId)
     // Check if this is a cart checkout (multiple items) or single service
     const isCartCheckout = Array.isArray(items) && items.length > 0
 
@@ -271,26 +271,45 @@ export const createCheckoutSession = async (req, res, next) => {
 
       // Process each cart item
       for (const item of items) {
-        const service = await Service.findById(item.serviceId).populate('createdBy')
+        const service = await Service.findById(item.serviceId).populate(
+          'createdBy'
+        )
 
         if (!service || service.status !== 'active' || service.isDeleted) {
-          return next(createError(404, `Service ${item.serviceName} not found or inactive`))
+          return next(
+            createError(
+              404,
+              `Service ${item.serviceName} not found or inactive`
+            )
+          )
         }
 
         const spaOwner = service.createdBy
         if (!spaOwner || spaOwner.role !== 'team') {
-          return next(createError(400, `Service owner for ${item.serviceName} is not valid`))
+          return next(
+            createError(
+              400,
+              `Service owner for ${item.serviceName} is not valid`
+            )
+          )
         }
 
         if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
-          return next(createError(400, `${item.serviceName}'s spa has not connected payment account`))
+          return next(
+            createError(
+              400,
+              `${item.serviceName}'s spa has not connected payment account`
+            )
+          )
         }
 
         // For simplicity, all services should be from same spa owner
         if (!spaOwnerId) {
           spaOwnerId = spaOwner._id.toString()
         } else if (spaOwnerId !== spaOwner._id.toString()) {
-          return next(createError(400, 'All services must be from the same spa location'))
+          return next(
+            createError(400, 'All services must be from the same spa location')
+          )
         }
 
         const amount = Math.round(item.price * 100) // Convert to cents
@@ -324,7 +343,9 @@ export const createCheckoutSession = async (req, res, next) => {
             currency: 'usd',
             product_data: {
               name: `${item.serviceName}`,
-              description: `Booking on ${new Date(item.date).toLocaleDateString()} at ${item.time}`,
+              description: `Booking on ${new Date(
+                item.date
+              ).toLocaleDateString()} at ${item.time}`,
             },
             unit_amount: amount,
           },
@@ -354,20 +375,20 @@ export const createCheckoutSession = async (req, res, next) => {
           metadata: {
             customerId: customerId.toString(),
             spaOwnerId: spaOwner._id.toString(),
-            bookingIds: bookings.map(b => b._id.toString()).join(','),
+            bookingIds: bookings.map((b) => b._id.toString()).join(','),
             isCartCheckout: 'true',
           },
         },
         metadata: {
           customerId: customerId.toString(),
-          bookingIds: bookings.map(b => b._id.toString()).join(','),
+          bookingIds: bookings.map((b) => b._id.toString()).join(','),
           isCartCheckout: 'true',
         },
       })
 
       // Update bookings with session ID
       await Promise.all(
-        bookings.map(booking => {
+        bookings.map((booking) => {
           booking.stripeSessionId = session.id
           return booking.save()
         })
@@ -377,7 +398,7 @@ export const createCheckoutSession = async (req, res, next) => {
         success: true,
         sessionId: session.id,
         sessionUrl: session.url,
-        bookingIds: bookings.map(b => b._id),
+        bookingIds: bookings.map((b) => b._id),
       })
     }
 
@@ -390,7 +411,7 @@ export const createCheckoutSession = async (req, res, next) => {
       locationId,
       notes,
       rewardUsed,
-      pointsUsed
+      pointsUsed,
     } = req.body
 
     // Validate required fields
@@ -482,7 +503,9 @@ export const createCheckoutSession = async (req, res, next) => {
             currency: 'usd',
             product_data: {
               name: service.name,
-              description: `Booking on ${new Date(date).toLocaleDateString()} at ${time}`,
+              description: `Booking on ${new Date(
+                date
+              ).toLocaleDateString()} at ${time}`,
               images: service.images?.length > 0 ? [service.images[0]] : [],
             },
             unit_amount: amount,
@@ -983,7 +1006,8 @@ async function handleCheckoutSessionCompleted(session) {
           amount: booking.discountApplied * 100,
           type: booking.discountApplied > 0 ? 'service_discount' : null,
           code: null,
-          description: booking.discountApplied > 0 ? 'Service discount applied' : null,
+          description:
+            booking.discountApplied > 0 ? 'Service discount applied' : null,
         },
         tax: { amount: 0, rate: 0 },
         platformFee: {
@@ -995,8 +1019,12 @@ async function handleCheckoutSessionCompleted(session) {
         pointsEarned: pointsEarned,
         paymentMethod: {
           type: paymentIntent.payment_method_types[0] || 'card',
-          brand: paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand || null,
-          last4: paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 || null,
+          brand:
+            paymentIntent.charges?.data[0]?.payment_method_details?.card
+              ?.brand || null,
+          last4:
+            paymentIntent.charges?.data[0]?.payment_method_details?.card
+              ?.last4 || null,
         },
       })
 
@@ -1014,7 +1042,9 @@ async function handleCheckoutSessionCompleted(session) {
       await customer.save()
     }
 
-    console.log(`Cart checkout completed: ${bookings.length} bookings, ${totalPointsEarned} points earned`)
+    console.log(
+      `Cart checkout completed: ${bookings.length} bookings, ${totalPointsEarned} points earned`
+    )
     return
   }
 
@@ -1047,7 +1077,8 @@ async function handleCheckoutSessionCompleted(session) {
       amount: booking.discountApplied * 100,
       type: booking.discountApplied > 0 ? 'service_discount' : null,
       code: null,
-      description: booking.discountApplied > 0 ? 'Service discount applied' : null,
+      description:
+        booking.discountApplied > 0 ? 'Service discount applied' : null,
     },
     tax: { amount: 0, rate: 0 },
     platformFee: {
@@ -1059,8 +1090,12 @@ async function handleCheckoutSessionCompleted(session) {
     pointsEarned: Math.floor(booking.finalPrice), // 1 point per dollar
     paymentMethod: {
       type: paymentIntent.payment_method_types[0] || 'card',
-      brand: paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand || null,
-      last4: paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 || null,
+      brand:
+        paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand ||
+        null,
+      last4:
+        paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
+        null,
     },
   })
 
