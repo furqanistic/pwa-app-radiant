@@ -627,3 +627,75 @@ export const usePrefetchService = () => {
     })
   }
 }
+
+
+
+
+
+
+
+
+
+// ✅ ONLY THE FIXED HOOK - Replace the useBookedTimes section in your useServices.js
+
+// ===============================================
+// BOOKED TIMES QUERY HOOKS (FIXED)
+// ===============================================
+
+export const bookingQueryKeys = {
+  all: ['bookings'],
+  bookedTimes: (serviceId, date) => [...bookingQueryKeys.all, 'booked-times', serviceId, date],
+}
+
+// ✅ FIXED: Correct extraction path
+export const useBookedTimes = (serviceId, date) => {
+  return useQuery({
+    queryKey: bookingQueryKeys.bookedTimes(serviceId, date),
+    queryFn: async () => {
+      // Validate inputs
+      if (!serviceId || !date) {
+        console.warn('⚠️ Missing serviceId or date for booked times');
+        return [];
+      }
+
+      try {
+        const response = await fetch(
+          `/api/bookings/booked-times?serviceId=${serviceId}&date=${date}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          console.error('❌ API Error:', response.status);
+          throw new Error('Failed to fetch booked times');
+        }
+
+        const data = await response.json();
+        
+        // 🔧 DEBUG LOG
+        console.log('📥 Booked Times API Response:', {
+          full: data,
+          extracted: data.data?.bookedTimes,
+        });
+
+        // ✅ CORRECT EXTRACTION PATH
+        // Backend returns: { success: true, data: { bookedTimes: [...] } }
+        // So we need: data.data.bookedTimes
+        const bookedTimes = data.data?.bookedTimes || [];
+        
+        console.log('✅ Extracted booked times:', bookedTimes);
+        
+        return bookedTimes;
+      } catch (error) {
+        console.error('❌ Error fetching booked times:', error);
+        return [];
+      }
+    },
+    enabled: !!serviceId && !!date,
+    staleTime: 1 * 60 * 1000, // 1 minute cache
+    retry: 1,
+  });
+}
