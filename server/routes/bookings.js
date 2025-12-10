@@ -2,6 +2,7 @@
 import express from 'express'
 import {
   createBooking,
+  getBookedTimes,
   getUserBookingStats,
   getUserPastVisits,
   getUserUpcomingAppointments,
@@ -20,5 +21,5 @@ router.get('/past', getUserPastVisits)
 router.get('/stats', getUserBookingStats)
 router.post('/create', createBooking)
 router.post('/rate/:bookingId', rateVisit)
-
+router.get("/booked-times", getBookedTimes);
 export default router

@@ -33,6 +33,8 @@ import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
 import { updateProfile } from './redux/userSlice'
 import { authService } from './services/authService'
+import BookingsPage from './pages/Bookings/BookingsPage'
+import BookingsManagementPage from './pages/Management/BookingsManagementPage'
 
 // IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
@@ -222,12 +224,12 @@ const App = () => {
   return (
     <BrowserRouter>
       <Toaster
-        position='top-center'
+        position="top-center"
         toastOptions={{
           duration: 3000,
           style: {
-            fontSize: '14px',
-            padding: '12px 16px',
+            fontSize: "14px",
+            padding: "12px 16px",
           },
         }}
       />
@@ -236,7 +238,7 @@ const App = () => {
       <Routes>
         {/* Public routes */}
         <Route
-          path='/'
+          path="/"
           element={
             <PublicRoute>
               <AuthPage />
@@ -244,7 +246,7 @@ const App = () => {
           }
         />
         <Route
-          path='/auth'
+          path="/auth"
           element={
             <PublicRoute>
               <AuthPage />
@@ -254,7 +256,7 @@ const App = () => {
 
         {/* Welcome route */}
         <Route
-          path='/welcome'
+          path="/welcome"
           element={
             <WelcomeRoute>
               <WelcomePage />
@@ -264,7 +266,7 @@ const App = () => {
 
         {/* Protected routes */}
         <Route
-          path='/dashboard'
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <DashboardPage />
@@ -273,7 +275,7 @@ const App = () => {
         />
 
         <Route
-          path='/spin'
+          path="/spin"
           element={
             <ProtectedRoute>
               <ScratchSpinPage />
@@ -282,7 +284,7 @@ const App = () => {
         />
 
         <Route
-          path='/services'
+          path="/services"
           element={
             <ProtectedRoute>
               <ServiceCatalogPage />
@@ -291,25 +293,25 @@ const App = () => {
         />
 
         <Route
-          path='/services/:serviceId'
+          path="/services/:serviceId"
           element={
             <ProtectedRoute>
               <ServiceDetailPage />
             </ProtectedRoute>
           }
         />
-
+{/* 
         <Route
-          path='/booking-success'
+          path="/booking-success"
           element={
             <ProtectedRoute>
               <BookingSuccessPage />
             </ProtectedRoute>
           }
-        />
+        /> */}
 
         <Route
-          path='/cart'
+          path="/cart"
           element={
             <ProtectedRoute>
               <CartPage />
@@ -318,16 +320,24 @@ const App = () => {
         />
 
         <Route
-          path='/rewards'
+          path="/rewards"
           element={
             <ProtectedRoute>
               <RewardsCatalogPage />
             </ProtectedRoute>
           }
         />
-
+        
         <Route
-          path='/Booking'
+          path="/management/bookings"
+          element={
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+              <BookingsManagementPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/Booking"
           element={
             <ProtectedRoute>
               <BookingSuccessPage />
@@ -336,7 +346,7 @@ const App = () => {
         />
 
         <Route
-          path='/profile'
+          path="/profile"
           element={
             <ProtectedRoute>
               <ProfilePage />
@@ -345,7 +355,7 @@ const App = () => {
         />
 
         <Route
-          path='/client/:userId'
+          path="/client/:userId"
           element={
             <ProtectedRoute>
               <ClientProfile />
@@ -354,7 +364,7 @@ const App = () => {
         />
 
         <Route
-          path='/referrals'
+          path="/referrals"
           element={
             <ProtectedRoute>
               <ReferralPage />
@@ -364,9 +374,9 @@ const App = () => {
 
         {/* Admin-only routes */}
         <Route
-          path='/contacts'
+          path="/contacts"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "super-admin"]}>
               <ContactsPage />
             </RoleProtectedRoute>
           }
@@ -374,64 +384,64 @@ const App = () => {
 
         {/* Management routes */}
         <Route
-          path='/management'
+          path="/management"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ManagementPage />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/services'
+          path="/management/services"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ServiceManagementPage />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/spin'
+          path="/management/spin"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ScratchSpinManagement />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/rewards'
+          path="/management/rewards"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <RewardManagement />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/referral'
+          path="/management/referral"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ManageReferralPage />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/session'
+          path="/session"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <SessionTrackerPage />
             </RoleProtectedRoute>
           }
         />
 
         {/* Fallback route */}
-        <Route path='*' element={<Navigate to='/auth' replace />} />
+        <Route path="*" element={<Navigate to="/auth" replace />} />
       </Routes>
     </BrowserRouter>
-  )
+  );
 }
 
 export default App
