@@ -1,5 +1,5 @@
 // File: client/src/pages/Bookings/ServiceDetailPage.jsx
-// Updated with useBookedTimes hook for fetching booked times
+// ✅ FIXED: Booked times + Cart duplicate prevention
 
 import { useService, useBookedTimes } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
@@ -28,6 +28,8 @@ const ServiceDetailPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
+  // ✅ GET CART FROM REDUX
+  const { items: cartItems } = useSelector((state) => state.cart);
 
   const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [selectedDate, setSelectedDate] = useState("");
@@ -35,7 +37,6 @@ const ServiceDetailPage = () => {
   const [selectedAddOns, setSelectedAddOns] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // API call to get service details with linked services
   const {
     data: service,
     isLoading,
@@ -46,13 +47,11 @@ const ServiceDetailPage = () => {
     includeRewards: "false",
   });
 
-  // Fetch booked times using hook
   const { data: bookedTimes = [], isLoading: loadingTimes } = useBookedTimes(
     serviceId,
     selectedDate
   );
 
-  // Mock available time slots
   const allTimeSlots = [
     "9:00 AM",
     "10:30 AM",
@@ -62,12 +61,53 @@ const ServiceDetailPage = () => {
     "5:00 PM",
   ];
 
-  // Get available times by filtering out booked times
-  const getAvailableTimes = () => {
-    return allTimeSlots.filter((time) => !bookedTimes.includes(time));
+  // Convert 24h to 12h
+  const convertTo12HourFormat = (time24) => {
+    if (!time24) return "";
+    const [hours, minutes] = time24.split(":").map(Number);
+    let period = "AM";
+    let hours12 = hours;
+    if (hours >= 12) {
+      period = "PM";
+      if (hours > 12) {
+        hours12 = hours - 12;
+      }
+    }
+    if (hours === 0) {
+      hours12 = 12;
+    }
+    return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
   };
 
-  // Loading state
+  const bookedTimesFormatted = bookedTimes.map((time) =>
+    convertTo12HourFormat(time)
+  );
+
+  // ✅ GET CART TIMES FOR THIS SERVICE ON THIS DATE
+  const getCartTimesForService = () => {
+    return cartItems
+      .filter(
+        (item) => item.serviceId === serviceId && item.date === selectedDate
+      )
+      .map((item) => item.time);
+  };
+
+  const cartTimesForService = getCartTimesForService();
+
+  // ✅ MERGE BOOKED + CART TIMES
+  const getAllUnavailableTimes = () => {
+    return [...new Set([...bookedTimesFormatted, ...cartTimesForService])];
+  };
+
+  // GET AVAILABLE TIMES
+  const getAvailableTimes = () => {
+    const unavailableTimes = getAllUnavailableTimes();
+    const available = allTimeSlots.filter(
+      (time) => !unavailableTimes.includes(time)
+    );
+    return available;
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -79,7 +119,6 @@ const ServiceDetailPage = () => {
     );
   }
 
-  // Error state
   if (isError || !service) {
     return (
       <Layout>
@@ -121,7 +160,6 @@ const ServiceDetailPage = () => {
     setSelectedTreatment(treatment);
   };
 
-  // Add-on handling functions
   const handleAddOnToggle = (addOn) => {
     setSelectedAddOns((prev) => {
       const isSelected = prev.some(
@@ -135,7 +173,6 @@ const ServiceDetailPage = () => {
     });
   };
 
-  // Calculate total price including add-ons
   const calculateTotalPrice = () => {
     const basePrice = selectedTreatment?.price || service.basePrice;
     const discountedBasePrice = calculateDiscountedPrice(basePrice);
@@ -147,7 +184,6 @@ const ServiceDetailPage = () => {
     return discountedBasePrice + addOnsTotal;
   };
 
-  // Calculate total duration including add-ons
   const calculateTotalDuration = () => {
     const baseDuration = selectedTreatment?.duration || service.duration;
 
@@ -170,10 +206,22 @@ const ServiceDetailPage = () => {
       return;
     }
 
+    // ✅ CHECK IF ALREADY IN CART
+    const isAlreadyInCart = cartItems.some(
+      (item) =>
+        item.serviceId === serviceId &&
+        item.date === selectedDate &&
+        item.time === selectedTime
+    );
+
+    if (isAlreadyInCart) {
+      toast.error("❌ This time slot is already in your cart!");
+      return;
+    }
+
     const totalPrice = calculateTotalPrice();
     const totalDuration = calculateTotalDuration();
 
-    // Create cart item
     const cartItem = {
       serviceId: service._id,
       serviceName: service.name,
@@ -203,7 +251,6 @@ const ServiceDetailPage = () => {
       icon: "🛒",
     });
 
-    // Reset selections
     setSelectedDate("");
     setSelectedTime("");
     setSelectedTreatment(null);
@@ -230,7 +277,6 @@ const ServiceDetailPage = () => {
     try {
       const totalDuration = calculateTotalDuration();
 
-      // Prepare booking data for checkout session
       const bookingData = {
         serviceId: service._id,
         serviceName: service.name,
@@ -259,11 +305,9 @@ const ServiceDetailPage = () => {
         totalPrice: calculateTotalPrice(),
       };
 
-      // Create Stripe Checkout session
       const response = await stripeService.createCheckoutSession(bookingData);
 
       if (response.success && response.sessionUrl) {
-        // Redirect to Stripe Checkout
         window.location.href = response.sessionUrl;
       } else {
         toast.error("Failed to create payment session");
@@ -288,7 +332,6 @@ const ServiceDetailPage = () => {
   return (
     <Layout>
       <div className="px-4 py-6 max-w-6xl mx-auto">
-        {/* Back Button */}
         <div className="mb-6">
           <button
             onClick={handleBackClick}
@@ -300,9 +343,7 @@ const ServiceDetailPage = () => {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Service Details - Left Column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Main Service Info */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="relative h-64 md:h-80">
                 <img
@@ -364,7 +405,6 @@ const ServiceDetailPage = () => {
                   {service.description}
                 </p>
 
-                {/* Service Info Grid */}
                 <div className="grid md:grid-cols-2 gap-4 mb-6">
                   <div className="bg-blue-50 p-4 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
@@ -433,7 +473,6 @@ const ServiceDetailPage = () => {
                   </div>
                 </div>
 
-                {/* Additional Service Stats */}
                 {(service.bookings > 0 || service.totalReviews > 0) && (
                   <div className="grid md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                     {service.bookings > 0 && (
@@ -457,7 +496,6 @@ const ServiceDetailPage = () => {
               </div>
             </div>
 
-            {/* Treatment Options */}
             <div className="bg-white rounded-lg p-6 shadow-sm">
               <h2 className="text-xl font-bold text-gray-900 mb-6">
                 Treatment Options
@@ -545,7 +583,6 @@ const ServiceDetailPage = () => {
               )}
             </div>
 
-            {/* Add-on Services Section */}
             {service.linkedServices && service.linkedServices.length > 0 && (
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-6">
@@ -698,14 +735,29 @@ const ServiceDetailPage = () => {
             )}
           </div>
 
-          {/* Booking Panel - Right Column */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg p-6 shadow-sm sticky top-6">
               <h3 className="text-xl font-bold text-gray-900 mb-6">
                 Book Appointment
               </h3>
 
-              {/* Treatment Selection or Default Service */}
+              {/* ✅ SHOW CART ITEMS */}
+              {cartTimesForService.length > 0 && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" />
+                    In Your Cart
+                  </h4>
+                  <div className="space-y-1">
+                    {cartTimesForService.map((time, idx) => (
+                      <p key={idx} className="text-sm text-blue-800">
+                        ✓ {selectedDate} at {time}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {service.subTreatments && service.subTreatments.length > 0 ? (
                 selectedTreatment ? (
                   <div className="mb-6 p-4 bg-pink-50 rounded-lg">
@@ -749,7 +801,6 @@ const ServiceDetailPage = () => {
                 </div>
               )}
 
-              {/* Selected Add-ons Summary */}
               {selectedAddOns.length > 0 && (
                 <div className="mb-6 p-4 bg-green-50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
@@ -782,7 +833,6 @@ const ServiceDetailPage = () => {
                 </div>
               )}
 
-              {/* Date Selection */}
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Select Date
@@ -796,7 +846,6 @@ const ServiceDetailPage = () => {
                 />
               </div>
 
-              {/* Time Selection with Booked Times Filtering */}
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Select Time
@@ -839,7 +888,6 @@ const ServiceDetailPage = () => {
                 )}
               </div>
 
-              {/* Booking Summary */}
               {((selectedTreatment && service.subTreatments?.length > 0) ||
                 !service.subTreatments?.length) &&
                 selectedDate &&
@@ -922,7 +970,6 @@ const ServiceDetailPage = () => {
                   </div>
                 )}
 
-              {/* Action Buttons */}
               <div className="space-y-2">
                 <button
                   onClick={handleAddToCart}

@@ -641,14 +641,18 @@ export const usePrefetchService = () => {
 // ===============================================
 // BOOKED TIMES QUERY HOOKS (FIXED)
 // ===============================================
+// File: client/src/hooks/useServices.js
+// ✅ UPDATED SECTION: useBookedTimes hook for port 8800
 
 export const bookingQueryKeys = {
   all: ['bookings'],
   bookedTimes: (serviceId, date) => [...bookingQueryKeys.all, 'booked-times', serviceId, date],
 }
 
-// ✅ FIXED: Correct extraction path
+// ✅ FIXED: Uses environment variable for API_URL
 export const useBookedTimes = (serviceId, date) => {
+  const API_URL = import.meta.env.VITE_API_URL || "/api";
+  
   return useQuery({
     queryKey: bookingQueryKeys.bookedTimes(serviceId, date),
     queryFn: async () => {
@@ -659,39 +663,70 @@ export const useBookedTimes = (serviceId, date) => {
       }
 
       try {
-        const response = await fetch(
-          `/api/bookings/booked-times?serviceId=${serviceId}&date=${date}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-          }
-        );
+        const token = localStorage.getItem('token');
+        const url = `${API_URL}/bookings/booked-times?serviceId=${serviceId}&date=${date}`;
+        
+        console.log('🔗 Fetching booked times from:', url);
 
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        // 🔧 DEBUG: Log response details
+        console.log('📊 Booked Times Response Status:', response.status);
+        console.log('📊 Content-Type:', response.headers.get('content-type'));
+
+        // Handle non-2xx responses
         if (!response.ok) {
-          console.error('❌ API Error:', response.status);
-          throw new Error('Failed to fetch booked times');
+          const errorText = await response.text();
+          console.error('❌ API Error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText,
+          });
+          throw new Error(`API Error ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
-        
+        // Check if response has content before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType?.includes('application/json')) {
+          const text = await response.text();
+          console.error('❌ Invalid Content-Type:', contentType);
+          console.error('❌ Response body:', text.substring(0, 200));
+          throw new Error(`Expected JSON, got ${contentType}`);
+        }
+
+        // ✅ Safely parse JSON with validation
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          console.error('❌ JSON Parse Error:', parseError);
+          const text = await response.text();
+          console.error('❌ Raw response text:', text.substring(0, 200));
+          throw new Error('Invalid JSON response from server');
+        }
+
         // 🔧 DEBUG LOG
         console.log('📥 Booked Times API Response:', {
           full: data,
-          extracted: data.data?.bookedTimes,
+          extracted: data?.data?.bookedTimes,
         });
 
         // ✅ CORRECT EXTRACTION PATH
         // Backend returns: { success: true, data: { bookedTimes: [...] } }
-        // So we need: data.data.bookedTimes
-        const bookedTimes = data.data?.bookedTimes || [];
+        const bookedTimes = data?.data?.bookedTimes || [];
         
         console.log('✅ Extracted booked times:', bookedTimes);
         
         return bookedTimes;
       } catch (error) {
-        console.error('❌ Error fetching booked times:', error);
-        return [];
+        console.error('❌ Error fetching booked times:', error.message);
+        throw error; // Let React Query handle the error
       }
     },
     enabled: !!serviceId && !!date,
