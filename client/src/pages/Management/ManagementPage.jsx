@@ -1,8 +1,9 @@
-// File: client/src/pages/Management/ManagementPage.jsx - COMPLETE FIXED VERSION
+// File: client/src/pages/Management/ManagementPage.jsx - UPDATED WITH QR MANAGEMENT
 
-import { authService } from '@/services/authService'
-import { locationService } from '@/services/locationService'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { authService } from "@/services/authService";
+import { locationService } from "@/services/locationService";
+import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
   Bell,
@@ -16,6 +17,7 @@ import {
   MapPin,
   MoreVertical,
   Plus,
+  QrCode,
   RefreshCw,
   Send,
   Settings,
@@ -25,28 +27,28 @@ import {
   Users,
   X,
   Zap,
-} from 'lucide-react'
-import React, { useState } from 'react'
-import toast from 'react-hot-toast'
-import { useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+} from "lucide-react";
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 
 // Import components
-import AddUserForm from '@/components/Management/AddUserForm'
-import LocationAssignmentForm from '@/components/Management/LocationAssignmentForm'
-import LocationForm from '@/components/Management/LocationForm'
-import NotificationSender from '@/components/Management/NotificationSender'
-import PointsManager from '@/components/Management/PointsManager'
-import StripeConnect from '@/components/Stripe/StripeConnect'
-import { Button } from '@/components/ui/button'
+import AddUserForm from "@/components/Management/AddUserForm";
+import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
+import LocationForm from "@/components/Management/LocationForm";
+import NotificationSender from "@/components/Management/NotificationSender";
+import PointsManager from "@/components/Management/PointsManager";
+import StripeConnect from "@/components/Stripe/StripeConnect";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import Layout from '@/pages/Layout/Layout'
+} from "@/components/ui/dropdown-menu";
+import Layout from "@/pages/Layout/Layout";
 
 const ManagementPage = () => {
   const navigate = useNavigate();
@@ -75,7 +77,7 @@ const ManagementPage = () => {
     "enterprise",
     "super-admin",
   ].includes(currentUser?.role);
-  const isAdminOrAbove = ["admin", "super-admin",].includes(currentUser?.role);
+  const isAdminOrAbove = ["admin", "super-admin"].includes(currentUser?.role);
   const isSuperAdmin = currentUser?.role === "super-admin";
 
   // Get current user's location for filtering
@@ -134,9 +136,7 @@ const ManagementPage = () => {
     },
   });
 
-  // UPDATED: Navigation cards for elevated users (admin, team, enterprise, super-admin)
-  // In managementRoutes array, add this new route:
-
+  // UPDATED: Navigation cards with QR Code Management
   const managementRoutes = [
     {
       title: "Service Management",
@@ -149,10 +149,10 @@ const ManagementPage = () => {
     {
       title: "Manage Bookings",
       description: "View and manage all client bookings",
-      icon: Calendar, // Add this import from lucide-react
+      icon: Calendar,
       path: "/management/bookings",
       color: "from-yellow-500 to-yellow-600",
-      visible: isAdminOrAbove, // Only admin, super-admin, team
+      visible: isAdminOrAbove,
     },
     {
       title: "Spin & Games",
@@ -177,6 +177,15 @@ const ManagementPage = () => {
       path: "/management/referral",
       color: "from-pink-500 to-pink-600",
       visible: isElevatedUser,
+    },
+    // NEW: QR Code Management
+    {
+      title: "QR Code Management",
+      description: "Create and manage location QR codes",
+      icon: QrCode,
+      path: "/management/qr-codes",
+      color: "from-cyan-500 to-cyan-600",
+      visible: isAdminOrAbove,
     },
   ];
 
@@ -350,7 +359,7 @@ const ManagementPage = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Quick Actions
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {managementRoutes
                   .filter((route) => route.visible)
                   .map((route) => (
@@ -556,13 +565,12 @@ const ManagementPage = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={(e) => e.stopPropagation()} // Prevent row click when clicking dropdown
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <MoreVertical className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {/* Edit User - Only admin and super-admin */}
                                 {isAdminOrAbove && (
                                   <DropdownMenuItem
                                     onClick={(e) => {
@@ -574,7 +582,6 @@ const ManagementPage = () => {
                                     Edit User
                                   </DropdownMenuItem>
                                 )}
-                                {/* Points Management for elevated users */}
                                 {isElevatedUser && (
                                   <DropdownMenuItem
                                     onClick={(e) => {
@@ -586,7 +593,6 @@ const ManagementPage = () => {
                                     Manage Points
                                   </DropdownMenuItem>
                                 )}
-                                {/* Send Notification to specific user */}
                                 {isElevatedUser && (
                                   <DropdownMenuItem
                                     onClick={(e) => {
@@ -598,16 +604,13 @@ const ManagementPage = () => {
                                     Send Notification
                                   </DropdownMenuItem>
                                 )}
-                                {/* Separator only if there are actions above and delete below */}
                                 {(isAdminOrAbove || isElevatedUser) &&
                                   isAdminOrAbove && <DropdownMenuSeparator />}
-                                {/* Delete User - Only admin and super-admin */}
                                 {isAdminOrAbove && (
                                   <DropdownMenuItem
                                     className="text-red-600"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      // Add delete functionality here
                                       console.log("Delete user:", user._id);
                                     }}
                                   >
@@ -627,6 +630,30 @@ const ManagementPage = () => {
               </>
             )}
           </div>
+
+          {/* ============================================ */}
+          {/* QR CODE MANAGEMENT SECTION - NEW ADDITION   */}
+          {/* ============================================ */}
+          {isAdminOrAbove && locations.length > 0 && (
+            <div className="mt-12">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                 QR Code Management
+              </h2>
+              <p className="text-gray-600 mb-6">
+                Generate and manage QR codes for each location
+              </p>
+
+              <div className="grid gap-8">
+                {locations.map((location) => (
+                  <QRCodeManagement
+                    key={location._id}
+                    locationId={location._id}
+                    locationName={location.name}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Location Management Section */}
           {isAdminOrAbove && (
@@ -764,6 +791,6 @@ const ManagementPage = () => {
       </div>
     </Layout>
   );
-}
+};
 
-export default ManagementPage
+export default ManagementPage;

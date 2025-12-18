@@ -6,23 +6,25 @@ const PointTransactionSchema = new mongoose.Schema(
     user: {
       // CHANGED: Make sure this field is 'user' not 'userId'
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
       index: true,
     },
     type: {
       type: String,
       enum: [
-        'referral',
-        'reward', // For reward claims
-        'redemption',
-        'withdrawal',
-        'refund',
-        'bonus',
-        'adjustment',
-        'spent', // For spending points on rewards/games
-        'earned', // For earning points from activities
-        'game_play', // For game-related transactions
+        "referral",
+        "reward", // For reward claims
+        "redemption",
+        "withdrawal",
+        "refund",
+        "bonus",
+        "adjustment",
+        "spent", // For spending points on rewards/games
+        "earned", // For earning points from activities
+        "game_play", // For game-related transactions
+        "qr_scan", // For user scanning QR code
+        "qr_scan_reward", // For spa owner reward
       ],
       required: true,
     },
@@ -40,28 +42,28 @@ const PointTransactionSchema = new mongoose.Schema(
     },
     reference: {
       type: mongoose.Schema.Types.ObjectId,
-      refPath: 'referenceModel',
+      refPath: "referenceModel",
     },
     referenceModel: {
       type: String,
       enum: [
-        'Referral',
-        'Reward',
-        'Withdrawal',
-        'Booking',
-        'GameWheel',
-        'UserReward',
+        "Referral",
+        "Reward",
+        "Withdrawal",
+        "Booking",
+        "GameWheel",
+        "UserReward",
       ],
     },
     // Game-specific metadata
     gameMetadata: {
       gameId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'GameWheel',
+        ref: "GameWheel",
       },
       gameType: {
         type: String,
-        enum: ['spin', 'scratch'],
+        enum: ["spin", "scratch"],
       },
       gameTitle: String,
       winningItem: {
@@ -78,7 +80,7 @@ const PointTransactionSchema = new mongoose.Schema(
     // Admin who processed this transaction (for adjustments)
     processedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       default: null,
     },
     metadata: {
@@ -89,7 +91,7 @@ const PointTransactionSchema = new mongoose.Schema(
   {
     timestamps: true,
   }
-)
+);
 
 // Indexes for performance
 PointTransactionSchema.index({ user: 1, createdAt: -1 })

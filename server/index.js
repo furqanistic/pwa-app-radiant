@@ -19,6 +19,9 @@ import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
 import stripeRoutes from './routes/stripe.js' // STRIPE INTEGRATION
 import userRewardsRouter from './routes/userRewards.js'
+import qrCodeRoutes from "./routes/qrCode.js";
+
+
 const app = express()
 
 // Load environment variables first
@@ -90,6 +93,7 @@ app.use('/api/bookings', bookingsRouter) // NEW
 app.use('/api/dashboard', dashboardRouter) // NEW
 app.use('/api/user-rewards', userRewardsRouter)
 app.use('/api/stripe', stripeRoutes) // STRIPE INTEGRATION
+app.use("/api/qr-codes", qrCodeRoutes);
 
 const connect = () => {
   mongoose
