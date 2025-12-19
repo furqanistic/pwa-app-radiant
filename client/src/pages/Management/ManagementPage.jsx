@@ -344,16 +344,16 @@ const ManagementPage = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Quick Actions
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 {managementRoutes
                   .filter((route) => route.visible)
                   .map((route) => (
                     <button
                       key={route.path}
                       onClick={() => navigate(route.path)}
-                      className={`p-4 bg-gradient-to-r ${route.color} rounded-lg text-white hover:opacity-90 transition-all transform hover:scale-105`}
+                      className={`p-4 bg-gradient-to-r ${route.color} rounded-lg text-white hover:opacity-90 transition-all transform hover:scale-105 flex flex-col items-center text-center`}
                     >
-                      <route.icon className="w-6 h-6 mb-2" />
+                      <route.icon className="w-6 h-6 mb-2 " />
                       <h3 className="font-semibold text-sm mb-1">
                         {route.title}
                       </h3>
