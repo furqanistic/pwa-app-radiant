@@ -1,8 +1,7 @@
-// File: client/src/pages/Management/ManagementPage.jsx - UPDATED WITH QR MANAGEMENT
+// File: client/src/pages/Management/ManagementPage.jsx - UPDATED (QR CODE REMOVED)
 
 import { authService } from "@/services/authService";
 import { locationService } from "@/services/locationService";
-import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
@@ -17,7 +16,6 @@ import {
   MapPin,
   MoreVertical,
   Plus,
-  QrCode,
   RefreshCw,
   Send,
   Settings,
@@ -55,7 +53,7 @@ const ManagementPage = () => {
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
 
-  // State management - ALL STATES DEFINED
+  // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isLocationFormOpen, setIsLocationFormOpen] = useState(false);
   const [isLocationAssignmentOpen, setIsLocationAssignmentOpen] =
@@ -70,7 +68,7 @@ const ManagementPage = () => {
   const [pageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // FIXED: Check if user has elevated permissions (admin, team, enterprise, super-admin)
+  // Permission checks
   const isElevatedUser = [
     "admin",
     "team",
@@ -78,14 +76,12 @@ const ManagementPage = () => {
     "super-admin",
   ].includes(currentUser?.role);
   const isAdminOrAbove = ["admin", "super-admin"].includes(currentUser?.role);
-  const isSuperAdmin = currentUser?.role === "super-admin";
 
-  // Get current user's location for filtering
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId;
 
-  // Fetch users with location filtering
+  // Fetch users
   const {
     data: usersData,
     isLoading: isLoadingUsers,
@@ -105,7 +101,6 @@ const ManagementPage = () => {
         search: searchTerm,
         sortBy: "createdAt",
         sortOrder: "desc",
-        // Filter by location if user has one assigned
         ...(currentUserLocationId && {
           locationId: currentUserLocationId,
         }),
@@ -136,7 +131,7 @@ const ManagementPage = () => {
     },
   });
 
-  // UPDATED: Navigation cards with QR Code Management
+  // Navigation cards
   const managementRoutes = [
     {
       title: "Service Management",
@@ -178,18 +173,9 @@ const ManagementPage = () => {
       color: "from-pink-500 to-pink-600",
       visible: isElevatedUser,
     },
-    // NEW: QR Code Management
-    {
-      title: "QR Code Management",
-      description: "Create and manage location QR codes",
-      icon: QrCode,
-      path: "/management/qr-codes",
-      color: "from-cyan-500 to-cyan-600",
-      visible: isAdminOrAbove,
-    },
   ];
 
-  // Pagination calculations
+  // Pagination
   const pagination = usersData?.data?.pagination || {};
   const users = usersData?.data?.users || [];
   const locations = locationsData?.data?.locations || [];
@@ -209,7 +195,6 @@ const ManagementPage = () => {
     await createUserMutation.mutateAsync(userData);
   };
 
-  // ALL HANDLER FUNCTIONS DEFINED
   const handleOpenNotificationSender = (user = null) => {
     setSelectedUserForNotification(user);
     setIsNotificationSenderOpen(true);
@@ -396,7 +381,6 @@ const ManagementPage = () => {
               Add User
             </Button>
 
-            {/* Send Notification Button - For Elevated Users */}
             {isElevatedUser && (
               <Button
                 onClick={() => handleOpenNotificationSender()}
@@ -631,30 +615,6 @@ const ManagementPage = () => {
             )}
           </div>
 
-          {/* ============================================ */}
-          {/* QR CODE MANAGEMENT SECTION - NEW ADDITION   */}
-          {/* ============================================ */}
-          {isAdminOrAbove && locations.length > 0 && (
-            <div className="mt-12">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                 QR Code Management
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Generate and manage QR codes for each location
-              </p>
-
-              <div className="grid gap-8">
-                {locations.map((location) => (
-                  <QRCodeManagement
-                    key={location._id}
-                    locationId={location._id}
-                    locationName={location.name}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Location Management Section */}
           {isAdminOrAbove && (
             <div className="mt-8 bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -740,14 +700,13 @@ const ManagementPage = () => {
           )}
         </div>
 
-        {/* ALL MODALS DEFINED */}
+        {/* Modals */}
         <AddUserForm
           isOpen={isAddUserOpen}
           onClose={() => setIsAddUserOpen(false)}
           onSubmit={handleCreateUser}
         />
 
-        {/* Notification Sender Modal */}
         {isElevatedUser && (
           <NotificationSender
             isOpen={isNotificationSenderOpen}
@@ -758,7 +717,6 @@ const ManagementPage = () => {
           />
         )}
 
-        {/* Points Manager Modal */}
         {isElevatedUser && (
           <PointsManager
             isOpen={isPointsManagerOpen}
