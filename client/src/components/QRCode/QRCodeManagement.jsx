@@ -1,6 +1,7 @@
 import { qrCodeService } from "@/services/qrCodeService";
 import { motion } from "framer-motion";
 import {
+  Check,
   Copy,
   Download,
   Eye,
@@ -22,6 +23,7 @@ const QRCodeManagement = ({ locationId, locationName }) => {
   const [togglingQR, setTogglingQR] = useState(false);
   const [qrImage, setQrImage] = useState(null);
   const [stats, setStats] = useState(null);
+  const [copiedQRId, setCopiedQRId] = useState(false);
 
   // Fetch QR code details
   const fetchQRCode = async () => {
@@ -136,7 +138,13 @@ const QRCodeManagement = ({ locationId, locationName }) => {
     if (!qrCode?.qrId) return;
 
     navigator.clipboard.writeText(qrCode.qrId);
+    setCopiedQRId(true);
     toast.success("QR ID copied to clipboard!");
+
+    // Reset the copied state after 2 seconds
+    setTimeout(() => {
+      setCopiedQRId(false);
+    }, 2000);
   };
 
   useEffect(() => {
@@ -203,9 +211,17 @@ const QRCodeManagement = ({ locationId, locationName }) => {
                       </code>
                       <button
                         onClick={handleCopyQRId}
-                        className="p-1.5 hover:bg-white rounded transition-colors"
+                        className={`p-1.5 rounded transition-all ${
+                          copiedQRId
+                            ? "bg-green-100 text-green-600"
+                            : "hover:bg-white text-gray-600"
+                        }`}
                       >
-                        <Copy className="w-4 h-4 text-gray-600" />
+                        {copiedQRId ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
