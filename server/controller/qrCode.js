@@ -261,36 +261,46 @@ export const scanQRCode = async (req, res, next) => {
     location.qrCode.lastScannedAt = new Date();
     await location.save();
 
-    // Send notification to user
-    await createSystemNotification(
-      user._id,
-      "Points Earned! 🎉",
-      `You earned ${pointsToAward} points by scanning the QR code at ${location.name}`,
-      {
-        category: "points",
-        priority: "high",
-        metadata: {
-          locationName: location.name,
-          points: pointsToAward,
-        },
-      }
-    );
+    // Send notification to user (non-blocking)
+    try {
+      await createSystemNotification(
+        user._id,
+        "Points Earned! 🎉",
+        `You earned ${pointsToAward} points by scanning the QR code at ${location.name}`,
+        {
+          category: "points",
+          priority: "high",
+          metadata: {
+            locationName: location.name,
+            points: pointsToAward,
+          },
+        }
+      );
+    } catch (notifError) {
+      console.error("Error sending user notification:", notifError);
+      // Don't fail the scan if notification fails
+    }
 
-    // Send notification to spa owner
-    await createSystemNotification(
-      spaOwner._id,
-      "Visitor Scanned Your QR Code! 📱",
-      `A visitor (${user.email}) scanned your location QR code and you earned ${pointsToAward} points!`,
-      {
-        category: "qr_scan",
-        priority: "medium",
-        metadata: {
-          visitorEmail: user.email,
-          points: pointsToAward,
-          locationName: location.name,
-        },
-      }
-    );
+    // Send notification to spa owner (non-blocking)
+    try {
+      await createSystemNotification(
+        spaOwner._id,
+        "Visitor Scanned Your QR Code! 📱",
+        `A visitor (${user.email}) scanned your location QR code and you earned ${pointsToAward} points!`,
+        {
+          category: "alert",
+          priority: "normal",
+          metadata: {
+            visitorEmail: user.email,
+            points: pointsToAward,
+            locationName: location.name,
+          },
+        }
+      );
+    } catch (notifError) {
+      console.error("Error sending spa owner notification:", notifError);
+      // Don't fail the scan if notification fails
+    }
 
     res.status(200).json({
       status: "success",
