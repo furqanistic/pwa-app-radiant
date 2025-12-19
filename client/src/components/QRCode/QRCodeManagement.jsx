@@ -1,4 +1,3 @@
-// File: client/src/components/QRCode/QRCodeManagement.jsx
 import { qrCodeService } from "@/services/qrCodeService";
 import { motion } from "framer-motion";
 import {
@@ -20,6 +19,7 @@ const QRCodeManagement = ({ locationId, locationName }) => {
   const [qrCode, setQrCode] = useState(null);
   const [loading, setLoading] = useState(false);
   const [generatingQR, setGeneratingQR] = useState(false);
+  const [togglingQR, setTogglingQR] = useState(false);
   const [qrImage, setQrImage] = useState(null);
   const [stats, setStats] = useState(null);
 
@@ -99,6 +99,7 @@ const QRCodeManagement = ({ locationId, locationName }) => {
 
   // Toggle QR code status
   const handleToggleStatus = async () => {
+    setTogglingQR(true);
     try {
       const response = await qrCodeService.toggleQRCodeStatus(locationId);
       if (response.status === "success") {
@@ -112,6 +113,8 @@ const QRCodeManagement = ({ locationId, locationName }) => {
       }
     } catch (error) {
       toast.error("Failed to update QR code status");
+    } finally {
+      setTogglingQR(false);
     }
   };
 
@@ -250,7 +253,8 @@ const QRCodeManagement = ({ locationId, locationName }) => {
               <div className="w-full flex gap-3">
                 <button
                   onClick={handleDownloadQR}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-pink-200 text-pink-600 rounded-lg hover:bg-pink-50 transition-colors font-medium"
+                  disabled={generatingQR || togglingQR}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-pink-200 text-pink-600 rounded-lg hover:bg-pink-50 transition-colors font-medium disabled:opacity-50"
                 >
                   <Download className="w-4 h-4" />
                   Download
@@ -258,13 +262,19 @@ const QRCodeManagement = ({ locationId, locationName }) => {
 
                 <button
                   onClick={handleToggleStatus}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium text-white ${
+                  disabled={generatingQR || togglingQR}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium text-white disabled:opacity-50 ${
                     qrCode.isEnabled
                       ? "bg-red-500 hover:bg-red-600"
                       : "bg-green-500 hover:bg-green-600"
                   }`}
                 >
-                  {qrCode.isEnabled ? (
+                  {togglingQR ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {qrCode.isEnabled ? "Disabling..." : "Enabling..."}
+                    </>
+                  ) : qrCode.isEnabled ? (
                     <>
                       <EyeOff className="w-4 h-4" />
                       Disable
@@ -279,7 +289,7 @@ const QRCodeManagement = ({ locationId, locationName }) => {
 
                 <button
                   onClick={handleGenerateQR}
-                  disabled={generatingQR}
+                  disabled={generatingQR || togglingQR}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
                 >
                   {generatingQR ? (
