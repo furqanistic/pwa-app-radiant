@@ -1,28 +1,28 @@
 // File: pwa-app-radiant/client/src/pages/Bookings/BookingSuccessPage.jsx
 // FIXED VERSION - Complete with price mapping, modals, and API integration
 
-import React, { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CheckCircle,
-  AlertCircle,
-  Calendar,
-  ShoppingBag,
-  Clock,
-  MapPin,
-  Trash2,
-  Edit2,
-  ArrowLeft,
-  AlertTriangle,
-} from "lucide-react";
-import toast from "react-hot-toast";
+import CancelBookingModal from "@/components/Bookings/CancelBookingModal";
+import RescheduleModal from "@/components/Bookings/RescheduleModal";
 import Layout from "@/pages/Layout/Layout";
 import { clearCart, removeFromCart } from "@/redux/cartSlice";
 import { bookingService } from "@/services/bookingService";
-import RescheduleModal from "@/components/Bookings/RescheduleModal";
-import CancelBookingModal from "@/components/Bookings/CancelBookingModal";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    AlertCircle,
+    AlertTriangle,
+    ArrowLeft,
+    Calendar,
+    CheckCircle,
+    Clock,
+    Edit2,
+    MapPin,
+    ShoppingBag,
+    Trash2,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from 'sonner';
 
 // ============================================
 // SKELETON COMPONENT

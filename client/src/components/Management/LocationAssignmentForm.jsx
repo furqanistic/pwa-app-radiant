@@ -4,38 +4,38 @@ import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Check,
-  ChevronsUpDown,
-  Loader2,
-  MapPin,
-  UserCheck,
-  Users,
+    Check,
+    ChevronsUpDown,
+    Loader2,
+    MapPin,
+    UserCheck,
+    Users,
 } from 'lucide-react'
 import React, { useState } from 'react'
-import toast from 'react-hot-toast'
 import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
 
 // shadcn/ui components
 import { Button } from '@/components/ui/button'
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
 } from '@/components/ui/command'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover'
 
 const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {

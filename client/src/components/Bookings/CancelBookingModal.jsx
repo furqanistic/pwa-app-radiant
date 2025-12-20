@@ -1,11 +1,11 @@
 // File: client/src/components/Bookings/CancelBookingModal.jsx
 
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { bookingService } from "@/services/bookingService";
 import { Button } from "@/components/ui/button";
-import { X, AlertTriangle } from "lucide-react";
-import toast from "react-hot-toast";
+import { bookingService } from "@/services/bookingService";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, X } from "lucide-react";
+import { useState } from "react";
+import { toast } from 'sonner';
 
 const CancelBookingModal = ({ isOpen, onClose, booking }) => {
   const [reason, setReason] = useState("");

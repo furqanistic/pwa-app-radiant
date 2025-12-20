@@ -1,8 +1,8 @@
 // File: client/src/App.jsx - UPDATED SpaSelectionGuard with better UX
 
+import { Toaster } from '@/components/ui/sonner'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Toaster } from 'react-hot-toast'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   BrowserRouter,
@@ -12,6 +12,7 @@ import {
   useLocation,
 } from 'react-router-dom'
 import AuthPage from './pages/Auth/AuthPage'
+import BookingsPage from './pages/Bookings/BookingsPage'
 import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
@@ -19,6 +20,7 @@ import CartPage from './pages/Cart/CartPage'
 import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import InstallPrompt from './pages/Layout/InstallPrompt'
+import BookingsManagementPage from './pages/Management/BookingsManagementPage'
 import ManagementPage from './pages/Management/ManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
@@ -33,8 +35,6 @@ import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
 import { updateProfile } from './redux/userSlice'
 import { authService } from './services/authService'
-import BookingsPage from './pages/Bookings/BookingsPage'
-import BookingsManagementPage from './pages/Management/BookingsManagementPage'
 
 // IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
@@ -223,14 +223,20 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <Toaster
-        position="top-center"
+      <Toaster 
+        richColors 
+        position="top-center" 
         toastOptions={{
-          duration: 3000,
-          style: {
-            fontSize: "14px",
-            padding: "12px 16px",
-          },
+          style: { background: '#fc2a73', color: 'white', border: 'none' },
+          classNames: {
+            toast: 'bg-[#fc2a73]',
+            title: 'text-white',
+            description: 'text-white',
+            actionButton: 'bg-white text-[#fc2a73]',
+            cancelButton: 'bg-white text-[#fc2a73]',
+            success: 'bg-[#fc2a73] text-white border-none',
+            error: 'bg-red-500 text-white border-none', 
+          }
         }}
       />
       <InstallPrompt />

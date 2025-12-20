@@ -1,12 +1,12 @@
 // File: pwa-app-radiant/client/src/components/Bookings/RescheduleModal.jsx
 // File: client/src/components/Bookings/RescheduleModal.jsx
 
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { bookingService } from '@/services/bookingService'
 import { Button } from '@/components/ui/button'
-import { X, Calendar, Clock } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { bookingService } from '@/services/bookingService'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Calendar, Clock, X } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
 
 const RescheduleModal = ({ isOpen, onClose, booking }) => {
   const [newDate, setNewDate] = useState('')

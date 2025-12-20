@@ -1,27 +1,27 @@
 // File: client/src/pages/Bookings/ServiceDetailPage.jsx
 // ✅ FIXED: Booked times + Cart duplicate prevention
 
-import { useService, useBookedTimes } from "@/hooks/useServices";
+import { useBookedTimes, useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
 import {
-  ArrowLeft,
-  Calendar,
-  CheckCircle,
-  Clock,
-  DollarSign,
-  Percent,
-  Plus,
-  Star,
-  User,
-  X,
-  Zap,
+    ArrowLeft,
+    Calendar,
+    CheckCircle,
+    Clock,
+    DollarSign,
+    Percent,
+    Plus,
+    Star,
+    User,
+    X,
+    Zap,
 } from "lucide-react";
 import React, { useState } from "react";
-import { toast } from "react-hot-toast";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
-import stripeService from "../../services/stripeService";
+import { toast } from 'sonner';
 import { addToCart } from "../../redux/cartSlice";
+import stripeService from "../../services/stripeService";
 
 const ServiceDetailPage = () => {
   const { serviceId } = useParams();

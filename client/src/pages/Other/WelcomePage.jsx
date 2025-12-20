@@ -6,19 +6,19 @@ import { locationService } from '@/services/locationService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
-  Award,
-  CheckCircle,
-  ChevronDown,
-  Gift,
-  Heart,
-  MapPin,
-  Search,
-  Sparkles,
-  Users,
+    Award,
+    CheckCircle,
+    ChevronDown,
+    Gift,
+    Heart,
+    MapPin,
+    Search,
+    Sparkles,
+    Users,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
 import { useDispatch } from 'react-redux'
+import { toast } from 'sonner'
 
 const SpaDropdown = ({ spas, onSelect, isLoading, error }) => {
   const [isOpen, setIsOpen] = useState(false)

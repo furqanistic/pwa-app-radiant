@@ -3,7 +3,7 @@ import { notificationService } from '@/services/notificationService'
 import { useMutation } from '@tanstack/react-query'
 import { Bell, Check, ChevronDown, Search, Send, Users, X } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Button } from '../ui/button'
 
 const NotificationSender = ({
