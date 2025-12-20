@@ -1,20 +1,21 @@
 // File: client/src/pages/Bookings/ServiceDetailPage.jsx
 // ✅ FIXED: Booked times + Cart duplicate prevention
 
-import { useBookedTimes, useService } from "@/hooks/useServices";
+import { useAvailability } from "@/hooks/useAvailability";
+import { useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
 import {
-    ArrowLeft,
-    Calendar,
-    CheckCircle,
-    Clock,
-    DollarSign,
-    Percent,
-    Plus,
-    Star,
-    User,
-    X,
-    Zap,
+  ArrowLeft,
+  Calendar,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Percent,
+  Plus,
+  Star,
+  User,
+  X,
+  Zap,
 } from "lucide-react";
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -47,41 +48,17 @@ const ServiceDetailPage = () => {
     includeRewards: "false",
   });
 
-  const { data: bookedTimes = [], isLoading: loadingTimes } = useBookedTimes(
-    serviceId,
-    selectedDate
+  // ✅ DYNAMIC AVAILABILITY
+  const { 
+    data: availabilityData, 
+    isLoading: loadingAvailability 
+  } = useAvailability(
+    currentUser?.selectedLocation?.locationId,
+    selectedDate,
+    serviceId
   );
 
-  const allTimeSlots = [
-    "9:00 AM",
-    "10:30 AM",
-    "12:00 PM",
-    "2:00 PM",
-    "3:30 PM",
-    "5:00 PM",
-  ];
-
-  // Convert 24h to 12h
-  const convertTo12HourFormat = (time24) => {
-    if (!time24) return "";
-    const [hours, minutes] = time24.split(":").map(Number);
-    let period = "AM";
-    let hours12 = hours;
-    if (hours >= 12) {
-      period = "PM";
-      if (hours > 12) {
-        hours12 = hours - 12;
-      }
-    }
-    if (hours === 0) {
-      hours12 = 12;
-    }
-    return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
-  };
-
-  const bookedTimesFormatted = bookedTimes.map((time) =>
-    convertTo12HourFormat(time)
-  );
+  const availableSlots = availabilityData?.slots || [];
 
   // ✅ GET CART TIMES FOR THIS SERVICE ON THIS DATE
   const getCartTimesForService = () => {
@@ -94,26 +71,25 @@ const ServiceDetailPage = () => {
 
   const cartTimesForService = getCartTimesForService();
 
-  // ✅ MERGE BOOKED + CART TIMES
-  const getAllUnavailableTimes = () => {
-    return [...new Set([...bookedTimesFormatted, ...cartTimesForService])];
+  // ✅ FILTER OUT CART TIMES FROM BACKEND SLOTS
+  const getFinalAvailableTimes = () => {
+    return availableSlots.filter(
+      (time) => !cartTimesForService.includes(time)
+    );
   };
 
-  // GET AVAILABLE TIMES
-  const getAvailableTimes = () => {
-    const unavailableTimes = getAllUnavailableTimes();
-    const available = allTimeSlots.filter(
-      (time) => !unavailableTimes.includes(time)
-    );
-    return available;
-  };
+  const availableTimes = getFinalAvailableTimes();
+
+
 
   if (isLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[50vh]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600"></div>
-          <span className="ml-3 text-lg">Loading service details...</span>
+          <span className="ml-3 text-lg">
+            Loading service details...
+          </span>
         </div>
       </Layout>
     );
@@ -327,7 +303,7 @@ const ServiceDetailPage = () => {
     navigate(-1);
   };
 
-  const availableTimes = getAvailableTimes();
+
 
   return (
     <Layout>
@@ -840,7 +816,10 @@ const ServiceDetailPage = () => {
                 <input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setSelectedTime(""); // Reset time when date changes
+                  }}
                   min={new Date().toISOString().split("T")[0]}
                   className="w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                 />
@@ -849,7 +828,7 @@ const ServiceDetailPage = () => {
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Select Time
-                  {loadingTimes && (
+                  {loadingAvailability && (
                     <span className="text-xs text-gray-500 ml-2">
                       (Loading available times...)
                     </span>
@@ -973,11 +952,7 @@ const ServiceDetailPage = () => {
               <div className="space-y-2">
                 <button
                   onClick={handleAddToCart}
-                  disabled={
-                    !selectedDate ||
-                    !selectedTime ||
-                    (service.subTreatments?.length > 0 && !selectedTreatment)
-                  }
+                  disabled={false}
                   className="w-full bg-green-500 text-white h-10 rounded-lg font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <Plus className="w-5 h-5" />
@@ -986,12 +961,7 @@ const ServiceDetailPage = () => {
 
                 <button
                   onClick={handleBooking}
-                  disabled={
-                    isProcessing ||
-                    !selectedDate ||
-                    !selectedTime ||
-                    (service.subTreatments?.length > 0 && !selectedTreatment)
-                  }
+                  disabled={isProcessing}
                   className="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (

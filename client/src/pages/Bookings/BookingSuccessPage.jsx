@@ -8,16 +8,16 @@ import { clearCart, removeFromCart } from "@/redux/cartSlice";
 import { bookingService } from "@/services/bookingService";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    AlertCircle,
-    AlertTriangle,
-    ArrowLeft,
-    Calendar,
-    CheckCircle,
-    Clock,
-    Edit2,
-    MapPin,
-    ShoppingBag,
-    Trash2,
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Edit2,
+  MapPin,
+  ShoppingBag,
+  Trash2,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -258,6 +258,7 @@ const BookingSuccessPage = () => {
     queryKey: ["bookings", "upcoming", currentUser?._id],
     queryFn: () => bookingService.getClientBookings(),
     enabled: !!currentUser,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // ✅ Fetch past bookings with proper API
@@ -265,6 +266,7 @@ const BookingSuccessPage = () => {
     queryKey: ["bookings", "past", currentUser?._id],
     queryFn: () => bookingService.getPastBookings(1, 20),
     enabled: !!currentUser,
+    staleTime: 1000 * 60 * 30, // 30 minutes
   });
 
   const upcomingBookings = upcomingData?.data?.appointments || [];

@@ -7,6 +7,7 @@ import {
   Award,
   Building,
   Calendar,
+  Clock,
   Gift,
   MapPin,
   RefreshCw,
@@ -22,6 +23,7 @@ import { toast } from 'sonner';
 
 // Import components
 import AddUserForm from "@/components/Management/AddUserForm";
+import AvailabilitySettings from "@/components/Management/AvailabilitySettings"; // Import
 import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
 import LocationForm from "@/components/Management/LocationForm";
 import StripeConnect from "@/components/Stripe/StripeConnect";
@@ -38,6 +40,7 @@ const ManagementPage = () => {
   const [isLocationFormOpen, setIsLocationFormOpen] = useState(false);
   const [isLocationAssignmentOpen, setIsLocationAssignmentOpen] =
     useState(false);
+  const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
 
   // Permission checks
   const isElevatedUser = [
@@ -47,6 +50,7 @@ const ManagementPage = () => {
     "super-admin",
   ].includes(currentUser?.role);
   const isAdminOrAbove = ["admin", "super-admin"].includes(currentUser?.role);
+  const isTeamOrAbove = ["team", "admin", "super-admin"].includes(currentUser?.role); // Team check
 
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
@@ -174,13 +178,6 @@ const ManagementPage = () => {
             </div>
           )}
 
-          {/* Stripe Connect - Team Role Only */}
-          {currentUser?.role === "team" && (
-            <div className="mb-8">
-              <StripeConnect />
-            </div>
-          )}
-
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <Button
@@ -190,6 +187,16 @@ const ManagementPage = () => {
               <UserPlus className="w-4 h-4 mr-2" />
               Add User
             </Button>
+
+            {isTeamOrAbove && (
+               <Button
+                onClick={() => setIsAvailabilityOpen(true)}
+                className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Availability Settings
+              </Button>
+            )}
 
             {isAdminOrAbove && (
               <>
@@ -211,6 +218,13 @@ const ManagementPage = () => {
               </>
             )}
           </div>
+
+          {/* Stripe Connect - Team Role Only */}
+          {currentUser?.role === "team" && (
+            <div className="mb-8">
+              <StripeConnect />
+            </div>
+          )}
 
           {/* Location Management Section */}
           {isAdminOrAbove && (
@@ -302,6 +316,12 @@ const ManagementPage = () => {
           isOpen={isAddUserOpen}
           onClose={() => setIsAddUserOpen(false)}
           onSubmit={handleCreateUser}
+        />
+        
+        {/* Availability Modal */}
+        <AvailabilitySettings 
+          isOpen={isAvailabilityOpen}
+          onClose={() => setIsAvailabilityOpen(false)}
         />
 
         {isAdminOrAbove && (
