@@ -1,20 +1,21 @@
+import { FRONTEND_URL, axiosInstance } from "@/config";
 import { qrCodeService } from "@/services/qrCodeService";
 import { motion } from "framer-motion";
 import {
-  Check,
-  Copy,
-  Download,
-  Eye,
-  EyeOff,
-  Loader2,
-  QrCode,
-  RefreshCw,
-  RotateCcw,
-  Zap,
+    Check,
+    Copy,
+    Download,
+    Eye,
+    EyeOff,
+    Loader2,
+    QrCode,
+    RefreshCw,
+    RotateCcw,
+    Zap,
 } from "lucide-react";
+import QRCodeLib from "qrcode";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import QRCodeLib from "qrcode";
 
 const QRCodeManagement = ({ locationId, locationName }) => {
   const [qrCode, setQrCode] = useState(null);
@@ -35,8 +36,8 @@ const QRCodeManagement = ({ locationId, locationName }) => {
 
         // Generate QR code image
         if (response.data.qrData) {
-          const qrString = JSON.stringify(response.data.qrData);
-          const image = await QRCodeLib.toDataURL(qrString, {
+          const claimUrl = `${FRONTEND_URL}/claim-reward?qrId=${response.data.qrId}`;
+          const image = await QRCodeLib.toDataURL(claimUrl, {
             width: 300,
             margin: 2,
             color: {
@@ -80,8 +81,8 @@ const QRCodeManagement = ({ locationId, locationName }) => {
         setQrCode(response.data);
 
         // Generate QR code image
-        const qrString = JSON.stringify(response.data.qrData);
-        const image = await QRCodeLib.toDataURL(qrString, {
+        const claimUrl = `${FRONTEND_URL}/claim-reward?qrId=${response.data.qrId}`;
+        const image = await QRCodeLib.toDataURL(claimUrl, {
           width: 300,
           margin: 2,
         });

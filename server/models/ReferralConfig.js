@@ -6,16 +6,16 @@ const ReferralConfigSchema = new mongoose.Schema(
     // Signup rewards
     signupReward: {
       enabled: { type: Boolean, default: true },
-      referrerPoints: { type: Number, default: 40 },
-      referredPoints: { type: Number, default: 20 },
+      referrerPoints: { type: Number, default: 4000 },
+      referredPoints: { type: Number, default: 2000 },
       description: { type: String, default: 'Signup bonus' },
     },
 
     // First purchase rewards
     firstPurchaseReward: {
       enabled: { type: Boolean, default: true },
-      referrerPoints: { type: Number, default: 60 },
-      referredPoints: { type: Number, default: 30 },
+      referrerPoints: { type: Number, default: 6000 },
+      referredPoints: { type: Number, default: 3000 },
       description: { type: String, default: 'First purchase bonus' },
     },
 

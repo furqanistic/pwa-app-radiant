@@ -1,18 +1,18 @@
 // File: pwa-app-radiant/client/src/components/QRCode/QRCodeScanner.jsx
 // File: client/src/components/QRCode/QRCodeScanner.jsx
+import { addPoints, setPoints } from '@/redux/userSlice'
 import { qrCodeService } from '@/services/qrCodeService'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertCircle,
-  Camera,
-  Check,
-  Loader2,
-  X,
+    AlertCircle,
+    Camera,
+    Check,
+    Loader2,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { toast } from 'sonner'
-import { addPoints, setPoints } from '@/redux/userSlice'
 
 // Simple QR code decoder (you'll need jsQR library)
 // Install with: npm install jsqr
@@ -29,7 +29,6 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
   const streamRef = useRef(null)
   const { currentUser } = useSelector((state) => state.user)
   const dispatch = useDispatch()
-const [manualQrId, setManualQrId] = useState("");
   // Start camera
   const startCamera = async () => {
     try {
@@ -96,7 +95,26 @@ const [manualQrId, setManualQrId] = useState("");
         )
 
         if (code && code.data) {
-          // Try to parse as JSON
+          console.log('Detected QR:', code.data)
+          
+          // Handle URL format: https://domain.com/claim-reward?qrId=QR_123
+          if (code.data.includes('qrId=')) {
+            try {
+              const url = new URL(code.data)
+              const qrId = url.searchParams.get('qrId')
+              if (qrId) {
+                setScannedData({ qrId })
+                stopCamera()
+                setStep('email')
+                toast.success('QR code detected!')
+                return
+              }
+            } catch (e) {
+              console.error('Error parsing QR URL:', e)
+            }
+          }
+
+          // Handle JSON format (backward compatibility)
           try {
             const qrData = JSON.parse(code.data)
             if (qrData.qrId) {
@@ -107,7 +125,7 @@ const [manualQrId, setManualQrId] = useState("");
               return
             }
           } catch (e) {
-            // If not JSON, treat as raw qrId
+            // Handle raw QR ID
             if (code.data.startsWith('QR_')) {
               setScannedData({ qrId: code.data })
               stopCamera()
@@ -246,35 +264,37 @@ const [manualQrId, setManualQrId] = useState("");
               {/* Scanner Step */}
               {step === "scanner" && !result && (
                 <div className="space-y-4">
-                  {/* Add Manual QR ID Input */}
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <p className="text-sm font-medium text-yellow-900 mb-3">
-                      📝 Manual QR ID Entry (for testing without camera):
-                    </p>
-                    <input
-                      type="text"
-                      placeholder="Paste QR ID here (e.g., QR_123456_abc)"
-                      value={manualQrId}
-                      onChange={(e) => setManualQrId(e.target.value)}
-                      className="w-full px-3 py-2 border border-yellow-300 rounded text-sm"
+                  {/* Original Camera UI */}
+                  <div className="relative aspect-square bg-black rounded-xl overflow-hidden shadow-inner ring-4 ring-gray-100">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
                     />
-                    <button
-                      onClick={() => {
-                        if (manualQrId.trim()) {
-                          setScannedData({ qrId: manualQrId });
-                          stopCamera();
-                          setStep("email");
-                        }
-                      }}
-                      className="mt-2 w-full px-3 py-2 bg-yellow-500 text-white rounded text-sm"
-                    >
-                      Use This QR ID
-                    </button>
+                    <canvas ref={canvasRef} className="hidden" />
+
+                    {/* Scanner Overlay */}
+                    <div className="absolute inset-0 border-2 border-pink-500/50 m-12 rounded-2xl">
+                      <div className="absolute inset-0 animate-pulse bg-pink-500/10" />
+                      {/* Corner Accents */}
+                      <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-pink-500 rounded-tl-lg" />
+                      <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-pink-500 rounded-tr-lg" />
+                      <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-pink-500 rounded-bl-lg" />
+                      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-pink-500 rounded-br-lg" />
+                    </div>
+
+                    {!scanning && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm">
+                        <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Original Camera UI */}
-                  <div className="relative aspect-square bg-black rounded-xl...">
-                    {/* existing camera code */}
+                  <div className="text-center">
+                    <p className="text-gray-500 text-sm">
+                      Align the QR code within the frame to scan
+                    </p>
                   </div>
                 </div>
               )}

@@ -1,54 +1,91 @@
 // File: client/src/pages/Referral/ReferralPage.jsx - ENHANCED PWA VERSION
 import {
-  useGenerateMyReferralCode,
-  useReferralLeaderboard,
-  useReferralStatsWithComputedData,
+    useGenerateMyReferralCode,
+    useReferralLeaderboard,
+    useReferralStatsWithComputedData,
 } from '@/hooks/useReferral'
 import { motion } from 'framer-motion'
 import {
-  Award,
-  BarChart3,
-  Check,
-  ChevronRight,
-  Copy,
-  Crown,
-  Facebook,
-  Gift,
-  Heart,
-  Link2,
-  Loader2,
-  Mail,
-  MessageSquare,
-  Share2,
-  Sparkles,
-  Star,
-  Target,
-  TrendingUp,
-  Trophy,
-  Twitter,
-  Users,
-  Zap,
+    Award,
+    BarChart3,
+    Check,
+    ChevronRight,
+    Copy,
+    Crown,
+    Facebook,
+    Gift,
+    Heart,
+    Link2,
+    Loader2,
+    Mail,
+    MessageSquare,
+    Share2,
+    Sparkles,
+    Star,
+    Target,
+    TrendingUp,
+    Trophy,
+    Twitter,
+    Users,
+    Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import Layout from '../Layout/Layout'
 
-// Loading Component
-const LoadingState = () => (
+// Skeleton Loading Component
+const ReferralSkeleton = () => (
   <Layout>
     <div className='min-h-screen bg-gradient-to-br from-pink-50 to-rose-50'>
-      <div className='max-w-sm mx-auto md:max-w-6xl lg:max-w-7xl px-4 md:px-6 lg:px-8 py-4'>
-        <div className='flex items-center justify-center min-h-[60vh]'>
-          <div className='text-center'>
-            <div className='w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4'>
-              <Sparkles className='w-8 h-8 text-white' />
+      <div className='max-w-sm mx-auto md:max-w-6xl lg:max-w-7xl px-4 md:px-6 lg:px-8 py-4 md:py-8 space-y-4 md:space-y-6'>
+        {/* Header Skeleton */}
+        <div className='text-center space-y-3 animate-pulse'>
+          <div className='h-8 md:h-12 bg-gray-200 rounded-xl w-3/4 md:w-1/2 mx-auto'></div>
+          <div className='h-4 bg-gray-200 rounded-lg w-2/3 md:w-1/3 mx-auto'></div>
+        </div>
+
+        <div className='md:grid md:grid-cols-12 md:gap-6 space-y-4 md:space-y-0'>
+          {/* Left Column Skeleton */}
+          <div className='md:col-span-8 space-y-4'>
+            {/* Stats Cards Skeleton */}
+            <div className='grid grid-cols-3 gap-3 md:gap-4'>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className='bg-white rounded-2xl p-3 md:p-4 text-center border border-pink-100 animate-pulse'>
+                  <div className='w-10 h-10 md:w-12 md:h-12 bg-gray-200 rounded-xl mx-auto mb-2'></div>
+                  <div className='h-6 bg-gray-200 rounded w-1/2 mx-auto mb-1'></div>
+                  <div className='h-3 bg-gray-200 rounded w-2/3 mx-auto'></div>
+                </div>
+              ))}
             </div>
-            <div className='w-8 h-8 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-3'></div>
-            <p className='text-gray-900 font-semibold text-sm mb-1'>
-              Loading your referral space
-            </p>
-            <p className='text-gray-600 text-xs'>
-              Getting everything ready for you...
-            </p>
+
+            {/* Progress Skeleton */}
+            <div className='bg-white rounded-2xl p-4 md:p-5 border border-pink-100 animate-pulse'>
+              <div className='flex items-center justify-between mb-3'>
+                <div className='h-5 bg-gray-200 rounded w-1/3'></div>
+                <div className='h-5 bg-gray-200 rounded-full w-1/4'></div>
+              </div>
+              <div className='h-3 bg-gray-200 rounded-full w-full'></div>
+            </div>
+
+            {/* Magic Code Skeleton */}
+            <div className='bg-white rounded-2xl p-4 md:p-6 border border-pink-100 animate-pulse'>
+              <div className='h-6 bg-gray-200 rounded w-1/2 mx-auto mb-4'></div>
+              <div className='h-16 bg-gray-200 rounded-2xl w-full mb-4'></div>
+              <div className='h-12 bg-gray-200 rounded-xl w-full'></div>
+            </div>
+          </div>
+
+          {/* Right Column Skeleton */}
+          <div className='md:col-span-4 space-y-4'>
+            {[1, 2].map((i) => (
+              <div key={i} className='bg-white rounded-2xl p-4 md:p-5 border border-pink-100 animate-pulse space-y-3'>
+                <div className='h-6 bg-gray-200 rounded w-1/2 mx-auto'></div>
+                <div className='space-y-2'>
+                  <div className='h-4 bg-gray-200 rounded w-full'></div>
+                  <div className='h-4 bg-gray-200 rounded w-5/6'></div>
+                  <div className='h-4 bg-gray-200 rounded w-4/6'></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -115,7 +152,7 @@ const ReferralPage = () => {
   })
 
   // Handle loading and error states
-  if (statsLoading) return <LoadingState />
+  if (statsLoading) return <ReferralSkeleton />
   if (statsError) return <ErrorState error={statsError} retry={refetchStats} />
 
   const {
@@ -175,13 +212,14 @@ const ReferralPage = () => {
 
   // Get tier display info
   const getTierInfo = (tier) => {
+    const rewards = computedStats?.tierRewards || {}
     const tiers = {
       bronze: {
         color: 'text-pink-600',
         bgColor: 'from-pink-50 to-rose-50',
         borderColor: 'border-pink-200',
         gradientBg: 'from-pink-500 to-rose-500',
-        rewards: '$40',
+        rewards: `$${rewards.bronze?.value || '40'}`,
         icon: Star,
       },
       gold: {
@@ -189,7 +227,7 @@ const ReferralPage = () => {
         bgColor: 'from-amber-50 to-yellow-50',
         borderColor: 'border-amber-200',
         gradientBg: 'from-amber-500 to-yellow-500',
-        rewards: '$60',
+        rewards: `$${rewards.gold?.value || '60'}`,
         icon: Crown,
       },
       platinum: {
@@ -197,11 +235,11 @@ const ReferralPage = () => {
         bgColor: 'from-purple-50 to-indigo-50',
         borderColor: 'border-purple-200',
         gradientBg: 'from-purple-500 to-indigo-500',
-        rewards: '$100',
+        rewards: `$${rewards.platinum?.value || '100'}`,
         icon: Award,
       },
     }
-    return tiers[tier] || tiers.bronze
+    return tiers[tier?.toLowerCase()] || tiers.bronze
   }
 
   const currentTierInfo = getTierInfo(currentTier)
@@ -259,10 +297,10 @@ const ReferralPage = () => {
                     <Trophy className='w-5 h-5 md:w-6 md:h-6 text-white' />
                   </div>
                   <div className='text-lg md:text-2xl font-bold text-gray-900 mb-1'>
-                    ${totalEarnings || 0}
+                    ${computedStats?.totalEarningsValue || 0}
                   </div>
                   <div className='text-xs md:text-sm text-gray-600 font-medium'>
-                    Earned
+                    Commission Earned
                   </div>
                 </motion.div>
 

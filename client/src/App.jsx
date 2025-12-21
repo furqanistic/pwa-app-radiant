@@ -27,6 +27,7 @@ import SessionTrackerPage from './pages/Management/SessionTrackerPage'
 import WelcomePage from './pages/Other/WelcomePage'
 import ClientProfile from './pages/Profile/ClientProfile'
 import ProfilePage from './pages/Profile/ProfilePage'
+import ClaimRewardPage from './pages/QRCode/ClaimRewardPage'
 import ManageReferralPage from './pages/Referral/ManageReferralPage'
 import ReferralPage from './pages/Referral/ReferralPage'
 import RewardManagement from './pages/Rewards/RewardManagement'
@@ -257,6 +258,13 @@ const App = () => {
             <PublicRoute>
               <AuthPage />
             </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/claim-reward"
+          element={
+            <ClaimRewardPage />
           }
         />
 

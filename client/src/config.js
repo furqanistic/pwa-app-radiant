@@ -10,6 +10,8 @@ export const axiosInstance = axios.create({
   },
 })
 
+export const FRONTEND_URL = import.meta.env.VITE_APP_URL || window.location.origin
+
 // Request interceptor
 axiosInstance.interceptors.request.use(
   (config) => {

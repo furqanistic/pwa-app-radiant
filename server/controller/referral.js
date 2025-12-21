@@ -264,6 +264,21 @@ export const getUserReferralStats = async (req, res, next) => {
       currentTier: currentTier,
       tierMultiplier: tierMultiplier,
       totalEarnings: user.referralEarnings || 0,
+      totalEarningsValue: (user.referralEarnings / 100).toFixed(2),
+      tierRewards: {
+        bronze: {
+          points: Math.round(config.signupReward.referrerPoints * config.tierMultipliers.bronze),
+          value: (config.signupReward.referrerPoints * config.tierMultipliers.bronze / 100).toFixed(0)
+        },
+        gold: {
+          points: Math.round(config.signupReward.referrerPoints * config.tierMultipliers.gold),
+          value: (config.signupReward.referrerPoints * config.tierMultipliers.gold / 100).toFixed(0)
+        },
+        platinum: {
+          points: Math.round(config.signupReward.referrerPoints * config.tierMultipliers.platinum),
+          value: (config.signupReward.referrerPoints * config.tierMultipliers.platinum / 100).toFixed(0)
+        }
+      },
       referredBy: user.referredBy,
       tierThresholds: tierThresholds,
       nextTierProgress: nextTierProgress,

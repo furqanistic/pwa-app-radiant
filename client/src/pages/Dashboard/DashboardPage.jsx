@@ -5,32 +5,32 @@ import { useDashboardData } from '@/hooks/useDashboard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertCircle,
-  Award,
-  Calendar,
-  CheckCircle,
-  ChevronRight,
-  Clock,
-  CreditCard,
-  DollarSign,
-  Gift,
-  Heart,
-  Lock,
-  MapPin,
-  Percent,
-  Plus,
-  RefreshCw,
-  Share2,
-  ShoppingBag,
-  Sparkles,
-  Star,
-  Target,
-  TrendingUp,
-  Unlock,
-  UserPlus,
-  Users,
-  XCircle,
-  Zap,
+    AlertCircle,
+    Award,
+    Calendar,
+    CheckCircle,
+    ChevronRight,
+    Clock,
+    CreditCard,
+    DollarSign,
+    Gift,
+    Heart,
+    Lock,
+    MapPin,
+    Percent,
+    Plus,
+    RefreshCw,
+    Share2,
+    ShoppingBag,
+    Sparkles,
+    Star,
+    Target,
+    TrendingUp,
+    Unlock,
+    UserPlus,
+    Users,
+    XCircle,
+    Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -617,16 +617,16 @@ const NeedMorePointsSection = ({ methods = [] }) => {
   const handleAction = (method) => {
     switch (method.action) {
       case 'Share Now':
-        navigate('/referral')
+        navigate('/referrals')
         break
       case 'Book Now':
         navigate('/services')
         break
       case 'Shop Now':
-        navigate('/shop')
+        navigate('/services')
         break
       case 'Review':
-        navigate('/appointments')
+        navigate('/Booking')
         break
       default:
         break
@@ -917,7 +917,7 @@ const DashboardPage = () => {
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate('/referral')}
+                        onClick={() => navigate('/referrals')}
                         className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'
                       >
                         Share Now
@@ -1055,7 +1055,7 @@ const DashboardPage = () => {
                                 ))
                               ) : (
                                 <button
-                                  onClick={() => navigate('/appointments')}
+                                  onClick={() => navigate('/Booking')}
                                   className='text-xs text-pink-600 hover:text-pink-700 bg-pink-50 px-2 py-1 rounded'
                                 >
                                   Rate

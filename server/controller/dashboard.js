@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Referral from '../models/Referral.js'
+import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 
@@ -21,6 +22,8 @@ export const getDashboardData = async (req, res, next) => {
     if (!userId) {
       return next(createError(401, 'User ID not found'))
     }
+
+    const config = await ReferralConfig.getActiveConfig()
 
     // Rest of your dashboard code...
     const upcomingAppointments = await Booking.find({
@@ -99,10 +102,10 @@ export const getDashboardData = async (req, res, next) => {
         id: 1,
         title: 'Invite Friends',
         description: `Earn ${
-          user.referralStats?.currentTier === 'gold' ? 600 : 500
+          Math.round(config.signupReward.referrerPoints * (config.tierMultipliers[user.referralStats?.currentTier || 'bronze'] || 1.0))
         } points per referral`,
         icon: 'UserPlus',
-        points: user.referralStats?.currentTier === 'gold' ? '+600' : '+500',
+        points: `+${Math.round(config.signupReward.referrerPoints * (config.tierMultipliers[user.referralStats?.currentTier || 'bronze'] || 1.0))}`,
         action: 'Share Now',
       },
       {
