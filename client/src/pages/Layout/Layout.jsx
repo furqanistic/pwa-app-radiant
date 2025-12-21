@@ -1,30 +1,31 @@
 // File: client/src/pages/Layout/Layout.jsx
+import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
 import {
-  logout,
-  selectIsElevatedUser,
-  selectIsSuperAdmin,
+    logout,
+    selectIsElevatedUser,
+    selectIsSuperAdmin,
 } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Calendar,
-  CompassIcon,
-  Contact2,
-  Gamepad2,
-  Gift,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Settings,
-  Sparkles,
-  Star,
-  User,
-  Users,
-  X,
+    Calendar,
+    CompassIcon,
+    Contact2,
+    Gamepad2,
+    Gift,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    Settings,
+    Sparkles,
+    Star,
+    User,
+    Users,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux' // Add useSelector
+import { useDispatch, useSelector } from 'react-redux'; // Add useSelector
 import { useLocation, useNavigate } from 'react-router-dom'
-import Topbar from './Topbar' // Import the Topbar component
+import Topbar from './Topbar'; // Import the Topbar component
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -460,6 +461,9 @@ const Layout = ({
           {children}
         </div>
       </main>
+
+      {/* Push Notification prompt for PWA user engagement */}
+      <PushNotificationPrompt />
     </div>
   )
 }

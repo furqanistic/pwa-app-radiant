@@ -109,35 +109,102 @@ self.addEventListener('message', (event) => {
   }
 })
 
-// Optional: Basic push notification handler (simplified)
+// Handle rich push notifications
 self.addEventListener('push', (event) => {
   console.log('[Service Worker] Push received')
 
-  const options = {
-    title: 'RadiantAI',
-    body: event.data ? event.data.text() : 'New notification',
-    icon: '/favicon_io/android-chrome-192x192.png',
-    badge: '/favicon_io/android-chrome-192x192.png',
-    tag: 'radiantai-notification',
-    data: {
-      url: '/dashboard',
-    },
+  if (!event.data) {
+    console.warn('[Service Worker] Push event with no data')
+    return
   }
 
-  event.waitUntil(self.registration.showNotification(options.title, options))
+  try {
+    const data = event.data.json()
+    console.log('[Service Worker] Push payload:', data)
+
+    const title = data.title || 'RadiantAI'
+    const options = {
+      body: data.body || 'New update from RadiantAI',
+      icon: data.icon || '/favicon_io/android-chrome-192x192.png',
+      badge: data.badge || '/favicon_io/android-chrome-192x192.png',
+      image: data.image || null,
+      vibrate: data.vibrate || [200, 100, 200],
+      tag: data.tag || 'radiantai-notification',
+      renotify: true,
+      requireInteraction: data.requireInteraction || false,
+      actions: data.actions || [],
+      data: {
+        url: data.data?.url || '/dashboard',
+        notificationId: data.data?.notificationId,
+        timestamp: Date.now(),
+      },
+    }
+
+    event.waitUntil(self.registration.showNotification(title, options))
+  } catch (err) {
+    console.error('[Service Worker] Error parsing push data:', err)
+    // Fallback if data is not JSON
+    const text = event.data.text()
+    event.waitUntil(
+      self.registration.showNotification('RadiantAI', {
+        body: text,
+        icon: '/favicon_io/android-chrome-192x192.png',
+        badge: '/favicon_io/android-chrome-192x192.png',
+      })
+    )
+  }
 })
 
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
   console.log('[Service Worker] Notification clicked')
 
-  event.notification.close()
+  const notification = event.notification
+  const action = event.action
+  const urlToOpen = notification.data?.url || '/dashboard'
 
-  const urlToOpen = event.notification.data?.url || '/dashboard'
+  notification.close()
 
-  event.waitUntil(clients.openWindow(urlToOpen))
+  if (action === 'dismiss') {
+    return
+  }
+
+  // Deep linking logic
+  event.waitUntil(
+    clients
+      .matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })
+      .then((windowClients) => {
+        // Check if there's already a tab open with this URL
+        for (let i = 0; i < windowClients.length; i++) {
+          const client = windowClients[i]
+          if (client.url === urlToOpen && 'focus' in client) {
+            return client.focus()
+          }
+        }
+        // If no tab is open, open a new one
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen)
+        }
+      })
+  )
+
+  // Notify clients about the click (for analytics or state updates)
+  event.waitUntil(
+    clients.matchAll().then((matchedClients) => {
+      matchedClients.forEach((client) => {
+        client.postMessage({
+          type: 'NOTIFICATION_CLICKED',
+          notificationId: notification.data?.notificationId,
+          action,
+        })
+      })
+    })
+  )
 })
 
 console.log(
-  '[Service Worker] Loaded - Simplified version for mobile compatibility'
+  '[Service Worker] Loaded - Enhanced version for rich notifications'
 )

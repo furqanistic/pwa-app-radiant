@@ -13,7 +13,7 @@ import {
 } from 'react-router-dom'
 import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
-import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
+
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
 import CartPage from './pages/Cart/CartPage'
@@ -306,15 +306,8 @@ const App = () => {
             </ProtectedRoute>
           }
         />
-{/* 
-        <Route
-          path="/booking-success"
-          element={
-            <ProtectedRoute>
-              <BookingSuccessPage />
-            </ProtectedRoute>
-          }
-        /> */}
+
+
 
         <Route
           path="/cart"
@@ -346,7 +339,7 @@ const App = () => {
           path="/Booking"
           element={
             <ProtectedRoute>
-              <BookingSuccessPage />
+              <BookingsPage />
             </ProtectedRoute>
           }
         />

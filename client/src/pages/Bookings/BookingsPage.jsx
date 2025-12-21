@@ -1,172 +1,621 @@
 // File: pwa-app-radiant/client/src/pages/Bookings/BookingsPage.jsx
-// File: client/src/pages/Client/BookingsPage.jsx
+// FIXED VERSION - Complete with price mapping, modals, and API integration
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { bookingService } from '@/services/bookingService'
-import { useSelector } from 'react-redux'
-import Layout from '@/pages/Layout/Layout'
-import BookingCard from '@/components/Bookings/BookingCard'
-import RescheduleModal from '@/components/Bookings/RescheduleModal'
-import CancelBookingModal from '@/components/Bookings/CancelBookingModal'
-import { Calendar, AlertCircle } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import CancelBookingModal from "@/components/Bookings/CancelBookingModal";
+import RescheduleModal from "@/components/Bookings/RescheduleModal";
+import { usePastBookings, useUpcomingBookings } from "@/hooks/useBookings";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import Layout from "@/pages/Layout/Layout";
+import { clearCart, removeFromCart } from "@/redux/cartSlice";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  Bell,
+  BellRing,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Edit2,
+  MapPin,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from 'sonner';
 
-const BookingsPage = () => {
-  const { currentUser } = useSelector((state) => state.user)
-  const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('upcoming')
-  const [selectedBooking, setSelectedBooking] = useState(null)
-  const [showReschedule, setShowReschedule] = useState(false)
-  const [showCancel, setShowCancel] = useState(false)
+// ============================================
+// SKELETON COMPONENT
+// ============================================
+const BookingCardSkeleton = () => (
+  <div className="bg-gray-300 rounded-lg shadow-sm p-6 animate-pulse">
+    <div className="h-6 bg-gray-200 rounded w-1/2 mb-4"></div>
+    <div className="space-y-3">
+      <div className="h-4 bg-gray-200 rounded"></div>
+      <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+      <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+    </div>
+  </div>
+);
 
-  // Fetch upcoming bookings
-  const { data: upcomingData, isLoading: upcomingLoading } = useQuery({
-    queryKey: ['bookings', 'upcoming'],
-    queryFn: () => bookingService.getClientBookings(),
-  })
+// ============================================
+// BOOKING CARD COMPONENT
+// ============================================
+const BookingCard = ({
+  booking,
+  isPending = false,
+  onCancel,
+  onReschedule,
+  onRemoveFromCart,
+}) => {
+  const bookingDate = new Date(booking.date);
+  const today = new Date();
+  const canCancel = (bookingDate - today) / (1000 * 60 * 60) > 24;
+  const isPast = bookingDate < today;
 
-  // Fetch past bookings
-  const { data: pastData, isLoading: pastLoading } = useQuery({
-    queryKey: ['bookings', 'past'],
-    queryFn: () => bookingService.getPastBookings(1, 20),
-  })
+  const getStatusColor = () => {
+    if (isPending) return "bg-yellow-100 text-yellow-800";
+    if (isPast) return "bg-gray-100 text-gray-800";
+    if (booking.status === "confirmed") return "bg-green-100 text-green-800";
+    if (booking.status === "cancelled") return "bg-red-100 text-red-800";
+    return "bg-blue-100 text-blue-800";
+  };
 
-  const upcomingBookings = upcomingData?.data?.appointments || []
-  const pastBookings = pastData?.data?.visits || []
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
-  const isLoading = upcomingLoading || pastLoading
-
-  const handleReschedule = (bookingId) => {
-    const booking = [...upcomingBookings, ...pastBookings].find(
-      (b) => b._id === bookingId
-    )
-    setSelectedBooking(booking)
-    setShowReschedule(true)
-  }
-
-  const handleCancel = (bookingId) => {
-    const booking = [...upcomingBookings, ...pastBookings].find(
-      (b) => b._id === bookingId
-    )
-    setSelectedBooking(booking)
-    setShowCancel(true)
-  }
+  // ✅ FIX: Proper price field mapping
+  const getTotalPrice = () => {
+    // Check multiple price field options
+    return booking.finalPrice || booking.totalPrice || booking.price || 0;
+  };
 
   return (
-    <Layout>
-      <div className='px-4 py-8 max-w-4xl mx-auto'>
-        {/* Header */}
-        <div className='mb-8'>
-          <h1 className='text-3xl font-bold text-gray-900'>My Bookings</h1>
-          <p className='text-gray-600 mt-1'>
-            Manage your appointments and reservations
+    <div
+      className={`bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow ${
+        isPending ? "border-l-4 border-yellow-500" : ""
+      }`}
+    >
+      {isPending && (
+        <div className="mb-3 p-3 bg-yellow-50 rounded-lg flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-yellow-800">
+            <strong>Pending Payment:</strong> Complete checkout to confirm this
+            booking.
           </p>
         </div>
+      )}
 
-        {/* Tabs */}
-        <div className='flex gap-4 mb-6 border-b border-gray-200'>
-          <button
-            onClick={() => setActiveTab('upcoming')}
-            className={`px-4 py-2 font-medium ${
-              activeTab === 'upcoming'
-                ? 'border-b-2 border-pink-500 text-pink-600'
-                : 'text-gray-600'
-            }`}
-          >
-            Upcoming ({upcomingBookings.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('past')}
-            className={`px-4 py-2 font-medium ${
-              activeTab === 'past'
-                ? 'border-b-2 border-pink-500 text-pink-600'
-                : 'text-gray-600'
-            }`}
-          >
-            Past ({pastBookings.length})
-          </button>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className="text-lg font-bold text-gray-900">
+              {booking.serviceName}
+            </h3>
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor()}`}
+            >
+              {isPending
+                ? "Pending Payment"
+                : isPast
+                ? "Completed"
+                : booking.status || "Confirmed"}
+            </span>
+          </div>
+          {booking.treatmentName && (
+            <p className="text-sm text-gray-600 mb-1">
+              Treatment: {booking.treatmentName}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {booking.image && (
+        <img
+          src={booking.image}
+          alt={booking.serviceName}
+          className="w-full h-32 object-cover rounded-lg mb-4"
+        />
+      )}
+
+      <div className="space-y-3 mb-6 text-sm text-gray-700">
+        <div className="flex items-center gap-3">
+          <Calendar className="w-5 h-5 text-pink-500 flex-shrink-0" />
+          <div>
+            <p className="font-semibold">{formatDate(booking.date)}</p>
+            <p className="text-gray-600">{booking.time}</p>
+          </div>
         </div>
 
-        {/* Loading */}
-        {isLoading && (
-          <div className='text-center py-12'>
-            <div className='w-8 h-8 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin mx-auto'></div>
+        <div className="flex items-center gap-3">
+          <Clock className="w-5 h-5 text-purple-500 flex-shrink-0" />
+          <span>{booking.duration} minutes</span>
+        </div>
+
+        {/* ✅ FIX: Check multiple location field names */}
+        {(booking.locationName || booking.location) && (
+          <div className="flex items-center gap-3">
+            <MapPin className="w-5 h-5 text-rose-500 flex-shrink-0" />
+            <span>{booking.locationName || booking.location}</span>
           </div>
         )}
 
-        {/* Bookings List */}
-        {!isLoading && (
-          <>
-            {activeTab === 'upcoming' && (
-              <>
-                {upcomingBookings.length === 0 ? (
-                  <div className='text-center py-12 bg-white rounded-lg border border-gray-200'>
-                    <Calendar className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-                    <p className='text-gray-500'>No upcoming bookings</p>
-                    <button
-                      onClick={() => navigate('/services')}
-                      className='mt-4 px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600'
-                    >
-                      Browse Services
-                    </button>
-                  </div>
-                ) : (
-                  <div className='space-y-4'>
-                    {upcomingBookings.map((booking) => (
-                      <BookingCard
-                        key={booking._id}
-                        booking={booking}
-                        onReschedule={handleReschedule}
-                        onCancel={handleCancel}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-            {activeTab === 'past' && (
-              <>
-                {pastBookings.length === 0 ? (
-                  <div className='text-center py-12 bg-white rounded-lg border border-gray-200'>
-                    <Calendar className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-                    <p className='text-gray-500'>No past bookings</p>
-                  </div>
-                ) : (
-                  <div className='space-y-4'>
-                    {pastBookings.map((booking) => (
-                      <BookingCard
-                        key={booking._id}
-                        booking={booking}
-                        showActions={false}
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </>
+        {/* ✅ FIX: Check multiple provider field names */}
+        {(booking.providerName || booking.practitioner || booking.provider) && (
+          <div className="flex items-center gap-3">
+            <span className="w-5 h-5 text-indigo-500 flex-shrink-0">👤</span>
+            <span>
+              {booking.providerName || booking.practitioner || booking.provider}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* Modals */}
+      {booking.addOns && booking.addOns.length > 0 && (
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+          <p className="text-xs font-semibold text-blue-900 mb-2">Add-ons:</p>
+          <ul className="text-xs text-blue-800 space-y-1">
+            {booking.addOns.map((addon, idx) => (
+              <li key={idx}>• {addon.name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="border-t pt-4 mb-4">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-600">Total Amount</span>
+          {/* ✅ FIX: Proper price display */}
+          <span className="text-xl font-bold text-green-600">
+            ${getTotalPrice().toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {isPending ? (
+        <div className="flex gap-2">
+          <button
+            onClick={() => onRemoveFromCart(booking.id || booking._id)}
+            className="flex-1 flex items-center justify-center gap-2 px-4 h-10 border border-red-300 text-red-600 rounded-lg font-semibold hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Remove from Cart
+          </button>
+          <button
+            onClick={() => (window.location.href = "/cart")}
+            className="flex-1 flex items-center justify-center gap-2 px-4 h-10 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            Go to Cart
+          </button>
+        </div>
+      ) : !isPast ? (
+        <div className="flex gap-2">
+          {canCancel && (
+            <>
+              <button
+                onClick={() => onReschedule(booking)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 h-10 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+              >
+                <Edit2 className="w-4 h-4" />
+                Reschedule
+              </button>
+              <button
+                onClick={() => onCancel(booking)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 h-10 border border-red-300 text-red-600 rounded-lg font-semibold hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Cancel
+              </button>
+            </>
+          )}
+          {!canCancel && (
+            <div className="w-full p-3 bg-orange-50 rounded-lg text-center">
+              <p className="text-xs text-orange-700">
+                Cancellation available until 24 hours before appointment
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+const BookingsPage = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const queryClient = useQueryClient();
+
+  const { currentUser } = useSelector((state) => state.user);
+  const cartItems = useSelector((state) => state.cart?.items || []);
+
+  const { 
+    isSupported, 
+    isSubscribed, 
+    permission, 
+    requestPermissionAndSubscribe, 
+    isSubscribing 
+  } = usePushNotifications();
+
+  // ✅ State management for modals
+  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
+  const [filterStatus, setFilterStatus] = useState("upcoming");
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+
+  const sessionId = searchParams.get("session_id");
+
+  // ✅ Fetch upcoming bookings with new hook
+  const {
+    data: upcomingData,
+    isLoading: upcomingLoading,
+    refetch: refetchUpcoming,
+  } = useUpcomingBookings(currentUser?._id);
+
+  // ✅ Fetch past bookings with new hook - NON-BLOCKING
+  const { 
+    data: pastData, 
+    isLoading: pastLoading 
+  } = usePastBookings(currentUser?._id);
+
+  const upcomingBookings = upcomingData?.data?.appointments || [];
+  const pastBookings = pastData?.data?.visits || [];
+  
+  // Only block full page if we are waiting for the critical upcoming bookings
+  // Past bookings can load in the background
+  const isInitialLoading = upcomingLoading && !upcomingData;
+
+  // ✅ Payment success overlay
+  useEffect(() => {
+    if (sessionId) {
+      setShowSuccessOverlay(true);
+      dispatch(clearCart());
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("Booking Confirmed! 🎉", {
+          body: "Your payment was successful and your booking is confirmed.",
+          icon: "/icon-192x192.png",
+        });
+      }
+
+      const timer = setTimeout(() => {
+        setShowSuccessOverlay(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [sessionId, dispatch]);
+
+  // ✅ Modal handlers
+  const handleCancel = (booking) => {
+    setSelectedBooking(booking);
+    setShowCancel(true);
+  };
+
+  const handleReschedule = (booking) => {
+    setSelectedBooking(booking);
+    setShowReschedule(true);
+  };
+
+  const handleRemoveFromCart = (itemId) => {
+    dispatch(removeFromCart(itemId));
+    toast.success("Item removed from cart");
+  };
+
+  // ✅ FIX: Proper cart item structure mapping
+  const normalizeCartItem = (item) => ({
+    // IDs
+    id: item.id,
+    _id: item.id,
+    serviceId: item.serviceId,
+
+    // Service Info
+    serviceName: item.serviceName || item.service?.name || "Unknown Service",
+    treatmentName: item.treatmentName || item.treatment?.name,
+    image: item.image || item.service?.image,
+
+    // Booking Details
+    date: item.date || new Date().toISOString(),
+    time: item.time || "00:00",
+    duration: item.duration || item.service?.duration || 0,
+
+    // ✅ FIX: Critical - Price mapping from multiple fields
+    price: item.price || 0,
+    totalPrice: item.totalPrice || item.finalPrice || item.price || 0,
+    finalPrice: item.finalPrice || item.totalPrice || item.price || 0,
+
+    // Location Info (with fallbacks)
+    locationName:
+      item.locationName ||
+      item.location?.name ||
+      item.selectedLocation?.locationName ||
+      "To be confirmed",
+    location: item.location?.name || item.locationName || "TBA",
+
+    // Provider Info (with fallbacks)
+    providerName:
+      item.providerName ||
+      item.provider?.name ||
+      item.practitioner ||
+      "To be assigned",
+    practitioner: item.practitioner || item.provider?.name || "TBA",
+
+    // Add-ons
+    addOns: item.addOns || [],
+
+    // Status
+    status: "pending",
+    isPending: true,
+  });
+
+  // ✅ Combine all bookings - properly normalized
+  const allBookings = React.useMemo(() => [
+    // Pending cart items
+    ...cartItems.map((item) => normalizeCartItem(item)),
+    // Confirmed bookings from API
+    ...upcomingBookings,
+    ...pastBookings,
+  ], [cartItems, upcomingBookings, pastBookings]);
+
+  // ✅ Filter bookings based on status
+  const filteredBookings = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return allBookings.filter((booking) => {
+      const bookingDate = new Date(booking.date);
+      bookingDate.setHours(0, 0, 0, 0);
+
+      if (filterStatus === "upcoming") {
+        return (
+          booking.isPending ||
+          (bookingDate >= today && booking.status !== "cancelled")
+        );
+      } else if (filterStatus === "completed") {
+        return bookingDate < today || booking.status === "cancelled";
+      }
+      return true;
+    });
+  }, [allBookings, filterStatus]);
+
+  const upcomingCount = React.useMemo(() => {
+    return allBookings.filter((b) => {
+      const bookingDate = new Date(b.date);
+      const today = new Date();
+      return b.isPending || (bookingDate >= today && b.status !== "cancelled");
+    }).length;
+  }, [allBookings]);
+
+  const pendingCount = cartItems.length;
+
+  // ✅ Loading state
+  if (isInitialLoading && !showSuccessOverlay) {
+    return (
+      <Layout>
+        <div className="px-4 py-8 max-w-7xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">My Bookings</h1>
+          <div className="grid gap-4">
+            {[...Array(3)].map((_, i) => (
+              <BookingCardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  const isListLoading = (filterStatus === 'completed' && pastLoading) || (filterStatus === 'upcoming' && upcomingLoading);
+
+  return (
+    <Layout>
+      {/* Success Overlay */}
+      {showSuccessOverlay && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full animate-bounce">
+            <div className="text-center">
+              <CheckCircle className="w-20 h-20 mx-auto mb-4 text-green-500" />
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Payment Successful!
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Your booking has been confirmed. Check your email for details.
+              </p>
+              <button
+                onClick={() => setShowSuccessOverlay(false)}
+                className="bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 h-10 rounded-lg font-semibold w-full"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="px-4 py-8 max-w-7xl mx-auto min-h-[60vh]">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => navigate("/services")}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-6"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to Services
+          </button>
+
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">My Bookings</h1>
+              <p className="text-gray-600 mt-1">
+                {upcomingLoading ? (
+                    <span className="inline-block w-24 h-4 bg-gray-200 rounded animate-pulse"></span>
+                ) : (
+                    <>
+                        {upcomingCount} upcoming appointment
+                        {upcomingCount !== 1 ? "s" : ""}
+                        {pendingCount > 0 && ` (${pendingCount} pending payment)`}
+                    </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Push Notification CTA */}
+          {isSupported && !isSubscribed && permission === 'default' && (
+            <div className="mb-8 p-6 bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100 rounded-2xl flex flex-col md:flex-row items-center gap-6 shadow-sm">
+              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-pink-500 flex-shrink-0">
+                <BellRing className="w-8 h-8" />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-lg font-bold text-gray-900">Don't miss your appointment!</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Enable push notifications to get reminders and updates about your bookings directly on your phone.
+                </p>
+              </div>
+              <button
+                onClick={requestPermissionAndSubscribe}
+                disabled={isSubscribing}
+                className="px-6 h-12 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2 whitespace-nowrap"
+              >
+                {isSubscribing ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Bell className="w-5 h-5" />
+                )}
+                Enable Notifications
+              </button>
+            </div>
+          )}
+
+          {/* Filter Tabs */}
+          <div className="flex gap-2 border-b border-gray-200">
+            {["upcoming", "completed", "all"].map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status)}
+                className={`px-4 py-3 font-semibold transition-colors capitalize ${
+                  filterStatus === status
+                    ? "text-pink-600 border-b-2 border-pink-600"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                {status === "all" ? "All Bookings" : status}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Pending Payment Alert */}
+        {pendingCount > 0 && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-yellow-900">
+                Pending Bookings
+              </h3>
+              <p className="text-sm text-yellow-800">
+                You have {pendingCount} booking{pendingCount !== 1 ? "s" : ""}{" "}
+                waiting for payment.{" "}
+                <button
+                  onClick={() => navigate("/cart")}
+                  className="font-semibold underline hover:text-yellow-700"
+                >
+                  Complete checkout now
+                </button>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {filteredBookings.length === 0 && !isListLoading && (
+          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              No {filterStatus === "all" ? "" : filterStatus} bookings
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {filterStatus === "upcoming"
+                ? "You don't have any upcoming appointments yet"
+                : filterStatus === "completed"
+                ? "You have no completed appointments"
+                : "Start booking your favorite services today!"}
+            </p>
+            <button
+              onClick={() => navigate("/services")}
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700"
+            >
+              <ShoppingBag className="w-5 h-5" />
+              Browse Services
+            </button>
+          </div>
+        )}
+        
+        {/* Loading State for List */}
+        {isListLoading && filteredBookings.length === 0 ? (
+           <div className="grid gap-4">
+             {[...Array(3)].map((_, i) => (
+                <BookingCardSkeleton key={i} />
+             ))}
+           </div>
+        ) : (
+          /* Bookings Grid */
+          filteredBookings.length > 0 && (
+            <div className="grid gap-4 md:gap-6">
+              {filteredBookings.map((booking) => (
+                <BookingCard
+                  key={booking._id || booking.id}
+                  booking={booking}
+                  isPending={booking.isPending}
+                  onCancel={handleCancel}
+                  onReschedule={handleReschedule}
+                  onRemoveFromCart={handleRemoveFromCart}
+                />
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
+      {/* ✅ Modals with proper state management */}
       {selectedBooking && (
         <>
           <RescheduleModal
             isOpen={showReschedule}
-            onClose={() => setShowReschedule(false)}
+            onClose={() => {
+              setShowReschedule(false);
+              setSelectedBooking(null);
+              refetchUpcoming();
+            }}
             booking={selectedBooking}
           />
           <CancelBookingModal
             isOpen={showCancel}
-            onClose={() => setShowCancel(false)}
+            onClose={() => {
+              setShowCancel(false);
+              setSelectedBooking(null);
+              refetchUpcoming();
+            }}
             booking={selectedBooking}
           />
         </>
       )}
     </Layout>
-  )
-}
+  );
+};
 
-export default BookingsPage
+export default BookingsPage;

@@ -15,8 +15,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Use generateSW strategy - simpler, no injection needed
-      strategies: 'generateSW',
+      strategies: 'injectManifest',
+      srcDir: 'public',
+      filename: 'sw.js',
       workbox: {
         globPatterns: [
           '**/*.{js,css,html,ico,png,svg,jpg,jpeg,gif,webp,woff,woff2}',

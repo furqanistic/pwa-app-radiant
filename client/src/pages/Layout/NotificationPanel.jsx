@@ -4,24 +4,24 @@ import { axiosInstance } from '@/config'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft,
-  Bell,
-  BellRing,
-  CheckCheck,
-  Clock,
-  Crown,
-  Gift,
-  Heart,
-  Loader2,
-  MessageSquare,
-  RefreshCw,
-  Settings,
-  Sparkles,
-  Star,
-  Trash2,
-  Wifi,
-  WifiOff,
-  Zap,
+    ArrowLeft,
+    Bell,
+    BellRing,
+    CheckCheck,
+    Clock,
+    Crown,
+    Gift,
+    Heart,
+    Loader2,
+    MessageSquare,
+    RefreshCw,
+    Settings,
+    Sparkles,
+    Star,
+    Trash2,
+    Wifi,
+    WifiOff,
+    Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -58,6 +58,56 @@ const deleteNotification = async ({ notificationId, token }) => {
   await axiosInstance.delete(`/notifications/${notificationId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+}
+
+const PushNotificationPromptStatic = () => {
+  const { 
+    isSubscribed, 
+    sendTestNotification, 
+    isTesting, 
+    isSupported, 
+    error 
+  } = usePushNotifications()
+
+  if (!isSupported) return null
+
+  return (
+    <div className="bg-pink-50 rounded-2xl p-4 border border-pink-100">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            "w-2 h-2 rounded-full animate-pulse",
+            isSubscribed ? "bg-green-500" : "bg-gray-300"
+          )} />
+          <span className="text-sm font-semibold text-gray-900">
+            {isSubscribed ? 'Push Active' : 'Push Inactive'}
+          </span>
+        </div>
+        
+        {isSubscribed && (
+          <button
+            onClick={() => sendTestNotification()}
+            disabled={isTesting}
+            className="text-xs px-3 py-1.5 bg-white border border-pink-200 text-pink-600 rounded-lg hover:bg-pink-50 transition-colors disabled:opacity-50"
+          >
+            {isTesting ? 'Sending...' : 'Test Notification'}
+          </button>
+        )}
+      </div>
+      
+      <p className="text-xs text-gray-500 leading-relaxed">
+        {isSubscribed 
+          ? "You're all set! We'll notify you about important updates on this device."
+          : "Enable push notifications in settings below to get instant updates even when the app is closed."}
+      </p>
+
+      {error && (
+        <p className="text-[10px] text-red-500 mt-2 font-medium">
+          Error: {error}
+        </p>
+      )}
+    </div>
+  )
 }
 
 const NotificationPanel = ({ className = '' }) => {
@@ -350,7 +400,11 @@ const NotificationPanel = ({ className = '' }) => {
       >
         {showSettings ? (
           <div className='p-4'>
-            <PushNotificationSettings />
+            <PushNotificationPromptStatic />
+            
+            <div className='mt-4'>
+              <PushNotificationSettings />
+            </div>
 
             {/* Additional settings info */}
             {canEnableNotifications && (
@@ -362,10 +416,9 @@ const NotificationPanel = ({ className = '' }) => {
                       Why enable push notifications?
                     </h4>
                     <ul className='text-blue-700 text-sm mt-2 space-y-1'>
-                      <li>• Get notified instantly about new messages</li>
-                      <li>• Never miss important updates</li>
+                      <li>• Get notified instantly about new bookings</li>
+                      <li>• Never miss important rewards or points</li>
                       <li>• Works even when the app is closed</li>
-                      <li>• Available on Android and iOS devices</li>
                     </ul>
                   </div>
                 </div>

@@ -1,127 +1,75 @@
 // File: client/src/services/bookingService.js
-
-const API_URL = import.meta.env.VITE_API_URL || "/api";
+import { axiosInstance } from "@/config";
 
 export const bookingService = {
   // CLIENT ENDPOINTS
   getClientBookings: async (filters = {}) => {
-    const params = new URLSearchParams(filters);
-    const response = await fetch(`${API_URL}/upcoming?${params}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch bookings");
-    return response.json();
+    const params = new URLSearchParams(filters).toString();
+    const response = await axiosInstance.get(`/bookings/upcoming?${params}`);
+    return response.data;
   },
 
   getPastBookings: async (page = 1, limit = 10) => {
-    const response = await fetch(
-      `${API_URL}/past?page=${page}&limit=${limit}`,
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      }
+    const response = await axiosInstance.get(
+      `/bookings/past?page=${page}&limit=${limit}`
     );
-    if (!response.ok) throw new Error("Failed to fetch past bookings");
-    return response.json();
+    return response.data;
   },
 
   getBookingStats: async () => {
-    const response = await fetch(`${API_URL}/stats`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch stats");
-    return response.json();
+    const response = await axiosInstance.get("/bookings/stats");
+    return response.data;
   },
 
   rescheduleBooking: async (bookingId, newDate, newTime) => {
-    const response = await fetch(`${API_URL}/${bookingId}/reschedule`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({ date: newDate, time: newTime }),
-    });
-    if (!response.ok) throw new Error("Failed to reschedule booking");
-    return response.json();
+    const response = await axiosInstance.put(
+      `/bookings/${bookingId}/reschedule`,
+      {
+        date: newDate,
+        time: newTime,
+      }
+    );
+    return response.data;
   },
 
   cancelBooking: async (bookingId, reason = "") => {
-    const response = await fetch(`${API_URL}/${bookingId}/cancel`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({ reason }),
+    const response = await axiosInstance.delete(`/bookings/${bookingId}/cancel`, {
+      data: { reason },
     });
-    if (!response.ok) throw new Error("Failed to cancel booking");
-    return response.json();
+    return response.data;
   },
 
   rateBooking: async (bookingId, rating, review = "") => {
-    const response = await fetch(`${API_URL}/rate/${bookingId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({ rating, review }),
+    const response = await axiosInstance.post(`/bookings/rate/${bookingId}`, {
+      rating,
+      review,
     });
-    if (!response.ok) throw new Error("Failed to submit rating");
-    return response.json();
+    return response.data;
   },
 
   getBookedTimes: async (serviceId, date) => {
-    const response = await fetch(
-      `${API_URL}/booked-times?serviceId=${serviceId}&date=${date}`,
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      }
+    const response = await axiosInstance.get(
+      `/bookings/booked-times?serviceId=${serviceId}&date=${date}`
     );
-    if (!response.ok) throw new Error("Failed to fetch booked times");
-    return response.json();
+    return response.data;
   },
 
   // ADMIN ENDPOINTS
   getAdminBookings: async (filters = {}) => {
-    const params = new URLSearchParams(filters);
-    const response = await fetch(`${API_URL}/admin/all?${params}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch bookings");
-    return response.json();
+    const params = new URLSearchParams(filters).toString();
+    const response = await axiosInstance.get(`/bookings/admin/all?${params}`);
+    return response.data;
   },
 
   getBookingDetail: async (bookingId) => {
-    const response = await fetch(`${API_URL}/${bookingId}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
-    if (!response.ok) throw new Error("Failed to fetch booking");
-    return response.json();
+    const response = await axiosInstance.get(`/bookings/${bookingId}`);
+    return response.data;
   },
 
   updateBookingStatus: async (bookingId, status) => {
-    const response = await fetch(`${API_URL}/${bookingId}/status`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({ status }),
+    const response = await axiosInstance.put(`/bookings/${bookingId}/status`, {
+      status,
     });
-    if (!response.ok) throw new Error("Failed to update booking");
-    return response.json();
+    return response.data;
   },
 };
