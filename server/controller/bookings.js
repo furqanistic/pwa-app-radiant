@@ -268,4 +268,48 @@ export const rateVisit = async (req, res, next) => {
   }
 }
 
-// ===========================
+export const getBookedTimes = async (req, res, next) => {
+  try {
+    const { serviceId, date } = req.query;
+
+    // Date validation
+    if (!serviceId || !date) {
+      return next(createError(400, "serviceId and date are required"));
+    }
+
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    console.log("🔍 DEBUG - Fetching booked times:", {
+      serviceId,
+      date,
+      startOfDay,
+      endOfDay,
+    });
+
+    const bookings = await Booking.find({
+      serviceId,
+      date: { $gte: startOfDay, $lte: endOfDay },
+      status: { $nin: ["cancelled"] },
+    }).select("time");
+
+    console.log("📝 Found bookings:", bookings);
+
+    const bookedTimes = bookings.map((b) => b.time);
+
+    console.log("⏰ Booked times:", bookedTimes);
+
+    // ✅ CORRECTED RESPONSE FORMAT
+    res.status(200).json({
+      success: true,
+      data: {
+        bookedTimes, // ← Nested inside data
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error:", error);
+    next(createError(500, "Failed to fetch booked times"));
+  }
+};

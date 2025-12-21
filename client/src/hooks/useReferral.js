@@ -2,7 +2,7 @@
 
 import { axiosInstance } from '@/config'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 // Get user's referral stats with computed data
 export const useReferralStatsWithComputedData = () => {

@@ -19,6 +19,9 @@ import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
 import stripeRoutes from './routes/stripe.js' // STRIPE INTEGRATION
 import userRewardsRouter from './routes/userRewards.js'
+import qrCodeRoutes from "./routes/qrCode.js";
+
+
 const app = express()
 
 // Load environment variables first
@@ -53,15 +56,15 @@ const isOriginAllowed = (origin) => {
 const corsOptions = {
   origin: (origin, callback) => {
     if (isOriginAllowed(origin)) {
-      callback(null, true)
+      callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'))
+      callback(new Error("Not allowed by CORS"));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
 app.use(cors(corsOptions))
 app.use(cookieParser())
@@ -90,6 +93,7 @@ app.use('/api/bookings', bookingsRouter) // NEW
 app.use('/api/dashboard', dashboardRouter) // NEW
 app.use('/api/user-rewards', userRewardsRouter)
 app.use('/api/stripe', stripeRoutes) // STRIPE INTEGRATION
+app.use("/api/qr-codes", qrCodeRoutes);
 
 const connect = () => {
   mongoose

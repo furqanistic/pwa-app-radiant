@@ -284,12 +284,17 @@ export const createCheckoutSession = async (req, res, next) => {
           )
         }
 
-        const spaOwner = service.createdBy
-        if (!spaOwner || spaOwner.role !== 'team') {
+        // Find the spa owner for this location
+        const spaOwner = await User.findOne({ 
+          'spaLocation.locationId': item.locationId || cartLocationId,
+          role: 'team' 
+        })
+
+        if (!spaOwner) {
           return next(
             createError(
               400,
-              `Service owner for ${item.serviceName} is not valid`
+              `Could not find a valid spa owner for location ${item.locationId || cartLocationId}`
             )
           )
         }
@@ -426,11 +431,14 @@ export const createCheckoutSession = async (req, res, next) => {
       return next(createError(404, 'Service not found or inactive'))
     }
 
-    // Get spa owner (creator of the service)
-    const spaOwner = service.createdBy
+    // Get spa owner (owner of the location)
+    const spaOwner = await User.findOne({
+      'spaLocation.locationId': locationId,
+      role: 'team'
+    })
 
-    if (!spaOwner || spaOwner.role !== 'team') {
-      return next(createError(400, 'Service owner is not a valid spa account'))
+    if (!spaOwner) {
+      return next(createError(400, 'Service owner is not a valid spa account for this location'))
     }
 
     // Check if spa owner has Stripe connected

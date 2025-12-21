@@ -1,37 +1,37 @@
 // File: client/src/pages/Management/ServiceManagementPage.jsx
 // Complete ServiceManagementPage with all fixes
 import {
-  useCategories,
-  useCreateCategory,
-  useCreateService,
-  useDeleteCategory,
-  useDeleteService,
-  useServices,
-  useUpdateCategory,
-  useUpdateService,
+    useCategories,
+    useCreateCategory,
+    useCreateService,
+    useDeleteCategory,
+    useDeleteService,
+    useServices,
+    useUpdateCategory,
+    useUpdateService,
 } from '@/hooks/useServices'
 import {
-  ArrowLeft,
-  CheckCircle,
-  ChevronRight,
-  Clock,
-  DollarSign,
-  Edit3,
-  Eye,
-  Layers,
-  Percent,
-  Plus,
-  Save,
-  Search,
-  Settings,
-  Star,
-  Trash2,
-  X,
-  Zap,
+    ArrowLeft,
+    CheckCircle,
+    ChevronRight,
+    Clock,
+    DollarSign,
+    Edit3,
+    Eye,
+    Layers,
+    Percent,
+    Plus,
+    Save,
+    Search,
+    Settings,
+    Star,
+    Trash2,
+    X,
+    Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { toast } from 'react-hot-toast'
 import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
 // Enhanced Service Selection Modal for Add-ons with custom pricing

@@ -1,19 +1,19 @@
+import Layout from '@/pages/Layout/Layout'
+import {
+    ArrowLeft,
+    Calendar,
+    Clock,
+    CreditCard,
+    DollarSign,
+    ShoppingBag,
+    ShoppingCart,
+    Trash2,
+} from 'lucide-react'
 import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'react-hot-toast'
-import {
-  ShoppingCart,
-  Trash2,
-  Calendar,
-  Clock,
-  DollarSign,
-  ArrowLeft,
-  CreditCard,
-  ShoppingBag,
-} from 'lucide-react'
-import Layout from '@/pages/Layout/Layout'
-import { removeFromCart, clearCart } from '../../redux/cartSlice'
+import { toast } from 'sonner'
+import { clearCart, removeFromCart } from '../../redux/cartSlice'
 import stripeService from '../../services/stripeService'
 
 const CartPage = () => {

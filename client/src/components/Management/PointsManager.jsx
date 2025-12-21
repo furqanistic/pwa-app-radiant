@@ -2,16 +2,16 @@
 import { authService } from '@/services/authService'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle,
-  Calculator,
-  Check,
-  Minus,
-  Plus,
-  Target,
-  X,
+    AlertTriangle,
+    Calculator,
+    Check,
+    Minus,
+    Plus,
+    Target,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import { Button } from '../ui/button'
 
 const PointsManager = ({

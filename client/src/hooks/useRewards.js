@@ -1,14 +1,14 @@
 // File: client/src/hooks/useRewards.js - Complete rewards hooks with Redux integration
 import { rewardsService } from '@/services/rewardsService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
 import { useDispatch } from 'react-redux'
+import { toast } from 'sonner'
 // Import from your existing userSlice
 import {
-  rollbackPoints,
-  setPoints,
-  subtractPoints,
-  updatePoints,
+    rollbackPoints,
+    setPoints,
+    subtractPoints,
+    updatePoints,
 } from '@/redux/userSlice'
 
 // ===============================================
@@ -190,13 +190,9 @@ export const useClaimReward = (options = {}) => {
       const newBalance = data.data?.newPointBalance || 0
 
       toast.success(
-        `🎉 Reward claimed! Spent ${pointsSpent} points. New balance: ${newBalance}`,
+        `Reward claimed! Spent ${pointsSpent} points. New balance: ${newBalance}`,
         {
           duration: 4000,
-          style: {
-            background: '#10b981',
-            color: 'white',
-          },
         }
       )
 
@@ -224,10 +220,6 @@ export const useClaimReward = (options = {}) => {
         error.response?.data?.message || 'Failed to claim reward'
       toast.error(errorMessage, {
         duration: 5000,
-        style: {
-          background: '#ef4444',
-          color: 'white',
-        },
       })
 
       options.onError?.(error, rewardId)

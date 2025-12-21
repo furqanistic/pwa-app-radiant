@@ -1,8 +1,8 @@
 // File: client/src/App.jsx - UPDATED SpaSelectionGuard with better UX
 
+import { Toaster } from '@/components/ui/sonner'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Toaster } from 'react-hot-toast'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   BrowserRouter,
@@ -12,6 +12,7 @@ import {
   useLocation,
 } from 'react-router-dom'
 import AuthPage from './pages/Auth/AuthPage'
+import BookingsPage from './pages/Bookings/BookingsPage'
 import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
@@ -19,6 +20,7 @@ import CartPage from './pages/Cart/CartPage'
 import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import InstallPrompt from './pages/Layout/InstallPrompt'
+import BookingsManagementPage from './pages/Management/BookingsManagementPage'
 import ManagementPage from './pages/Management/ManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
@@ -221,14 +223,20 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <Toaster
-        position='top-center'
+      <Toaster 
+        richColors 
+        position="top-center" 
         toastOptions={{
-          duration: 3000,
-          style: {
-            fontSize: '14px',
-            padding: '12px 16px',
-          },
+          style: { background: '#fc2a73', color: 'white', border: 'none' },
+          classNames: {
+            toast: 'bg-[#fc2a73]',
+            title: 'text-white',
+            description: 'text-white',
+            actionButton: 'bg-white text-[#fc2a73]',
+            cancelButton: 'bg-white text-[#fc2a73]',
+            success: 'bg-[#fc2a73] text-white border-none',
+            error: 'bg-red-500 text-white border-none', 
+          }
         }}
       />
       <InstallPrompt />
@@ -236,7 +244,7 @@ const App = () => {
       <Routes>
         {/* Public routes */}
         <Route
-          path='/'
+          path="/"
           element={
             <PublicRoute>
               <AuthPage />
@@ -244,7 +252,7 @@ const App = () => {
           }
         />
         <Route
-          path='/auth'
+          path="/auth"
           element={
             <PublicRoute>
               <AuthPage />
@@ -254,7 +262,7 @@ const App = () => {
 
         {/* Welcome route */}
         <Route
-          path='/welcome'
+          path="/welcome"
           element={
             <WelcomeRoute>
               <WelcomePage />
@@ -264,7 +272,7 @@ const App = () => {
 
         {/* Protected routes */}
         <Route
-          path='/dashboard'
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <DashboardPage />
@@ -273,7 +281,7 @@ const App = () => {
         />
 
         <Route
-          path='/spin'
+          path="/spin"
           element={
             <ProtectedRoute>
               <ScratchSpinPage />
@@ -282,7 +290,7 @@ const App = () => {
         />
 
         <Route
-          path='/services'
+          path="/services"
           element={
             <ProtectedRoute>
               <ServiceCatalogPage />
@@ -291,25 +299,25 @@ const App = () => {
         />
 
         <Route
-          path='/services/:serviceId'
+          path="/services/:serviceId"
           element={
             <ProtectedRoute>
               <ServiceDetailPage />
             </ProtectedRoute>
           }
         />
-
+{/* 
         <Route
-          path='/booking-success'
+          path="/booking-success"
           element={
             <ProtectedRoute>
               <BookingSuccessPage />
             </ProtectedRoute>
           }
-        />
+        /> */}
 
         <Route
-          path='/cart'
+          path="/cart"
           element={
             <ProtectedRoute>
               <CartPage />
@@ -318,16 +326,24 @@ const App = () => {
         />
 
         <Route
-          path='/rewards'
+          path="/rewards"
           element={
             <ProtectedRoute>
               <RewardsCatalogPage />
             </ProtectedRoute>
           }
         />
-
+        
         <Route
-          path='/Booking'
+          path="/management/bookings"
+          element={
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+              <BookingsManagementPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/Booking"
           element={
             <ProtectedRoute>
               <BookingSuccessPage />
@@ -336,7 +352,7 @@ const App = () => {
         />
 
         <Route
-          path='/profile'
+          path="/profile"
           element={
             <ProtectedRoute>
               <ProfilePage />
@@ -345,7 +361,7 @@ const App = () => {
         />
 
         <Route
-          path='/client/:userId'
+          path="/client/:userId"
           element={
             <ProtectedRoute>
               <ClientProfile />
@@ -354,7 +370,7 @@ const App = () => {
         />
 
         <Route
-          path='/referrals'
+          path="/referrals"
           element={
             <ProtectedRoute>
               <ReferralPage />
@@ -364,9 +380,9 @@ const App = () => {
 
         {/* Admin-only routes */}
         <Route
-          path='/contacts'
+          path="/contacts"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "super-admin"]}>
               <ContactsPage />
             </RoleProtectedRoute>
           }
@@ -374,64 +390,64 @@ const App = () => {
 
         {/* Management routes */}
         <Route
-          path='/management'
+          path="/management"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ManagementPage />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/services'
+          path="/management/services"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ServiceManagementPage />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/spin'
+          path="/management/spin"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ScratchSpinManagement />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/rewards'
+          path="/management/rewards"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <RewardManagement />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/management/referral'
+          path="/management/referral"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ManageReferralPage />
             </RoleProtectedRoute>
           }
         />
 
         <Route
-          path='/session'
+          path="/session"
           element={
-            <RoleProtectedRoute allowedRoles={['admin', 'team', 'super-admin']}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <SessionTrackerPage />
             </RoleProtectedRoute>
           }
         />
 
         {/* Fallback route */}
-        <Route path='*' element={<Navigate to='/auth' replace />} />
+        <Route path="*" element={<Navigate to="/auth" replace />} />
       </Routes>
     </BrowserRouter>
-  )
+  );
 }
 
 export default App

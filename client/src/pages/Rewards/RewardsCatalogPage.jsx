@@ -18,8 +18,8 @@ import {
   Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
-import { toast } from 'react-hot-toast'
 import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
 const rewardTypes = [
@@ -342,12 +342,10 @@ const RewardsCatalogPage = () => {
 
   const claimRewardMutation = useClaimReward({
     onSuccess: (data) => {
-      toast.success(
-        `🎉 Reward claimed! You now have ${data.data.newPointBalance} points.`
-      )
+      // Toast handled by hook
     },
     onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to claim reward')
+      // Toast handled by hook
     },
   })
 

@@ -1,31 +1,31 @@
 // File: client/src/pages/Rewards/RewardManagement.jsx - FIXED VERSION
 import {
-  useCreateReward,
-  useDeleteReward,
-  useEnhancedRewardsCatalog, // CHANGED: Use the same hook as dashboard
-  useUpdateReward,
+    useCreateReward,
+    useDeleteReward,
+    useEnhancedRewardsCatalog, // CHANGED: Use the same hook as dashboard
+    useUpdateReward,
 } from '@/hooks/useRewards'
 import {
-  ArrowLeft,
-  Award,
-  Calendar,
-  DollarSign,
-  Edit3,
-  Eye,
-  Gift,
-  Percent,
-  Plus,
-  Save,
-  Search,
-  Star,
-  Target,
-  Trash2,
-  Users,
-  Zap,
+    ArrowLeft,
+    Award,
+    Calendar,
+    DollarSign,
+    Edit3,
+    Eye,
+    Gift,
+    Percent,
+    Plus,
+    Save,
+    Search,
+    Star,
+    Target,
+    Trash2,
+    Users,
+    Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
-import { toast } from 'react-hot-toast'
 import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
 const rewardTypes = [
