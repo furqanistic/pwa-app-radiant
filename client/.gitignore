@@ -27,3 +27,4 @@ dist-ssr
 *.sw?
 ._*
 ._
+dev-dist
