@@ -1,13 +1,14 @@
-// File: client/src/pages/Layout/NotificationPanel.jsx - UPDATED WITH PUSH INTEGRATION
+// File: client/src/pages/Layout/NotificationPanel.jsx - REDESIGNED
 import PushNotificationSettings from '@/components/Layout/PushNotificationSettings'
 import { axiosInstance } from '@/config'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-    ArrowLeft,
     Bell,
     BellRing,
     CheckCheck,
+    ChevronRight,
     Clock,
     Crown,
     Gift,
@@ -17,10 +18,9 @@ import {
     RefreshCw,
     Settings,
     Sparkles,
-    Star,
     Trash2,
-    Wifi,
     WifiOff,
+    X,
     Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -60,7 +60,7 @@ const deleteNotification = async ({ notificationId, token }) => {
   })
 }
 
-const PushNotificationPromptStatic = () => {
+const PushPrompt = () => {
   const { 
     isSubscribed, 
     sendTestNotification, 
@@ -72,73 +72,79 @@ const PushNotificationPromptStatic = () => {
   if (!isSupported) return null
 
   return (
-    <div className="bg-pink-50 rounded-2xl p-4 border border-pink-100">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-3xl p-5 border border-pink-100/50 shadow-sm mb-6"
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
           <div className={cn(
-            "w-2 h-2 rounded-full animate-pulse",
-            isSubscribed ? "bg-green-500" : "bg-gray-300"
+            "w-2.5 h-2.5 rounded-full shadow-sm",
+            isSubscribed ? "bg-green-500 animate-pulse" : "bg-gray-300"
           )} />
-          <span className="text-sm font-semibold text-gray-900">
-            {isSubscribed ? 'Push Active' : 'Push Inactive'}
-          </span>
+          <h4 className="text-sm font-bold text-gray-900 tracking-tight">
+            Push Alerts
+          </h4>
         </div>
         
         {isSubscribed && (
           <button
             onClick={() => sendTestNotification()}
             disabled={isTesting}
-            className="text-xs px-3 py-1.5 bg-white border border-pink-200 text-pink-600 rounded-lg hover:bg-pink-50 transition-colors disabled:opacity-50"
+            className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 bg-white text-pink-600 rounded-full border border-pink-100 hover:bg-pink-50 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
           >
-            {isTesting ? 'Sending...' : 'Test Notification'}
+            {isTesting ? 'Sending...' : 'Test Sync'}
           </button>
         )}
       </div>
       
-      <p className="text-xs text-gray-500 leading-relaxed">
+      <p className="text-xs text-gray-500 leading-relaxed font-medium">
         {isSubscribed 
-          ? "You're all set! We'll notify you about important updates on this device."
-          : "Enable push notifications in settings below to get instant updates even when the app is closed."}
+          ? "Your device is perfectly synced with RadiantAI. We'll alert you for every beauty milestone."
+          : "Stay in the loop. Enable push alerts to get instant updates on bookings and exclusive rewards."}
       </p>
 
-      {error && (
-        <p className="text-[10px] text-red-500 mt-2 font-medium">
-          Error: {error}
-        </p>
-      )}
-    </div>
+      <AnimatePresence>
+        {error && (
+          <motion.p 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="text-[10px] text-red-500 mt-2 font-semibold"
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }
 
 const NotificationPanel = ({ className = '' }) => {
   const [isOpen, setIsOpen] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const [activeTab, setActiveTab] = useState('notifications') // 'notifications' or 'settings'
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [hasMarkedAsSeen, setHasMarkedAsSeen] = useState(false)
   const token = useSelector((state) => state.user.token)
   const queryClient = useQueryClient()
   const markAsSeenTimeoutRef = useRef(null)
 
-  // Push notifications hook
-  const { isSubscribed, canEnableNotifications } = usePushNotifications()
+  const isMobile = windowWidth < 768
 
-  // Detect mobile
   useEffect(() => {
-    const checkScreenSize = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', checkScreenSize)
-    return () => window.removeEventListener('resize', checkScreenSize)
+    const handleResize = () => setWindowWidth(window.innerWidth)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Monitor online/offline status
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
       queryClient.invalidateQueries(['notifications'])
     }
     const handleOffline = () => setIsOnline(false)
-
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     return () => {
@@ -147,72 +153,39 @@ const NotificationPanel = ({ className = '' }) => {
     }
   }, [queryClient])
 
-  // Prevent body scroll on mobile
   useEffect(() => {
     if (isOpen && isMobile) {
       document.body.style.overflow = 'hidden'
-      return () => {
-        document.body.style.overflow = 'unset'
-      }
+      return () => { document.body.style.overflow = 'unset' }
     }
   }, [isOpen, isMobile])
 
-  // Close on outside click (desktop)
-  useEffect(() => {
-    if (!isMobile && isOpen) {
-      const handleClickOutside = (e) => {
-        if (!e.target.closest('.notification-panel')) setIsOpen(false)
-      }
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen, isMobile])
-
-  // Manual refresh function
   const handleManualRefresh = useCallback(() => {
-    setIsManualRefreshing(true)
+    setIsRefreshing(true)
     queryClient.invalidateQueries(['notifications']).finally(() => {
-      setTimeout(() => setIsManualRefreshing(false), 800)
+      setTimeout(() => setIsRefreshing(false), 800)
     })
   }, [queryClient])
 
-  // Professional refetch intervals
-  const getRefetchInterval = () => {
-    if (!isOnline) return false
-    if (isOpen) return 30000 // 30 seconds when open
-    return 60000 // 1 minute when closed
-  }
-
-  // Queries with professional intervals
-  const { data: unreadCount = 0, isLoading: unreadLoading } = useQuery({
+  const { data: unreadCount = 0 } = useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: () => fetchUnreadCount(token),
     enabled: !!token && isOnline,
-    refetchInterval: getRefetchInterval(),
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
+    refetchInterval: isOpen ? 30000 : 60000,
     staleTime: 15000,
-    cacheTime: 300000,
-    retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   })
 
-  const { data: notifications, isLoading: notificationsLoading } = useQuery({
+  const { data: notificationsData, isLoading: notificationsLoading } = useQuery({
     queryKey: ['notifications', 'all'],
     queryFn: () => fetchNotifications(token, { limit: 50 }),
     enabled: !!token && isOpen && isOnline,
     refetchInterval: isOpen ? 30000 : false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: true,
     staleTime: 15000,
-    cacheTime: 300000,
-    retry: 2,
   })
 
-  // Mark as seen mutation
   const markAsSeenMutation = useMutation({
     mutationFn: markAllAsSeen,
-    onMutate: async () => {
+    onMutate: () => {
       queryClient.setQueryData(['notifications', 'unread-count'], 0)
     },
     onError: () => {
@@ -227,388 +200,322 @@ const NotificationPanel = ({ className = '' }) => {
     },
   })
 
-  // Auto-mark as seen when panel opens
   useEffect(() => {
-    if (
-      isOpen &&
-      !hasMarkedAsSeen &&
-      unreadCount > 0 &&
-      token &&
-      !showSettings
-    ) {
-      if (markAsSeenTimeoutRef.current) {
-        clearTimeout(markAsSeenTimeoutRef.current)
-      }
-
+    if (isOpen && !hasMarkedAsSeen && unreadCount > 0 && token && activeTab === 'notifications') {
+      if (markAsSeenTimeoutRef.current) clearTimeout(markAsSeenTimeoutRef.current)
       markAsSeenTimeoutRef.current = setTimeout(() => {
         markAsSeenMutation.mutate(token)
         setHasMarkedAsSeen(true)
-      }, 1000)
+      }, 1500)
     }
-
-    if (!isOpen || showSettings) {
+    if (!isOpen) {
       setHasMarkedAsSeen(false)
-      if (markAsSeenTimeoutRef.current) {
-        clearTimeout(markAsSeenTimeoutRef.current)
-      }
+      if (markAsSeenTimeoutRef.current) clearTimeout(markAsSeenTimeoutRef.current)
     }
-
     return () => {
-      if (markAsSeenTimeoutRef.current) {
-        clearTimeout(markAsSeenTimeoutRef.current)
-      }
+      if (markAsSeenTimeoutRef.current) clearTimeout(markAsSeenTimeoutRef.current)
     }
-  }, [
-    isOpen,
-    hasMarkedAsSeen,
-    unreadCount,
-    token,
-    markAsSeenMutation,
-    showSettings,
-  ])
+  }, [isOpen, hasMarkedAsSeen, unreadCount, token, markAsSeenMutation, activeTab])
 
-  const getIcon = (category) => {
+  const getNotificationIcon = (category) => {
     const icons = {
-      points: Crown,
-      promotion: Gift,
-      system: Sparkles,
-      general: Heart,
+      points: <Crown className="h-4 w-4" />,
+      promotion: <Gift className="h-4 w-4" />,
+      system: <Sparkles className="h-4 w-4" />,
+      general: <Heart className="h-4 w-4" />,
     }
-    const Icon = icons[category] || MessageSquare
-    return <Icon className={cn(isMobile ? 'h-4 w-4' : 'h-4 w-4')} />
+    return icons[category] || <MessageSquare className="h-4 w-4" />
   }
 
-  const getIconColor = (category) => {
-    const colors = {
-      points: 'text-pink-600 bg-pink-100',
-      promotion: 'text-rose-600 bg-rose-100',
-      system: 'text-purple-600 bg-purple-100',
-      general: 'text-pink-500 bg-pink-50',
+  const getIconContainerStyles = (category) => {
+    const styles = {
+      points: 'bg-pink-100 text-pink-600',
+      promotion: 'bg-rose-100 text-rose-600',
+      system: 'bg-purple-100 text-purple-600',
+      general: 'bg-pink-50 text-pink-500',
     }
-    return colors[category] || 'text-pink-500 bg-pink-50'
+    return styles[category] || 'bg-gray-100 text-gray-500'
   }
 
   const formatTime = (date) => {
-    const now = new Date()
-    const diff = Math.floor((now - new Date(date)) / 1000)
+    const diff = Math.floor((new Date() - new Date(date)) / 1000)
     if (diff < 60) return 'Just now'
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-    return `${Math.floor(diff / 86400)}d ago`
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+    return `${Math.floor(diff / 86400)}d`
   }
 
-  const NotificationContent = () => (
-    <>
-      {/* Header */}
-      <div
-        className={cn(
-          'bg-gradient-to-r from-pink-500 to-rose-500 text-white',
-          isMobile ? 'px-4 py-4' : 'px-4 py-4'
-        )}
-      >
-        <div className='flex items-center justify-between'>
-          {isMobile && (
-            <button
-              onClick={() => {
-                if (showSettings) {
-                  setShowSettings(false)
-                } else {
-                  setIsOpen(false)
-                }
-              }}
-              className='p-1.5 -ml-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
-            >
-              <ArrowLeft className='h-5 w-5' />
-            </button>
-          )}
-
-          <div className='flex items-center gap-3'>
-            <div className='flex items-center gap-2'>
-              {showSettings ? (
-                <Settings className='h-5 w-5 text-white' />
-              ) : (
-                <Bell className='h-5 w-5 text-white' />
-              )}
-              <h3
-                className={cn(
-                  'font-bold text-white',
-                  isMobile ? 'text-lg' : 'text-base'
-                )}
-              >
-                {showSettings ? 'Notification Settings' : 'Notifications'}
-              </h3>
-            </div>
-
-            {/* Connection indicator */}
-            <div className='flex items-center gap-2'>
-              {/* Push notification status */}
-              {isSubscribed && !showSettings && (
-                <div className='flex items-center'>
-                  <BellRing
-                    className='h-4 w-4 text-green-300'
-                    title='Push notifications enabled'
-                  />
-                </div>
-              )}
-
-              {!isOnline && <WifiOff className='h-4 w-4 text-red-300' />}
-              {isManualRefreshing && (
-                <Loader2 className='h-4 w-4 animate-spin text-white/80' />
-              )}
-            </div>
-          </div>
-
-          {/* Header Actions */}
-          <div className='flex items-center gap-2'>
-            {!showSettings && (
-              <>
-                {/* Settings button */}
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className='p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
-                  title='Notification settings'
-                >
-                  <Settings className='h-4 w-4' />
-                </button>
-
-                {/* Refresh button */}
-                <button
-                  onClick={handleManualRefresh}
-                  disabled={isManualRefreshing}
-                  className='p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200'
-                  title='Refresh notifications'
-                >
-                  <RefreshCw
-                    className={cn(
-                      'h-4 w-4',
-                      isManualRefreshing && 'animate-spin'
-                    )}
-                  />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div
-        className={cn(
-          'overflow-y-auto bg-white',
-          isMobile ? 'flex-1' : 'max-h-96'
-        )}
-      >
-        {showSettings ? (
-          <div className='p-4'>
-            <PushNotificationPromptStatic />
-            
-            <div className='mt-4'>
-              <PushNotificationSettings />
-            </div>
-
-            {/* Additional settings info */}
-            {canEnableNotifications && (
-              <div className='mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200'>
-                <div className='flex items-start gap-3'>
-                  <Zap className='h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0' />
-                  <div>
-                    <h4 className='font-medium text-blue-900'>
-                      Why enable push notifications?
-                    </h4>
-                    <ul className='text-blue-700 text-sm mt-2 space-y-1'>
-                      <li>• Get notified instantly about new bookings</li>
-                      <li>• Never miss important rewards or points</li>
-                      <li>• Works even when the app is closed</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : notificationsLoading ? (
-          <div className='p-8 text-center'>
-            <div className='w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
-            <p className='text-gray-600 text-sm font-medium'>
-              Loading your updates, sweetie!
-            </p>
-            <p className='text-gray-500 text-xs mt-1'>
-              Getting everything ready for you...
-            </p>
-          </div>
-        ) : !isOnline ? (
-          <div className='p-8 text-center'>
-            <div className='w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4'>
-              <WifiOff className='h-8 w-8 text-white' />
-            </div>
-            <p className='text-gray-900 text-sm font-semibold mb-1'>
-              You're offline, sweetie!
-            </p>
-            <p className='text-gray-500 text-xs'>
-              Don't worry! Your notifications will sync when you're back online
-            </p>
-          </div>
-        ) : !notifications?.data?.notifications?.length ? (
-          <div className='p-8 text-center'>
-            <div className='w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4'>
-              <Heart className='h-8 w-8 text-white' />
-            </div>
-            <p className='text-gray-900 text-sm font-semibold mb-1'>
-              All caught up, sweetie!
-            </p>
-            <p className='text-gray-500 text-xs'>
-              No new notifications right now. You're amazing!
-            </p>
-
-            {/* Push notification CTA when no notifications */}
-            {canEnableNotifications && (
-              <button
-                onClick={() => setShowSettings(true)}
-                className='mt-4 px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors'
-              >
-                Enable Push Notifications
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className='divide-y divide-pink-100'>
-            {notifications.data.notifications.map((notification, index) => (
-              <div
-                key={notification._id}
-                className={cn(
-                  'hover:bg-pink-50 transition-all duration-200 relative group border-l-4',
-                  isMobile ? 'p-4' : 'p-4',
-                  !notification.read
-                    ? 'bg-pink-50/50 border-l-pink-500'
-                    : 'border-l-transparent hover:border-l-pink-200'
-                )}
-              >
-                <div className='flex items-start gap-3'>
-                  {/* Icon */}
-                  <div
-                    className={cn(
-                      'flex-shrink-0 rounded-xl flex items-center justify-center mt-0.5 border',
-                      isMobile ? 'w-10 h-10' : 'w-10 h-10',
-                      getIconColor(notification.category),
-                      !notification.read ? 'border-pink-200' : 'border-pink-100'
-                    )}
-                  >
-                    {getIcon(notification.category)}
-                  </div>
-
-                  {/* Content */}
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-start justify-between'>
-                      <div className='flex-1 pr-4'>
-                        <h4
-                          className={cn(
-                            'leading-tight',
-                            isMobile ? 'text-sm' : 'text-sm',
-                            notification.read
-                              ? 'text-gray-700'
-                              : 'text-gray-900 font-semibold'
-                          )}
-                        >
-                          {notification.title}
-                        </h4>
-                        <p
-                          className={cn(
-                            'text-gray-600 leading-relaxed mt-1',
-                            isMobile ? 'text-sm' : 'text-sm'
-                          )}
-                        >
-                          {notification.message}
-                        </p>
-                        <div className='flex items-center gap-2 mt-2'>
-                          <Clock className='h-3 w-3 text-pink-400' />
-                          <p className='text-pink-400 text-xs font-medium'>
-                            {formatTime(notification.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Delete button */}
-                      <button
-                        onClick={() =>
-                          deleteMutation.mutate({
-                            notificationId: notification._id,
-                            token,
-                          })
-                        }
-                        className={cn(
-                          'p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all duration-200 border border-transparent hover:border-rose-200',
-                          isMobile
-                            ? 'opacity-100'
-                            : 'opacity-0 group-hover:opacity-100'
-                        )}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className='h-4 w-4' />
-                      </button>
-                    </div>
-
-                    {/* Unread indicator */}
-                    {!notification.read && (
-                      <div className='absolute top-4 right-4 w-3 h-3 bg-pink-500 rounded-full border-2 border-white'></div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </>
-  )
+  const panelVariants = isMobile 
+    ? { initial: { x: '100%' }, animate: { x: 0 }, exit: { x: '100%' } }
+    : { initial: { opacity: 0, scale: 0.95, y: 10 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 0.95, y: 10 } }
 
   return (
-    <div className={cn('relative notification-panel', className)}>
-      {/* Bell Button */}
+    <div className={cn('relative', className)}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className='relative p-2 text-gray-500 hover:text-pink-600 hover:bg-pink-50 rounded-xl transition-all duration-200 border border-transparent hover:border-pink-200'
+        className={cn(
+          'relative p-2.5 rounded-2xl transition-all active:scale-95 border group',
+          isOpen 
+            ? 'bg-pink-600 text-white border-pink-600 shadow-lg shadow-pink-200' 
+            : 'bg-white text-gray-600 border-gray-100 hover:border-pink-200 hover:text-pink-600'
+        )}
       >
-        <Bell className='h-5 w-5' />
-
-        {/* Initial loading indicator */}
-        {unreadLoading && unreadCount === 0 && (
-          <div className='absolute -top-1 -left-1 w-4 h-4'>
-            <div className='w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin'></div>
-          </div>
-        )}
-
-        {/* Unread count badge */}
-        {unreadCount > 0 && (
-          <span className='absolute -top-1 -right-1 h-5 w-5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full flex items-center justify-center font-bold border-2 border-white'>
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-
-        {/* Push notification indicator */}
-        {isSubscribed && (
-          <div className='absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white'></div>
-        )}
+        <Bell className={cn('h-5 w-5', unreadCount > 0 && 'animate-wiggle')} />
+        <AnimatePresence>
+          {unreadCount > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="absolute -top-1 -right-1 h-5 w-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-black border-2 border-white shadow-sm"
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </button>
 
-      {/* Mobile Overlay */}
-      {isOpen && isMobile && (
-        <div
-          className='fixed inset-0 bg-black/40 backdrop-blur-sm z-50'
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              className="fixed inset-0 bg-black/5 backdrop-blur-[2px] z-[99]"
+            />
 
-      {/* Panel */}
-      {isOpen && (
-        <div
-          className={
-            isMobile
-              ? 'fixed top-0 right-0 h-screen w-full bg-white z-50 flex flex-col border-l border-pink-100'
-              : 'absolute right-0 top-full mt-2 w-96 max-w-[90vw] bg-white rounded-2xl border border-pink-100 z-50 overflow-hidden'
-          }
-        >
-          <NotificationContent />
-        </div>
-      )}
+            {/* Panel */}
+            <motion.div
+              variants={panelVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={cn(
+                'bg-white z-[100] shadow-2xl flex flex-col',
+                isMobile 
+                  ? 'fixed inset-0 h-screen w-full' 
+                  : 'absolute right-0 top-full mt-4 w-[400px] max-h-[600px] rounded-[32px] border border-gray-100 overflow-hidden'
+              )}
+            >
+              {/* Header */}
+              <div className="p-6 pb-2">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-pink-50 rounded-2xl flex items-center justify-center">
+                      {activeTab === 'notifications' ? <BellRing className="text-pink-600 h-5 w-5" /> : <Settings className="text-pink-600 h-5 w-5" />}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-gray-900 leading-none">
+                        {activeTab === 'notifications' ? 'Feed' : 'Settings'}
+                      </h3>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                        RadiantAI Updates
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    {activeTab === 'notifications' && (
+                      <button
+                        onClick={handleManualRefresh}
+                        className="p-2.5 text-gray-400 hover:text-pink-600 hover:bg-pink-50 rounded-xl transition-all"
+                      >
+                        <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsOpen(false)}
+                      className="p-2.5 text-gray-400 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="bg-gray-50 p-1 rounded-2xl flex gap-1 border border-gray-100/50">
+                  <button
+                    onClick={() => setActiveTab('notifications')}
+                    className={cn(
+                      'flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2',
+                      activeTab === 'notifications' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                    )}
+                  >
+                    Updates
+                    {unreadCount > 0 && <span className="w-1.5 h-1.5 bg-rose-500 rounded-full" />}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    className={cn(
+                      'flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2',
+                      activeTab === 'settings' ? 'bg-white text-pink-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                    )}
+                  >
+                    Preferences
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
+                <AnimatePresence mode="wait">
+                  {activeTab === 'notifications' ? (
+                    <motion.div
+                      key="notifications-list"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="space-y-4 pb-6"
+                    >
+                      {!isOnline ? (
+                        <div className="py-12 text-center">
+                          <WifiOff className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+                          <h4 className="text-sm font-bold text-gray-900">Connection Lost</h4>
+                          <p className="text-xs text-gray-400 mt-1 font-medium">Please check your network status.</p>
+                        </div>
+                      ) : notificationsLoading ? (
+                        <div className="py-12 space-y-4">
+                          {[1, 2, 3].map((i) => (
+                            <div key={i} className="animate-pulse flex gap-4">
+                              <div className="w-12 h-12 bg-gray-100 rounded-2xl shrink-0" />
+                              <div className="flex-1 space-y-2 py-2">
+                                <div className="h-3 bg-gray-100 rounded w-1/3" />
+                                <div className="h-2 bg-gray-50 rounded w-2/3" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : !notificationsData?.data?.notifications?.length ? (
+                        <div className="py-12 text-center">
+                          <div className="w-20 h-20 bg-pink-50 rounded-[32px] flex items-center justify-center mx-auto mb-6">
+                            <CheckCheck className="h-10 w-10 text-pink-500" />
+                          </div>
+                          <h4 className="text-base font-black text-gray-900">All Captured!</h4>
+                          <p className="text-xs text-gray-400 font-medium mt-2 max-w-[180px] mx-auto italic">
+                            No new updates right now. You're doing great!
+                          </p>
+                        </div>
+                      ) : (
+                        notificationsData.data.notifications.map((notification) => (
+                          <motion.div
+                            key={notification._id}
+                            layout
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={cn(
+                              'group relative p-4 rounded-3xl border transition-all duration-300',
+                              notification.read 
+                                ? 'bg-white border-gray-100 hover:border-pink-100' 
+                                : 'bg-pink-50/30 border-pink-100 shadow-sm shadow-pink-50'
+                            )}
+                          >
+                            {!notification.read && (
+                              <div className="absolute top-4 right-4 w-2 h-2 bg-pink-500 rounded-full shadow-[0_0_10px_rgba(236,72,153,0.5)]" />
+                            )}
+                            
+                            <div className="flex gap-4">
+                              <div className={cn(
+                                'w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm border border-black/5',
+                                getIconContainerStyles(notification.category)
+                              )}>
+                                {getNotificationIcon(notification.category)}
+                              </div>
+                              
+                              <div className="flex-1 min-w-0 pr-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-pink-600/60">
+                                    {notification.category}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400">•</span>
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-2.5 w-2.5 text-gray-300" />
+                                    <span className="text-[10px] font-bold text-gray-400">
+                                      {formatTime(notification.createdAt)}
+                                    </span>
+                                  </div>
+                                </div>
+                                <h4 className={cn(
+                                  'text-sm transition-colors mr-2',
+                                  notification.read ? 'text-gray-600 font-semibold' : 'text-gray-900 font-black'
+                                )}>
+                                  {notification.title}
+                                </h4>
+                                <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">
+                                  {notification.message}
+                                </p>
+                              </div>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteMutation.mutate({ notificationId: notification._id, token })
+                                }}
+                                className="absolute -right-2 -top-2 p-2 bg-white text-gray-300 hover:text-rose-600 hover:shadow-lg rounded-full opacity-0 group-hover:opacity-100 transition-all border border-gray-100 shadow-sm scale-75 group-hover:scale-100"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        ))
+                      )}
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="settings-list"
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      className="pb-6"
+                    >
+                      <PushPrompt />
+                      <div className="space-y-6">
+                        <div className="p-1 px-1">
+                          <PushNotificationSettings />
+                        </div>
+                        
+                        <div className="bg-gray-50 rounded-3xl p-5 border border-gray-100">
+                          <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest mb-4">
+                            Why Alerts?
+                          </h4>
+                          <div className="space-y-4">
+                            {[
+                              { icon: <Crown className="w-3 h-3" />, label: "Track your loyalty points" },
+                              { icon: <Clock className="w-3 h-3" />, label: "Booking reminders" },
+                              { icon: <Zap className="w-3 h-3" />, label: "Exclusive flash rewards" },
+                            ].map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-3">
+                                <div className="w-6 h-6 rounded-lg bg-white border border-gray-100 flex items-center justify-center text-pink-500 shadow-sm">
+                                  {item.icon}
+                                </div>
+                                <span className="text-xs text-gray-600 font-bold">{item.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 pt-2 border-t border-gray-50">
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="w-full py-4 px-6 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-98 flex items-center justify-center gap-2 group"
+                >
+                  Dismiss Panel
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

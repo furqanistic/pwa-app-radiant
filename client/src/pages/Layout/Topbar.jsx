@@ -1,6 +1,6 @@
 // File: client/src/pages/Layout/Topbar.jsx
 import { motion } from "framer-motion";
-import { Menu, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import React from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -12,8 +12,6 @@ const cn = (...classes) => classes.filter(Boolean).join(" ");
 const Topbar = ({
   className = "",
   showNotifications = true,
-  showMobileMenu = false,
-  onMenuClick,
 }) => {
   const { currentUser } = useSelector((state) => state.user);
   const { totalItems } = useSelector((state) => state.cart);
@@ -24,17 +22,8 @@ const Topbar = ({
       <div className={cn("bg-white border-b border-gray-200 sticky top-0 z-30", className)}>
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Left side - Mobile Menu and Install Button */}
+            {/* Left side - Install Button */}
             <div className="flex items-center space-x-2 lg:space-x-3">
-              {showMobileMenu && (
-                <button
-                  onClick={onMenuClick}
-                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
-              )}
-              {/* Install Button - Moved to left side */}
               <InstallButton />
             </div>
 

@@ -341,47 +341,23 @@ const Layout = ({
 
   return (
     <div className='min-h-screen bg-gray-50'>
-      {/* Mobile Overlay */}
+      {/* Sidebar - Desktop Only */}
       <AnimatePresence>
-        {isOpen && !isDesktop && (
-          <motion.div
-            variants={overlayVariants}
-            initial='closed'
-            animate='open'
-            exit='closed'
-            onClick={() => setIsOpen(false)}
-            className='lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40'
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Sidebar - Fixed positioning for desktop, animated for mobile */}
-      <motion.aside
-        variants={sidebarVariants}
-        initial={false}
-        animate={isDesktop ? 'open' : isOpen ? 'open' : 'closed'}
-        className={cn(
-          // Fixed positioning and size
-          'fixed top-0 left-0 h-screen w-64 z-50',
-          // Desktop styles
-          'lg:z-auto',
-          // Background and styling
-          'bg-white border-r border-gray-200',
-          'flex flex-col',
-          className
-        )}
-      >
+        {isDesktop && (
+          <motion.aside
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className={cn(
+              'fixed top-0 left-0 h-screen w-64 z-50',
+              'bg-white border-r border-gray-200',
+              'flex flex-col',
+              className
+            )}
+          >
         {/* Header - Fixed height */}
         <div className='relative px-4 py-4 border-b border-gray-100 flex-shrink-0'>
-          {/* Close button for mobile */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setIsOpen(false)}
-            className='lg:hidden absolute top-3 right-3 p-1.5 hover:bg-gray-100 rounded-lg transition-colors'
-          >
-            <X className='h-4 w-4 text-gray-500' />
-          </motion.button>
 
           {/* Brand */}
           <div className='flex items-center space-x-2.5 pr-6'>
@@ -430,7 +406,9 @@ const Layout = ({
             </div>
           </div>
         </div>
-      </motion.aside>
+        </motion.aside>
+      )}
+      </AnimatePresence>
       <BottomNav />
 
       {/* Main Content Area - With proper margin for sidebar */}
@@ -446,8 +424,6 @@ const Layout = ({
         {/* Topbar */}
         <Topbar
           showNotifications={showTopbarNotifications}
-          onMenuClick={() => setIsOpen(true)}
-          showMobileMenu={!isDesktop}
         />
 
         <div className='relative'>

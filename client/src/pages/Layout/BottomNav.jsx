@@ -1,20 +1,28 @@
 // File: client/src/pages/Layout/BottomNav.jsx
 import QRCodeScanner from "@/components/QRCode/QRCodeScanner";
-import { logout } from '@/redux/userSlice';
+import {
+ logout,
+ selectIsElevatedUser,
+ selectIsSuperAdmin,
+} from '@/redux/userSlice';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
  Calendar,
  CompassIcon,
+ Contact2,
+ Gamepad2,
+ Gift,
  LayoutDashboard,
  LogOut,
  Menu,
  QrCode,
  Star,
  User,
+ Users,
  X,
 } from 'lucide-react';
 import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
@@ -26,18 +34,25 @@ const BottomNav = () => {
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
-  const navItems = [
+  // Selector for role-based access
+  const isSuperAdmin = useSelector(selectIsSuperAdmin)
+  const isElevatedUser = useSelector(selectIsElevatedUser)
+
+  // Navigation logic mirrored from Layout.jsx
+  const baseNavigationItems = [
     {
       id: 'dashboard',
       label: 'Home',
       icon: LayoutDashboard,
       href: '/dashboard',
+      inBottomBar: true,
     },
     {
       id: 'services',
       label: 'Explore',
       icon: CompassIcon,
       href: '/services',
+      inBottomBar: true,
     },
     {
       id: 'scanner',
@@ -45,28 +60,71 @@ const BottomNav = () => {
       icon: QrCode,
       isScanner: true,
       onClick: () => setQrScannerOpen(true),
+      inBottomBar: true,
     },
     {
       id: 'rewards',
       label: 'Rewards',
       icon: Star,
       href: '/rewards',
+      inBottomBar: true,
     },
     {
-      id: 'more',
-      label: 'More',
-      icon: Menu,
-      onClick: () => setShowMoreMenu(true),
+      id: 'contacts',
+      label: 'Contacts',
+      icon: Contact2,
+      href: '/contacts',
+      superAdminOnly: true,
     },
-  ]
-
-  const moreItems = [
     {
       id: 'booking',
-      label: 'Book Service',
+      label: 'Booking',
       icon: Calendar,
       href: '/Booking',
     },
+    {
+      id: 'clients',
+      label: 'Management',
+      icon: Users,
+      href: '/management',
+      elevatedAccessRequired: true,
+    },
+    {
+      id: 'referrals',
+      label: 'Referrals',
+      icon: Gift,
+      href: '/referrals',
+    },
+    {
+      id: 'gamification',
+      label: 'Games',
+      icon: Gamepad2,
+      href: '/spin',
+      hideForElevated: true,
+    },
+  ]
+
+  // Filter items based on user role
+  const allowedItems = baseNavigationItems.filter((item) => {
+    if (item.superAdminOnly) return isSuperAdmin
+    if (item.elevatedAccessRequired) return isElevatedUser
+    if (item.hideForElevated && isElevatedUser) return false
+    return true
+  })
+
+  // Split into bottom bar and "More" menu
+  const bottomNavItems = [
+    ...allowedItems.filter(item => item.inBottomBar),
+    {
+        id: 'more',
+        label: 'More',
+        icon: Menu,
+        onClick: () => setShowMoreMenu(true),
+    }
+  ]
+
+  const moreItems = [
+    ...allowedItems.filter(item => !item.inBottomBar),
     {
       id: 'profile',
       label: 'My Profile',
@@ -100,7 +158,7 @@ const BottomNav = () => {
     <>
       <nav className='lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl shadow-[0_-8px_30px_rgb(0,0,0,0.12)] border-t border-gray-100 pb-[env(safe-area-inset-bottom)]'>
         <div className='flex items-center justify-around h-16 max-w-lg mx-auto px-4 relative'>
-          {navItems.map((item) => {
+          {bottomNavItems.map((item) => {
             const Icon = item.icon
             const isActive = item.href ? location.pathname === item.href : false
 
@@ -179,7 +237,7 @@ const BottomNav = () => {
                 </button>
               </div>
 
-              <div className='grid grid-cols-1 gap-2'>
+              <div className='grid grid-cols-1 gap-1 max-h-[60vh] overflow-y-auto pr-2'>
                 {moreItems.map((item) => {
                   const Icon = item.icon
                   return (
@@ -188,15 +246,15 @@ const BottomNav = () => {
                       whileTap={{ scale: 0.98 }}
                       onClick={() => handleMoreItemClick(item)}
                       className={cn(
-                        'flex items-center space-x-4 p-4 rounded-2xl transition-all duration-200',
+                        'flex items-center space-x-4 p-3.5 rounded-2xl transition-all duration-200',
                         item.className || 'hover:bg-pink-50 text-gray-700'
                       )}
                     >
                       <div className={cn(
-                        'p-2.5 rounded-xl',
+                        'p-2 rounded-xl flex-shrink-0',
                         item.id === 'logout' ? 'bg-red-100 text-red-600' : 'bg-pink-50 text-pink-600'
                       )}>
-                        <Icon className='w-6 h-6' />
+                        <Icon className='w-5 h-5' />
                       </div>
                       <span className='font-bold text-base'>{item.label}</span>
                     </motion.button>

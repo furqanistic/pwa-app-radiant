@@ -1,13 +1,13 @@
 import Layout from '@/pages/Layout/Layout'
 import {
-    ArrowLeft,
-    Calendar,
-    Clock,
-    CreditCard,
-    DollarSign,
-    ShoppingBag,
-    ShoppingCart,
-    Trash2,
+  ArrowLeft,
+  Calendar,
+  Clock,
+  CreditCard,
+  DollarSign,
+  ShoppingBag,
+  ShoppingCart,
+  Trash2,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -91,13 +91,7 @@ const CartPage = () => {
       <Layout>
         <div className='px-4 py-6 max-w-4xl mx-auto'>
           <div className='flex items-center justify-between mb-6'>
-            <button
-              onClick={() => navigate('/bookings')}
-              className='flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors h-8 px-3 rounded-lg hover:bg-gray-100'
-            >
-              <ArrowLeft className='w-5 h-5' />
-              <span>Back to Services</span>
-            </button>
+           
           </div>
 
           <div className='bg-white rounded-lg shadow-sm p-12 text-center'>
@@ -109,7 +103,7 @@ const CartPage = () => {
               Add services to your cart to book multiple appointments at once
             </p>
             <button
-              onClick={() => navigate('/bookings')}
+              onClick={() => navigate('/services')}
               className='bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 inline-flex items-center gap-2'
             >
               <ShoppingCart className='w-5 h-5' />

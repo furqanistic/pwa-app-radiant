@@ -1,21 +1,21 @@
 // client/src/pages/Rewards/RewardsCatalogPage.jsx
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import {
-  Award,
-  Check,
-  ChevronDown,
-  DollarSign,
-  Filter,
-  Gift,
-  Heart,
-  Percent,
-  Search,
-  SortAsc,
-  Sparkles,
-  Star,
-  Users,
-  X,
-  Zap,
+    Award,
+    Check,
+    ChevronDown,
+    DollarSign,
+    Filter,
+    Gift,
+    Heart,
+    Percent,
+    Search,
+    SortAsc,
+    Sparkles,
+    Star,
+    Users,
+    X,
+    Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -174,7 +174,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
       className={`relative bg-white rounded-2xl overflow-hidden transition-all border ${
         canAfford
           ? 'hover:border-pink-300 cursor-pointer group border-pink-100'
-          : 'opacity-60 border-gray-100'
+          : 'opacity-60 grayscale border-gray-100 cursor-not-allowed'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
       {/* Confetti Animation */}
@@ -511,29 +511,6 @@ const RewardsCatalogPage = () => {
           </div>
         </div>
 
-        {/* Affordable Rewards Section */}
-        {searchTerm === '' &&
-          selectedType === 'all' &&
-          affordableRewards.length > 0 && (
-            <div className='mb-8'>
-              <div className='flex items-center gap-2 mb-4'>
-                <Zap className='w-5 h-5 text-green-500' />
-                <h2 className='text-xl md:text-2xl font-bold text-gray-900'>
-                  You Can Afford ({affordableRewards.length})
-                </h2>
-              </div>
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6'>
-                {affordableRewards.slice(0, 4).map((reward) => (
-                  <RewardCard
-                    key={reward._id}
-                    reward={reward}
-                    onClaim={handleClaimReward}
-                    userPoints={userPoints}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
 
         {/* All Rewards */}
         <div className='mb-6'>
