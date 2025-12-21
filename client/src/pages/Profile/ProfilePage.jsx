@@ -1,24 +1,22 @@
-// File: client/src/pages/Profile/ProfilePage.jsx - UPDATED WITH QR CODE MANAGEMENT
 import { axiosInstance } from "@/config";
-import { locationService } from "@/services/locationService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  AlertCircle,
-  Camera,
-  Check,
-  Edit3,
-  Loader2,
-  Lock,
-  Mail,
-  Sparkles,
-  User,
-  X,
+    AlertCircle,
+    Camera,
+    Check,
+    Edit3,
+    Loader2,
+    Lock,
+    Mail,
+    Sparkles,
+    User,
+    X,
 } from "lucide-react";
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
-import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import Layout from "../Layout/Layout";
+
 
 // API Functions
 const profileAPI = {
@@ -85,8 +83,8 @@ const ProfileField = ({
           onClick={disabled ? undefined : onEdit}
         >
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-100 to-purple-100 rounded-lg md:rounded-xl shrink-0">
-              <Icon className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
+            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-100 to-rose-100 rounded-lg md:rounded-xl shrink-0">
+              <Icon className="w-4 h-4 md:w-5 md:h-5 text-pink-600" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs md:text-sm font-medium text-gray-500 mb-0.5 md:mb-1">
@@ -105,10 +103,10 @@ const ProfileField = ({
         <motion.div
           initial={{ scale: 0.98 }}
           animate={{ scale: 1 }}
-          className="p-4 md:p-6 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl md:rounded-2xl border-2 border-pink-200"
+          className="p-4 md:p-6 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl md:rounded-2xl border-2 border-pink-200"
         >
           <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-purple-500 rounded-lg md:rounded-xl">
+            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg md:rounded-xl">
               <Icon className="w-4 h-4 md:w-5 md:h-5 text-white" />
             </div>
             <p className="text-xs md:text-sm font-medium text-gray-700">
@@ -133,7 +131,7 @@ const ProfileField = ({
               whileTap={{ scale: 0.95 }}
               onClick={onSave}
               disabled={disabled}
-              className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-2.5 md:py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:shadow-lg transition-all disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-2.5 md:py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:shadow-lg transition-all disabled:opacity-50"
             >
               {disabled ? (
                 <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
@@ -222,8 +220,8 @@ const PasswordChangeField = ({
           onClick={onEdit}
         >
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-100 to-purple-100 rounded-lg md:rounded-xl shrink-0">
-              <Lock className="w-4 h-4 md:w-5 md:h-5 text-purple-600" />
+            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-100 to-rose-100 rounded-lg md:rounded-xl shrink-0">
+              <Lock className="w-4 h-4 md:w-5 md:h-5 text-pink-600" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs md:text-sm font-medium text-gray-500 mb-0.5 md:mb-1">
@@ -240,10 +238,10 @@ const PasswordChangeField = ({
         <motion.div
           initial={{ scale: 0.98 }}
           animate={{ scale: 1 }}
-          className="p-4 md:p-6 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl md:rounded-2xl border-2 border-pink-200"
+          className="p-4 md:p-6 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl md:rounded-2xl border-2 border-pink-200"
         >
           <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-purple-500 rounded-lg md:rounded-xl">
+            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg md:rounded-xl">
               <Lock className="w-4 h-4 md:w-5 md:h-5 text-white" />
             </div>
             <p className="text-xs md:text-sm font-medium text-gray-700">
@@ -322,7 +320,7 @@ const PasswordChangeField = ({
               whileTap={{ scale: 0.95 }}
               onClick={handleSave}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-2.5 md:py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:shadow-lg transition-all disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-2.5 md:py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:shadow-lg transition-all disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
@@ -376,7 +374,7 @@ const ProfileAvatar = ({ user }) => {
         transition={{ type: "spring", stiffness: 200, damping: 15 }}
         className="relative"
       >
-        <div className="w-20 h-20 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 p-0.5 md:p-1 shadow-lg md:shadow-2xl">
+        <div className="w-20 h-20 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-pink-400 via-rose-500 to-red-500 p-0.5 md:p-1 shadow-lg md:shadow-2xl">
           <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
             <span className="text-lg md:text-3xl font-bold text-gray-600">
               {getInitials(user?.name)}
@@ -386,7 +384,7 @@ const ProfileAvatar = ({ user }) => {
 
         <motion.button
           whileTap={{ scale: 0.9 }}
-          className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 p-1.5 md:p-3 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full shadow-md md:shadow-lg hover:shadow-xl transition-all"
+          className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 p-1.5 md:p-3 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full shadow-md md:shadow-lg hover:shadow-xl transition-all"
         >
           <Camera className="w-3 h-3 md:w-4 md:h-4 text-white" />
         </motion.button>
@@ -396,7 +394,7 @@ const ProfileAvatar = ({ user }) => {
         <h2 className="text-lg md:text-2xl font-bold text-gray-900">
           {user?.name || "Loading..."}
         </h2>
-        <div className="flex items-center justify-center gap-1 md:gap-2 text-purple-600 mt-1 md:mt-2">
+        <div className="flex items-center justify-center gap-1 md:gap-2 text-pink-600 mt-1 md:mt-2">
           <Sparkles className="w-3 h-3 md:w-4 md:h-4" />
           <span className="text-xs md:text-sm font-medium">
             {getRoleDisplay(user?.role)}
@@ -409,9 +407,9 @@ const ProfileAvatar = ({ user }) => {
 
 // Loading Component
 const LoadingState = () => (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50/40 flex items-center justify-center">
+  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-pink-50/40 flex items-center justify-center">
     <div className="text-center">
-      <Loader2 className="w-8 h-8 animate-spin text-purple-500 mx-auto mb-4" />
+      <Loader2 className="w-8 h-8 animate-spin text-pink-500 mx-auto mb-4" />
       <p className="text-gray-600">Loading your profile...</p>
     </div>
   </div>
@@ -419,7 +417,7 @@ const LoadingState = () => (
 
 // Error Component
 const ErrorState = ({ error, retry }) => (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50/40 flex items-center justify-center">
+  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-pink-50/40 flex items-center justify-center">
     <div className="text-center max-w-md mx-auto p-6">
       <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
       <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -430,7 +428,7 @@ const ErrorState = ({ error, retry }) => (
       </p>
       <button
         onClick={retry}
-        className="px-6 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
+        className="px-6 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
       >
         Try Again
       </button>
@@ -457,13 +455,6 @@ const ProfilePage = () => {
     onError: (error) => {
       console.error("Error fetching user:", error);
     },
-  });
-
-  // Fetch user's locations for QR code management
-  const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
-    queryKey: ["userLocations"],
-    queryFn: () => locationService.getAllLocations(),
-    enabled: ["admin", "super-admin"].includes(currentUser?.role),
   });
 
   const updateProfileMutation = useMutation({
@@ -589,23 +580,6 @@ const ProfilePage = () => {
     setTempValues({ ...tempValues, [field]: value });
   };
 
-  const isAdmin = ["admin", "super-admin"].includes(currentUser?.role);
-  const locations = locationsData?.data?.locations || [];
-  const [selectedLocationId, setSelectedLocationId] = useState(
-    locations[0]?._id || null
-  );
-
-  // Update selected location when locations load
-  React.useEffect(() => {
-    if (locations.length > 0 && !selectedLocationId) {
-      setSelectedLocationId(locations[0]._id);
-    }
-  }, [locations, selectedLocationId]);
-
-  const selectedLocation = locations.find(
-    (loc) => loc._id === selectedLocationId
-  );
-
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} retry={refetch} />;
   if (!user)
@@ -615,12 +589,12 @@ const ProfilePage = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50/40 overflow-x-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-pink-50/40 overflow-x-hidden">
         {/* Background Elements */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-20 left-4 md:left-1/4 w-32 h-32 md:w-64 md:h-64 bg-pink-200/20 md:bg-pink-200/30 rounded-full blur-2xl md:blur-3xl animate-pulse" />
           <div
-            className="absolute bottom-20 right-4 md:right-1/4 w-40 h-40 md:w-80 md:h-80 bg-purple-200/15 md:bg-purple-200/20 rounded-full blur-2xl md:blur-3xl animate-pulse"
+            className="absolute bottom-20 right-4 md:right-1/4 w-40 h-40 md:w-80 md:h-80 bg-rose-200/15 md:bg-rose-200/20 rounded-full blur-2xl md:blur-3xl animate-pulse"
             style={{ animationDelay: "1s" }}
           />
         </div>
@@ -632,7 +606,7 @@ const ProfilePage = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-8 md:mb-16"
           >
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent mb-2 md:mb-6">
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 bg-clip-text text-transparent mb-2 md:mb-6">
               Profile
             </h1>
             <p className="text-sm md:text-xl text-gray-600 max-w-2xl mx-auto">
@@ -657,7 +631,7 @@ const ProfilePage = () => {
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  <div className="p-3 md:p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl md:rounded-2xl text-center">
+                  <div className="p-3 md:p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl md:rounded-2xl text-center">
                     <p className="text-xs md:text-sm text-gray-600 mb-1">
                       Member since
                     </p>
@@ -665,7 +639,7 @@ const ProfilePage = () => {
                       {user.memberSince}
                     </p>
                   </div>
-                  <div className="p-3 md:p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl md:rounded-2xl text-center">
+                  <div className="p-3 md:p-4 bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl md:rounded-2xl text-center">
                     <p className="text-xs md:text-sm text-gray-600 mb-1">
                       Points
                     </p>
@@ -686,7 +660,7 @@ const ProfilePage = () => {
             >
               <div className="bg-white/90 backdrop-blur-lg rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-xl border border-white/50">
                 <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-                  <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-purple-500 rounded-lg md:rounded-xl">
+                  <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg md:rounded-xl">
                     <User className="w-4 h-4 md:w-6 md:h-6 text-white" />
                   </div>
                   <div>
@@ -745,67 +719,6 @@ const ProfilePage = () => {
               </div>
             </motion.div>
           </div>
-
-          {/* QR CODE MANAGEMENT - MOVED FROM MANAGEMENT PAGE */}
-          {isAdmin && !isLoadingLocations && locations.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="mt-12"
-            >
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                QR Code Management
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Generate and manage QR codes for your locations
-              </p>
-
-              {/* Location Selector Dropdown */}
-              <div className="mb-8">
-                <label className="block text-sm font-semibold text-gray-900 mb-3">
-                  Select Location
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedLocationId || ""}
-                    onChange={(e) => setSelectedLocationId(e.target.value)}
-                    className="w-full px-4 py-3 pr-10 bg-white border-2 border-pink-100 rounded-xl hover:border-pink-200 focus:border-pink-500 focus:ring-4 focus:ring-pink-100 transition-all outline-none text-gray-900 font-medium appearance-none cursor-pointer"
-                  >
-                    {locations.map((location) => (
-                      <option key={location._id} value={location._id}>
-                        {location.name}
-                      </option>
-                    ))}
-                  </select>
-                  <svg
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-pink-500 pointer-events-none"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                    />
-                  </svg>
-                </div>
-              </div>
-
-              {/* QR Code for Selected Location */}
-              {selectedLocation && (
-                <div className="grid gap-8">
-                  <QRCodeManagement
-                    key={selectedLocation._id}
-                    locationId={selectedLocation._id}
-                    locationName={selectedLocation.name}
-                  />
-                </div>
-              )}
-            </motion.div>
-          )}
         </div>
       </div>
     </Layout>

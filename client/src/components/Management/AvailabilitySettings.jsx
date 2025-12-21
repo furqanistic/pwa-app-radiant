@@ -2,7 +2,16 @@ import { Button } from "@/components/ui/button";
 import { useAvailability, useUpdateAvailability } from "@/hooks/useAvailability";
 import { authService } from "@/services/authService";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, Copy, Save, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+    Calendar,
+    Clock,
+    Layers,
+    Moon,
+    Save,
+    Sun,
+    X
+} from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
@@ -106,147 +115,192 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-pink-500" />
-            <h2 className="text-xl font-bold text-gray-900">
-              Availability Settings
-            </h2>
-          </div>
-          <button
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+          />
+
+          {/* Modal Container */}
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed inset-x-0 bottom-0 md:inset-x-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:bottom-auto w-full md:max-w-3xl bg-white md:rounded-[2.5rem] rounded-t-[2.5rem] shadow-2xl z-[101] overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]"
           >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+            {/* Native-style Grabber for Mobile */}
+            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 md:hidden shrink-0" />
 
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <p className="text-gray-600">
-              Set your weekly business hours.
-            </p>
-            <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleSet9to5}
-                className="text-xs h-8"
-            >
-                Quick Set: 9am-5pm
-            </Button>
-          </div>
+            {/* Header */}
+            <div className="px-6 py-4 md:px-10 md:py-8 border-b border-gray-50 flex items-center justify-between shrink-0">
+              <div>
+                <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">
+                    Hours of Operation
+                </h2>
+                <p className="text-xs md:text-sm font-bold text-pink-500 uppercase tracking-widest mt-0.5">
+                    Schedule Management
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-pink-50 hover:text-pink-500 transition-all group"
+              >
+                <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+              </button>
+            </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {DAYS.map((day) => {
-              const config = schedule[day] || {
-                open: "09:00",
-                close: "17:00",
-                closed: false,
-              };
-              const isClosed = config.closed;
-
-              return (
-                <div
-                  key={day}
-                  className={`flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-lg border transition-all ${
-                    isClosed
-                      ? "bg-gray-50 border-gray-200"
-                      : "bg-white border-gray-200 hover:border-pink-200 hover:shadow-sm"
-                  }`}
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-10 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-pink-50/50 rounded-3xl border border-pink-100/50">
+                 <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-xl shadow-sm">
+                        <Calendar className="w-5 h-5 text-pink-500" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-black text-gray-900 leading-none">Global Setting</p>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter mt-1">Quick Configuration</p>
+                    </div>
+                 </div>
+                 <Button 
+                    variant="white" 
+                    size="sm" 
+                    onClick={handleSet9to5}
+                    className="rounded-xl font-bold text-xs h-10 px-6 shadow-sm border-none bg-white hover:bg-pink-50 text-pink-600 transition-all"
                 >
-                  <div className="w-24">
-                    <span className="font-semibold capitalize text-gray-700">
-                      {day}
-                    </span>
-                  </div>
+                    9:00 AM - 5:00 PM
+                </Button>
+              </div>
 
-                  <div className="flex-1 flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer select-none min-w-[80px]">
-                      <input
-                        type="checkbox"
-                        checked={isClosed}
-                        onChange={() => handleToggleClosed(day)}
-                        className="w-4 h-4 rounded border-gray-300 text-pink-500 focus:ring-pink-500"
-                      />
-                      <span className="text-sm text-gray-600">Closed</span>
-                    </label>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                {DAYS.map((day) => {
+                  const config = schedule[day] || {
+                    open: "09:00",
+                    close: "17:00",
+                    closed: false,
+                  };
+                  const isClosed = config.closed;
 
-                    {!isClosed ? (
-                      <div className="flex items-center gap-2 flex-1">
-                        <input
-                          type="time"
-                          value={config.open}
-                          onChange={(e) =>
-                            handleDayChange(day, "open", e.target.value)
-                          }
-                          className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
-                        />
-                        <span className="text-gray-400">-</span>
-                        <input
-                          type="time"
-                          value={config.close}
-                          onChange={(e) =>
-                            handleDayChange(day, "close", e.target.value)
-                          }
-                          className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none"
-                        />
+                  return (
+                    <div
+                      key={day}
+                      className={`relative flex flex-col md:flex-row md:items-center gap-3 md:gap-6 p-4 md:p-5 rounded-[2.5rem] border-2 transition-all min-h-[140px] md:min-h-[96px] ${
+                        isClosed
+                          ? "bg-gray-50/50 border-gray-100 opacity-60"
+                          : "bg-white border-gray-50 shadow-sm hover:border-pink-100"
+                      }`}
+                    >
+                      {/* Day Label */}
+                      <div className="md:w-32 flex items-center gap-3 shrink-0 md:border-r md:border-gray-50 md:pr-4">
+                        <div className={`p-2.5 rounded-2xl shrink-0 ${isClosed ? 'bg-gray-200 text-gray-400' : 'bg-pink-100 text-pink-500'}`}>
+                            <Clock className="w-4 h-4" />
+                        </div>
+                        <span className="font-extrabold capitalize text-gray-900 shrink-0 text-sm md:text-base">
+                          {day}
+                        </span>
+                      </div>
+
+                      {/* Controls Area */}
+                      <div className="flex-1 flex items-center justify-between gap-4">
+                        <div className="flex-1 flex flex-row items-center gap-3 md:gap-6">
+                          {/* Custom Toggle for Closed State */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleClosed(day)}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest transition-all shrink-0 ${
+                              isClosed 
+                              ? "bg-gray-200 text-gray-600 shadow-inner" 
+                              : "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                            }`}
+                          >
+                            {isClosed ? <Moon className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
+                            {isClosed ? "Closed" : "Open"}
+                          </button>
+
+                          {!isClosed ? (
+                            <div className="flex items-center gap-2 flex-1 max-w-[320px]">
+                              <div className="relative flex-1">
+                                  <input
+                                      type="time"
+                                      value={config.open}
+                                      onChange={(e) => handleDayChange(day, "open", e.target.value)}
+                                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-xs md:text-sm font-bold text-gray-900 focus:ring-2 focus:ring-pink-500 outline-none transition-all text-center"
+                                  />
+                              </div>
+                              <span className="text-gray-300 font-bold">-</span>
+                              <div className="relative flex-1">
+                                  <input
+                                      type="time"
+                                      value={config.close}
+                                      onChange={(e) => handleDayChange(day, "close", e.target.value)}
+                                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-xs md:text-sm font-bold text-gray-900 focus:ring-2 focus:ring-pink-500 outline-none transition-all text-center"
+                                  />
+                              </div>
+                            </div>
+                          ) : (
+                              <div className="flex-1 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                 Away / Not Available
+                              </div>
+                          )}
+                        </div>
+                        
+                        {/* Apply to All Button */}
+                        <button
+                            type="button"
+                            onClick={() => handleCopyToAll(day)}
+                            className="p-3.5 bg-gray-50 text-gray-400 hover:text-pink-600 hover:bg-pink-50 rounded-2xl transition-all shrink-0 shadow-sm md:shadow-none"
+                             title="Apply to all days"
+                        >
+                            <Layers className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Footer Actions */}
+                <div className="pt-8 pb-4 flex flex-col md:flex-row gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onClose}
+                    className="flex-1 rounded-2xl h-14 font-black uppercase tracking-widest text-xs border-2 hover:bg-gray-50 transition-all"
+                  >
+                    Discard Changes
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updateAvailability.isPending}
+                    className="flex-[2] rounded-2xl h-14 bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-xl shadow-pink-200/50 font-black uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {updateAvailability.isPending ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                        Processing...
                       </div>
                     ) : (
-                        <div className="flex-1 text-sm text-gray-400 italic">
-                            No appointments available
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Save className="w-5 h-5" />
+                        Confirm & Save
+                      </div>
                     )}
-                    
-                    <button
-                        type="button"
-                        onClick={() => handleCopyToAll(day)}
-                        className="p-2 text-gray-400 hover:text-pink-600 hover:bg-pink-50 rounded-full transition-colors title='Apply to all days'"
-                         title="Apply this schedule to all days"
-                    >
-                        <Copy className="w-4 h-4" />
-                    </button>
-                  </div>
+                  </Button>
                 </div>
-              );
-            })}
-
-            <div className="pt-6 flex justify-end gap-3 border-t border-gray-100 mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                className="hover:bg-gray-100"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={updateAvailability.isPending}
-                className="bg-gradient-to-r from-pink-500 to-rose-600 text-white hover:from-pink-600 hover:to-rose-700"
-              >
-                {updateAvailability.isPending ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Saving...
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Save className="w-4 h-4" />
-                    Save Changes
-                  </div>
-                )}
-              </Button>
+              </form>
             </div>
-          </form>
-        </div>
-      </div>
-    </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 };
 
 export default AvailabilitySettings;
+

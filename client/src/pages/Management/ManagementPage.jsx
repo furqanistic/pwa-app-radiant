@@ -4,17 +4,19 @@ import { authService } from "@/services/authService";
 import { locationService } from "@/services/locationService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Award,
-  Building,
-  Calendar,
-  Clock,
-  Gift,
-  MapPin,
-  RefreshCw,
-  Settings,
-  UserCheck,
-  UserPlus,
-  Zap,
+    Award,
+    Building,
+    Calendar,
+    Clock,
+    Gift,
+    MapPin,
+    QrCode,
+    RefreshCw,
+    Settings,
+    UserCheck,
+    UserPlus,
+    XIcon,
+    Zap,
 } from "lucide-react";
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
@@ -26,8 +28,15 @@ import AddUserForm from "@/components/Management/AddUserForm";
 import AvailabilitySettings from "@/components/Management/AvailabilitySettings"; // Import
 import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
 import LocationForm from "@/components/Management/LocationForm";
+import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import StripeConnect from "@/components/Stripe/StripeConnect";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import Layout from "@/pages/Layout/Layout";
 
 const ManagementPage = () => {
@@ -41,6 +50,7 @@ const ManagementPage = () => {
   const [isLocationAssignmentOpen, setIsLocationAssignmentOpen] =
     useState(false);
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
+  const [selectedQRLocation, setSelectedQRLocation] = useState(null);
 
   // Permission checks
   const isElevatedUser = [
@@ -269,6 +279,9 @@ const ManagementPage = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Created
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -301,6 +314,17 @@ const ManagementPage = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(location.createdAt).toLocaleDateString()}
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedQRLocation(location)}
+                              className="flex items-center gap-2 text-pink-600 border-pink-200 hover:bg-pink-50"
+                            >
+                              <QrCode className="w-4 h-4" />
+                              QR Code
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -323,6 +347,47 @@ const ManagementPage = () => {
           isOpen={isAvailabilityOpen}
           onClose={() => setIsAvailabilityOpen(false)}
         />
+
+        {/* QR Code Modal */}
+        <Dialog 
+            open={!!selectedQRLocation} 
+            onOpenChange={(open) => !open && setSelectedQRLocation(null)}
+        >
+            <DialogContent 
+                showCloseButton={false}
+                className="max-w-[95vw] md:max-w-[1100px] w-full p-0 border-none bg-transparent shadow-none"
+            >
+                <div className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
+                    {/* Header Area */}
+                    <div className="px-6 py-8 md:px-12 md:py-10 flex items-center justify-between border-b border-gray-50 shrink-0">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-900 tracking-tight">
+                                {selectedQRLocation?.name}
+                            </DialogTitle>
+                        </DialogHeader>
+                        
+                        <button 
+                            onClick={() => setSelectedQRLocation(null)}
+                            className="p-3 rounded-full bg-gray-100/80 text-gray-500 hover:bg-pink-500 hover:text-white transition-all duration-300 shadow-sm hover:rotate-90 group shrink-0"
+                        >
+                            <XIcon className="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    {/* Scrollable Content with room for shadows */}
+                    <div className="overflow-y-auto p-6 md:p-12 pt-4 md:pt-6">
+                        <div className="pb-10"> {/* Extra bottom padding to avoid clipping shadow */}
+                            {selectedQRLocation && (
+                                <QRCodeManagement
+                                    locationId={selectedQRLocation._id}
+                                    locationName={selectedQRLocation.name}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
 
         {isAdminOrAbove && (
           <>

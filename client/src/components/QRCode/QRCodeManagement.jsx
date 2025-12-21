@@ -165,247 +165,174 @@ const QRCodeManagement = ({ locationId, locationName }) => {
     );
   }
 
+  // Stat Card Component for consistency
+  const StatCard = ({ label, value, colorClass, bgClass }) => (
+    <div className={`flex flex-col items-center justify-center p-3 md:p-4 rounded-2xl ${bgClass} h-full min-h-[90px] md:min-h-[120px] min-w-[120px] md:min-w-[160px] text-center transition-all hover:shadow-md border border-opacity-50`}>
+      <p className="text-gray-500 text-[10px] md:text-sm font-bold uppercase tracking-wider mb-1 md:mb-2">{label}</p>
+      <p className={`text-2xl md:text-4xl font-black ${colorClass} tabular-nums`}>
+        {value}
+      </p>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-8 w-full max-w-full p-1 overflow-x-hidden">
       {/* QR Code Display Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl border-2 border-pink-100 p-6 lg:p-8"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="bg-gradient-to-r from-pink-500 to-purple-500 p-3 rounded-xl">
-            <QrCode className="w-6 h-6 text-white" />
+      {qrCode && qrImage ? (
+        <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-center md:items-start bg-white md:bg-gray-50/30 md:p-6 md:rounded-3xl md:border md:border-gray-100">
+          {/* QR Image Container */}
+          <div className="flex flex-col items-center space-y-4 w-full md:w-auto shrink-0">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white p-4 rounded-[2rem] border-2 border-dashed border-pink-200 shadow-xl shadow-pink-100/20 relative"
+            >
+              <div className="absolute -top-3 -right-3 bg-pink-500 text-white p-2 rounded-xl shadow-lg">
+                  <QrCode className="w-4 h-4" />
+              </div>
+              <img
+                src={qrImage}
+                alt="QR Code"
+                className="w-44 h-44 md:w-56 md:h-56 object-contain"
+              />
+            </motion.div>
+            
+            <div
+              className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest shadow-sm ${
+                qrCode.isEnabled
+                  ? "bg-green-100 text-green-700 border border-green-200"
+                  : "bg-red-100 text-red-700 border border-red-200"
+              }`}
+            >
+              {qrCode.isEnabled ? <Check className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+              {qrCode.isEnabled ? "Active" : "Disabled"}
+            </div>
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900">QR Code</h3>
-            <p className="text-sm text-gray-600">for {locationName}</p>
-          </div>
-        </div>
 
-        {qrCode && qrImage ? (
-          <div className="space-y-6">
-            {/* QR Code Image */}
-            <div className="flex flex-col items-center">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="bg-white p-4 rounded-xl border-2 border-gray-100 mb-4"
-              >
-                <img
-                  src={qrImage}
-                  alt="QR Code"
-                  className="w-64 h-64 object-contain"
-                />
-              </motion.div>
-
-              {/* QR Code Info */}
-              <div className="w-full bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4 mb-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">
-                      QR ID:
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200 font-mono">
-                        {qrCode.qrId}
-                      </code>
-                      <button
-                        onClick={handleCopyQRId}
-                        className={`p-1.5 rounded transition-all ${
-                          copiedQRId
-                            ? "bg-green-100 text-green-600"
-                            : "hover:bg-white text-gray-600"
-                        }`}
-                      >
-                        {copiedQRId ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">
-                      Points per Scan:
-                    </span>
-                    <div className="flex items-center gap-1 px-3 py-1 bg-white rounded-lg">
-                      <Zap className="w-4 h-4 text-yellow-500" />
-                      <span className="font-bold text-gray-900">
-                        {qrCode.pointsValue} pts
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600">
-                      Status:
-                    </span>
-                    <div
-                      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-                        qrCode.isEnabled
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
+          {/* Info & Actions */}
+          <div className="flex-1 w-full space-y-6">
+            <div className="grid gap-4">
+              <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">QR Unique ID</label>
+                  <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl border border-gray-100 shadow-sm transition-all hover:border-pink-200">
+                    <code className="text-xs md:text-sm font-mono flex-1 text-gray-600 truncate">
+                      {qrCode.qrId}
+                    </code>
+                    <button
+                      onClick={handleCopyQRId}
+                      className={`p-2 rounded-xl transition-all ${
+                        copiedQRId
+                          ? "bg-green-100 text-green-600"
+                          : "bg-gray-50 text-gray-400 hover:text-gray-600"
                       }`}
                     >
-                      {qrCode.isEnabled ? (
-                        <>
-                          <Eye className="w-4 h-4" />
-                          Active
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="w-4 h-4" />
-                          Disabled
-                        </>
-                      )}
-                    </div>
+                      {copiedQRId ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
                   </div>
-                </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="w-full flex gap-3">
-                <button
-                  onClick={handleDownloadQR}
-                  disabled={generatingQR || togglingQR}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-pink-200 text-pink-600 rounded-lg hover:bg-pink-50 transition-colors font-medium disabled:opacity-50"
-                >
-                  <Download className="w-4 h-4" />
-                  Download
-                </button>
-
-                <button
-                  onClick={handleToggleStatus}
-                  disabled={generatingQR || togglingQR}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium text-white disabled:opacity-50 ${
-                    qrCode.isEnabled
-                      ? "bg-red-500 hover:bg-red-600"
-                      : "bg-green-500 hover:bg-green-600"
-                  }`}
-                >
-                  {togglingQR ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {qrCode.isEnabled ? "Disabling..." : "Enabling..."}
-                    </>
-                  ) : qrCode.isEnabled ? (
-                    <>
-                      <EyeOff className="w-4 h-4" />
-                      Disable
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-4 h-4" />
-                      Enable
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleGenerateQR}
-                  disabled={generatingQR || togglingQR}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
-                >
-                  {generatingQR ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw className="w-4 h-4" />
-                      Regenerate
-                    </>
-                  )}
-                </button>
+              <div className="flex items-center justify-between bg-yellow-50/50 px-4 py-3 rounded-2xl border border-yellow-100/50">
+                  <span className="text-[10px] font-black text-yellow-700 uppercase tracking-widest">Scan Reward</span>
+                  <div className="flex items-center gap-1.5 font-black text-yellow-700">
+                    <Zap className="w-4 h-4 fill-yellow-500 text-yellow-500" />
+                    <span className="text-base md:text-lg">{qrCode.pointsValue} pts</span>
+                  </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <QrCode className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 mb-4">No QR code generated yet</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleDownloadQR}
+                className="flex items-center justify-center gap-2 px-4 py-3.5 bg-white border border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 hover:border-pink-300 transition-all font-bold text-xs md:text-sm shadow-sm active:scale-95"
+              >
+                <Download className="w-4 h-4" />
+                Save Image
+              </button>
+
+              <button
+                onClick={handleToggleStatus}
+                className={`flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl transition-all font-bold text-xs md:text-sm text-white shadow-lg active:scale-95 ${
+                  qrCode.isEnabled
+                    ? "bg-gradient-to-br from-red-500 to-rose-600 shadow-rose-200"
+                    : "bg-gradient-to-br from-emerald-500 to-green-600 shadow-emerald-200"
+                }`}
+              >
+                {togglingQR ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : qrCode.isEnabled ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+                {qrCode.isEnabled ? "Disable" : "Enable"}
+              </button>
+            </div>
+
             <button
               onClick={handleGenerateQR}
-              disabled={generatingQR}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-lg hover:shadow-lg transition-all font-medium disabled:opacity-50"
+              className="w-full py-2 text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest hover:text-pink-600 transition-colors flex items-center justify-center gap-2"
             >
-              {generatingQR ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <QrCode className="w-4 h-4" />
-                  Generate QR Code
-                </>
-              )}
+              <RotateCcw className="w-3 h-3" />
+              Regenerate New Code
             </button>
           </div>
-        )}
-      </motion.div>
+        </div>
+      ) : (
+        <div className="text-center py-10 md:py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+          <div className="bg-white p-4 rounded-full shadow-sm inline-block mb-4">
+               <QrCode className="w-12 h-12 text-gray-300" />
+          </div>
+          <p className="text-gray-900 font-bold mb-2">No QR Code Yet</p>
+          <p className="text-gray-500 mb-8 text-sm max-w-[200px] mx-auto">Generate a code to start rewarding your customers.</p>
+          <button
+            onClick={handleGenerateQR}
+            disabled={generatingQR}
+            className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-2xl hover:shadow-xl hover:scale-[1.02] transition-all font-bold disabled:opacity-50"
+          >
+            {generatingQR ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <QrCode className="w-5 h-5" />
+            )}
+            {generatingQR ? "Creating..." : "Create QR Code"}
+          </button>
+        </div>
+      )}
 
-      {/* Statistics Section */}
-      {stats && qrCode && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl border-2 border-purple-100 p-6"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-gradient-to-r from-purple-500 to-indigo-500 p-3 rounded-xl">
-              <RefreshCw className="w-6 h-6 text-white" />
+      {/* Analytics Section */}
+      {stats && (
+        <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 md:p-8 shadow-2xl shadow-gray-200/50">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+               <div className="w-1.5 h-6 bg-pink-500 rounded-full" />
+               <h3 className="text-base md:text-xl font-black text-gray-900 leading-none">
+                  Analytics
+               </h3>
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">
-                Scan Statistics
-              </h3>
-              <p className="text-sm text-gray-600">QR code performance</p>
+            <div className="text-[10px] md:text-xs font-black text-pink-500 bg-pink-50 px-3 py-1 rounded-full uppercase tracking-tighter">
+                Live Data
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-lg p-4 text-center">
-              <p className="text-gray-600 text-sm mb-1">Total Scans</p>
-              <p className="text-3xl font-bold text-pink-600">
-                {stats.statistics.totalScans}
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 text-center">
-              <p className="text-gray-600 text-sm mb-1">Verified</p>
-              <p className="text-3xl font-bold text-green-600">
-                {stats.statistics.verifiedScans}
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4 text-center">
-              <p className="text-gray-600 text-sm mb-1">Pending</p>
-              <p className="text-3xl font-bold text-yellow-600">
-                {stats.statistics.pendingScans}
-              </p>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4 text-center">
-              <p className="text-gray-600 text-sm mb-1">Unique Visitors</p>
-              <p className="text-3xl font-bold text-purple-600">
-                {stats.statistics.uniqueVisitors}
-              </p>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <StatCard label="Total Scans" value={stats.statistics.totalScans} colorClass="text-pink-600" bgClass="bg-pink-50/50" />
+            <StatCard label="Verified" value={stats.statistics.verifiedScans} colorClass="text-emerald-600" bgClass="bg-emerald-50/50" />
+            <StatCard label="Pending" value={stats.statistics.pendingScans} colorClass="text-amber-600" bgClass="bg-amber-50/50" />
+            <StatCard label="Unique" value={stats.statistics.uniqueVisitors} colorClass="text-indigo-600" bgClass="bg-indigo-50/50" />
           </div>
 
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-900">
-              <span className="font-bold">Total Points Distributed:</span>{" "}
-              {stats.statistics.totalPointsDistributed}
-            </p>
+          <div className="mt-6 flex flex-col md:flex-row items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 gap-4">
+             <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                   <Zap className="w-4 h-4 fill-current" />
+                </div>
+                <span className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest">Points Distributed</span>
+             </div>
+             <span className="text-2xl font-black text-blue-600 tabular-nums">
+                {stats.statistics.totalPointsDistributed} <span className="text-xs font-bold text-blue-400">PTS</span>
+             </span>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );
