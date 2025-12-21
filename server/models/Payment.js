@@ -7,7 +7,6 @@ const PaymentSchema = new mongoose.Schema(
     stripePaymentIntentId: {
       type: String,
       required: true,
-      unique: true,
       index: true,
     },
     stripeChargeId: {

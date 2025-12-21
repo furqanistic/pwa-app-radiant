@@ -13,6 +13,7 @@ import {
 } from 'react-router-dom'
 import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
+import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
@@ -337,8 +338,14 @@ const App = () => {
           }
         />
 
-
-
+        <Route
+          path="/booking-success"
+          element={
+            <ProtectedRoute>
+              <BookingSuccessPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/cart"
           element={

@@ -687,66 +687,71 @@ export const confirmPayment = async (req, res, next) => {
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
 
     // Find payment record
-    const payment = await Payment.findOne({
+    const payments = await Payment.find({
       stripePaymentIntentId: paymentIntentId,
     })
 
-    if (!payment) {
-      return next(createError(404, 'Payment record not found'))
+    if (payments.length === 0) {
+      return next(createError(404, 'Payment records not found'))
     }
 
-    // Update payment status
-    payment.status =
-      paymentIntent.status === 'succeeded' ? 'succeeded' : 'failed'
-    payment.stripeChargeId = paymentIntent.charges?.data[0]?.id || null
+    const results = []
 
-    if (paymentIntent.status === 'succeeded') {
-      payment.processedAt = new Date()
-      payment.paymentMethod = {
-        type: paymentIntent.payment_method_types[0] || 'card',
-        brand:
-          paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand ||
-          null,
-        last4:
-          paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
-          null,
-        expMonth:
-          paymentIntent.charges?.data[0]?.payment_method_details?.card
-            ?.exp_month || null,
-        expYear:
-          paymentIntent.charges?.data[0]?.payment_method_details?.card
-            ?.exp_year || null,
+    for (const payment of payments) {
+      // Update payment status
+      payment.status =
+        paymentIntent.status === 'succeeded' ? 'succeeded' : 'failed'
+      payment.stripeChargeId = paymentIntent.charges?.data[0]?.id || null
+
+      if (paymentIntent.status === 'succeeded') {
+        payment.processedAt = new Date()
+        payment.paymentMethod = {
+          type: paymentIntent.payment_method_types[0] || 'card',
+          brand:
+            paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand ||
+            null,
+          last4:
+            paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
+            null,
+          expMonth:
+            paymentIntent.charges?.data[0]?.payment_method_details?.card
+              ?.exp_month || null,
+          expYear:
+            paymentIntent.charges?.data[0]?.payment_method_details?.card
+              ?.exp_year || null,
+        }
+
+        // Update customer points
+        const customer = await User.findById(payment.customer)
+        if (customer) {
+          customer.points += payment.pointsEarned
+          await customer.save()
+        }
+
+        // Update booking if exists
+        if (payment.booking) {
+          await Booking.findByIdAndUpdate(payment.booking, {
+            paymentStatus: 'paid',
+            paymentId: payment._id,
+            finalPrice: payment.amount / 100,
+            pointsEarned: payment.pointsEarned,
+          })
+        }
+      } else {
+        payment.failedAt = new Date()
+        payment.errorMessage =
+          paymentIntent.last_payment_error?.message || 'Payment failed'
+        payment.errorCode = paymentIntent.last_payment_error?.code || null
       }
 
-      // Update customer points
-      const customer = await User.findById(payment.customer)
-      if (customer) {
-        customer.points += payment.pointsEarned
-        await customer.save()
-      }
-
-      // Update booking if exists
-      if (payment.booking) {
-        await Booking.findByIdAndUpdate(payment.booking, {
-          paymentStatus: 'paid',
-          paymentId: payment._id,
-          finalPrice: payment.amount / 100,
-          pointsEarned: payment.pointsEarned,
-        })
-      }
-    } else {
-      payment.failedAt = new Date()
-      payment.errorMessage =
-        paymentIntent.last_payment_error?.message || 'Payment failed'
-      payment.errorCode = paymentIntent.last_payment_error?.code || null
+      await payment.save()
+      results.push(payment)
     }
-
-    await payment.save()
 
     res.status(200).json({
       success: true,
-      status: payment.status,
-      payment,
+      status: paymentIntent.status === 'succeeded' ? 'succeeded' : 'failed',
+      payments: results,
     })
   } catch (error) {
     console.error('Error confirming payment:', error)
@@ -1130,36 +1135,42 @@ async function handleCheckoutSessionCompleted(session) {
 }
 
 async function handlePaymentSucceeded(paymentIntent) {
-  const payment = await Payment.findOne({
+  const payments = await Payment.find({
     stripePaymentIntentId: paymentIntent.id,
   })
 
-  if (payment && payment.status !== 'succeeded') {
-    payment.status = 'succeeded'
-    payment.processedAt = new Date()
-    await payment.save()
+  if (payments.length > 0) {
+    for (const payment of payments) {
+      if (payment.status !== 'succeeded') {
+        payment.status = 'succeeded'
+        payment.processedAt = new Date()
+        await payment.save()
 
-    // Update customer points
-    const customer = await User.findById(payment.customer)
-    if (customer) {
-      customer.points += payment.pointsEarned
-      await customer.save()
+        // Update customer points
+        const customer = await User.findById(payment.customer)
+        if (customer) {
+          customer.points += payment.pointsEarned
+          await customer.save()
+        }
+      }
     }
   }
 }
 
 async function handlePaymentFailed(paymentIntent) {
-  const payment = await Payment.findOne({
+  const payments = await Payment.find({
     stripePaymentIntentId: paymentIntent.id,
   })
 
-  if (payment) {
-    payment.status = 'failed'
-    payment.failedAt = new Date()
-    payment.errorMessage =
-      paymentIntent.last_payment_error?.message || 'Payment failed'
-    payment.errorCode = paymentIntent.last_payment_error?.code || null
-    await payment.save()
+  if (payments.length > 0) {
+    for (const payment of payments) {
+      payment.status = 'failed'
+      payment.failedAt = new Date()
+      payment.errorMessage =
+        paymentIntent.last_payment_error?.message || 'Payment failed'
+      payment.errorCode = paymentIntent.last_payment_error?.code || null
+      await payment.save()
+    }
   }
 }
 
