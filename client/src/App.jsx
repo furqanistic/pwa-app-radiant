@@ -1,7 +1,7 @@
 // File: client/src/App.jsx - UPDATED SpaSelectionGuard with better UX
-
 import { Toaster } from '@/components/ui/sonner'
 import { useQuery } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -94,10 +94,32 @@ const SpaSelectionGuard = ({ children }) => {
   // IMPROVED: Only show loader when actually needed
   if (shouldCheckOnboarding && isLoading && !hasInitialCheck) {
     return (
-      <div className='min-h-screen bg-gray-50 flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='w-6 h-6 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-2'></div>
-          <p className='text-gray-500 text-sm'>Loading...</p>
+      <div className='min-h-screen bg-gradient-to-br from-pink-500 via-rose-500 to-pink-600 flex items-center justify-center relative overflow-hidden'>
+        {/* Animated background pattern */}
+        <div className='absolute inset-0 opacity-20'>
+          <div className='absolute top-0 left-0 w-96 h-96 bg-white rounded-full -translate-x-32 -translate-y-32 blur-3xl animate-pulse'></div>
+          <div className='absolute bottom-0 right-0 w-96 h-96 bg-rose-300 rounded-full translate-x-32 translate-y-32 blur-3xl animate-pulse'></div>
+        </div>
+
+        <div className='relative z-10 text-center'>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className='bg-white/10 backdrop-blur-xl p-8 rounded-3xl border border-white/20 shadow-2xl'
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+              className='w-16 h-16 border-4 border-white/30 border-t-white rounded-full mx-auto mb-6 shadow-lg'
+            />
+            <h2 className='text-2xl font-bold text-white mb-2 tracking-wide'>
+              RadiantAI
+            </h2>
+            <p className='text-white/80 text-sm font-medium animate-pulse'>
+              Loading your experience...
+            </p>
+          </motion.div>
         </div>
       </div>
     )

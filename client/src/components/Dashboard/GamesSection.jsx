@@ -1,18 +1,17 @@
 // File: client/src/components/Dashboard/GamesSection.jsx
-// client/src/components/Dashboard/GamesSection.jsx
-
+import SlideReveal from '@/components/Games/SlideReveal'
+import SpinWheel from '@/components/Games/SpinWheel'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Clock,
-  Coins,
-  Gift,
-  Loader2,
-  RefreshCcw,
-  RefreshCw,
-  Sparkles,
-  Trophy,
-  Zap,
+    Clock,
+    Coins,
+    Gift,
+    Loader2,
+    RefreshCw,
+    Sparkles,
+    Trophy,
+    Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { toast } from 'sonner'
@@ -187,164 +186,7 @@ const GameResultModal = ({ result, onClose }) => {
   )
 }
 
-// Simplified Spin Wheel
-const SimplifiedSpinWheel = ({ game, onPlay, isPlaying }) => {
-  const [rotation, setRotation] = useState(0)
-  const [isSpinning, setIsSpinning] = useState(false)
-
-  const items = game.items || []
-  const segmentAngle = 360 / items.length
-  const colors = [
-    '#ec4899',
-    '#f43f5e',
-    '#8b5cf6',
-    '#06b6d4',
-    '#10b981',
-    '#f59e0b',
-  ]
-
-  const handleSpin = () => {
-    if (isSpinning || isPlaying) return
-
-    setIsSpinning(true)
-    const finalRotation = rotation + 1800 + Math.random() * 360
-    setRotation(finalRotation)
-
-    setTimeout(() => {
-      setIsSpinning(false)
-      onPlay()
-    }, 3000)
-  }
-
-  return (
-    <div className='text-center py-2'>
-      <div className='relative w-48 h-48 sm:w-56 sm:h-56 mx-auto mb-4'>
-        <div className='absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 z-10'>
-          <div className='w-0 h-0 border-l-2 border-r-2 border-b-4 border-l-transparent border-r-transparent border-b-gray-900'></div>
-        </div>
-
-        <div
-          className='w-full h-full rounded-full border-4 border-gray-900 relative overflow-hidden'
-          style={{
-            transform: `rotate(${rotation}deg)`,
-            transitionDuration: isSpinning ? '3000ms' : '0ms',
-          }}
-        >
-          {items.map((item, index) => (
-            <div
-              key={index}
-              className='absolute w-1/2 h-1/2 origin-bottom-right flex items-center justify-center'
-              style={{
-                transform: `rotate(${index * segmentAngle}deg)`,
-                backgroundColor: item.color || colors[index % colors.length],
-              }}
-            >
-              <div
-                className='text-white font-bold text-xs text-center px-1'
-                style={{ transform: `rotate(${segmentAngle / 2}deg)` }}
-              >
-                <div className='truncate'>{item.title}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 sm:w-14 sm:h-14 bg-gray-900 rounded-full flex items-center justify-center border-4 border-white'>
-          <div className='text-white font-bold text-xs'>GO</div>
-        </div>
-      </div>
-
-      <button
-        onClick={handleSpin}
-        disabled={isSpinning || isPlaying}
-        className='w-full py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg font-semibold hover:from-pink-600 hover:to-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all'
-      >
-        {isSpinning || isPlaying ? (
-          <div className='flex items-center justify-center gap-2'>
-            <Loader2 className='w-4 h-4 animate-spin' />
-            <span>Spinning...</span>
-          </div>
-        ) : (
-          'Spin Now'
-        )}
-      </button>
-    </div>
-  )
-}
-
-// Simplified Slide Reveal
-const SimplifiedSlideReveal = ({ game, onPlay, isPlaying }) => {
-  const [sliderValue, setSliderValue] = useState(0)
-  const [isRevealed, setIsRevealed] = useState(false)
-
-  const handleSliderChange = (e) => {
-    const value = parseInt(e.target.value)
-    setSliderValue(value)
-
-    if (value >= 85 && !isRevealed) {
-      setIsRevealed(true)
-      setTimeout(() => onPlay(), 300)
-    }
-  }
-
-  return (
-    <div className='text-center py-2'>
-      <div className='relative w-full h-32 sm:h-40 mx-auto mb-4 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl sm:rounded-2xl overflow-hidden border border-pink-200'>
-        <div className='absolute inset-0 flex items-center justify-center text-white'>
-          <div className='text-center'>
-            <Trophy className='w-8 h-8 sm:w-10 sm:h-10 text-white mx-auto mb-2' />
-            <h3 className='text-base sm:text-lg font-bold mb-1'>Prize!</h3>
-          </div>
-        </div>
-
-        <div
-          className='absolute inset-0 bg-gradient-to-r from-gray-800 to-gray-900 flex items-center justify-center text-white transition-transform duration-200'
-          style={{
-            transform: `translateX(${sliderValue - 100}%)`,
-          }}
-        >
-          <div className='text-center'>
-            <Sparkles className='w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-1' />
-            <div className='text-sm sm:text-base font-bold'>Slide ✨</div>
-          </div>
-        </div>
-      </div>
-
-      <div className='mb-4'>
-        <input
-          type='range'
-          min='0'
-          max='100'
-          value={sliderValue}
-          onChange={handleSliderChange}
-          disabled={isPlaying}
-          className='w-full h-2 bg-pink-100 rounded-lg appearance-none cursor-pointer'
-          style={{
-            background: `linear-gradient(to right, #ec4899 0%, #ec4899 ${sliderValue}%, #fce7f3 ${sliderValue}%, #fce7f3 100%)`,
-          }}
-        />
-        <div className='flex justify-between text-gray-600 mt-2 text-xs'>
-          <span>Start</span>
-          <span className='text-pink-600 font-semibold'>{sliderValue}%</span>
-          <span>Reveal</span>
-        </div>
-      </div>
-
-      {isPlaying ? (
-        <div className='flex items-center justify-center gap-2 text-pink-600 text-sm'>
-          <Loader2 className='w-4 h-4 animate-spin' />
-          <span>Revealing...</span>
-        </div>
-      ) : (
-        <p className='text-gray-600 text-xs sm:text-sm'>
-          Slide all the way to reveal your prize!
-        </p>
-      )}
-    </div>
-  )
-}
-
-// Game Play Modal
+// Game Play Modal - Enhanced with new components
 const GamePlayModal = ({
   game,
   onClose,
@@ -354,6 +196,20 @@ const GamePlayModal = ({
   showResult,
   setShowResult,
 }) => {
+   const canPlay = game.eligibility?.canPlay ?? true
+   const playsRemaining = game.eligibility?.playsRemaining ?? 0
+   const resetPeriod = game.eligibility?.resetPeriod
+   
+   const formatResetPeriod = (period) => {
+    switch (period) {
+      case 'daily': return 'daily'
+      case 'weekly': return 'weekly'
+      case 'monthly': return 'monthly'
+      case 'never': return 'unlimited'
+      default: return period
+    }
+  }
+
   return (
     <>
       <motion.div
@@ -367,7 +223,7 @@ const GamePlayModal = ({
           initial={{ y: '100%', opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
-          className='bg-white rounded-2xl w-full max-w-sm max-h-[80vh] overflow-hidden border border-pink-100'
+          className='bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-hidden border border-pink-100'
           onClick={(e) => e.stopPropagation()}
         >
           <div className='flex justify-center pt-3 pb-2'>
@@ -383,19 +239,30 @@ const GamePlayModal = ({
               </h2>
             </div>
           </div>
+          
+           {/* Play Limit Display */}
+            {canPlay && playsRemaining > 0 && (
+              <div className='px-4 py-2 bg-green-50 border-b border-green-100'>
+                <div className='text-center text-green-700 text-xs'>
+                  {playsRemaining} plays remaining ({formatResetPeriod(resetPeriod)} limit)
+                </div>
+              </div>
+            )}
 
           <div className='p-4'>
             {game.type === 'spin' ? (
-              <SimplifiedSpinWheel
+              <SpinWheel
                 game={game}
-                onPlay={onPlay}
+                onPlay={() => onPlay(game.id || game._id)}
                 isPlaying={isPlaying}
+                canPlay={canPlay}
               />
             ) : (
-              <SimplifiedSlideReveal
+              <SlideReveal
                 game={game}
-                onPlay={onPlay}
+                onPlay={() => onPlay(game.id || game._id)}
                 isPlaying={isPlaying}
+                canPlay={canPlay}
               />
             )}
           </div>
@@ -553,7 +420,7 @@ const GamesSection = () => {
           <GamePlayModal
             game={activeGame}
             onClose={() => setActiveGame(null)}
-            onPlay={() => handlePlayGame(activeGame.id || activeGame._id)}
+            onPlay={handlePlayGame}
             isPlaying={isPlaying}
             gameResult={gameResult}
             showResult={showResult}

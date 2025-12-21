@@ -1,4 +1,6 @@
 // File: client/src/pages/Spin/ScratchSpinPage.jsx - FIXED WITH ENHANCED LOCATION-BASED ACCESS
+import SlideReveal from '@/components/Games/SlideReveal'
+import SpinWheel from '@/components/Games/SpinWheel'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -285,9 +287,6 @@ const ScratchSpinPage = () => {
     </Layout>
   )
 }
-
-// Keep all other components exactly the same (GameCard, NoGamesMessage, GameModal, etc.)
-// ... (rest of the component code remains unchanged)
 
 // Enhanced Game Card with Play Eligibility
 const GameCard = ({
@@ -603,188 +602,6 @@ const GameModal = ({ game, onClose, onPlay, isPlaying }) => {
   )
 }
 
-// Enhanced Spin Wheel with Eligibility Check
-const SpinWheel = ({ game, onPlay, isPlaying, canPlay }) => {
-  const [rotation, setRotation] = useState(0)
-  const [isSpinning, setIsSpinning] = useState(false)
-
-  const items = game.items || []
-  const segmentAngle = 360 / items.length
-  const colors = [
-    '#ec4899',
-    '#f43f5e',
-    '#8b5cf6',
-    '#06b6d4',
-    '#10b981',
-    '#f59e0b',
-    '#ef4444',
-    '#84cc16',
-  ]
-
-  const handleSpin = () => {
-    if (isSpinning || isPlaying || !canPlay) return
-
-    setIsSpinning(true)
-    const finalRotation = rotation + 1800 + Math.random() * 360
-    setRotation(finalRotation)
-
-    setTimeout(() => {
-      setIsSpinning(false)
-      onPlay()
-    }, 3000)
-  }
-
-  return (
-    <div className='text-center py-3'>
-      {/* Wheel */}
-      <div className='relative w-64 h-64 mx-auto mb-6'>
-        {/* Pointer */}
-        <div className='absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 z-10'>
-          <div className='w-0 h-0 border-l-3 border-r-3 border-b-6 border-l-transparent border-r-transparent border-b-gray-900'></div>
-        </div>
-
-        {/* Wheel */}
-        <div
-          className={`w-full h-full rounded-full border-4 border-gray-900 relative overflow-hidden transition-transform ease-out ${
-            !canPlay ? 'opacity-50' : ''
-          }`}
-          style={{
-            transform: `rotate(${rotation}deg)`,
-            transitionDuration: isSpinning ? '3000ms' : '0ms',
-          }}
-        >
-          {items.map((item, index) => (
-            <div
-              key={index}
-              className='absolute w-1/2 h-1/2 origin-bottom-right flex items-center justify-center'
-              style={{
-                transform: `rotate(${index * segmentAngle}deg)`,
-                backgroundColor: item.color || colors[index % colors.length],
-              }}
-            >
-              <div
-                className='text-white font-bold text-xs text-center px-1'
-                style={{ transform: `rotate(${segmentAngle / 2}deg)` }}
-              >
-                <div className='truncate mb-1'>{item.title}</div>
-                <div className='text-xs opacity-90'>{item.value}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Center Button */}
-        <div className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center border-4 border-white'>
-          <div className='text-white font-bold text-xs'>SPIN</div>
-        </div>
-      </div>
-
-      {/* Spin Button */}
-      <button
-        onClick={handleSpin}
-        disabled={isSpinning || isPlaying || !canPlay}
-        className='w-full py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200'
-      >
-        {isSpinning || isPlaying ? (
-          <div className='flex items-center justify-center gap-2'>
-            <Loader2 className='w-4 h-4 animate-spin' />
-            <span>Spinning...</span>
-          </div>
-        ) : !canPlay ? (
-          'Play Limit Reached'
-        ) : (
-          'Spin the Wheel!'
-        )}
-      </button>
-    </div>
-  )
-}
-
-// Enhanced Scratch Card with Click to Reveal - Stays open
-const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
-  const [isRevealing, setIsRevealing] = useState(false)
-
-  const handleRevealCard = () => {
-    if (!canPlay || isRevealing || isPlaying) return
-
-    setIsRevealing(true)
-    // Give animation time to complete before calling onPlay
-    setTimeout(() => {
-      onPlay()
-    }, 600)
-  }
-
-  return (
-    <div className='text-center py-3'>
-      {/* Card */}
-      <motion.div
-        onClick={handleRevealCard}
-        className={`relative w-full h-40 mx-auto mb-6 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl overflow-hidden border border-pink-200 cursor-pointer ${
-          !canPlay ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
-        whileHover={canPlay && !isRevealing ? { scale: 1.02 } : {}}
-        whileTap={canPlay && !isRevealing ? { scale: 0.98 } : {}}
-      >
-        {/* Hidden Content - Prize */}
-        <div className='absolute inset-0 flex items-center justify-center text-white'>
-          <div className='text-center'>
-            <div className='w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 border border-white/30'>
-              <Trophy className='w-6 h-6 text-white' />
-            </div>
-            <h3 className='text-lg font-bold mb-1'>Mystery Prize</h3>
-            <p className='text-white/90 text-sm'>
-              Your reward awaits, sweetie!
-            </p>
-          </div>
-        </div>
-
-        {/* Scratch Overlay - Animates away on click */}
-        <motion.div
-          className='absolute inset-0 bg-gradient-to-r from-gray-800 to-gray-900 flex items-center justify-center text-white'
-          animate={isRevealing ? { opacity: 0, y: -50 } : { opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          pointerEvents={isRevealing ? 'none' : 'auto'}
-        >
-          <div className='text-center'>
-            {isRevealing ? (
-              <>
-                <Loader2 className='w-8 h-8 mx-auto mb-2 animate-spin' />
-                <div className='text-lg font-bold mb-2'>Revealing... ✨</div>
-              </>
-            ) : (
-              <>
-                <Sparkles className='w-8 h-8 mx-auto mb-2 animate-bounce' />
-                <div className='text-lg font-bold mb-2'>
-                  {canPlay ? 'Tap to Scratch!' : 'Play Limit Reached'}
-                </div>
-                <div className='text-xs opacity-75 mt-2'>
-                  Click the card to reveal
-                </div>
-              </>
-            )}
-          </div>
-        </motion.div>
-      </motion.div>
-
-      {/* Status Text */}
-      {isPlaying ? (
-        <div className='flex items-center justify-center gap-2 text-pink-600'>
-          <Loader2 className='w-4 h-4 animate-spin' />
-          <span className='text-sm font-medium'>Processing your win...</span>
-        </div>
-      ) : !canPlay ? (
-        <p className='text-gray-500 text-sm'>
-          You've reached the play limit for this period.
-        </p>
-      ) : (
-        <p className='text-gray-600 text-sm'>
-          Click the card to scratch and reveal your mystery prize!
-        </p>
-      )}
-    </div>
-  )
-}
-
 // Enhanced Result Modal with Complete Prize Information
 const ResultModal = ({ result, onClose }) => {
   const eligibility = result.result.eligibilityAfterPlay
@@ -937,11 +754,11 @@ const ResultModal = ({ result, onClose }) => {
 
           {isServicePrize && (
             <button
-              onClick={() => (window.location.href = '/profile')}
-              className='w-full py-2 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200'
-            >
-              View in Profile
-            </button>
+            onClick={() => (window.location.href = '/rewards')} 
+            className='w-full py-2 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200'
+          >
+            Use Now
+          </button>
           )}
         </div>
 

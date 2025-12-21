@@ -140,13 +140,53 @@
       .splash-screen {
         position: fixed;
         inset: 0;
-        background: #ec4899;
+        background: linear-gradient(135deg, #ec4899 0%, #f43f5e 50%, #db2777 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 9999;
         opacity: 1;
+        overflow: hidden;
         transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s;
+      }
+
+      /* Animated Blobs */
+      .splash-blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(60px);
+        opacity: 0.4;
+        z-index: 0;
+        animation: pulseBlob 8s ease-in-out infinite;
+      }
+
+      .splash-blob-1 {
+        top: -10%;
+        left: -10%;
+        width: 50vw;
+        height: 50vw;
+        background: #ffffff;
+        animation-delay: 0s;
+      }
+
+      .splash-blob-2 {
+        bottom: -10%;
+        right: -10%;
+        width: 50vw;
+        height: 50vw;
+        background: #fbcfe8; /* pink-200 */
+        animation-delay: -4s;
+      }
+
+      @keyframes pulseBlob {
+        0%, 100% {
+          transform: scale(1) translate(0, 0);
+          opacity: 0.3;
+        }
+        50% {
+          transform: scale(1.1) translate(20px, 20px);
+          opacity: 0.5;
+        }
       }
 
       .splash-screen.hidden {
@@ -177,16 +217,16 @@
         width: 100px;
         height: 100px;
         margin: 0 auto 30px;
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.2);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2),
-          inset 0 1px 1px rgba(255, 255, 255, 0.2);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1),
+          inset 0 1px 1px rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.3);
         animation: float 3s ease-in-out infinite;
       }
 
@@ -364,6 +404,10 @@
   <body>
     <!-- MODERN SPLASH SCREEN - Shows until React app is ready -->
     <div id="splash-screen" class="splash-screen">
+      <!-- Decorative Blobs -->
+      <div class="splash-blob splash-blob-1"></div>
+      <div class="splash-blob splash-blob-2"></div>
+      
       <div class="splash-content">
         <div class="splash-logo">
           <img src="/icon2.png" alt="RadiantAI Logo" />
