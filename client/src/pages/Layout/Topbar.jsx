@@ -1,8 +1,7 @@
-// File: client/src/pages/Layout/Topbar.jsx - UPDATED WITH QR SCANNER
-import QRCodeScanner from "@/components/QRCode/QRCodeScanner";
+// File: client/src/pages/Layout/Topbar.jsx
 import { motion } from "framer-motion";
-import { Menu, QrCode, ShoppingCart } from "lucide-react";
-import React, { useState } from "react";
+import { Menu, ShoppingCart } from "lucide-react";
+import React from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import InstallButton from "./InstallButton";
@@ -19,11 +18,10 @@ const Topbar = ({
   const { currentUser } = useSelector((state) => state.user);
   const { totalItems } = useSelector((state) => state.cart);
   const navigate = useNavigate();
-  const [qrScannerOpen, setQrScannerOpen] = useState(false);
 
   return (
     <>
-      <div className={cn("bg-white border-b border-gray-200", className)}>
+      <div className={cn("bg-white border-b border-gray-200 sticky top-0 z-30", className)}>
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Left side - Mobile Menu and Install Button */}
@@ -40,20 +38,8 @@ const Topbar = ({
               <InstallButton />
             </div>
 
-            {/* Right side - QR Scanner, Cart, Notifications and User Profile */}
+            {/* Right side - Cart, Notifications and User Profile */}
             <div className="flex items-center space-x-2 lg:space-x-4">
-              {/* QR Code Scanner Button */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setQrScannerOpen(true)}
-                className="relative p-2 text-gray-500 hover:text-pink-600 hover:bg-pink-50 rounded-md transition-colors group"
-                title="Scan QR Code to earn points"
-              >
-                <QrCode className="h-5 w-5" />
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-purple-500 scale-x-0 group-hover:scale-x-100 transition-transform"></div>
-              </motion.button>
-
               {/* Shopping Cart */}
               <button
                 onClick={() => navigate("/cart")}
@@ -84,12 +70,6 @@ const Topbar = ({
           </div>
         </div>
       </div>
-
-      {/* QR Code Scanner Modal */}
-      <QRCodeScanner
-        isOpen={qrScannerOpen}
-        onClose={() => setQrScannerOpen(false)}
-      />
     </>
   );
 };

@@ -1,30 +1,31 @@
 // File: client/src/pages/Layout/Layout.jsx
 import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
 import {
-    logout,
-    selectIsElevatedUser,
-    selectIsSuperAdmin,
+  logout,
+  selectIsElevatedUser,
+  selectIsSuperAdmin,
 } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    Calendar,
-    CompassIcon,
-    Contact2,
-    Gamepad2,
-    Gift,
-    LayoutDashboard,
-    LogOut,
-    Menu,
-    Settings,
-    Sparkles,
-    Star,
-    User,
-    Users,
-    X,
+  Calendar,
+  CompassIcon,
+  Contact2,
+  Gamepad2,
+  Gift,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Settings,
+  Sparkles,
+  Star,
+  User,
+  Users,
+  X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'; // Add useSelector
 import { useLocation, useNavigate } from 'react-router-dom'
+import BottomNav from './BottomNav'; // Import the BottomNav component
 import Topbar from './Topbar'; // Import the Topbar component
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
@@ -167,7 +168,7 @@ const Layout = ({
     },
     {
       id: 'rewards',
-      label: 'Loyalty & Rewards',
+      label: 'Claim Rewards',
       icon: Star,
       href: '/rewards',
       badge: {
@@ -430,6 +431,7 @@ const Layout = ({
           </div>
         </div>
       </motion.aside>
+      <BottomNav />
 
       {/* Main Content Area - With proper margin for sidebar */}
       <main
@@ -437,8 +439,8 @@ const Layout = ({
           'min-h-screen transition-all duration-200',
           // Desktop: always have left margin for sidebar
           'lg:ml-64',
-          // Mobile: no margin when sidebar is closed
-          !isDesktop && 'ml-0'
+          // Mobile: no margin when sidebar is closed, add padding for bottom nav
+          !isDesktop && 'ml-0 pb-20'
         )}
       >
         {/* Topbar */}
