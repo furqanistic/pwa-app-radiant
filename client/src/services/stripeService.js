@@ -47,6 +47,14 @@ const stripeService = {
     return response.data
   },
 
+  /**
+   * Get clients revenue (for spa owners)
+   */
+  getClientsRevenue: async () => {
+    const response = await axiosInstance.get('stripe/payment/clients-revenue')
+    return response.data
+  },
+
   // ==================== PAYMENTS ====================
 
   /**

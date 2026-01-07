@@ -13,6 +13,7 @@ import {
     QrCode,
     RefreshCw,
     Settings,
+    TrendingUp,
     UserCheck,
     UserPlus,
     XIcon,
@@ -131,6 +132,14 @@ const ManagementPage = () => {
       path: "/management/referral",
       color: "from-pink-500 to-pink-600",
       visible: isElevatedUser,
+    },
+    {
+      title: "Client Revenue",
+      description: "Track earnings per client and total revenue",
+      icon: TrendingUp,
+      path: "/management/revenue",
+      color: "from-rose-500 to-rose-600",
+      visible: isTeamOrAbove, // Accessible to team role (spa managers)
     },
   ];
 

@@ -1,21 +1,21 @@
 // client/src/pages/Rewards/RewardsCatalogPage.jsx
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import {
-    Award,
-    Check,
-    ChevronDown,
-    DollarSign,
-    Filter,
-    Gift,
-    Heart,
-    Percent,
-    Search,
-    SortAsc,
-    Sparkles,
-    Star,
-    Users,
-    X,
-    Zap,
+  Award,
+  Check,
+  ChevronDown,
+  DollarSign,
+  Filter,
+  Gift,
+  Heart,
+  Percent,
+  Search,
+  SortAsc,
+  Sparkles,
+  Star,
+  Users,
+  X,
+  Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'

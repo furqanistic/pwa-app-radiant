@@ -1,20 +1,21 @@
 // File: server/routes/stripe.js - Stripe API Routes
 import express from 'express';
 import {
-  createConnectAccount,
-  createAccountLink,
-  getAccountStatus,
-  disconnectAccount,
-  getAccountDashboard,
-  createCheckoutSession,
-  createPaymentIntent,
-  confirmPayment,
-  getPaymentHistory,
-  getRevenueAnalytics,
-  processRefund,
-  handleWebhook,
+    confirmPayment,
+    createAccountLink,
+    createCheckoutSession,
+    createConnectAccount,
+    createPaymentIntent,
+    disconnectAccount,
+    getAccountDashboard,
+    getAccountStatus,
+    getClientRevenueAnalytics,
+    getPaymentHistory,
+    getRevenueAnalytics,
+    handleWebhook,
+    processRefund,
 } from '../controller/stripeController.js';
-import { verifyToken, checkManagementAccess } from '../middleware/authMiddleware.js';
+import { checkManagementAccess, verifyToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -51,6 +52,9 @@ router.get('/payment/history', verifyToken, getPaymentHistory);
 
 // Get revenue analytics (Team role only)
 router.get('/payment/analytics', verifyToken, checkManagementAccess, getRevenueAnalytics);
+
+// Get client revenue tracking (Team role only)
+router.get('/payment/clients-revenue', verifyToken, checkManagementAccess, getClientRevenueAnalytics);
 
 // Process refund (Team role only)
 router.post('/payment/refund/:paymentId', verifyToken, checkManagementAccess, processRefund);

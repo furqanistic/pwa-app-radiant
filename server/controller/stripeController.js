@@ -1186,3 +1186,73 @@ async function handleChargeRefunded(charge) {
     await payment.save()
   }
 }
+
+/**
+ * Get revenue tracking per client for spa owner
+ */
+export const getClientRevenueAnalytics = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const user = await User.findById(userId)
+
+    if (user.role !== 'team' && user.role !== 'admin' && user.role !== 'super-admin') {
+      return next(
+        createError(403, 'Only spa owners and admins can access client revenue tracking')
+      )
+    }
+
+    // Aggregate payments by customer
+    const clientRevenue = await Payment.aggregate([
+      {
+        $match: {
+          spaOwner: user._id,
+          status: 'succeeded'
+        }
+      },
+      {
+        $group: {
+          _id: '$customer',
+          totalSpent: { $sum: '$amount' },
+          transactionCount: { $sum: 1 },
+          lastPaymentDate: { $max: '$createdAt' }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'customerDetails'
+        }
+      },
+      {
+        $unwind: '$customerDetails'
+      },
+      {
+        $project: {
+          _id: 1,
+          totalSpent: { $divide: ['$totalSpent', 100] }, // Convert to dollars
+          transactionCount: 1,
+          lastPaymentDate: 1,
+          customerName: '$customerDetails.name',
+          customerEmail: '$customerDetails.email',
+          customerAvatar: '$customerDetails.avatar'
+        }
+      },
+      {
+        $sort: { totalSpent: -1 }
+      }
+    ])
+
+    const totalEarnings = clientRevenue.reduce((sum, client) => sum + client.totalSpent, 0)
+
+    res.status(200).json({
+      success: true,
+      totalEarnings,
+      clients: clientRevenue
+    })
+  } catch (error) {
+    console.error('Error fetching client revenue analytics:', error)
+    next(error)
+  }
+}

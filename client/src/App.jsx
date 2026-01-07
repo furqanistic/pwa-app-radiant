@@ -5,11 +5,11 @@ import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
-  BrowserRouter,
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
+    BrowserRouter,
+    Navigate,
+    Route,
+    Routes,
+    useLocation,
 } from 'react-router-dom'
 import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
@@ -22,6 +22,7 @@ import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import InstallPrompt from './pages/Layout/InstallPrompt'
 import BookingsManagementPage from './pages/Management/BookingsManagementPage'
+import ClientRevenuePage from './pages/Management/ClientRevenuePage'
 import ManagementPage from './pages/Management/ManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
@@ -460,6 +461,14 @@ const App = () => {
           element={
             <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ManageReferralPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/management/revenue"
+          element={
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+              <ClientRevenuePage />
             </RoleProtectedRoute>
           }
         />
