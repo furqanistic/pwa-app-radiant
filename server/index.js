@@ -7,19 +7,19 @@ import mongoose from 'mongoose'
 import passport from 'passport'
 import './config/passport.js'
 import authRoute from './routes/auth.js'
-import bookingsRouter from './routes/bookings.js' // NEW
-import dashboardRouter from './routes/dashboard.js' // NEW
+import bookingsRouter from './routes/bookings.js'; // NEW
+import dashboardRouter from './routes/dashboard.js'; // NEW
 import gameWheelRoutes from './routes/gameWheel.js'
 import ghlRoutes from './routes/ghl.js'
 import locationRoute from './routes/location.js'
 import notificationRoutes from './routes/notification.js'
+import qrCodeRoutes from "./routes/qrCode.js"
 import referralRoutes from './routes/referral.js'
 import rewardsRouter from './routes/rewards.js'
 import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
-import stripeRoutes from './routes/stripe.js' // STRIPE INTEGRATION
+import stripeRoutes from './routes/stripe.js'; // STRIPE INTEGRATION
 import userRewardsRouter from './routes/userRewards.js'
-import qrCodeRoutes from "./routes/qrCode.js";
 
 
 const app = express()
@@ -35,8 +35,8 @@ const isOriginAllowed = (origin) => {
   // List of specific allowed origins (NO TRAILING SLASHES)
   const allowedOrigins = [
     'http://localhost:5173', // Dev
-    'https://api.radiantmdconsulting.com',
-    'https://app.radiantmdconsulting.com',
+    'https://api.cxrsystems.com',
+    'https://app.cxrsystems.com',
   ]
 
   // Check if origin is in the specific allowed list
