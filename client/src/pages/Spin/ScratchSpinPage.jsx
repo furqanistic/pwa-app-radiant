@@ -1,12 +1,15 @@
-// File: client/src/pages/Spin/ScratchSpinPage.jsx - FIXED WITH ENHANCED LOCATION-BASED ACCESS
+// File: client/src/pages/Spin/ScratchSpinPage.jsx - FULLY RESPONSIVE PREMIUM
 import SlideReveal from '@/components/Games/SlideReveal'
 import SpinWheel from '@/components/Games/SpinWheel'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  ArrowRight,
   CheckCircle,
+  ChevronRight,
   Clock,
   Coins,
+  Crown,
   Gift,
   Heart,
   Loader2,
@@ -15,8 +18,10 @@ import {
   Sparkles,
   Star,
   Trophy,
+  Trophy as TrophyIcon,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
@@ -25,18 +30,13 @@ const ScratchSpinPage = () => {
   const [showResult, setShowResult] = useState(false)
   const [gameResult, setGameResult] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [userRole, setUserRole] = useState(null)
+  
+  const { currentUser } = useSelector((state) => state.user)
 
-  // Check user role and permissions
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
-    setUserRole(user.role)
-
-    // Only allow regular users to access this page
     if (user.role && user.role !== 'user') {
-      // Redirect management users to their appropriate interface
       window.location.href = '/scratch-spin-management'
-      return
     }
   }, [])
 
@@ -47,23 +47,12 @@ const ScratchSpinPage = () => {
       setGameResult(data.data)
       setShowResult(true)
       setIsPlaying(false)
-      refetch() // Refresh to get updated play limits
-
-      // Show success notification
-      toast.success('Congratulations!', {
-        description: `You won: ${data.data.result.winningItem.title}!`,
-        duration: 4000,
-      })
+      refetch()
     },
     onError: (error) => {
       setIsPlaying(false)
-
-      // Show error notification
       toast.error('Game Error', {
-        description:
-          error.response?.data?.message ||
-          'Failed to play game. Please try again.',
-        duration: 4000,
+        description: error.response?.data?.message || 'Failed to play game.',
       })
     },
   })
@@ -74,7 +63,6 @@ const ScratchSpinPage = () => {
       await playGameMutation.mutateAsync(gameId)
     } catch (error) {
       setIsPlaying(false)
-      console.error('Play game error:', error)
     }
   }
 
@@ -84,111 +72,12 @@ const ScratchSpinPage = () => {
     setActiveGame(null)
   }
 
-  // Show loading state
   if (isLoading) {
     return (
       <Layout>
-        <div className='min-h-screen bg-gradient-to-br from-pink-50 to-rose-50 flex items-center justify-center px-4'>
-          <div className='text-center max-w-sm mx-auto'>
-            <div className='w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
-            <h3 className='text-lg font-semibold text-gray-900 mb-2'>
-              Loading your games, sweetie!
-            </h3>
-            <p className='text-gray-600 text-sm'>
-              Getting everything ready for you...
-            </p>
-          </div>
-        </div>
-      </Layout>
-    )
-  }
-
-  // Enhanced error handling with specific messages
-  if (error) {
-    const errorStatus = error.response?.status
-    const errorMessage = error.response?.data?.message || error.message
-
-    return (
-      <Layout>
-        <div className='min-h-screen bg-gradient-to-br from-pink-50 to-rose-50 flex items-center justify-center px-4'>
-          <div className='text-center max-w-sm mx-auto'>
-            <div className='w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl mx-auto mb-4 flex items-center justify-center'>
-              <MapPin className='w-8 h-8 text-white' />
-            </div>
-
-            {errorStatus === 400 && errorMessage.includes('select a spa') ? (
-              // User hasn't selected a spa
-              <>
-                <h3 className='text-xl font-semibold text-gray-900 mb-2'>
-                  Please Select Your Spa First
-                </h3>
-                <p className='text-gray-600 mb-6 text-sm'>
-                  You need to select your spa location before you can play
-                  games. Once you do, you'll see all the exciting games from
-                  your spa! 💕
-                </p>
-                <button
-                  onClick={() => (window.location.href = '/onboarding')}
-                  className='inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform transition-all duration-200'
-                >
-                  <MapPin className='w-4 h-4' />
-                  Select Your Spa
-                </button>
-              </>
-            ) : errorStatus === 403 ? (
-              // Access denied - wrong role
-              <>
-                <h3 className='text-xl font-semibold text-gray-900 mb-2'>
-                  Access Not Allowed
-                </h3>
-                <p className='text-gray-600 mb-6 text-sm'>
-                  This page is for spa customers only. If you're a spa owner or
-                  admin, please use the management interface.
-                </p>
-                <div className='space-y-3'>
-                  <button
-                    onClick={() =>
-                      (window.location.href = '/scratch-spin-management')
-                    }
-                    className='w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold hover:from-indigo-600 hover:to-purple-600 transform transition-all duration-200'
-                  >
-                    Go to Management Interface
-                  </button>
-                  <button
-                    onClick={() => (window.location.href = '/dashboard')}
-                    className='w-full px-6 py-3 bg-gray-500 text-white rounded-xl font-semibold hover:bg-gray-600 transform transition-all duration-200'
-                  >
-                    Go to Dashboard
-                  </button>
-                </div>
-              </>
-            ) : (
-              // Generic error
-              <>
-                <h3 className='text-xl font-semibold text-gray-900 mb-2'>
-                  Unable to Load Games
-                </h3>
-                <p className='text-gray-600 mb-6 text-sm'>
-                  {errorMessage ||
-                    'There was an issue loading your games. Please try again.'}
-                </p>
-                <div className='space-y-3'>
-                  <button
-                    onClick={() => refetch()}
-                    className='w-full px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 transform transition-all duration-200'
-                  >
-                    <RefreshCcw className='w-4 h-4 inline mr-2' />
-                    Try Again
-                  </button>
-                  <button
-                    onClick={() => (window.location.href = '/dashboard')}
-                    className='w-full px-6 py-3 bg-gray-500 text-white rounded-xl font-semibold hover:bg-gray-600 transform transition-all duration-200'
-                  >
-                    Go to Dashboard
-                  </button>
-                </div>
-              </>
-            )}
+        <div className='min-h-screen bg-white flex items-center justify-center'>
+          <div className='animate-bounce w-12 h-12 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-200'>
+            <Heart className='w-6 h-6 text-white' />
           </div>
         </div>
       </Layout>
@@ -202,70 +91,121 @@ const ScratchSpinPage = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen bg-gradient-to-br from-pink-50 to-rose-50'>
-        {/* Header with Location Info */}
-        <div className='px-4 pt-6 pb-4'>
-          <div className='max-w-sm mx-auto text-center'>
-            <div className='flex items-center justify-center gap-2 mb-3'>
-              <Heart className='w-6 h-6 text-pink-500' />
-              <h1 className='text-2xl md:text-3xl font-bold text-gray-900'>
-                Lucky Games
-              </h1>
-              <Sparkles className='w-6 h-6 text-rose-500' />
-            </div>
-
-            {/* Location Display */}
-            {location && (
-              <div className='flex items-center justify-center gap-2 mb-3 px-3 py-1 bg-white/70 backdrop-blur-sm rounded-full border border-pink-200'>
-                <MapPin className='w-4 h-4 text-pink-600' />
-                <span className='text-sm font-medium text-gray-700'>
-                  {location.locationName}
-                </span>
+      <div className='bg-[#fafbfc] relative overflow-hidden flex flex-col' style={{ height: 'calc(100vh - 53px)' }}>
+        {/* Responsive Content Container - Scrollable */}
+        <div className='flex-1 overflow-y-auto pb-24 md:pb-12'>
+          <div className='max-w-6xl mx-auto'>
+            
+            {/* Header Area */}
+            <header className='relative px-6 py-4 md:py-6 lg:py-10 bg-white md:bg-transparent border-b md:border-none border-gray-50 flex flex-row items-center justify-between gap-4'>
+              <div className='relative z-10 flex-1 min-w-0'>
+                <div className='flex items-center gap-1.5 mb-1'>
+                  <Sparkles className='w-3 h-3 text-pink-500' />
+                  <span className='text-[9px] font-black text-pink-500 uppercase tracking-widest'>Arena Daily</span>
+                  
+                  {location && (
+                    <div className='hidden md:flex items-center gap-1 px-2.5 py-1 bg-white shadow-sm rounded-full border border-gray-100 ml-3'>
+                      <MapPin className='w-3 h-3 text-pink-500' />
+                      <span className='text-[10px] font-black text-slate-500 uppercase'>{location.locationName}</span>
+                    </div>
+                  )}
+                </div>
+                <h1 className='text-xl md:text-4xl font-black text-slate-900 tracking-tight truncate'>Lucky Rewards</h1>
+                
+                {location && (
+                  <div className='flex md:hidden items-center gap-1 mt-1'>
+                    <MapPin className='w-2.5 h-2.5 text-pink-500' />
+                    <span className='text-[8px] font-bold text-slate-400 uppercase tracking-wider truncate'>{location.locationName}</span>
+                  </div>
+                )}
               </div>
-            )}
+              
+              <div className='flex-shrink-0'>
+                {currentUser && (
+                  <div className='flex items-center gap-2 md:gap-3 px-3 py-2 md:px-5 md:py-2.5 bg-slate-900 rounded-xl md:rounded-2xl shadow-lg'>
+                    <Coins className='w-3.5 h-3.5 md:w-4 md:h-4 text-yellow-400' />
+                    <div className='flex flex-col'>
+                      <span className='text-[8px] md:text-[9px] font-black text-white/50 uppercase leading-none'>Points</span>
+                      <span className='text-xs md:text-sm font-black text-white leading-tight'>{currentUser.points || 0}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </header>
 
-            <p className='text-gray-600 text-sm'>
-              Choose your favorite game and win amazing prizes! ✨
-            </p>
-          </div>
-        </div>
+            {/* Main Content Layout */}
+            <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 px-4 md:px-6'>
+               
+               {/* Banner Section */}
+               <div className='lg:col-span-5'>
+                  <div className='bg-gradient-to-br from-pink-500 to-rose-600 rounded-[32px] md:rounded-[40px] p-6 md:p-10 text-white shadow-2xl shadow-pink-200/50 relative overflow-hidden h-full min-h-[200px] flex flex-col justify-end'>
+                     <div className='relative z-10'>
+                        <div className='flex items-center gap-2 mb-2'>
+                           <Crown className='w-5 h-5 text-yellow-300 fill-current' />
+                           <span className='text-xs font-black uppercase tracking-[0.2em] opacity-80'>Premium Player</span>
+                        </div>
+                        <h2 className='text-2xl md:text-3xl font-black leading-tight mb-2'>Ready to Reveal Your Luck?</h2>
+                        <p className='text-white/80 text-xs md:text-sm font-medium max-w-xs'>Spin or scratch to unlock exclusive spa treatments, credits, and bonus points.</p>
+                     </div>
+                     <TrophyIcon className='absolute right-[-20px] top-[-20px] w-48 h-48 text-white/10 -rotate-12 pointer-events-none' />
+                     
+                     <div className='absolute top-8 left-8 w-32 h-32 bg-white/10 rounded-full blur-3xl' />
+                  </div>
+               </div>
 
-        {/* Games Grid */}
-        <div className='px-4 pb-8'>
-          {games.length > 0 ? (
-            <div className='max-w-sm mx-auto space-y-4'>
-              {/* Spin Game */}
-              {spinGame && (
-                <GameCard
-                  game={spinGame}
-                  title='Spin the Wheel'
-                  description='Spin for instant amazing prizes!'
-                  onPlay={() => setActiveGame(spinGame)}
-                  gradient='from-pink-500 to-rose-500'
-                  icon='spin'
-                  eligibility={spinGame.eligibility}
-                />
-              )}
+               {/* Games Grid Section */}
+               <div className='lg:col-span-7'>
+                  <div className='space-y-4 md:grid md:grid-cols-2 lg:grid-cols-1 md:gap-4 md:space-y-0'>
+                    {games.length > 0 ? (
+                      <>
+                        {spinGame && (
+                          <PremiumResponsiveCard
+                            game={spinGame}
+                            title='Spin Wheel'
+                            subtitle='Spin to win daily rewards'
+                            onPlay={() => setActiveGame(spinGame)}
+                            color='pink'
+                            icon='spin'
+                          />
+                        )}
+                        {scratchGame && (
+                          <PremiumResponsiveCard
+                            game={scratchGame}
+                            title='Scratch Card'
+                            subtitle='Reveal secret mystery prizes'
+                            onPlay={() => setActiveGame(scratchGame)}
+                            color='indigo'
+                            icon='scratch'
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <div className='bg-white rounded-3xl p-10 text-center border border-gray-100 col-span-2'>
+                        <Heart className='w-12 h-12 text-gray-100 mx-auto mb-4' />
+                        <h3 className='text-sm font-black text-slate-800 uppercase tracking-widest'>No Active Games</h3>
+                        <p className='text-xs text-slate-400 mt-1 uppercase'>Check back tomorrow, sweetie!</p>
+                      </div>
+                    )}
+                  </div>
 
-              {/* Scratch Game */}
-              {scratchGame && (
-                <GameCard
-                  game={scratchGame}
-                  title='Mystery Cards'
-                  description='Slide to reveal hidden treasures!'
-                  onPlay={() => setActiveGame(scratchGame)}
-                  gradient='from-rose-500 to-pink-500'
-                  icon='scratch'
-                  eligibility={scratchGame.eligibility}
-                />
-              )}
+                  {/* Desktop Footer info bit */}
+                  <div className='mt-8 hidden md:flex items-center gap-6 text-slate-300'>
+                     <div className='flex items-center gap-2'>
+                        <CheckCircle className='w-3.5 h-3.5' />
+                        <span className='text-[10px] font-black uppercase tracking-widest'>Encrypted Plays</span>
+                     </div>
+                     <div className='h-4 w-[1px] bg-slate-100' />
+                     <div className='flex items-center gap-2'>
+                        <RefreshCcw className='w-3.5 h-3.5' />
+                        <span className='text-[10px] font-black uppercase tracking-widest'>Auto-Refresh</span>
+                     </div>
+                  </div>
+               </div>
             </div>
-          ) : (
-            <NoGamesMessage location={location} onRefresh={refetch} />
-          )}
         </div>
+      </div>
 
-        {/* Game Modal */}
+        {/* Modal Overlays */}
         <AnimatePresence>
           {activeGame && !showResult && (
             <GameModal
@@ -277,7 +217,6 @@ const ScratchSpinPage = () => {
           )}
         </AnimatePresence>
 
-        {/* Result Modal */}
         <AnimatePresence>
           {showResult && gameResult && (
             <ResultModal result={gameResult} onClose={closeResult} />
@@ -288,491 +227,135 @@ const ScratchSpinPage = () => {
   )
 }
 
-// Enhanced Game Card with Play Eligibility
-const GameCard = ({
-  game,
-  title,
-  description,
-  onPlay,
-  gradient,
-  icon,
-  eligibility,
-}) => {
+const PremiumResponsiveCard = ({ game, title, subtitle, onPlay, color, icon }) => {
+  const eligibility = game.eligibility
   const canPlay = eligibility?.canPlay ?? true
   const playsRemaining = eligibility?.playsRemaining ?? 0
-  const nextReset = eligibility?.nextReset
-
-  const renderIcon = () => {
-    if (icon === 'spin') {
-      return (
-        <svg
-          className='w-6 h-6 text-white'
-          fill='currentColor'
-          viewBox='0 0 24 24'
-        >
-          <path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z' />
-          <path d='M12 6v6l4 2-1 1.73-5-3V6z' />
-        </svg>
-      )
-    } else if (icon === 'scratch') {
-      return <Star className='w-6 h-6 text-white' />
-    }
-    return null
-  }
-
-  const formatResetTime = (resetTime) => {
-    if (!resetTime) return ''
-    const now = new Date()
-    const reset = new Date(resetTime)
-    const diffHours = Math.ceil((reset - now) / (1000 * 60 * 60))
-
-    if (diffHours <= 1) return 'in less than 1 hour'
-    if (diffHours < 24) return `in ${diffHours} hours`
-
-    const diffDays = Math.ceil(diffHours / 24)
-    return `in ${diffDays} ${diffDays === 1 ? 'day' : 'days'}`
-  }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileTap={canPlay ? { scale: 0.98 } : undefined}
-      className={`bg-white rounded-2xl border overflow-hidden transition-all duration-200 ${
-        canPlay
-          ? 'border-pink-100 cursor-pointer hover:border-pink-300 hover:scale-105 transform'
-          : 'border-gray-200 opacity-60'
-      }`}
+      whileHover={canPlay ? { y: -4, shadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' } : {}}
+      whileTap={canPlay ? { scale: 0.98 } : {}}
       onClick={canPlay ? onPlay : undefined}
+      className={`relative group overflow-hidden rounded-[28px] md:rounded-[32px] border p-5 md:p-6 transition-all h-full ${
+        canPlay 
+          ? 'bg-white border-gray-100 shadow-sm active:border-pink-200 cursor-pointer' 
+          : 'bg-gray-50 border-gray-100 opacity-60 grayscale'
+      }`}
     >
-      <div className='p-4'>
-        <div className='flex items-center gap-4'>
-          {/* Icon Section */}
-          <div
-            className={`w-14 h-14 bg-gradient-to-r ${gradient} rounded-xl flex items-center justify-center flex-shrink-0 ${
-              !canPlay ? 'opacity-50' : ''
-            }`}
-          >
-            {renderIcon()}
-          </div>
+      <div className='flex items-center gap-5 md:gap-6 relative z-10'>
+        <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl md:rounded-[24px] flex items-center justify-center flex-shrink-0 ${
+          color === 'pink' ? 'bg-pink-50 text-pink-500' : 'bg-indigo-50 text-indigo-500'
+        } border border-white shadow-sm`}>
+          {icon === 'spin' ? <RefreshCcw className='w-7 h-7 md:w-8 md:h-8' /> : <Star className='w-7 h-7 md:w-8 md:h-8 fill-current' />}
+        </div>
 
-          {/* Content */}
-          <div className='flex-1 min-w-0'>
-            <h3 className='text-lg font-bold text-gray-900 mb-1 truncate'>
-              {title}
-            </h3>
-            <p className='text-gray-600 text-sm mb-3 line-clamp-2'>
-              {description}
-            </p>
+        <div className='flex-1'>
+          <h3 className='text-base md:text-lg font-black text-slate-900 mb-0.5'>{title}</h3>
+          <p className='text-slate-400 text-[11px] md:text-xs font-bold'>{subtitle}</p>
+        </div>
 
-            {/* Play Status */}
-            <div className='flex items-center justify-between'>
-              {canPlay ? (
-                <div className='flex items-center gap-2'>
-                  <div className='w-2 h-2 bg-green-500 rounded-full animate-pulse'></div>
-                  <span className='text-gray-700 text-xs font-medium'>
-                    {playsRemaining > 0
-                      ? `${playsRemaining} plays left`
-                      : 'Ready to play!'}
-                  </span>
+        <div className='flex flex-col items-end gap-2'>
+           {canPlay ? (
+              <>
+                <div className='flex items-center gap-1.5 px-3 py-1 bg-green-50 rounded-full border border-green-100'>
+                   <div className='w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse' />
+                   <span className='text-[10px] font-black text-green-600 uppercase tracking-tighter'>{playsRemaining} Play</span>
                 </div>
-              ) : (
-                <div className='flex items-center gap-2'>
-                  <Clock className='w-3 h-3 text-gray-400' />
-                  <span className='text-gray-500 text-xs'>
-                    Next play {formatResetTime(nextReset)}
-                  </span>
-                </div>
-              )}
-
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  canPlay
-                    ? 'bg-gradient-to-r from-pink-500 to-rose-500'
-                    : 'bg-gray-300'
-                }`}
-              >
-                <svg
-                  className='w-4 h-4 text-white'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M9 5l7 7-7 7'
-                  />
-                </svg>
+                 <div className='w-8 h-8 md:w-10 md:h-10 bg-slate-900 rounded-full flex items-center justify-center text-white shadow-lg transition-transform group-hover:translate-x-1'>
+                    <ChevronRight className='w-5 h-5' />
+                 </div>
+              </>
+           ) : (
+              <div className='w-8 h-8 md:w-10 md:h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-300'>
+                 <Clock className='w-5 h-5' />
               </div>
-            </div>
-          </div>
+           )}
         </div>
       </div>
     </motion.div>
   )
 }
 
-// No Games Message Component
-const NoGamesMessage = ({ location, onRefresh }) => {
-  return (
-    <div className='max-w-sm mx-auto text-center px-4'>
-      <div className='bg-white rounded-2xl border border-pink-100 p-8 mb-6'>
-        <div className='w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl mx-auto mb-4 flex items-center justify-center'>
-          <Heart className='w-8 h-8 text-white' />
+const GameModal = ({ game, onClose, onPlay, isPlaying }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className='fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-end sm:items-center justify-center z-50 sm:p-4'
+    onClick={onClose}
+  >
+    <motion.div
+      initial={{ y: '100%' }}
+      animate={{ y: 0 }}
+      exit={{ y: '100%' }}
+      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      className='bg-white rounded-t-[40px] sm:rounded-[40px] w-full max-w-md overflow-hidden shadow-2xl border-t border-slate-100 sm:border-none'
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className='p-8 pb-10 sm:pb-8'>
+        <div className='text-center mb-8'>
+           <div className='w-12 h-1.5 bg-slate-100 rounded-full mx-auto mb-6' />
+          <h2 className='text-2xl font-black text-slate-900 leading-none'>
+            {game.type === 'spin' ? 'Spin Wheel' : 'Scratch Card'}
+          </h2>
+          <p className='text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-2'>Win Amazing Rewards</p>
         </div>
-        <h3 className='text-xl font-semibold text-gray-900 mb-2'>
-          No Games Available
-        </h3>
 
-        {location && (
-          <div className='flex items-center justify-center gap-2 mb-3 px-3 py-1 bg-pink-50 rounded-full'>
-            <MapPin className='w-4 h-4 text-pink-600' />
-            <span className='text-sm text-pink-700 font-medium'>
-              {location.locationName}
-            </span>
-          </div>
-        )}
-
-        <p className='text-gray-600 mb-6 text-sm'>
-          Your spa hasn't set up any games yet, sweetie!
-          {location
-            ? ` Contact ${location.locationName} `
-            : ' Contact your spa '}
-          to ask about spin wheels and scratch cards, or check back later! 💕
-        </p>
+        <div className='mb-8'>
+          {game.type === 'spin' ? (
+            <SpinWheel game={game} onPlay={() => onPlay(game.id)} isPlaying={isPlaying} canPlay={true} />
+          ) : (
+            <SlideReveal game={game} onPlay={() => onPlay(game.id)} isPlaying={isPlaying} canPlay={true} />
+          )}
+        </div>
 
         <button
-          onClick={onRefresh}
-          className='inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform transition-all duration-200'
+          onClick={onClose}
+          className='w-full py-4 text-slate-300 font-bold rounded-2xl transition-all'
         >
-          <RefreshCcw className='w-4 h-4' />
-          Check Again
+          Cancel
         </button>
       </div>
-    </div>
-  )
-}
-
-// Enhanced Game Modal with Play Eligibility Check
-const GameModal = ({ game, onClose, onPlay, isPlaying }) => {
-  const canPlay = game.eligibility?.canPlay ?? true
-  const playsRemaining = game.eligibility?.playsRemaining ?? 0
-  const nextReset = game.eligibility?.nextReset
-  const resetPeriod = game.eligibility?.resetPeriod
-
-  const formatResetPeriod = (period) => {
-    switch (period) {
-      case 'daily':
-        return 'daily'
-      case 'weekly':
-        return 'weekly'
-      case 'monthly':
-        return 'monthly'
-      case 'never':
-        return 'unlimited'
-      default:
-        return period
-    }
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50 px-4 pb-4'
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: '100%', opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: '100%', opacity: 0 }}
-        className='bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-hidden border border-pink-100'
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Handle */}
-        <div className='flex justify-center pt-3 pb-2'>
-          <div className='w-12 h-1 bg-pink-200 rounded-full'></div>
-        </div>
-
-        {/* Header */}
-        <div className='px-4 py-3 border-b border-pink-100'>
-          <div className='text-center'>
-            <h2 className='text-xl font-bold text-gray-900 mb-1'>
-              {game.type === 'spin' ? '🎯 Spin the Wheel' : '🎫 Mystery Cards'}
-            </h2>
-            <p className='text-gray-600 text-sm'>
-              {game.type === 'spin'
-                ? 'Spin to win amazing prizes, sweetie!'
-                : 'Slide to reveal your special reward!'}
-            </p>
-          </div>
-        </div>
-
-        {/* Play Limit Info */}
-        {!canPlay && (
-          <div className='px-4 py-3 bg-yellow-50 border-b border-yellow-100'>
-            <div className='flex items-center gap-2 text-yellow-800 text-sm'>
-              <Clock className='w-4 h-4' />
-              <span>
-                You've used all your plays for this{' '}
-                {formatResetPeriod(resetPeriod)} period.
-                {nextReset &&
-                  ` Next reset: ${new Date(nextReset).toLocaleString()}`}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Game Area */}
-        <div className='p-4'>
-          {game.type === 'spin' ? (
-            <SpinWheel
-              game={game}
-              onPlay={() => onPlay(game.id)}
-              isPlaying={isPlaying}
-              canPlay={canPlay}
-            />
-          ) : (
-            <SlideReveal
-              game={game}
-              onPlay={() => onPlay(game.id)}
-              isPlaying={isPlaying}
-              canPlay={canPlay}
-            />
-          )}
-        </div>
-
-        {/* Prizes List */}
-        <div className='px-4 py-3 border-t border-pink-100 max-h-40 overflow-y-auto'>
-          <h3 className='font-semibold text-gray-900 mb-3 text-sm'>
-            Available Prizes
-          </h3>
-          <div className='space-y-2'>
-            {game.items?.slice(0, 5).map((item, index) => (
-              <div
-                key={index}
-                className='flex items-center justify-between p-2 bg-pink-50 rounded-lg border border-pink-100'
-              >
-                <div className='flex items-center gap-2'>
-                  <div
-                    className='w-3 h-3 rounded-full border border-pink-200'
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className='text-gray-900 font-medium text-sm truncate'>
-                    {item.title}
-                  </span>
-                </div>
-                <span className='text-gray-600 text-xs'>
-                  {item.value} {item.valueType}
-                </span>
-              </div>
-            ))}
-            {game.items?.length > 5 && (
-              <div className='text-gray-500 text-center py-2 text-xs'>
-                +{game.items.length - 5} more amazing prizes! ✨
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Play Limit Display */}
-        {canPlay && playsRemaining > 0 && (
-          <div className='px-4 py-2 bg-green-50 border-t border-green-100'>
-            <div className='text-center text-green-700 text-sm'>
-              {playsRemaining} plays remaining ({formatResetPeriod(resetPeriod)}{' '}
-              limit)
-            </div>
-          </div>
-        )}
-
-        {/* Close Button */}
-        <div className='p-4 pt-3'>
-          <button
-            onClick={onClose}
-            className='w-full py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-all duration-200'
-          >
-            Close
-          </button>
-        </div>
-      </motion.div>
     </motion.div>
-  )
-}
+  </motion.div>
+)
 
-// Enhanced Result Modal with Complete Prize Information
 const ResultModal = ({ result, onClose }) => {
-  const eligibility = result.result.eligibilityAfterPlay
   const winningItem = result.result.winningItem
-  const isPointsPrize = winningItem.valueType === 'points'
-  const isServicePrize = ['service', 'discount', 'prize'].includes(
-    winningItem.valueType
-  )
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] px-4'
+      className='fixed inset-0 bg-white/95 backdrop-blur-xl flex items-end sm:items-center justify-center z-[70] sm:p-6'
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-        className='bg-white rounded-2xl p-6 max-w-sm w-full text-center border border-pink-100 max-h-[90vh] overflow-y-auto'
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 180 }}
+        className='text-center w-full max-w-md bg-white rounded-t-[45px] sm:rounded-[45px] shadow-2xl p-10 mt-auto sm:mt-0'
       >
-        {/* Success Animation */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
-          className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
-            isPointsPrize
-              ? 'bg-gradient-to-r from-blue-500 to-indigo-600'
-              : 'bg-gradient-to-r from-green-500 to-emerald-600'
-          }`}
+        <div className='w-24 h-24 md:w-32 md:h-32 rounded-[40px] bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-pink-200 animate-bounce'>
+          <Trophy className='w-12 h-12 md:w-16 md:h-16 text-white' />
+        </div>
+
+        <h2 className='text-3xl md:text-5xl font-black text-slate-900 mb-2 tracking-tighter'>Congratulations!</h2>
+        <p className='text-slate-400 text-xs md:text-sm font-bold uppercase tracking-[0.2em] mb-10'>Your daily prize is here</p>
+
+        <div className='bg-slate-50 rounded-[40px] px-10 py-12 mb-10 border border-slate-100 relative overflow-hidden'>
+          <Sparkles className='absolute top-6 left-6 w-8 h-8 text-pink-200 opacity-50' />
+          <h3 className='text-xs md:text-sm font-black text-pink-500 uppercase tracking-widest mb-3'>{winningItem.title}</h3>
+          <div className='text-4xl md:text-6xl font-black text-slate-900 tracking-tighter'>{winningItem.value}</div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className='w-full py-5 md:py-6 bg-slate-900 text-white rounded-[32px] font-black shadow-xl shadow-slate-200 active:scale-95 transition-all text-sm md:text-base'
         >
-          {isPointsPrize ? (
-            <Coins className='w-8 h-8 text-white' />
-          ) : (
-            <Trophy className='w-8 h-8 text-white' />
-          )}
-        </motion.div>
-
-        {/* Title */}
-        <h2 className='text-2xl font-bold text-gray-900 mb-2'>
-          {isPointsPrize ? 'Points Earned! 🎉' : 'Congratulations! 🎉'}
-        </h2>
-        <p className='text-gray-600 mb-4 text-sm'>
-          {isPointsPrize
-            ? 'Your points have been added to your account!'
-            : 'You won an amazing prize, sweetie!'}
-        </p>
-
-        {/* Prize Details */}
-        <div className='bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-4 mb-4 border border-pink-100'>
-          <div className='flex items-center justify-center gap-2 mb-3'>
-            {winningItem.color && (
-              <div
-                className='w-4 h-4 rounded-full border-2 border-white'
-                style={{ backgroundColor: winningItem.color }}
-              />
-            )}
-            <h3 className='text-lg font-bold text-gray-900'>
-              {winningItem.title}
-            </h3>
-          </div>
-
-          <div
-            className={`text-3xl font-bold mb-2 ${
-              isPointsPrize ? 'text-blue-600' : 'text-pink-600'
-            }`}
-          >
-            {winningItem.value}
-          </div>
-
-          <div className='text-gray-600 text-sm capitalize mb-2'>
-            {winningItem.valueType}
-          </div>
-
-          {winningItem.description && (
-            <p className='text-gray-500 text-sm'>{winningItem.description}</p>
-          )}
-        </div>
-
-        {/* Transaction Summary */}
-        <div className='bg-gray-50 rounded-xl p-4 mb-4'>
-          <h4 className='font-semibold text-gray-800 mb-3 text-sm'>
-            Transaction Summary
-          </h4>
-
-          {result.result.pointsSpent > 0 && (
-            <div className='flex justify-between items-center mb-2'>
-              <span className='text-sm text-gray-600'>Points Spent:</span>
-              <span className='text-sm font-medium text-red-600'>
-                -{result.result.pointsSpent}
-              </span>
-            </div>
-          )}
-
-          {result.result.pointsWon > 0 && (
-            <div className='flex justify-between items-center mb-2'>
-              <span className='text-sm text-gray-600'>Points Earned:</span>
-              <span className='text-sm font-medium text-green-600'>
-                +{result.result.pointsWon}
-              </span>
-            </div>
-          )}
-
-          <div className='border-t border-gray-200 pt-2 mt-2'>
-            <div className='flex justify-between items-center'>
-              <span className='text-sm font-semibold text-gray-700'>
-                New Balance:
-              </span>
-              <span className='text-lg font-bold text-blue-600'>
-                {result.result.newPointsBalance} points
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Service Prize Instructions */}
-        {isServicePrize && (
-          <div className='bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4'>
-            <div className='flex items-start space-x-2'>
-              <Gift className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0' />
-              <div className='text-left'>
-                <p className='text-sm font-medium text-blue-800 mb-1'>
-                  How to Redeem
-                </p>
-                <p className='text-xs text-blue-600'>
-                  Visit your spa and show this reward to redeem your{' '}
-                  {winningItem.valueType}.
-                  {result.result.expiresAt && (
-                    <span className='block mt-1'>
-                      Valid until:{' '}
-                      {new Date(result.result.expiresAt).toLocaleDateString()}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className='space-y-3'>
-          <button
-            onClick={onClose}
-            className='w-full py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform transition-all duration-200'
-          >
-            {eligibility?.playsRemaining > 0 ? 'Continue Playing!' : 'Done'}
-          </button>
-
-          {isServicePrize && (
-            <button
-            onClick={() => (window.location.href = '/rewards')} 
-            className='w-full py-2 bg-white border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-200'
-          >
-            Use Now
-          </button>
-          )}
-        </div>
-
-        {/* Prize Added to Profile Notice */}
-        <div className='mt-4 p-3 bg-green-50 border border-green-200 rounded-lg'>
-          <div className='flex items-center justify-center space-x-2'>
-            <CheckCircle className='w-4 h-4 text-green-600' />
-            <p className='text-xs text-green-700'>
-              {isPointsPrize
-                ? 'Points added to your account'
-                : 'Prize added to your profile rewards'}
-            </p>
-          </div>
-        </div>
+          Collect Reward
+        </button>
       </motion.div>
     </motion.div>
   )

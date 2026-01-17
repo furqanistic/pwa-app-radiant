@@ -1,18 +1,23 @@
 import Layout from '@/pages/Layout/Layout'
 import {
-  ArrowLeft,
-  Calendar,
-  Clock,
-  CreditCard,
-  DollarSign,
-  ShoppingBag,
-  ShoppingCart,
-  Trash2,
+    ArrowLeft,
+    Calendar,
+    Check,
+    ChevronDown,
+    Clock,
+    CreditCard,
+    DollarSign,
+    Gift,
+    Search,
+    ShoppingBag,
+    ShoppingCart,
+    Trash2,
 } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import axiosInstance from '../../config'
 import { clearCart, removeFromCart } from '../../redux/cartSlice'
 import stripeService from '../../services/stripeService'
 
@@ -22,6 +27,100 @@ const CartPage = () => {
   const { items, totalAmount, totalItems } = useSelector((state) => state.cart)
   const { currentUser } = useSelector((state) => state.user)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [availableRewards, setAvailableRewards] = useState([])
+  const [selectedReward, setSelectedReward] = useState(null)
+  const [isLoadingRewards, setIsLoadingRewards] = useState(false)
+
+  // Fetch user rewards on mount
+  useEffect(() => {
+    const fetchRewards = async () => {
+      if (!currentUser) return
+      setIsLoadingRewards(true)
+      try {
+        const response = await axiosInstance.get('/rewards/my-rewards')
+        if (response.data?.status === 'success') {
+          // Filter only active rewards
+          const activeRewards = response.data.data.userRewards.filter(
+            (r) => r.status === 'active'
+          )
+          setAvailableRewards(activeRewards)
+        }
+      } catch (error) {
+        console.error('Error fetching rewards:', error)
+      } finally {
+        setIsLoadingRewards(false)
+      }
+    }
+
+    fetchRewards()
+  }, [currentUser])
+
+  // Calculate discount based on selected reward
+  const calculateRewardDiscount = () => {
+    if (!selectedReward) return 0
+
+    const rewardSnapshot = selectedReward.rewardSnapshot
+    const type = rewardSnapshot.type
+    const value = rewardSnapshot.value
+
+    if (type === 'credit' || type === 'referral') {
+      return Math.min(value, totalAmount)
+    }
+
+    if (['discount', 'service_discount', 'combo'].includes(type)) {
+      const serviceId = rewardSnapshot.serviceId
+      const serviceIds = rewardSnapshot.serviceIds || []
+
+      if (serviceId || serviceIds.length > 0) {
+        // Apply only to specific services in cart
+        const applicableTotal = items
+          .filter(
+            (item) =>
+              item.serviceId === serviceId?.toString() ||
+              serviceIds.some((id) => id.toString() === item.serviceId)
+          )
+          .reduce((sum, item) => sum + item.totalPrice, 0)
+
+        let discount = (applicableTotal * value) / 100
+        if (rewardSnapshot.maxValue && discount > rewardSnapshot.maxValue) {
+          discount = rewardSnapshot.maxValue
+        }
+        return discount
+      } else {
+        // Apply to all items
+        let discount = (totalAmount * value) / 100
+        if (rewardSnapshot.maxValue && discount > rewardSnapshot.maxValue) {
+          discount = rewardSnapshot.maxValue
+        }
+        return discount
+      }
+    }
+
+    if (type === 'service' || type === 'free_service') {
+      const serviceId = rewardSnapshot.serviceId
+      const serviceIds = rewardSnapshot.serviceIds || []
+
+      const applicableItems = items.filter(
+        (item) =>
+          item.serviceId === serviceId?.toString() ||
+          serviceIds.some((id) => id.toString() === item.serviceId)
+      )
+
+      if (applicableItems.length > 0) {
+        const freeItem = applicableItems.reduce((prev, curr) =>
+          prev.totalPrice > curr.totalPrice ? prev : curr
+        )
+        return freeItem.totalPrice
+      }
+    }
+
+    return 0
+  }
+
+  const rewardDiscount = calculateRewardDiscount()
+  const totalWithDiscount = Math.max(0, totalAmount - rewardDiscount)
+  const platformFee = totalWithDiscount * 0.1
+  const finalTotal = totalWithDiscount + platformFee
 
   const handleRemoveItem = (itemId) => {
     dispatch(removeFromCart(itemId))
@@ -67,6 +166,7 @@ const CartPage = () => {
       const response = await stripeService.createCheckoutSession({
         items: cartItems,
         locationId: currentUser.selectedLocation.locationId,
+        userRewardId: selectedReward?._id,
       })
 
       if (response.success && response.sessionUrl) {
@@ -236,20 +336,68 @@ const CartPage = () => {
                 Order Summary
               </h3>
 
-              <div className='space-y-3 mb-6'>
+              <div className='space-y-4 mb-6'>
                 <div className='flex justify-between text-gray-600'>
                   <span>Subtotal ({totalItems} items)</span>
                   <span>${totalAmount.toFixed(2)}</span>
                 </div>
-                <div className='flex justify-between text-gray-600'>
-                  <span>Platform Fee (10%)</span>
-                  <span>${(totalAmount * 0.1).toFixed(2)}</span>
+
+                {/* Rewards Section */}
+                <div className='border-t border-gray-50 pt-3'>
+                  <div className='flex items-center gap-2 mb-3'>
+                    <Gift className='w-4 h-4 text-pink-500' />
+                    <span className='text-sm font-bold text-gray-900 uppercase tracking-wider'>
+                      Apply Rewards
+                    </span>
+                  </div>
+
+                  {availableRewards.length > 0 ? (
+                    <div className='space-y-2'>
+                      <div className='relative'>
+                        <select
+                          className='w-full pl-3 pr-10 py-2 text-sm border border-gray-200 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all font-medium text-gray-700'
+                          value={selectedReward?._id || ''}
+                          onChange={(e) => {
+                            const reward = availableRewards.find(
+                              (r) => r._id === e.target.value
+                            )
+                            setSelectedReward(reward || null)
+                          }}
+                        >
+                          <option value=''>Select a reward...</option>
+                          {availableRewards.map((reward) => (
+                            <option key={reward._id} value={reward._id}>
+                              {reward.rewardSnapshot.name} (Value:{' '}
+                              {reward.rewardSnapshot.displayValue})
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className='absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
+                      </div>
+                      {rewardDiscount > 0 && (
+                        <div className='flex justify-between text-pink-600 text-sm font-semibold'>
+                          <span>Reward Discount</span>
+                          <span>-${rewardDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className='text-xs text-gray-500 italic'>
+                      No active rewards available
+                    </p>
+                  )}
                 </div>
+
+                <div className='flex justify-between text-gray-600 pt-3 border-t border-gray-50'>
+                  <span>Platform Fee (10%)</span>
+                  <span>${platformFee.toFixed(2)}</span>
+                </div>
+
                 <div className='border-t pt-3'>
                   <div className='flex justify-between text-lg font-bold text-gray-900'>
                     <span>Total</span>
                     <span className='text-green-600'>
-                      ${(totalAmount * 1.1).toFixed(2)}
+                      ${finalTotal.toFixed(2)}
                     </span>
                   </div>
                 </div>

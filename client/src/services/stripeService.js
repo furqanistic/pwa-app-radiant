@@ -60,10 +60,14 @@ const stripeService = {
   /**
    * Create a checkout session for booking with payment
    */
-  createCheckoutSession: async (bookingData) => {
+  createCheckoutSession: async ({ items, locationId, userRewardId }) => {
     const response = await axiosInstance.post(
-      'stripe/payment/create-checkout-session',
-      bookingData
+      'stripe/create-checkout-session',
+      {
+        items,
+        locationId,
+        userRewardId,
+      }
     )
     return response.data
   },

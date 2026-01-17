@@ -1,33 +1,35 @@
 // File: client/src/pages/Management/ServiceManagementPage.jsx
 // Complete ServiceManagementPage with all fixes
 import {
-  useCategories,
-  useCreateCategory,
-  useCreateService,
-  useDeleteCategory,
-  useDeleteService,
-  useServices,
-  useUpdateCategory,
-  useUpdateService,
+    useCategories,
+    useCreateCategory,
+    useCreateService,
+    useDeleteCategory,
+    useDeleteService,
+    useServices,
+    useUpdateCategory,
+    useUpdateService,
 } from '@/hooks/useServices'
 import {
-  ArrowLeft,
-  CheckCircle,
-  ChevronRight,
-  Clock,
-  DollarSign,
-  Edit3,
-  Eye,
-  Layers,
-  Percent,
-  Plus,
-  Save,
-  Search,
-  Settings,
-  Star,
-  Trash2,
-  X,
-  Zap,
+    ArrowLeft,
+    CheckCircle,
+    ChevronRight,
+    Clock,
+    DollarSign,
+    Edit3,
+    Eye,
+    Layers,
+    LayoutGrid,
+    List,
+    Percent,
+    Plus,
+    Save,
+    Search,
+    Settings,
+    Star,
+    Trash2,
+    X,
+    Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -135,6 +137,9 @@ const ServiceSelectionModal = ({
               <X className='w-5 h-5' />
             </button>
           </div>
+          <p className='text-sm text-gray-600 mb-4'>
+            Link other services that clients can add to their booking for an enhanced experience and increased booking value.
+          </p>
 
           {/* Search */}
           <div className='relative'>
@@ -492,68 +497,77 @@ const ServiceHeader = ({
   totalServices,
   activeServices,
 }) => (
-  <div className='bg-white rounded-lg p-6 mb-6'>
-    <div className='flex flex-col md:flex-row md:items-center justify-between mb-6'>
-      <div className='flex items-center mb-4 md:mb-0'>
+  <div className='relative bg-white/60 backdrop-blur-md border border-white/20 rounded-2xl p-4 md:p-6 mb-4 md:mb-8 shadow-sm overflow-hidden'>
+    {/* Decorative background element */}
+    <div className='absolute -top-24 -right-24 w-48 h-48 bg-pink-100/50 rounded-full blur-3xl pointer-events-none' />
+    
+    <div className='relative flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-6 mb-4 md:mb-8'>
+      <div className='flex items-start gap-3 md:gap-4'>
+        <div className='bg-gradient-to-br from-pink-500 to-rose-600 p-2 md:p-3 rounded-lg md:rounded-xl shadow-lg shadow-pink-200 shrink-0'>
+          <Settings className='w-5 h-5 md:w-6 md:h-6 text-white' />
+        </div>
         <div>
-          <h1 className='text-2xl md:text-3xl font-bold text-gray-900'>
+          <h1 className='text-xl md:text-3xl font-extrabold text-gray-900 tracking-tight leading-tight'>
             Service Management
           </h1>
-          <p className='text-gray-600 text-sm'>
-            Create and manage your spa services
+          <p className='text-gray-500 text-xs md:text-sm font-medium mt-0.5 md:mt-1'>
+            Manage your professional services
           </p>
-          <div className='flex items-center gap-4 mt-1'>
-            <span className='text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full'>
-              {activeServices} Active
-            </span>
-            <span className='text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full'>
-              {totalServices} Total
-            </span>
+          <div className='flex items-center gap-2 mt-2'>
+            <div className='flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm'>
+              <span className='w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse' />
+              <span className='text-[10px] font-bold uppercase tracking-wider'>{activeServices} Active</span>
+            </div>
+            <div className='flex items-center px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-100 shadow-sm'>
+              <span className='text-[10px] font-bold uppercase tracking-wider'>{totalServices} Total</span>
+            </div>
           </div>
         </div>
       </div>
 
       <button
         onClick={onAddService}
-        className='bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 h-8 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 flex items-center justify-center gap-2'
+        className='group relative bg-gradient-to-r from-pink-500 to-rose-600 text-white px-5 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl font-bold hover:shadow-xl hover:shadow-pink-200 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 overflow-hidden text-sm md:text-base'
       >
-        <Plus className='w-5 h-5' />
-        <span className='hidden sm:inline'>Add New Service</span>
-        <span className='sm:hidden'>Add Service</span>
+        <div className='absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300' />
+        <Plus className='w-4 h-4 md:w-5 md:h-5 relative z-10' />
+        <span className='relative z-10'>Add New Service</span>
       </button>
     </div>
 
-    <div className='flex flex-col md:flex-row gap-4'>
-      <div className='flex-1 relative'>
-        <Search className='absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
+    <div className='relative flex flex-col md:flex-row items-center gap-3'>
+      <div className='w-full md:flex-1 relative group'>
+        <Search className='absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition-colors w-4 h-4 md:w-5 md:h-5' />
         <input
           type='text'
           placeholder='Search services...'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className='w-full pl-12 pr-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+          className='w-full pl-10 pr-4 py-2 bg-gray-50/50 border border-gray-200 rounded-lg md:rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all text-sm md:text-gray-700 placeholder-gray-400 font-medium'
         />
       </div>
 
-      <div className='flex gap-2'>
+      <div className='flex bg-gray-100/80 p-1 rounded-lg md:rounded-xl border border-gray-200 w-full md:w-auto h-[40px] md:h-[46px]'>
         <button
           onClick={() => setView('grid')}
-          className={`px-4 h-8 rounded-lg font-semibold flex items-center justify-center ${
+          className={`flex-1 md:w-24 rounded-md md:rounded-lg text-[11px] md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 md:gap-2 ${
             view === 'grid'
-              ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-white text-gray-900 shadow-sm md:shadow-md transform scale-[1.01] md:scale-[1.02]'
+              : 'text-gray-500 hover:text-gray-700'
           }`}
         >
+          <LayoutGrid className='w-3.5 h-3.5 md:w-4 md:h-4' />
           Grid
         </button>
         <button
           onClick={() => setView('list')}
-          className={`px-4 h-8 rounded-lg font-semibold flex items-center justify-center ${
+          className={`flex-1 md:w-24 rounded-md md:rounded-lg text-[11px] md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 md:gap-2 ${
             view === 'list'
-              ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-white text-gray-900 shadow-sm md:shadow-md transform scale-[1.01] md:scale-[1.02]'
+              : 'text-gray-500 hover:text-gray-700'
           }`}
         >
+          <List className='w-3.5 h-3.5 md:w-4 md:h-4' />
           List
         </button>
       </div>
@@ -1009,7 +1023,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
   return (
     <Layout>
-      <div className='px-4 py-6 space-y-6 max-w-4xl mx-auto'>
+      <div className='px-4 py-6 space-y-6 max-w-6xl mx-auto'>
         {/* Header */}
         <div className='bg-white rounded-lg p-6'>
           <div className='flex items-center mb-4'>
@@ -1026,8 +1040,8 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               </h1>
               <p className='text-gray-600 text-sm'>
                 {service
-                  ? 'Update service details'
-                  : 'Add a new service offering'}
+                  ? 'Update your service details, pricing, and add-on options to keep your offerings up to date.'
+                  : 'Add a new service to your menu. Provide clear details to help clients understand what is included.'}
               </p>
             </div>
           </div>
@@ -1073,6 +1087,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                 placeholder='e.g., Dermal Filler Treatment'
                 disabled={isSubmitting}
               />
+              <p className='text-[10px] text-gray-500 mt-1'>This is how the service will appear to your clients in the booking menu.</p>
               {errors.name && (
                 <p className='text-red-500 text-xs mt-1'>{errors.name}</p>
               )}
@@ -1111,6 +1126,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                   <Settings className='w-5 h-5' />
                 </button>
               </div>
+              <p className='text-[10px] text-gray-500 mt-1'>Select a category or add a new one by clicking the settings icon.</p>
               {errors.categoryId && (
                 <p className='text-red-500 text-xs mt-1'>{errors.categoryId}</p>
               )}
@@ -1137,6 +1153,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                 step='0.01'
                 disabled={isSubmitting}
               />
+              <p className='text-[10px] text-gray-500 mt-1'>The starting price for this service. Variations can be added below.</p>
               {errors.basePrice && (
                 <p className='text-red-500 text-xs mt-1'>{errors.basePrice}</p>
               )}
@@ -1162,6 +1179,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                 min='1'
                 disabled={isSubmitting}
               />
+              <p className='text-[10px] text-gray-500 mt-1'>Default time slot reserved for this service.</p>
               {errors.duration && (
                 <p className='text-red-500 text-xs mt-1'>{errors.duration}</p>
               )}
@@ -1212,8 +1230,9 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
           <div className='mt-6'>
             <label className='block text-sm font-semibold text-gray-700 mb-2'>
-              Description *
+              Brief Description *
             </label>
+            <p className='text-xs text-gray-500 mb-2'>Provide a clear summary of what this service involves and what clients can expect.</p>
             <textarea
               value={formData.description}
               onChange={(e) =>
@@ -1278,6 +1297,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               >
                 Enable promotional discount
               </label>
+              <p className='text-xs text-gray-500 mt-1 ml-8'>Offer a limited-time price reduction to attract more bookings for this service.</p>
             </div>
 
             {formData.discount.active && (
@@ -1364,10 +1384,13 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               disabled={isSubmitting}
             >
               <Plus className='w-4 h-4' />
-              <span className='hidden sm:inline'>Add Treatment</span>
+              <span className='hidden sm:inline'>Add Option</span>
               <span className='sm:hidden'>Add</span>
             </button>
           </div>
+          <p className='text-sm text-gray-600 mb-6'>
+            Define different variations or levels of this service (e.g., Standard vs Luxury, or different product volumes).
+          </p>
 
           <div className='space-y-4'>
             {formData.subTreatments.length === 0 ? (
@@ -1497,6 +1520,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               <p className='text-sm text-gray-600'>
                 Link other services as upsell opportunities
               </p>
+              <p className='text-xs text-gray-500 mt-1'>These will be suggested to clients during booking. Note: You must create individual services before linking them here.</p>
             </div>
             <button
               onClick={() => setShowServiceModal(true)}
@@ -1859,7 +1883,7 @@ const ServiceManagementPage = () => {
 
   return (
     <Layout>
-      <div className='px-4 py-6 max-w-7xl mx-auto'>
+      <div className='px-4 py-6 max-w-[1600px] mx-auto'>
         <ServiceHeader
           view={view}
           setView={setView}
@@ -1871,7 +1895,7 @@ const ServiceManagementPage = () => {
         />
 
         {view === 'grid' ? (
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
             {filteredServices.map((service) => (
               <ServiceCard
                 key={service._id}
@@ -1884,108 +1908,169 @@ const ServiceManagementPage = () => {
             ))}
           </div>
         ) : (
-          <div className='bg-white rounded-lg p-6'>
-            <div className='space-y-4'>
-              {filteredServices.map((service) => (
-                <div
-                  key={service._id}
-                  className='flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-pink-300 hover:bg-pink-50 transition-all'
-                >
-                  <img
-                    src={
-                      service.image ||
-                      'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=500&h=300&fit=crop'
-                    }
-                    alt={service.name}
-                    className='w-16 h-16 rounded-lg object-cover'
-                  />
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-center gap-2 mb-1'>
-                      <h3 className='font-bold text-gray-900 truncate'>
-                        {service.name}
-                      </h3>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-bold ${
-                          service.status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
-                        {service.status}
-                      </span>
-                    </div>
-                    <p className='text-sm text-gray-600 line-clamp-1 mb-2'>
-                      {service.description}
-                    </p>
-                    <div className='flex items-center gap-4'>
-                      <span className='text-sm text-green-600 font-semibold'>
-                        ${service.basePrice}
-                      </span>
-                      <span className='text-sm text-blue-600'>
-                        {service.duration}min
-                      </span>
-                      <span className='text-sm text-purple-600'>
-                        {service.subTreatments?.length || 0} options
-                      </span>
-                      <span className='text-sm text-pink-600'>
-                        {service.linkedServicesCount ||
-                          service.linkedServices?.length ||
-                          0}{' '}
-                        add-ons
-                      </span>
-                      {service.categoryId && (
-                        <span className='text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full'>
-                          {typeof service.categoryId === 'object'
-                            ? service.categoryId.name
-                            : getCategoryById(service.categoryId)?.name}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Show add-ons preview in list view */}
-                    {service.linkedServices &&
-                      service.linkedServices.length > 0 && (
-                        <div className='mt-2 pt-2 border-t border-gray-100'>
-                          <div className='text-xs text-gray-600'>
-                            <span className='font-semibold'>Add-ons: </span>
-                            {service.linkedServices
-                              .slice(0, 3)
-                              .map((addon, index) => (
-                                <span key={index}>
-                                  {addon.name} (+$
-                                  {addon.finalPrice ||
-                                    addon.customPrice ||
-                                    addon.basePrice}
-                                  )
-                                  {index <
-                                  Math.min(2, service.linkedServices.length - 1)
-                                    ? ', '
-                                    : ''}
-                                </span>
-                              ))}
-                            {service.linkedServices.length > 3 && (
-                              <span className='text-gray-500'>
-                                {' '}
-                                +{service.linkedServices.length - 3} more
-                              </span>
-                            )}
+          <div className='bg-white/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-sm overflow-hidden'>
+            {/* PC Table View */}
+            <div className='hidden md:block overflow-x-auto'>
+              <table className='w-full border-collapse min-w-[1000px]'>
+                <thead>
+                  <tr className='bg-gray-50/50 border-b border-gray-200'>
+                    <th className='px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider'>Service</th>
+                    <th className='px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider'>Category</th>
+                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Price</th>
+                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Duration</th>
+                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Options</th>
+                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Add-ons</th>
+                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Status</th>
+                    <th className='px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap'>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className='divide-y divide-gray-100'>
+                  {filteredServices.map((service) => (
+                    <tr 
+                      key={service._id}
+                      className='group hover:bg-pink-50/30 transition-all duration-200'
+                    >
+                      <td className='px-6 py-4'>
+                        <div className='flex items-center gap-3'>
+                          <img
+                            src={service.image || 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=100&fit=crop'}
+                            alt={service.name}
+                            className='w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0'
+                          />
+                          <div className='min-w-0'>
+                            <div className='font-bold text-gray-900 truncate' title={service.name}>
+                              {service.name}
+                            </div>
+                            <div className='text-[10px] text-gray-400 line-clamp-1 italic'>
+                              {service.description || 'No description provided.'}
+                            </div>
                           </div>
                         </div>
-                      )}
+                      </td>
+
+                      <td className='px-6 py-4'>
+                        <div className='text-sm text-gray-600 font-medium whitespace-nowrap'>
+                          {typeof service.categoryId === 'object'
+                            ? service.categoryId.name
+                            : getCategoryById(service.categoryId)?.name || 'Uncategorized'}
+                        </div>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <div className='font-bold text-gray-900'>${service.basePrice}</div>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <div className='text-sm font-semibold text-gray-600'>{service.duration}m</div>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <span className='inline-flex px-2 py-0.5 bg-purple-50 text-purple-600 rounded-md text-[10px] font-bold border border-purple-100'>
+                          {service.subTreatments?.length || 0}
+                        </span>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <span className='inline-flex px-2 py-0.5 bg-pink-50 text-pink-600 rounded-md text-[10px] font-bold border border-pink-100'>
+                          {service.linkedServicesCount || service.linkedServices?.length || 0}
+                        </span>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-sm ${
+                          service.status === 'active'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            : 'bg-gray-50 text-gray-600 border-gray-100'
+                        }`}>
+                          {service.status}
+                        </span>
+                      </td>
+
+                      <td className='px-6 py-4 text-right'>
+                        <div className='flex justify-end gap-1'>
+                          <button
+                            onClick={() => handleEditService(service)}
+                            className='p-2 text-gray-400 hover:text-pink-600 hover:bg-white rounded-lg transition-all shadow-sm border border-transparent hover:border-pink-100'
+                          >
+                            <Edit3 className='w-4 h-4' />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteService(service)}
+                            className='p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-all shadow-sm border border-transparent hover:border-red-100'
+                            disabled={deleteServiceMutation.isPending}
+                          >
+                            <Trash2 className='w-4 h-4' />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View (Organized Cards) */}
+            <div className='md:hidden divide-y divide-gray-100'>
+              {filteredServices.map((service) => (
+                <div key={service._id} className='p-5 space-y-4 bg-white'>
+                  <div className='flex items-center gap-4'>
+                    <img
+                      src={service.image || 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=200&fit=crop'}
+                      alt={service.name}
+                      className='w-14 h-14 rounded-xl object-cover border border-gray-100 shadow-sm shrink-0'
+                    />
+                    <div className='min-w-0 flex-1'>
+                      <h3 className='font-bold text-gray-900 text-base leading-tight truncate'>{service.name}</h3>
+                      <div className={`mt-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border w-fit ${
+                        service.status === 'active'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                          : 'bg-gray-50 text-gray-600 border-gray-100'
+                      }`}>
+                        {service.status}
+                      </div>
+                    </div>
                   </div>
-                  <div className='flex gap-2'>
+
+                  <div className='grid grid-cols-2 gap-px bg-gray-100 border border-gray-100 rounded-xl overflow-hidden shadow-sm'>
+                    <div className='bg-white p-3 flex flex-col'>
+                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Category</span>
+                      <span className='text-[13px] font-bold text-gray-700 mt-1 truncate'>
+                        {typeof service.categoryId === 'object'
+                          ? service.categoryId.name
+                          : getCategoryById(service.categoryId)?.name || 'N/A'}
+                      </span>
+                    </div>
+                    <div className='bg-white p-3 flex flex-col'>
+                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Price</span>
+                      <span className='text-[13px] font-bold text-emerald-600 mt-1'>${service.basePrice}</span>
+                    </div>
+                    <div className='bg-white p-3 flex flex-col'>
+                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Time</span>
+                      <span className='text-[13px] font-bold text-blue-600 mt-1'>{service.duration} min</span>
+                    </div>
+                    <div className='bg-white p-3 flex flex-col'>
+                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Add-ons</span>
+                      <span className='text-[13px] font-bold text-pink-600 mt-1'>
+                        {service.linkedServicesCount || service.linkedServices?.length || 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className='flex gap-2.5 pt-1'>
                     <button
                       onClick={() => handleEditService(service)}
-                      className='p-2 text-pink-600 hover:bg-pink-50 rounded-lg'
+                      className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-50 text-gray-700 rounded-xl font-bold text-xs border border-gray-200 active:scale-95 transition-all'
                     >
-                      <Edit3 className='w-4 h-4' />
+                      <Edit3 className='w-4 h-4 text-pink-500' />
+                      Edit Details
                     </button>
                     <button
                       onClick={() => handleDeleteService(service)}
-                      className='p-2 text-red-600 hover:bg-red-50 rounded-lg'
+                      className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 text-red-600 rounded-xl font-bold text-xs border border-red-100 active:scale-95 transition-all'
                       disabled={deleteServiceMutation.isPending}
                     >
-                      <Trash2 className='w-4 h-4' />
+                      <Trash2 className='w-4 h-4 text-red-500' />
+                      Delete
                     </button>
                   </div>
                 </div>

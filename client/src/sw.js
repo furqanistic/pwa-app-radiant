@@ -8,12 +8,11 @@ import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategi
 precacheAndRoute(self.__WB_MANIFEST);
 
 const CACHE_NAME = 'radiantai-v1'
-const OFFLINE_URL = './offline.html'
+
 
 // Essential files to cache for manual tracking if needed (optional since precacheAndRoute handles build assets)
 const urlsToCache = [
   '/',
-  './offline.html',
   '/manifest.json',
   '/favicon_io/android-chrome-192x192.png',
   '/favicon_io/android-chrome-512x512.png',
@@ -62,14 +61,7 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim()
 })
 
-// Custom Fetch for Offline Page Fallback (if not handled by workbox)
-self.addEventListener('fetch', (event) => {
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(OFFLINE_URL))
-    );
-  }
-});
+
 
 // Handle messages from client
 self.addEventListener('message', (event) => {
