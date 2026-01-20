@@ -469,7 +469,7 @@ export const createCheckoutSession = async (req, res, next) => {
       const cancelUrl = `${process.env.CLIENT_URL}/cart`
 
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
+        payment_method_types: ['card', 'afterpay_clearpay'],
         line_items: lineItems,
         mode: 'payment',
         success_url: successUrl,
@@ -607,7 +607,7 @@ export const createCheckoutSession = async (req, res, next) => {
     const cancelUrl = `${process.env.CLIENT_URL}/services/${serviceId}`
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      payment_method_types: ['card', 'afterpay_clearpay'],
       line_items: [
         {
           price_data: {
@@ -731,6 +731,9 @@ export const createPaymentIntent = async (req, res, next) => {
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: 'usd',
+      automatic_payment_methods: {
+        enabled: true,
+      },
       transfer_data: {
         destination: spaOwner.stripe.accountId,
       },
@@ -754,6 +757,7 @@ export const createPaymentIntent = async (req, res, next) => {
       booking: bookingId || null,
       amount,
       currency: 'usd',
+
       subtotal: Math.round(subtotal * 100),
       discount,
       tax: { amount: tax, rate: 0 },
