@@ -7,19 +7,20 @@ import { usePastBookings, useUpcomingBookings } from "@/hooks/useBookings";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import Layout from "@/pages/Layout/Layout";
 import { clearCart, removeFromCart } from "@/redux/cartSlice";
-import { useQueryClient } from "@tanstack/react-query";
+import { notificationService } from "@/services/notificationService";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
-  Bell,
-  BellRing,
-  Calendar,
-  CheckCircle,
-  ChevronRight,
-  Clock,
-  Edit2,
-  MapPin,
-  ShoppingBag,
-  Trash2,
+    AlertTriangle,
+    Bell,
+    BellRing,
+    Calendar,
+    CheckCircle,
+    ChevronRight,
+    Clock,
+    Edit2,
+    MapPin,
+    ShoppingBag,
+    Trash2,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -243,6 +244,17 @@ const BookingsPage = () => {
     isLoading: pastLoading 
   } = usePastBookings(currentUser?._id);
 
+  // ✅ Fetch notifications to check for birthday gift
+  const { data: notificationsData } = useQuery({
+    queryKey: ['notifications', 'birthday-check'],
+    queryFn: () => notificationService.getUserNotifications({ unreadOnly: true }),
+    enabled: !!currentUser,
+  });
+
+  const birthdayNotification = notificationsData?.data?.notifications?.find(
+    (n) => n.metadata?.isBirthdayGift && !n.read
+  );
+
   const upcomingBookings = upcomingData?.data?.appointments || [];
   const pastBookings = pastData?.data?.visits || [];
   
@@ -397,6 +409,37 @@ const BookingsPage = () => {
             </div>
         </div>
 
+
+        {/* Birthday Gift Banner */}
+        {birthdayNotification && (
+          <div className="mb-6 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl shadow-purple-100 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl group-hover:scale-110 transition-transform duration-500" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-white/20 rounded-2xl backdrop-blur-md">
+                   <Gift className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-lg font-black tracking-tight">{birthdayNotification.title}</h3>
+              </div>
+              <p className="text-sm text-purple-50 font-medium mb-5 opacity-90 leading-relaxed">
+                {birthdayNotification.message}
+              </p>
+              <button 
+                onClick={() => navigate(`/services/${birthdayNotification.metadata?.serviceId}`, { 
+                  state: { 
+                    isBirthdayGift: true,
+                    notificationId: birthdayNotification._id,
+                    giftType: birthdayNotification.metadata?.giftType,
+                    giftValue: birthdayNotification.metadata?.giftValue
+                  } 
+                })}
+                className="w-full sm:w-auto bg-white text-purple-600 font-black px-8 py-3.5 rounded-2xl active:scale-95 transition-all shadow-lg hover:shadow-xl hover:bg-purple-50 flex items-center justify-center gap-2"
+              >
+                Claim My Gift <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Push Notification Banner - nicely integrated if needed */}
         {isSupported && !isSubscribed && permission === 'default' && (

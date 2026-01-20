@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useAvailability, useUpdateAvailability } from "@/hooks/useAvailability";
 import { authService } from "@/services/authService";
+
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -33,6 +34,7 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
   // Initialize with current user's hours or defaults
   const [schedule, setSchedule] = useState({});
 
+
   // Fetch fresh user data to get current hours
   const { data: userData } = useQuery({
     queryKey: ["currentUser", currentUser?._id],
@@ -40,8 +42,10 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
     enabled: !!currentUser,
   });
 
+
+
   useEffect(() => {
-    // Prefer fetched data, fallback to redux, then defaults
+    // Prefer fetched data for business hours
     const sourceUser = userData?.data || currentUser;
     
     if (sourceUser?.spaLocation?.businessHours) {
@@ -54,6 +58,7 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
         });
         setSchedule(defaults);
     }
+
   }, [userData, currentUser]);
 
   const handleDayChange = (day, field, value) => {
@@ -106,7 +111,9 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await updateAvailability.mutateAsync(schedule);
+      await updateAvailability.mutateAsync({
+        businessHours: schedule,
+      });
       toast.success("Availability updated successfully!");
       onClose();
     } catch (error) {
@@ -178,6 +185,8 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
                     9:00 AM - 5:00 PM
                 </Button>
               </div>
+
+
 
               <form onSubmit={handleSubmit} className="space-y-3">
                 {DAYS.map((day) => {

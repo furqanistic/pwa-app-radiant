@@ -20,6 +20,7 @@ import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
 import stripeRoutes from './routes/stripe.js'; // STRIPE INTEGRATION
 import userRewardsRouter from './routes/userRewards.js'
+import { initScheduler } from './utils/scheduler.js'
 
 
 const app = express()
@@ -101,6 +102,7 @@ const connect = () => {
     .connect(process.env.MONGO)
     .then(() => {
       console.log('Connected to MongoDB')
+      initScheduler()
     })
     .catch((err) => console.log(err))
 }

@@ -9,6 +9,12 @@ export const locationService = {
     return response.data
   },
 
+  // Get my location (Team/Manager)
+  getMyLocation: async () => {
+    const response = await axiosInstance.get("/locations/my-location");
+    return response.data;
+  },
+
   // Admin only functions
   getAllLocations: async (params = {}) => {
     const response = await axiosInstance.get('/locations', { params })

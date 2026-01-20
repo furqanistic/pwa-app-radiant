@@ -5,24 +5,24 @@ import { useAvailability } from "@/hooks/useAvailability";
 import { useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
 import {
-    ArrowLeft,
-    Calendar,
-    Check,
-    CheckCircle,
-    Clock,
-    DollarSign,
-    Info,
-    MapPin,
-    Percent,
-    Plus,
-    Star,
-    User,
-    X,
-    Zap,
+  ArrowLeft,
+  Calendar,
+  Check,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Info,
+  MapPin,
+  Percent,
+  Plus,
+  Star,
+  User,
+  X,
+  Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from 'sonner';
 import { addToCart } from "../../redux/cartSlice";
 import stripeService from "../../services/stripeService";
@@ -30,6 +30,11 @@ import stripeService from "../../services/stripeService";
 const ServiceDetailPage = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isBirthdayGift = location.state?.isBirthdayGift;
+  const birthdayNotificationId = location.state?.notificationId;
+  const giftType = location.state?.giftType || 'free';
+  const giftValue = location.state?.giftValue || 0;
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
   // ✅ GET CART FROM REDUX
@@ -135,6 +140,12 @@ const ServiceDetailPage = () => {
     new Date() <= new Date(service.discount.endDate);
 
   const calculateDiscountedPrice = (price) => {
+    if (isBirthdayGift) {
+      if (giftType === 'free') return 0;
+      if (giftType === 'percentage') return price - (price * giftValue) / 100;
+      if (giftType === 'fixed') return Math.max(0, price - giftValue);
+      return 0;
+    }
     if (isDiscountActive) {
       return price - (price * service.discount.percentage) / 100;
     }
@@ -236,6 +247,8 @@ const ServiceDetailPage = () => {
         price: addon.finalPrice || addon.customPrice || addon.basePrice,
         duration: addon.finalDuration || addon.customDuration || addon.duration,
       })),
+      isBirthdayGift: isBirthdayGift,
+      notificationId: birthdayNotificationId,
     };
 
     dispatch(addToCart(cartItem));
@@ -299,6 +312,8 @@ const ServiceDetailPage = () => {
             addon.finalDuration || addon.customDuration || addon.duration,
         })),
         totalPrice: calculateTotalPrice(),
+        isBirthdayGift: isBirthdayGift,
+        notificationId: birthdayNotificationId
       };
 
       const response = await stripeService.createCheckoutSession(bookingData);
@@ -368,6 +383,11 @@ const ServiceDetailPage = () => {
                   </h1>
 
                   <div className="flex flex-wrap items-center gap-4 text-white/90 text-sm md:text-base font-medium">
+                    {isBirthdayGift && (
+                        <div className="bg-white text-purple-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm animate-pulse">
+                            🎉 Birthday Gift Applied
+                        </div>
+                    )}
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-4 h-4 text-pink-400" />
                       <span>{service.duration} mins</span>

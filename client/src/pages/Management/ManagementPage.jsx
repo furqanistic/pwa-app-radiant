@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 // Import components
 import AddUserForm from "@/components/Management/AddUserForm";
 import AvailabilitySettings from "@/components/Management/AvailabilitySettings"; // Import
+import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
 import LocationForm from "@/components/Management/LocationForm";
 import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
@@ -51,6 +52,7 @@ const ManagementPage = () => {
   const [isLocationAssignmentOpen, setIsLocationAssignmentOpen] =
     useState(false);
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
+  const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [selectedQRLocation, setSelectedQRLocation] = useState(null);
 
   // Permission checks
@@ -211,6 +213,7 @@ const ManagementPage = () => {
             )}
 
             {isTeamOrAbove && (
+              <>
                <Button
                 onClick={() => setIsAvailabilityOpen(true)}
                 className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
@@ -218,6 +221,15 @@ const ManagementPage = () => {
                 <Clock className="w-4 h-4 mr-2" />
                 Availability Settings
               </Button>
+
+               <Button
+                onClick={() => setIsBirthdayGiftOpen(true)}
+                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+              >
+                <Gift className="w-4 h-4 mr-2" />
+                Gift Settings
+              </Button>
+              </>
             )}
 
             {isAdminOrAbove && (
@@ -358,6 +370,12 @@ const ManagementPage = () => {
         <AvailabilitySettings 
           isOpen={isAvailabilityOpen}
           onClose={() => setIsAvailabilityOpen(false)}
+        />
+
+        {/* Birthday Gift Modal */}
+        <BirthdayGiftSettings
+          isOpen={isBirthdayGiftOpen}
+          onClose={() => setIsBirthdayGiftOpen(false)}
         />
 
         {/* QR Code Modal */}

@@ -2,6 +2,7 @@
 import stripe from '../config/stripe.js'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
+import Location from '../models/Location.js'
 import Payment from '../models/Payment.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
@@ -555,28 +556,52 @@ export const createCheckoutSession = async (req, res, next) => {
     // Calculate pricing
     let subtotal = service.basePrice
     let discountAmount = 0
+    let isFreeGift = false;
 
-    // Apply service discount if active
-    if (service.discount?.active && service.discount.percentage > 0) {
-      const now = new Date()
-      const startDate = service.discount.startDate
-        ? new Date(service.discount.startDate)
-        : new Date()
-      const endDate = service.discount.endDate
-        ? new Date(service.discount.endDate)
-        : new Date()
+    // Birthday Gift Redemption Logic
+    if (req.body.isBirthdayGift) {
+      // Fetch the location to get the specific birthday gift configuration
+      const location = await Location.findOne({ 
+        $or: [
+          { _id: service.locationId },
+          { locationId: service.locationId }
+        ]
+      });
 
-      if (now >= startDate && now <= endDate) {
-        discountAmount = (subtotal * service.discount.percentage) / 100
+      if (location?.birthdayGift?.isActive) {
+        const gift = location.birthdayGift;
+        if (gift.giftType === 'free') {
+          isFreeGift = true;
+          discountAmount = subtotal;
+        } else if (gift.giftType === 'percentage') {
+          discountAmount = (subtotal * (gift.value || 0)) / 100;
+        } else if (gift.giftType === 'fixed') {
+          discountAmount = Math.min(gift.value || 0, subtotal);
+        }
       }
-    }
+    } else {
+        // Apply service discount if active
+        if (service.discount?.active && service.discount.percentage > 0) {
+        const now = new Date()
+        const startDate = service.discount.startDate
+            ? new Date(service.discount.startDate)
+            : new Date()
+        const endDate = service.discount.endDate
+            ? new Date(service.discount.endDate)
+            : new Date()
 
-    // Apply points discount
-    if (pointsUsed && pointsUsed > 0) {
-      const customer = await User.findById(customerId)
-      if (customer && customer.points >= pointsUsed) {
-        discountAmount += pointsUsed // $1 per point
-      }
+        if (now >= startDate && now <= endDate) {
+            discountAmount = (subtotal * service.discount.percentage) / 100
+        }
+        }
+
+        // Apply points discount
+        if (pointsUsed && pointsUsed > 0) {
+        const customer = await User.findById(customerId)
+        if (customer && customer.points >= pointsUsed) {
+            discountAmount += pointsUsed // $1 per point
+        }
+        }
     }
 
     // Calculate final amount
@@ -591,7 +616,7 @@ export const createCheckoutSession = async (req, res, next) => {
       servicePrice: subtotal,
       finalPrice,
       discountApplied: discountAmount,
-      rewardUsed: rewardUsed || null,
+      rewardUsed: rewardUsed || (isFreeGift ? 'BIRTHDAY_GIFT' : null),
       pointsUsed: pointsUsed || 0,
       date: new Date(date),
       time,

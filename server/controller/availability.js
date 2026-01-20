@@ -177,7 +177,7 @@ export const getAvailability = async (req, res, next) => {
 
 export const updateAvailability = async (req, res, next) => {
   try {
-    const { businessHours } = req.body
+    const { businessHours, birthdayGift } = req.body
     
     // Only team members can update their location hours
     if (req.user.role !== 'team') {
@@ -185,21 +185,45 @@ export const updateAvailability = async (req, res, next) => {
     }
 
     const user = await User.findById(req.user.id)
-    if (!user.spaLocation) {
+    if (!user.spaLocation || !user.spaLocation.locationId) {
          return next(createError(400, 'No spa location configured'))
     }
 
-    user.spaLocation.businessHours = {
-        ...user.spaLocation.businessHours,
-        ...businessHours
+    // 1. Update Business Hours (on User model)
+    if (businessHours) {
+        user.spaLocation.businessHours = {
+            ...user.spaLocation.businessHours,
+            ...businessHours
+        }
+        await user.save()
     }
 
-    await user.save()
+    // 2. Update Birthday Gift (on Location model)
+    // We need to find the Location document
+    if (birthdayGift) {
+        // Find Location by locationId strings
+        // Based on Location schema: locationId is a String
+        await import('../models/Location.js').then(async ({ default: Location }) => {
+             const location = await Location.findOne({ locationId: user.spaLocation.locationId });
+             if (location) {
+                 // specific fields update to be safe
+                 if (birthdayGift.isActive !== undefined) location.birthdayGift.isActive = birthdayGift.isActive;
+                 if (birthdayGift.serviceId !== undefined) location.birthdayGift.serviceId = birthdayGift.serviceId;
+                 if (birthdayGift.message !== undefined) location.birthdayGift.message = birthdayGift.message;
+                 
+                 await location.save();
+             } else {
+                 console.warn(`Location not found for ID: ${user.spaLocation.locationId}`);
+             }
+        });
+    }
 
     res.status(200).json({
         status: 'success',
         data: {
-            businessHours: user.spaLocation.businessHours
+            businessHours: user.spaLocation.businessHours,
+            // We don't return birthdayGift here unless we fetch it back, but frontend usually optimistically updates
+            message: "Settings updated successfully"
         }
     })
 

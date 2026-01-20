@@ -19,10 +19,8 @@ export const useAvailability = (locationId, date, serviceId) => {
 export const useUpdateAvailability = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (businessHours) => {
-      const response = await axiosInstance.put('/bookings/availability', {
-        businessHours,
-      });
+    mutationFn: async (data) => {
+      const response = await axiosInstance.put('/bookings/availability', data);
       return response.data.data;
     },
     onSuccess: () => {

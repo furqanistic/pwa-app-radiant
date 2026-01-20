@@ -39,6 +39,33 @@ const LocationSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ==================== BIRTHDAY GIFT SETTINGS ====================
+    birthdayGift: {
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      giftType: {
+        type: String,
+        enum: ["free", "percentage", "fixed"],
+        default: "free",
+      },
+      value: {
+        type: Number,
+        default: 0,
+      },
+      serviceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Service",
+        default: null,
+      },
+      message: {
+        type: String,
+        default: "Happy Birthday! Here is a special gift for you.",
+        trim: true,
+      },
+    },
+
     // ==================== QR CODE FIELDS ====================
     // NEW: QR Code data for this location
     qrCode: {

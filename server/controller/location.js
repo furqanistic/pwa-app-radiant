@@ -144,6 +144,39 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
   }
 }
 
+// Get current user's location (Team/Manager only)
+export const getMyLocation = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    // Find user to get location ID
+    // We could also pass locationId in query but it's safer to trust the user profile
+    // However, to avoid circular deps we can just query Location by addedBy if possible?
+    // No, addedBy is good. 
+    // OR fetch user first.
+    
+    // Simpler: Find Location where addedBy = userId OR assume user knows their locationId
+    // Let's use the pattern from availability controller: fetch User
+    // But to avoid importing User (circular dep risk?), let's import it or use mongoose.model
+    // actually location.js doesn't import User.
+    
+    // Alternative: The authenticated user's ID is in req.user.id. 
+    // The Location model has `addedBy` field.
+    const location = await Location.findOne({ addedBy: userId });
+    
+    if (!location) {
+        return next(createError(404, 'No location found for this user'));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { location },
+    })
+  } catch (error) {
+    console.error('Error fetching my location:', error)
+    next(createError(500, 'Failed to fetch my location'))
+  }
+}
+
 // Get active location IDs only (admin only)
 export const getActiveLocationIds = async (req, res, next) => {
   try {
