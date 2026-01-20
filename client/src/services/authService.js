@@ -34,6 +34,7 @@ export const authService = {
       limit: params.limit || 10,
       search: params.search || '',
       role: params.role || 'all',
+      locationId: params.locationId || '', // Filter by location
       sortBy: params.sortBy || 'createdAt',
       sortOrder: params.sortOrder || 'desc',
     }).toString()

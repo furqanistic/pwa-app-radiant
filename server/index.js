@@ -37,6 +37,7 @@ const isOriginAllowed = (origin) => {
     'http://localhost:5173', // Dev
     'https://api.cxrsystems.com',
     'https://app.cxrsystems.com',
+    'https://www.cxrsystems.com',
   ]
 
   // Check if origin is in the specific allowed list

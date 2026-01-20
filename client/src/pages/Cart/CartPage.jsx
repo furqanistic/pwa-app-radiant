@@ -119,8 +119,7 @@ const CartPage = () => {
 
   const rewardDiscount = calculateRewardDiscount()
   const totalWithDiscount = Math.max(0, totalAmount - rewardDiscount)
-  const platformFee = totalWithDiscount * 0.1
-  const finalTotal = totalWithDiscount + platformFee
+  const finalTotal = totalWithDiscount
 
   const handleRemoveItem = (itemId) => {
     dispatch(removeFromCart(itemId))
@@ -388,10 +387,6 @@ const CartPage = () => {
                   )}
                 </div>
 
-                <div className='flex justify-between text-gray-600 pt-3 border-t border-gray-50'>
-                  <span>Platform Fee (10%)</span>
-                  <span>${platformFee.toFixed(2)}</span>
-                </div>
 
                 <div className='border-t pt-3'>
                   <div className='flex justify-between text-lg font-bold text-gray-900'>

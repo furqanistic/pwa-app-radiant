@@ -1,26 +1,26 @@
 // File: client/src/pages/Layout/Layout.jsx
 import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
 import {
-  logout,
-  selectIsElevatedUser,
-  selectIsSuperAdmin,
+    logout,
+    selectIsElevatedUser,
+    selectIsSuperAdmin,
 } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Calendar,
-  CompassIcon,
-  Contact2,
-  Gamepad2,
-  Gift,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Settings,
-  Sparkles,
-  Star,
-  User,
-  Users,
-  X,
+    Calendar,
+    CompassIcon,
+    Contact2,
+    Gamepad2,
+    Gift,
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    Settings,
+    Sparkles,
+    Star,
+    User,
+    Users,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'; // Add useSelector
@@ -142,7 +142,7 @@ const Layout = ({
       label: 'Contacts',
       icon: Contact2,
       href: '/contacts',
-      superAdminOnly: true, // Only super-admin can access
+      elevatedAccessRequired: true, // Visible to super-admin, admin, team, enterprise
     },
     {
       id: 'services',

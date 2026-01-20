@@ -266,7 +266,6 @@ export const createCheckoutSession = async (req, res, next) => {
       const bookings = []
       const lineItems = []
       let totalAmount = 0
-      let totalPlatformFee = 0
       let spaOwnerId = null
 
       // Apply Reward if provided (Cart Checkout)
@@ -422,10 +421,8 @@ export const createCheckoutSession = async (req, res, next) => {
         const itemFinalPrice = Math.max(0, item.price - itemDiscount)
 
         const amount = Math.round(itemFinalPrice * 100) // Convert to cents
-        const platformFee = Math.round(itemFinalPrice * 0.1 * 100)
 
         totalAmount += amount
-        totalPlatformFee += platformFee
 
         // Create temporary booking
         const booking = await Booking.create({
@@ -479,7 +476,6 @@ export const createCheckoutSession = async (req, res, next) => {
         cancel_url: cancelUrl,
         customer_email: req.user.email,
         payment_intent_data: {
-          application_fee_amount: totalPlatformFee,
           transfer_data: {
             destination: checkoutSpaOwner.stripe.accountId,
           },
@@ -586,7 +582,6 @@ export const createCheckoutSession = async (req, res, next) => {
     // Calculate final amount
     const finalPrice = Math.max(subtotal - discountAmount, 0)
     const amount = Math.round(finalPrice * 100) // Convert to cents
-    const platformFee = Math.round(finalPrice * 0.1 * 100) // 10% platform fee
 
     // Create temporary booking record
     const booking = await Booking.create({
@@ -634,7 +629,6 @@ export const createCheckoutSession = async (req, res, next) => {
       cancel_url: cancelUrl,
       customer_email: req.user.email,
       payment_intent_data: {
-        application_fee_amount: platformFee,
         transfer_data: {
           destination: spaOwner.stripe.accountId,
         },
@@ -731,14 +725,12 @@ export const createPaymentIntent = async (req, res, next) => {
     // Calculate final amount
     const discountedAmount = subtotal - discount.amount / 100
     const tax = 0 // TODO: Calculate tax based on location
-    const platformFee = Math.round(discountedAmount * 0.1 * 100) // 10% platform fee
     const amount = Math.round(discountedAmount * 100) // Convert to cents
 
     // Create payment intent with Stripe Connect
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: 'usd',
-      application_fee_amount: platformFee,
       transfer_data: {
         destination: spaOwner.stripe.accountId,
       },
@@ -765,7 +757,7 @@ export const createPaymentIntent = async (req, res, next) => {
       subtotal: Math.round(subtotal * 100),
       discount,
       tax: { amount: tax, rate: 0 },
-      platformFee: { amount: platformFee, percentage: 10 },
+      platformFee: { amount: 0, percentage: 0 },
       status: 'pending',
       pointsEarned: Math.floor(discountedAmount), // 1 point per dollar
     })
@@ -1133,8 +1125,8 @@ async function handleCheckoutSessionCompleted(session) {
         },
         tax: { amount: 0, rate: 0 },
         platformFee: {
-          amount: Math.round(booking.finalPrice * 0.1 * 100),
-          percentage: 10,
+          amount: 0,
+          percentage: 0,
         },
         status: 'succeeded',
         processedAt: new Date(),
@@ -1214,8 +1206,8 @@ async function handleCheckoutSessionCompleted(session) {
     },
     tax: { amount: 0, rate: 0 },
     platformFee: {
-      amount: paymentIntent.application_fee_amount,
-      percentage: 10,
+      amount: 0,
+      percentage: 0,
     },
     status: 'succeeded',
     processedAt: new Date(),

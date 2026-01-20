@@ -413,7 +413,7 @@ const App = () => {
         <Route
           path="/contacts"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
               <ContactsPage />
             </RoleProtectedRoute>
           }
