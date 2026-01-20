@@ -58,6 +58,7 @@ const ContactsPage = () => {
     "super-admin",
   ].includes(currentUser?.role);
   const isAdminOrAbove = ["admin", "super-admin"].includes(currentUser?.role);
+  const isSuperAdmin = currentUser?.role === "super-admin";
 
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
@@ -266,13 +267,15 @@ const ContactsPage = () => {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <Button
-              onClick={() => setIsAddUserOpen(true)}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add User
-            </Button>
+            {isSuperAdmin && (
+              <Button
+                onClick={() => setIsAddUserOpen(true)}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add User
+              </Button>
+            )}
 
             {isElevatedUser && (
               <Button
@@ -429,7 +432,7 @@ const ContactsPage = () => {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {isAdminOrAbove && (
+                                {isSuperAdmin && (
                                   <DropdownMenuItem
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -464,7 +467,7 @@ const ContactsPage = () => {
                                 )}
                                 {(isAdminOrAbove || isElevatedUser) &&
                                   isAdminOrAbove && <DropdownMenuSeparator />}
-                                {isAdminOrAbove && (
+                                {isSuperAdmin && (
                                   <DropdownMenuItem
                                     className="text-red-600"
                                     onClick={(e) => {

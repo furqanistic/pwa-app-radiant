@@ -3,28 +3,31 @@ import { axiosInstance } from '@/config'
 import { authService } from '@/services/authService'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Activity,
-  Award,
-  Calendar,
-  CheckCircle,
-  Clock,
-  Coins,
-  Eye,
-  EyeOff,
-  Gift,
-  History,
-  Loader2,
-  MapPin,
-  RefreshCw,
-  Shield,
-  Sparkles,
-  Star,
-  Target,
-  TrendingUp,
-  Trophy,
-  User,
-  XCircle,
-  Zap,
+    Activity,
+    Award,
+    Calendar,
+    CheckCircle,
+    Clock,
+    Coins,
+    Edit,
+    Eye,
+    EyeOff,
+    Gift,
+    History,
+    Loader2,
+    MapPin,
+    RefreshCw,
+    Save,
+    Shield,
+    Sparkles,
+    Star,
+    Target,
+    TrendingUp,
+    Trophy,
+    User,
+    X,
+    XCircle,
+    Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -43,7 +46,10 @@ const ClientProfile = () => {
   const [activeRewards, setActiveRewards] = useState([])
   const [recentActivity, setRecentActivity] = useState([])
   const [gameStats, setGameStats] = useState({})
-  const [pointsSummary, setPointsSummary] = useState({})
+   const [pointsSummary, setPointsSummary] = useState({})
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ name: '', email: '' })
+  const [isSaving, setIsSaving] = useState(false)
 
   // Check if viewing own profile
   const isOwnProfile = !userId || userId === currentUser?._id
@@ -57,12 +63,15 @@ const ClientProfile = () => {
       const targetUserId = isOwnProfile ? currentUser._id : userId
 
       // Fetch user info
-      if (isOwnProfile) {
+       if (isOwnProfile) {
         setUser(currentUser)
+        setEditForm({ name: currentUser.name, email: currentUser.email })
       } else {
         const userResponse = await authService.getUserProfile(userId)
         if (userResponse.status === 'success') {
-          setUser(userResponse.data.user)
+          const fetchedUser = userResponse.data.user
+          setUser(fetchedUser)
+          setEditForm({ name: fetchedUser.name, email: fetchedUser.email })
         }
       }
 
@@ -128,11 +137,35 @@ const ClientProfile = () => {
     fetchProfileData()
   }, [userId, currentUser, isOwnProfile])
 
-  const handleRefresh = async () => {
+   const handleRefresh = async () => {
     setRefreshing(true)
     await fetchProfileData()
     toast.success('Profile refreshed!')
   }
+
+  const handleSave = async () => {
+    if (!editForm.name.trim() || !editForm.email.trim()) {
+      toast.error('Name and email are required')
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      const response = await authService.updateUser(user._id, editForm)
+      if (response.status === 'success') {
+        setUser(response.data.user)
+        setIsEditing(false)
+        toast.success('User updated successfully')
+      }
+    } catch (error) {
+      console.error('Error updating user:', error)
+      toast.error(error.response?.data?.message || 'Failed to update user')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const isSuperAdmin = currentUser?.role === 'super-admin'
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -215,10 +248,41 @@ const ClientProfile = () => {
                   )}
                 </div>
                 <div>
-                  <h1 className='text-2xl lg:text-3xl font-bold text-gray-900 mb-2'>
-                    {user.name}
-                  </h1>
-                  <p className='text-gray-600 mb-3'>{user.email}</p>
+                  {isEditing ? (
+                    <div className='space-y-3 mb-3'>
+                      <div className='relative'>
+                        <User className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                        <input
+                          type='text'
+                          value={editForm.name}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, name: e.target.value })
+                          }
+                          className='w-full pl-10 pr-4 py-2 border-2 border-pink-100 rounded-xl focus:border-pink-500 outline-none transition-colors'
+                          placeholder='Full Name'
+                        />
+                      </div>
+                      <div className='relative'>
+                        <X className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                        <input
+                          type='email'
+                          value={editForm.email}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, email: e.target.value })
+                          }
+                          className='w-full pl-10 pr-4 py-2 border-2 border-pink-100 rounded-xl focus:border-pink-500 outline-none transition-colors'
+                          placeholder='Email Address'
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <h1 className='text-2xl lg:text-3xl font-bold text-gray-900 mb-2'>
+                        {user.name}
+                      </h1>
+                      <p className='text-gray-600 mb-3'>{user.email}</p>
+                    </>
+                  )}
                   <div className='flex flex-wrap items-center gap-3'>
                     <span className='inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-pink-500 to-rose-500 text-white'>
                       {user.role}
@@ -235,6 +299,42 @@ const ClientProfile = () => {
 
               {/* Quick Actions */}
               <div className='flex items-center gap-3'>
+                {isSuperAdmin && !isOwnProfile && (
+                  <>
+                    {isEditing ? (
+                      <div className='flex items-center gap-2'>
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          className='px-4 py-2 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors'
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSave}
+                          disabled={isSaving}
+                          className='px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white font-semibold flex items-center gap-2 shadow-lg shadow-pink-200 disabled:opacity-50 transition-all hover:scale-105 active:scale-95'
+                        >
+                          {isSaving ? (
+                            <Loader2 className='w-4 h-4 animate-spin' />
+                          ) : (
+                            <Save className='w-4 h-4' />
+                          )}
+                          Save Changes
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className='p-3 rounded-xl border-2 border-pink-100 text-pink-600 hover:bg-pink-50 transition-colors flex items-center gap-2'
+                      >
+                        <Edit className='w-5 h-5' />
+                        <span className='font-semibold hidden sm:inline'>
+                          Edit Profile
+                        </span>
+                      </button>
+                    )}
+                  </>
+                )}
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}
