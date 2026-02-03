@@ -1,11 +1,27 @@
-// File: server/controller/location.js - OPTIMIZED
-import { createError } from '../error.js'
-import Location from '../models/Location.js'
+import { createError } from '../error.js';
+import Location from '../models/Location.js';
+import User from '../models/User.js';
+
+// Helper to transform businessHours array from Location model to object for User model
+const transformHoursFromModel = (hoursArray) => {
+    const hoursObj = {};
+    if (!hoursArray || !Array.isArray(hoursArray)) return hoursObj;
+    
+    hoursArray.forEach(item => {
+        const dayKey = item.day.toLowerCase();
+        hoursObj[dayKey] = {
+            open: item.open || "09:00",
+            close: item.close || "17:00",
+            closed: item.isClosed || false
+        };
+    });
+    return hoursObj;
+}
 
 // Create a new location
 export const createLocation = async (req, res, next) => {
   try {
-    const { locationId, name, description, address, phone } = req.body
+    const { locationId, name, description, address, phone, hours, coordinates } = req.body
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -23,6 +39,8 @@ export const createLocation = async (req, res, next) => {
       description: description?.trim() || '',
       address: address?.trim() || '',
       phone: phone?.trim() || '',
+      hours: hours || [],
+      coordinates: coordinates || { latitude: null, longitude: null },
       addedBy: req.user.id,
     })
 
@@ -41,11 +59,16 @@ export const createLocation = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { locationId, name, description, address, phone, isActive } = req.body
+    const { locationId, name, description, address, phone, hours, isActive, coordinates } = req.body
 
     const location = await Location.findById(id)
     if (!location) {
       return next(createError(404, 'Location not found'))
+    }
+
+    // RBAC: Spa owners can only update their own location
+    if (req.user.role === 'spa' && location.addedBy.toString() !== req.user.id) {
+      return next(createError(403, 'You can only update your own location'))
     }
 
     // If updating locationId, check if new one already exists
@@ -66,16 +89,45 @@ export const updateLocation = async (req, res, next) => {
     if (description !== undefined) updateData.description = description.trim()
     if (address !== undefined) updateData.address = address.trim()
     if (phone !== undefined) updateData.phone = phone.trim()
+    if (hours !== undefined) updateData.hours = hours
     if (isActive !== undefined) updateData.isActive = isActive
+    if (coordinates !== undefined) updateData.coordinates = coordinates
 
     const updatedLocation = await Location.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
     }).populate('addedBy', 'name email')
 
+    // SYNC: Update associated spa users' profiles to match the new source of truth
+    if (updatedLocation) {
+        const spaUsers = await User.find({ 
+            'spaLocation.locationId': updatedLocation.locationId,
+            role: 'spa'
+        });
+
+        if (spaUsers.length > 0) {
+            const syncData = {
+                locationAddress: updatedLocation.address,
+                locationPhone: updatedLocation.phone,
+                coordinates: updatedLocation.coordinates,
+                businessHours: transformHoursFromModel(updatedLocation.hours)
+            };
+
+            await Promise.all(spaUsers.map(async (user) => {
+                user.spaLocation = {
+                    ...user.spaLocation,
+                    ...syncData
+                };
+                user.markModified('spaLocation');
+                return user.save();
+            }));
+            console.log(`Synced ${spaUsers.length} spa user profiles for location ${updatedLocation.locationId}`);
+        }
+    }
+
     res.status(200).json({
       status: 'success',
-      message: 'Location updated successfully',
+      message: 'Location updated successfully and synced with spa members',
       data: { location: updatedLocation },
     })
   } catch (error) {
@@ -92,6 +144,11 @@ export const getAllLocations = async (req, res, next) => {
     const query = {}
     if (isActive !== undefined) {
       query.isActive = isActive === 'true'
+    }
+
+    // RBAC: Spa owners only see their own locations
+    if (req.user.role === 'spa') {
+      query.addedBy = req.user.id
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit)
@@ -126,7 +183,7 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
       isActive: true,
       name: { $ne: '', $exists: true, $ne: null },
     })
-      .select('locationId name address phone')
+      .select('locationId name address phone hours coordinates')
       .sort({ name: 1 })
 
     const validLocations = locations.filter(

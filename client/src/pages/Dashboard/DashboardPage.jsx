@@ -1,4 +1,5 @@
 // File: client/src/pages/Dashboard/DashboardPage.jsx - COMPLETE ENHANCED VERSION
+import ClinicLocations from '@/components/Dashboard/ClinicLocations'
 import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
 import { useDashboardData } from '@/hooks/useDashboard'
@@ -767,6 +768,9 @@ const DashboardPage = () => {
           <SpaRewardsSection />
           <div className='mb-4 sm:mb-6 lg:mb-8'>
             <GamesSection />
+          </div>
+          <div className='mb-4 sm:mb-6 lg:mb-8'>
+            <ClinicLocations />
           </div>
           {/* Need More Points Section - Full Width */}
           {data.pointsEarningMethods && (

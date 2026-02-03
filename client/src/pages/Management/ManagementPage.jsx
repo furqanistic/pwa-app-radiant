@@ -8,6 +8,7 @@ import {
     Building,
     Calendar,
     Clock,
+    Edit2,
     Gift,
     MapPin,
     QrCode,
@@ -49,6 +50,7 @@ const ManagementPage = () => {
   // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isLocationFormOpen, setIsLocationFormOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(null);
   const [isLocationAssignmentOpen, setIsLocationAssignmentOpen] =
     useState(false);
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
@@ -78,7 +80,7 @@ const ManagementPage = () => {
   } = useQuery({
     queryKey: ["locations"],
     queryFn: () => locationService.getAllLocations(),
-    enabled: isAdminOrAbove,
+    enabled: isTeamOrAbove,
   });
 
   // Create user mutation
@@ -219,7 +221,7 @@ const ManagementPage = () => {
                 className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
               >
                 <Clock className="w-4 h-4 mr-2" />
-                Availability Settings
+                {currentUser.role === 'spa' ? 'Edit Location and Time' : 'Availability Settings'}
               </Button>
 
                <Button
@@ -232,23 +234,27 @@ const ManagementPage = () => {
               </>
             )}
 
-            {isAdminOrAbove && (
+            {isTeamOrAbove && (
               <>
-                <Button
-                  onClick={() => setIsLocationFormOpen(true)}
-                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Add Location
-                </Button>
+                {isSuperAdmin && (
+                  <Button
+                    onClick={() => setIsLocationFormOpen(true)}
+                    className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                  >
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Add Location
+                  </Button>
+                )}
 
-                <Button
-                  onClick={() => setIsLocationAssignmentOpen(true)}
-                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
-                >
-                  <UserCheck className="w-4 h-4 mr-2" />
-                  Assign Location
-                </Button>
+                {isAdminOrAbove && (
+                  <Button
+                    onClick={() => setIsLocationAssignmentOpen(true)}
+                    className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                  >
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    Assign Location
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -261,7 +267,7 @@ const ManagementPage = () => {
           )}
 
           {/* Location Management Section */}
-          {isAdminOrAbove && (
+          {isTeamOrAbove && (
             <div className="mt-8 bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">
@@ -338,7 +344,19 @@ const ManagementPage = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(location.createdAt).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditingLocation(location);
+                                setIsLocationFormOpen(true);
+                              }}
+                              className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                              Edit
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -419,25 +437,31 @@ const ManagementPage = () => {
             </DialogContent>
         </Dialog>
 
-        {isAdminOrAbove && (
+        {isTeamOrAbove && (
           <>
             <LocationForm
               isOpen={isLocationFormOpen}
-              onClose={() => setIsLocationFormOpen(false)}
+              initialData={editingLocation || (currentUser.role === 'spa' ? locations[0] : null)}
+              onClose={() => {
+                setIsLocationFormOpen(false);
+                setEditingLocation(null);
+              }}
               onSuccess={() => {
-                toast.success("Location created successfully!");
+                toast.success(editingLocation ? "Location updated successfully!" : "Location created successfully!");
                 refetchLocations();
               }}
             />
 
-            <LocationAssignmentForm
-              isOpen={isLocationAssignmentOpen}
-              onClose={() => setIsLocationAssignmentOpen(false)}
-              onSuccess={() => {
-                queryClient.invalidateQueries(["all-users"]);
-                refetchLocations();
-              }}
-            />
+            {isAdminOrAbove && (
+              <LocationAssignmentForm
+                isOpen={isLocationAssignmentOpen}
+                onClose={() => setIsLocationAssignmentOpen(false)}
+                onSuccess={() => {
+                  queryClient.invalidateQueries(["all-users"]);
+                  refetchLocations();
+                }}
+              />
+            )}
           </>
         )}
       </div>

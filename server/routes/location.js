@@ -12,6 +12,7 @@ import {
     updateLocation,
 } from '../controller/location.js'
 import {
+    checkManagementAccess,
     requireAdminOrAbove,
     verifyToken,
 } from '../middleware/authMiddleware.js'
@@ -23,16 +24,16 @@ const router = express.Router()
 router.get('/active', verifyToken, getActiveLocationsForUsers)
 router.get('/my-location', verifyToken, getMyLocation)
 
-// ALL OTHER routes require admin access
-router.use(verifyToken, requireAdminOrAbove)
+// ALL OTHER routes require management access
+router.use(verifyToken)
 
-// Admin-only CRUD Routes
-router.post('/', createLocation)
-router.get('/', getAllLocations)
-router.get('/active-ids', getActiveLocationIds)
-router.get('/:id', getLocation)
-router.put('/:id', updateLocation)
-router.delete('/:id', deleteLocation)
-router.patch('/:id/toggle-status', toggleLocationStatus)
+// CRUD Routes
+router.post('/', requireAdminOrAbove, createLocation)
+router.get('/', checkManagementAccess, getAllLocations)
+router.get('/active-ids', requireAdminOrAbove, getActiveLocationIds)
+router.get('/:id', checkManagementAccess, getLocation)
+router.put('/:id', checkManagementAccess, updateLocation)
+router.delete('/:id', requireAdminOrAbove, deleteLocation)
+router.patch('/:id/toggle-status', requireAdminOrAbove, toggleLocationStatus)
 
 export default router

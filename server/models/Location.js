@@ -38,6 +38,35 @@ const LocationSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    hours: [
+      {
+        day: {
+          type: String,
+          enum: [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+          ],
+          required: true,
+        },
+        open: {
+          type: String, // e.g., "09:00"
+          default: "09:00",
+        },
+        close: {
+          type: String, // e.g., "17:00"
+          default: "17:00",
+        },
+        isClosed: {
+          type: Boolean,
+          default: false,
+        },
+      },
+    ],
 
     // ==================== BIRTHDAY GIFT SETTINGS ====================
     birthdayGift: {
@@ -108,6 +137,18 @@ const LocationSchema = new mongoose.Schema(
       },
     },
     // ==================== END QR CODE FIELDS ====================
+
+    // NEW: Coordinates for map precision
+    coordinates: {
+      latitude: {
+        type: Number,
+        default: null,
+      },
+      longitude: {
+        type: Number,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,

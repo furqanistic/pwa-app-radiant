@@ -177,11 +177,11 @@ export const getAvailability = async (req, res, next) => {
 
 export const updateAvailability = async (req, res, next) => {
   try {
-    const { businessHours, birthdayGift } = req.body
+    const { businessHours, birthdayGift, address, phone, latitude, longitude } = req.body
     
-    // Only team members can update their location hours
-    if (req.user.role !== 'team') {
-        return next(createError(403, 'Only team members can update availability'))
+    // Permitted roles for managing their own location
+    if (!['spa', 'team'].includes(req.user.role)) {
+        return next(createError(403, 'Only spa owners can update location details'))
     }
 
     const user = await User.findById(req.user.id)
@@ -189,46 +189,89 @@ export const updateAvailability = async (req, res, next) => {
          return next(createError(400, 'No spa location configured'))
     }
 
-    // 1. Update Business Hours (on User model)
+    // 1. Update User Model
     if (businessHours) {
         user.spaLocation.businessHours = {
             ...user.spaLocation.businessHours,
             ...businessHours
         }
-        await user.save()
     }
+    
+    if (address !== undefined) user.spaLocation.locationAddress = address;
+    if (phone !== undefined) user.spaLocation.locationPhone = phone;
+    
+    // CRITICAL: Save coordinates to User model too
+    if (latitude !== undefined || longitude !== undefined) {
+        if (!user.spaLocation.coordinates) user.spaLocation.coordinates = {};
+        if (latitude !== undefined) user.spaLocation.coordinates.latitude = latitude;
+        if (longitude !== undefined) user.spaLocation.coordinates.longitude = longitude;
+    }
+    
+    user.markModified('spaLocation');
+    await user.save()
 
-    // 2. Update Birthday Gift (on Location model)
-    // We need to find the Location document
-    if (birthdayGift) {
-        // Find Location by locationId strings
-        // Based on Location schema: locationId is a String
-        await import('../models/Location.js').then(async ({ default: Location }) => {
-             const location = await Location.findOne({ locationId: user.spaLocation.locationId });
-             if (location) {
-                 // specific fields update to be safe
+    // 2. Update Location model (Source of Truth)
+    await import('../models/Location.js').then(async ({ default: Location }) => {
+         const location = await Location.findOne({ locationId: user.spaLocation.locationId });
+         if (location) {
+             if (businessHours) location.hours = transformHoursForModel(businessHours);
+             if (address !== undefined) location.address = address;
+             if (phone !== undefined) location.phone = phone;
+             
+             if (latitude !== undefined || longitude !== undefined) {
+                 if (!location.coordinates) location.coordinates = {};
+                 if (latitude !== undefined) location.coordinates.latitude = latitude;
+                 if (longitude !== undefined) location.coordinates.longitude = longitude;
+             }
+             
+             if (birthdayGift) {
+                 if (!location.birthdayGift) location.birthdayGift = {};
                  if (birthdayGift.isActive !== undefined) location.birthdayGift.isActive = birthdayGift.isActive;
                  if (birthdayGift.serviceId !== undefined) location.birthdayGift.serviceId = birthdayGift.serviceId;
                  if (birthdayGift.message !== undefined) location.birthdayGift.message = birthdayGift.message;
-                 
-                 await location.save();
-             } else {
-                 console.warn(`Location not found for ID: ${user.spaLocation.locationId}`);
              }
-        });
-    }
+             
+             location.markModified('coordinates');
+             location.markModified('birthdayGift');
+             location.markModified('hours');
+             await location.save();
+         } else {
+             console.warn(`Location not found for ID: ${user.spaLocation.locationId}`);
+         }
+    });
 
     res.status(200).json({
         status: 'success',
         data: {
             businessHours: user.spaLocation.businessHours,
-            // We don't return birthdayGift here unless we fetch it back, but frontend usually optimistically updates
-            message: "Settings updated successfully"
+            location: user.spaLocation,
+            message: "Location and time settings updated successfully"
         }
     })
 
   } catch (error) {
     console.error('Error updating availability:', error)
-    next(createError(500, 'Failed to update availability'))
+    next(createError(500, 'Failed to update location details'))
   }
+}
+
+// Helper to transform businessHours object from User model to Hours array for Location model
+const transformHoursForModel = (hoursObj) => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const dayMap = {
+        'monday': 'Monday',
+        'tuesday': 'Tuesday',
+        'wednesday': 'Wednesday',
+        'thursday': 'Thursday',
+        'friday': 'Friday',
+        'saturday': 'Saturday',
+        'sunday': 'Sunday'
+    };
+    
+    return days.map(day => ({
+        day: dayMap[day],
+        open: hoursObj[day]?.open || "09:00",
+        close: hoursObj[day]?.close || "17:00",
+        isClosed: hoursObj[day]?.closed || false
+    }));
 }

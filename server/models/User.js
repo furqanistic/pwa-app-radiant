@@ -159,6 +159,10 @@ const UserSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      coordinates: {
+        latitude: { type: Number, default: null },
+        longitude: { type: Number, default: null },
+      },
     },
 
     // Stripe Connect Integration (for spa role - spa owners)
