@@ -1,3 +1,4 @@
+import BNPLBanner from '@/components/Common/BNPLBanner'
 import Layout from '@/pages/Layout/Layout'
 import {
     ArrowLeft,
@@ -328,8 +329,8 @@ const CartPage = () => {
             </div>
           </div>
 
-          {/* Summary */}
           <div className='lg:col-span-1'>
+            <BNPLBanner className="mb-4" />
             <div className='bg-white rounded-lg shadow-sm p-6 sticky top-6'>
               <h3 className='text-xl font-bold text-gray-900 mb-6'>
                 Order Summary

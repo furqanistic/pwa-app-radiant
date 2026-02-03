@@ -3,6 +3,7 @@
 
 import CancelBookingModal from "@/components/Bookings/CancelBookingModal";
 import RescheduleModal from "@/components/Bookings/RescheduleModal";
+import BNPLBanner from "@/components/Common/BNPLBanner";
 import { usePastBookings, useUpcomingBookings } from "@/hooks/useBookings";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import Layout from "@/pages/Layout/Layout";
@@ -10,17 +11,17 @@ import { clearCart, removeFromCart } from "@/redux/cartSlice";
 import { notificationService } from "@/services/notificationService";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    AlertTriangle,
-    Bell,
-    BellRing,
-    Calendar,
-    CheckCircle,
-    ChevronRight,
-    Clock,
-    Edit2,
-    MapPin,
-    ShoppingBag,
-    Trash2,
+  AlertTriangle,
+  Bell,
+  BellRing,
+  Calendar,
+  CheckCircle,
+  ChevronRight,
+  Clock,
+  Edit2,
+  MapPin,
+  ShoppingBag,
+  Trash2,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -260,15 +261,15 @@ const BookingsPage = () => {
   
   const isInitialLoading = upcomingLoading && !upcomingData;
 
-  // ✅ Payment success overlay
+  // ✅ Payment success redirection
   useEffect(() => {
     if (sessionId) {
-      setShowSuccessOverlay(true);
+      // Clear cart first
       dispatch(clearCart());
-      const timer = setTimeout(() => setShowSuccessOverlay(false), 3000);
-      return () => clearTimeout(timer);
+      // Redirect to success page
+      navigate(`/booking-success?session_id=${sessionId}`, { replace: true });
     }
-  }, [sessionId, dispatch]);
+  }, [sessionId, dispatch, navigate]);
 
   // ✅ Modal handlers
   const handleCancel = (booking) => {
@@ -345,42 +346,10 @@ const BookingsPage = () => {
   , [allBookings]);
 
 
-  if (isInitialLoading && !showSuccessOverlay) {
-    return (
-      <Layout>
-        <div className="px-5 py-6 max-w-lg mx-auto">
-          <div className="h-8 bg-gray-200 rounded-lg w-1/3 mb-6 animate-pulse"></div>
-          <div className="grid gap-4">
-            {[...Array(3)].map((_, i) => <BookingCardSkeleton key={i} />)}
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
   const isListLoading = (activeTab === 'history' && pastLoading) || (activeTab === 'upcoming' && upcomingLoading);
 
   return (
     <Layout>
-      {/* Success Overlay */}
-      {showSuccessOverlay && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
-                   <CheckCircle className="w-8 h-8" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">Confirmed!</h2>
-              <p className="text-gray-500 mb-6 text-sm">Your appointment is booked successfully.</p>
-              <button
-                onClick={() => setShowSuccessOverlay(false)}
-                className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold"
-              >
-                Okay, great
-              </button>
-          </div>
-        </div>
-      )}
-
       <div className="px-4 py-6 max-w-md mx-auto md:max-w-4xl min-h-[80vh]">
         {/* Header */}
         <div className="mb-6">
@@ -408,6 +377,8 @@ const BookingsPage = () => {
                 </button>
             </div>
         </div>
+
+        <BNPLBanner className="mb-6" />
 
 
         {/* Birthday Gift Banner */}

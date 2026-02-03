@@ -1,24 +1,25 @@
 // File: client/src/pages/Bookings/ServiceDetailPage.jsx
 // ✅ FIXED: Booked times + Cart duplicate prevention
 
+import BNPLBanner from "@/components/Common/BNPLBanner";
 import { useAvailability } from "@/hooks/useAvailability";
 import { useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
 import {
-  ArrowLeft,
-  Calendar,
-  Check,
-  CheckCircle,
-  Clock,
-  DollarSign,
-  Info,
-  MapPin,
-  Percent,
-  Plus,
-  Star,
-  User,
-  X,
-  Zap,
+    ArrowLeft,
+    Calendar,
+    Check,
+    CheckCircle,
+    Clock,
+    DollarSign,
+    Info,
+    MapPin,
+    Percent,
+    Plus,
+    Star,
+    User,
+    X,
+    Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -40,7 +41,7 @@ const ServiceDetailPage = () => {
   // ✅ GET CART FROM REDUX
   const { items: cartItems } = useSelector((state) => state.cart);
 
-  const [selectedTreatment, setSelectedTreatment] = useState(null);
+  const [selectedTreatments, setSelectedTreatments] = useState([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedAddOns, setSelectedAddOns] = useState([]);
@@ -86,14 +87,14 @@ const ServiceDetailPage = () => {
     );
   };
 
-  const availableTimes = getFinalAvailableTimes();
+  // Auto-select ALL treatments by default
+  useEffect(() => {
+    if (service?.subTreatments?.length > 0 && selectedTreatments.length === 0) {
+       setSelectedTreatments(service.subTreatments);
+    }
+  }, [service]);
 
   // Auto-select single treatment if strict match
-  useEffect(() => {
-    if (service?.subTreatments?.length === 1 && !selectedTreatment) {
-       setSelectedTreatment(service.subTreatments[0]);
-    }
-  }, [service, selectedTreatment]);
 
 
   if (isLoading) {
@@ -153,9 +154,19 @@ const ServiceDetailPage = () => {
   };
 
   const handleTreatmentSelect = (treatment) => {
-    // Simply set the treatment, React handles the rest. 
-    // This fixes the issue where user might think it's not working if they click again.
-    setSelectedTreatment(treatment);
+    setSelectedTreatments((prev) => {
+      const exists = prev.find((t) => (t._id || t.id) === (treatment._id || treatment.id));
+      if (exists) {
+        // Prevent deselecting if it's the last one
+        if (prev.length <= 1) {
+            toast.error("At least one treatment must be selected");
+            return prev;
+        }
+        return prev.filter((t) => (t._id || t.id) !== (treatment._id || treatment.id));
+      } else {
+        return [...prev, treatment];
+      }
+    });
   };
 
   const handleAddOnToggle = (addOn) => {
@@ -172,7 +183,8 @@ const ServiceDetailPage = () => {
   };
 
   const calculateTotalPrice = () => {
-    const basePrice = selectedTreatment?.price || service.basePrice;
+    const treatmentsPrice = selectedTreatments.reduce((sum, t) => sum + (t.price || 0), 0);
+    const basePrice = treatmentsPrice > 0 ? treatmentsPrice : service.basePrice;
     const discountedBasePrice = calculateDiscountedPrice(basePrice);
 
     const addOnsTotal = selectedAddOns.reduce((total, addOn) => {
@@ -183,7 +195,8 @@ const ServiceDetailPage = () => {
   };
 
   const calculateTotalDuration = () => {
-    const baseDuration = selectedTreatment?.duration || service.duration;
+    const treatmentsDuration = selectedTreatments.reduce((sum, t) => sum + (t.duration || 0), 0);
+    const baseDuration = treatmentsDuration > 0 ? treatmentsDuration : service.duration;
 
     const addOnsDuration = selectedAddOns.reduce((total, addOn) => {
       return (
@@ -196,8 +209,8 @@ const ServiceDetailPage = () => {
 
   const handleAddToCart = () => {
     // Validation
-    if ((service.subTreatments?.length > 0) && !selectedTreatment) {
-      toast.error("Please select a treatment option");
+    if ((service.subTreatments?.length > 0) && selectedTreatments.length === 0) {
+      toast.error("Please select at least one treatment option");
       const element = document.getElementById('treatments-section');
       if (element) element.scrollIntoView({ behavior: 'smooth' });
       return;
@@ -233,12 +246,19 @@ const ServiceDetailPage = () => {
       time: selectedTime,
       duration: totalDuration,
       totalPrice: totalPrice,
-      treatment: selectedTreatment
+      totalPrice: totalPrice,
+      treatments: selectedTreatments.map(t => ({
+        id: t._id || t.id,
+        name: t.name,
+        price: t.price,
+        duration: t.duration
+      })),
+      treatment: selectedTreatments.length > 0 // Legacy support
         ? {
-            id: selectedTreatment._id || selectedTreatment.id,
-            name: selectedTreatment.name,
-            price: selectedTreatment.price,
-            duration: selectedTreatment.duration,
+            id: selectedTreatments[0]._id || selectedTreatments[0].id,
+            name: selectedTreatments.map(t => t.name).join(' + '),
+            price: selectedTreatments.reduce((sum, t) => sum + t.price, 0),
+            duration: selectedTreatments.reduce((sum, t) => sum + t.duration, 0),
           }
         : null,
       addOns: selectedAddOns.map((addon) => ({
@@ -263,8 +283,9 @@ const ServiceDetailPage = () => {
   };
 
   const handleBooking = async () => {
-    if ((service.subTreatments?.length > 0) && !selectedTreatment) {
-      toast.error("Please select a treatment option");
+    if ((service.subTreatments?.length > 0) && selectedTreatments.length === 0) {
+      toast.error("Please select at least one treatment option");
+
        const element = document.getElementById('treatments-section');
        if (element) element.scrollIntoView({ behavior: 'smooth' });
       return;
@@ -296,12 +317,20 @@ const ServiceDetailPage = () => {
         notes: "",
         rewardUsed: null,
         pointsUsed: 0,
-        treatment: selectedTreatment
+        rewardUsed: null,
+        pointsUsed: 0,
+        treatments: selectedTreatments.map(t => ({
+            id: t._id || t.id,
+            name: t.name,
+            price: t.price,
+            duration: t.duration
+        })),
+        treatment: selectedTreatments.length > 0 // Legacy/Display support
           ? {
-              id: selectedTreatment._id || selectedTreatment.id,
-              name: selectedTreatment.name,
-              price: selectedTreatment.price,
-              duration: selectedTreatment.duration,
+              id: selectedTreatments[0]._id || selectedTreatments[0].id,
+              name: selectedTreatments.map(t => t.name).join(' + '),
+              price: selectedTreatments.reduce((sum, t) => sum + t.price, 0),
+              duration: selectedTreatments.reduce((sum, t) => sum + t.duration, 0),
             }
           : null,
         addOns: selectedAddOns.map((addon) => ({
@@ -451,10 +480,12 @@ const ServiceDetailPage = () => {
                   <div className="grid gap-4">
                     {service.subTreatments.map((treatment) => {
                       // Robust ID check
-                      const isSelected = (selectedTreatment?._id && treatment._id && selectedTreatment._id === treatment._id) || 
-                                       (selectedTreatment?.id && treatment.id && selectedTreatment.id === treatment.id) ||
-                                       (selectedTreatment?._id === treatment.id) || 
-                                       (selectedTreatment?.id === treatment._id);
+                      const isSelected = selectedTreatments.some(t => 
+                        (t._id && treatment._id && t._id === treatment._id) || 
+                        (t.id && treatment.id && t.id === treatment.id) ||
+                        (t._id === treatment.id) || 
+                        (t.id === treatment._id)
+                      );
 
                       return (
                         <div
@@ -620,7 +651,14 @@ const ServiceDetailPage = () => {
                    <div className="space-y-4 mb-6">
                       <div className="flex justify-between text-sm">
                          <span className="text-gray-500">Service</span>
-                         <span className="font-medium text-gray-900 text-right max-w-[60%]">{selectedTreatment?.name || service.name}</span>
+                         <div className="flex flex-col items-end">
+                             <span className="font-medium text-gray-900 text-right">{service.name}</span>
+                             {selectedTreatments.length > 0 && (
+                                <span className="text-xs text-gray-500 text-right max-w-[200px] truncate">
+                                    {selectedTreatments.map(t => t.name).join(" + ")}
+                                </span>
+                             )}
+                         </div>
                       </div>
                       {selectedAddOns.length > 0 && (
                           <div className="flex justify-between text-sm">
@@ -641,6 +679,8 @@ const ServiceDetailPage = () => {
                          </div>
                       </div>
                    </div>
+
+                   <BNPLBanner variant="minimal" className="my-3" />
 
                    <div className="space-y-3">
                       <button

@@ -1,90 +1,249 @@
 import Layout from '@/pages/Layout/Layout'
 import { motion } from 'framer-motion'
-import { ArrowRight, Calendar, CheckCircle, Home } from 'lucide-react'
-import React, { useEffect } from 'react'
+import { ArrowRight, Calendar, CheckCircle, Home, Sparkles } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { toast } from 'sonner'
 import { clearCart } from '../../redux/cartSlice'
+
+// ============================================
+// CUSTOM CONFETTI ENGINE (Canvas)
+// Optimized for performance & mobile
+// ============================================
+const ConfettiCanvas = () => {
+  const canvasRef = useRef(null)
+  
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    
+    const ctx = canvas.getContext('2d')
+    let animationFrameId
+    let particles = []
+    
+    // Theme Colors: Pink, Rose, Gold, White
+    const colors = [
+      '#ec4899', // Pink-500
+      '#db2777', // Pink-600
+      '#fb7185', // Rose-400
+      '#fcd34d', // Yellow-300 (Gold-ish)
+      '#ffffff', // White
+    ]
+    
+    const createParticle = () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height, // Start above screen
+      size: Math.random() * 8 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      speedY: Math.random() * 3 + 2,
+      speedX: Math.random() * 2 - 1,
+      rotation: Math.random() * 360,
+      rotationSpeed: Math.random() * 10 - 5,
+      wobble: 0,
+      wobbleSpeed: Math.random() * 0.1 + 0.05
+    })
+    
+    // Resize handler
+    const resizeValues = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    
+    // Initialize
+    window.addEventListener('resize', resizeValues)
+    resizeValues()
+    
+    // Initial burst
+    for (let i = 0; i < 150; i++) {
+      particles.push(createParticle())
+    }
+    
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      particles.forEach((p, index) => {
+        // Physics
+        p.y += p.speedY
+        p.x += Math.sin(p.wobble) * 2 + p.speedX
+        p.wobble += p.wobbleSpeed
+        p.rotation += p.rotationSpeed
+        
+        // Draw
+        ctx.save()
+        ctx.translate(p.x, p.y)
+        ctx.rotate((p.rotation * Math.PI) / 180)
+        ctx.fillStyle = p.color
+        
+        // Random shapes: Square or Circle
+        if (index % 2 === 0) {
+             ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
+        } else {
+             ctx.beginPath()
+             ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2)
+             ctx.fill()
+        }
+        
+        ctx.restore()
+        
+        // Reset if out of bounds (infinite fall for a while)
+        if (p.y > canvas.height) {
+            p.y = -20
+            p.x = Math.random() * canvas.width
+        }
+      })
+      
+      animationFrameId = requestAnimationFrame(render)
+    }
+    
+    render()
+    
+    return () => {
+      window.removeEventListener('resize', resizeValues)
+      cancelAnimationFrame(animationFrameId)
+    }
+  }, [])
+
+  return (
+    <canvas 
+      ref={canvasRef} 
+      className="fixed inset-0 pointer-events-none z-0"
+    />
+  )
+}
 
 const BookingSuccessPage = () => {
   const [searchParams] = useSearchParams()
   const sessionId = searchParams.get('session_id')
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const [showContent, setShowContent] = useState(false)
 
   useEffect(() => {
-    // Clear cart on successful booking
-    dispatch(clearCart())
-    
+    // Clear cart immediately on mount if coming from a successful session
     if (sessionId) {
-      toast.success('Your payment was successful!')
+      dispatch(clearCart())
     }
+    // Small delay for content enter animation to sync with confetti
+    setTimeout(() => setShowContent(true), 100)
   }, [dispatch, sessionId])
 
   return (
     <Layout>
-      <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
+        {/* Full screen container */}
+      <div className="relative min-h-[85vh] flex items-center justify-center overflow-hidden">
+        
+        {/* 1. Background Gradients */}
+        <div className="absolute inset-0 bg-gradient-to-b from-pink-50/50 to-white -z-10" />
+        <div className="absolute top-0 inset-x-0 h-64 bg-gradient-to-b from-pink-100/30 to-transparent -z-10" />
+        
+        {/* 2. Confetti Layer */}
+        <ConfettiCanvas />
+
+        {/* 3. Main Card Content */}
         <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-md w-full bg-white rounded-3xl shadow-xl shadow-pink-100 overflow-hidden border border-pink-50"
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, type: "spring", bounce: 0.3 }}
+          className="relative z-10 w-full max-w-sm mx-4"
         >
-          {/* Top Decorative Banner */}
-          <div className="h-32 bg-gradient-to-r from-pink-500 to-rose-600 flex items-center justify-center relative">
-            <div className="absolute inset-0 opacity-20 overflow-hidden">
-                <div className="absolute -top-10 -left-10 w-40 h-40 bg-white rounded-full blur-3xl"></div>
-                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-rose-200 rounded-full blur-3xl"></div>
+            {/* Blurry glow behind the card */}
+            <div className="absolute inset-0 bg-gradient-to-r from-pink-400 to-rose-400 blur-2xl opacity-20 transform scale-110 rounded-[3rem]" />
+
+            <div className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[2.5rem] p-8 text-center relative overflow-hidden">
+                
+                {/* Decorative sheen */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/40 via-transparent to-white/40 z-0 pointer-events-none" />
+
+                {/* Animated Icon */}
+                <motion.div 
+                    initial={{ scale: 0, rotate: -20 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 15 }}
+                    className="relative z-10 w-24 h-24 mx-auto mb-6"
+                >
+                    <div className="absolute inset-0 bg-gradient-to-tr from-green-400 to-emerald-500 rounded-full opacity-20 blur-xl animate-pulse" />
+                    <div className="relative bg-gradient-to-tr from-green-400 to-emerald-500 rounded-full w-full h-full flex items-center justify-center shadow-lg shadow-green-200">
+                        <CheckCircle className="w-10 h-10 text-white stroke-[3]" />
+                    </div>
+                    {/* Floating sparkles */}
+                    <motion.div 
+                        animate={{ y: [0, -10, 0], opacity: [0, 1, 0] }}
+                        transition={{ repeat: Infinity, duration: 2, delay: 0.5 }}
+                        className="absolute -top-2 -right-2 text-yellow-400"
+                    >
+                        <Sparkles className="w-6 h-6 fill-current" />
+                    </motion.div>
+                </motion.div>
+
+                {/* Text Content */}
+                <div className="relative z-10 space-y-2 mb-8">
+                    <motion.h1 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="text-3xl font-black text-gray-900 tracking-tight"
+                    >
+                        Success!
+                    </motion.h1>
+                    <motion.p 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.5 }}
+                        className="text-gray-500 font-medium leading-relaxed px-2"
+                    >
+                        Your appointment has been securely confirmed. Get ready to glow!
+                    </motion.p>
+                </div>
+
+                {/* Transaction Pill */}
+                {sessionId && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="relative z-10 bg-gray-50 rounded-2xl py-3 px-4 mb-8 border border-gray-100 flex flex-col items-center gap-1"
+                    >
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Order ID</span>
+                        <code className="text-xs font-mono text-gray-600 bg-white px-2 py-0.5 rounded border border-gray-100 select-all">
+                            {sessionId.slice(-8).toUpperCase()}...
+                        </code>
+                    </motion.div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="relative z-10 space-y-3">
+                    <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/Booking')} // Original path was /Booking (capital B according to existing files)
+                        className="w-full bg-gray-900 hover:bg-black text-white py-4 rounded-2xl font-bold shadow-xl shadow-gray-200 transition-all flex items-center justify-center gap-2 group"
+                    >
+                        <span>View My Bookings</span>
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </motion.button>
+                    
+                    <motion.button
+                        whileHover={{ scale: 1.02, backgroundColor: '#fef1f8' }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/dashboard')}
+                        className="w-full bg-transparent hover:bg-pink-50 text-gray-600 hover:text-pink-600 py-3 rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                    >
+                        <Home className="w-4 h-4" />
+                        <span>Back Home</span>
+                    </motion.button>
+                </div>
+
             </div>
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="bg-white p-4 rounded-full shadow-lg z-10"
+            
+            {/* Footer Text */}
+            <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="text-center mt-8 text-xs text-gray-400 font-medium"
             >
-              <CheckCircle className="w-12 h-12 text-green-500" />
-            </motion.div>
-          </div>
-
-          <div className="p-8 text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Booking Confirmed!</h1>
-            <p className="text-gray-600 mb-8">
-              Thank you for choosing RadiantAI. Your appointment has been scheduled and a confirmation email is on its way.
-            </p>
-
-            {sessionId && (
-              <div className="bg-pink-50 rounded-2xl p-4 mb-8 border border-pink-100">
-                <p className="text-xs text-pink-700 font-semibold uppercase tracking-wider mb-1">Transaction ID</p>
-                <code className="text-sm font-mono text-gray-700 break-all">{sessionId}</code>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <button
-                onClick={() => navigate('/Booking')}
-                className="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-              >
-                <Calendar className="w-5 h-5" />
-                View My Bookings
-              </button>
-              
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="w-full bg-white border-2 border-gray-100 text-gray-700 py-4 rounded-2xl font-bold hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center justify-center gap-2"
-              >
-                <Home className="w-5 h-5" />
-                Back to Dashboard
-              </button>
-            </div>
-
-            <div className="mt-8 pt-8 border-t border-gray-100">
-               <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
-                  <span>Need help?</span>
-                  <button className="text-pink-600 font-semibold hover:underline">Contact Support</button>
-               </div>
-            </div>
-          </div>
+                A confirmation email has been sent to you.
+            </motion.p>
         </motion.div>
       </div>
     </Layout>
