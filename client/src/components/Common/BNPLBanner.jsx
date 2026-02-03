@@ -52,11 +52,7 @@ const BNPLBanner = ({ className = "", variant = "default" }) => {
           </p>
         </div>
 
-        <div className="flex flex-col items-center justify-center pl-4 border-l border-white/20">
-            <div className="text-[10px] font-black tracking-tighter leading-none opacity-80 uppercase mb-1">From</div>
-            <div className="text-lg font-black leading-none italic">0%</div>
-            <div className="text-[8px] font-bold opacity-70 uppercase tracking-widest mt-1">Interest</div>
-        </div>
+     
       </div>
     </motion.div>
   )

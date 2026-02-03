@@ -1,21 +1,22 @@
 // client/src/pages/Rewards/RewardsCatalogPage.jsx
+import PointsCard from '@/components/Dashboard/PointsCard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import {
-  Award,
-  Check,
-  ChevronDown,
-  DollarSign,
-  Filter,
-  Gift,
-  Heart,
-  Percent,
-  Search,
-  SortAsc,
-  Sparkles,
-  Star,
-  Users,
-  X,
-  Zap,
+    Award,
+    Check,
+    ChevronDown,
+    DollarSign,
+    Filter,
+    Gift,
+    Heart,
+    Percent,
+    Search,
+    SortAsc,
+    Sparkles,
+    Star,
+    Users,
+    X,
+    Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -31,8 +32,8 @@ const rewardTypes = [
   { id: 'referral', name: 'Referral Rewards' },
 ]
 
-// Compact Dropdown Component
-const CompactDropdown = ({
+// Premium Glass Dropdown Component
+const PremiumDropdown = ({
   value,
   onChange,
   options,
@@ -55,45 +56,64 @@ const CompactDropdown = ({
     <div className={`relative ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className='w-full h-8 bg-white border border-pink-200 rounded-lg px-2 flex items-center justify-between hover:border-pink-300 focus:outline-none transition-all text-xs'
+        className={`w-full h-11 bg-white/50 backdrop-blur-sm border transition-all duration-300 rounded-xl px-4 flex items-center justify-between group
+        ${
+          isOpen
+            ? 'border-pink-400 shadow-[0_0_20px_rgba(236,72,153,0.15)] bg-white'
+            : 'border-white/60 hover:border-pink-300 hover:bg-white/80'
+        }
+        `}
       >
-        <div className='flex items-center gap-1'>
-          {Icon && <Icon className='w-3 h-3 text-pink-500' />}
-          <span className='text-gray-800 font-medium truncate'>
+        <div className='flex items-center gap-2.5'>
+          {Icon && (
+            <div
+              className={`p-1.5 rounded-lg transition-colors ${
+                isOpen ? 'bg-pink-100 text-pink-600' : 'bg-pink-50 text-pink-500'
+              }`}
+            >
+              <Icon className='w-3.5 h-3.5' />
+            </div>
+          )}
+          <span className='text-gray-700 font-semibold text-sm truncate'>
             {selectedOption?.label || placeholder}
           </span>
         </div>
         <ChevronDown
-          className={`w-3 h-3 text-pink-400 transition-transform duration-200 flex-shrink-0 ${
-            isOpen ? 'rotate-180' : ''
+          className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${
+            isOpen ? 'rotate-180 text-pink-500' : 'group-hover:text-pink-400'
           }`}
         />
       </button>
 
       {isOpen && (
         <>
-          {/* Backdrop */}
           <div
-            className='fixed inset-0 z-40'
+            className='fixed inset-0 z-40 cursor-default'
             onClick={() => setIsOpen(false)}
           />
-
-          {/* Dropdown Menu */}
-          <div className='absolute top-full left-0 right-0 mt-1 bg-white border border-pink-200 rounded-lg z-50 max-h-48 overflow-y-auto'>
+          <div className='absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl border border-pink-100 rounded-2xl z-50 max-h-60 overflow-y-auto shadow-[0_10px_40px_rgba(0,0,0,0.1)] p-1.5 animate-in fade-in zoom-in-95 duration-200'>
             {options.map((option) => (
               <button
                 key={option.value}
                 onClick={() => handleSelect(option)}
-                className={`w-full px-2 py-2 text-left hover:bg-pink-50 transition-colors flex items-center gap-1 text-xs ${
+                className={`w-full px-3 py-2.5 text-left rounded-xl transition-all flex items-center gap-3 text-sm mb-0.5 last:mb-0 ${
                   selectedOption?.value === option.value
-                    ? 'bg-pink-50 text-pink-700'
-                    : 'text-gray-700'
+                    ? 'bg-pink-50 text-pink-700 font-semibold'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
-                {option.icon && <option.icon className='w-3 h-3' />}
-                <span className='font-medium truncate'>{option.label}</span>
+                {option.icon && (
+                  <option.icon
+                    className={`w-4 h-4 ${
+                      selectedOption?.value === option.value
+                        ? 'text-pink-500'
+                        : 'text-gray-400'
+                    }`}
+                  />
+                )}
+                <span className='truncate flex-1'>{option.label}</span>
                 {selectedOption?.value === option.value && (
-                  <Check className='w-3 h-3 ml-auto text-pink-600 flex-shrink-0' />
+                  <Check className='w-4 h-4 text-pink-600' />
                 )}
               </button>
             ))}
@@ -406,109 +426,105 @@ const RewardsCatalogPage = () => {
 
   return (
     <Layout>
-      <div className='px-4 py-4 max-w-sm mx-auto md:max-w-6xl lg:max-w-7xl md:px-6 lg:px-8 relative z-0'>
+      <div className='px-4 py-4 mx-auto max-w-7xl md:px-6 lg:px-8 relative z-0'>
         {/* COMPACT HEADER */}
-        <div className='bg-white rounded-2xl border border-pink-100 mb-4 relative'>
-          {/* Points & Search Row */}
-          <div className='bg-gradient-to-r from-pink-500 to-rose-500 text-white p-4 rounded-t-2xl'>
-            <div className='flex items-center justify-between mb-3'>
-              <div className='flex items-center gap-3'>
-                <Zap className='w-5 h-5' />
-                <div>
-                  <div className='text-xl font-bold'>
-                    {userPoints.toLocaleString()}
-                  </div>
-                  <div className='text-xs opacity-80'>points available</div>
-                </div>
-              </div>
-              <div className='text-right'>
-                <div className='text-sm font-medium'>
-                  {affordableRewards.length} affordable
-                </div>
-                <div className='text-xs opacity-80'>rewards</div>
-              </div>
-            </div>
+        {/* Points Card */}
+        <div className='mb-6'>
+          <PointsCard />
+        </div>
 
-            {/* Integrated Search */}
-            <div className='relative'>
-              <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-pink-300 w-4 h-4' />
+        {/* Premium Search & Filter Bar */}
+        <div className='bg-white/60 backdrop-blur-2xl border border-white/50 rounded-[2rem] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] mb-8 transition-all hover:shadow-[0_8px_32px_rgba(236,72,153,0.06)] relative z-20'>
+          <div className='flex flex-col lg:flex-row gap-4'>
+            {/* Search Input */}
+            <div className='relative flex-1 group'>
+              <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
+                <Search className='h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors duration-300' />
+              </div>
               <input
                 type='text'
                 placeholder='Search rewards...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='w-full pl-10 pr-3 py-2 bg-white/20 border border-white/30 rounded-lg focus:outline-none focus:bg-white/30 transition-all text-white placeholder-pink-200 text-sm'
+                className='block w-full pl-11 pr-4 py-3.5 bg-white border border-white/50 shadow-sm rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400/20 focus:border-pink-400 transition-all duration-300 hover:bg-white/80 hover:shadow-md'
               />
               {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className='absolute right-3 top-1/2 transform -translate-y-1/2 text-pink-200 hover:text-white'
-                >
-                  <X className='w-4 h-4' />
-                </button>
+                <div className='absolute inset-y-0 right-0 pr-3 flex items-center'>
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className='p-1 bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all'
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                </div>
               )}
             </div>
-          </div>
 
-          {/* Compact Filters */}
-          <div className='px-3 py-3 bg-pink-50 border-t border-pink-100 relative'>
-            <div className='grid grid-cols-2 gap-3 relative z-10'>
-              <CompactDropdown
+            {/* Filters */}
+            <div className='flex gap-3 lg:w-1/3'>
+              <PremiumDropdown
                 value={selectedType}
                 onChange={setSelectedType}
                 options={rewardTypeOptions}
                 placeholder='Filter'
                 icon={Filter}
-                className='w-full'
+                className='flex-1'
               />
-              <CompactDropdown
+              <PremiumDropdown
                 value={sortBy}
                 onChange={setSortBy}
                 options={sortOptions}
                 placeholder='Sort'
                 icon={SortAsc}
-                className='w-full'
+                className='flex-1'
               />
             </div>
-
-            {/* Compact Active Filters */}
-            {(searchTerm || selectedType !== 'all') && (
-              <div className='flex items-center gap-1 mt-2'>
-                {searchTerm && (
-                  <span className='inline-flex items-center gap-1 bg-pink-200 text-pink-800 px-2 py-0.5 rounded-full text-xs'>
-                    "{searchTerm.slice(0, 12)}
-                    {searchTerm.length > 12 ? '...' : ''}"
-                    <X
-                      onClick={() => setSearchTerm('')}
-                      className='w-3 h-3 cursor-pointer hover:text-pink-600'
-                    />
-                  </span>
-                )}
-                {selectedType !== 'all' && (
-                  <span className='inline-flex items-center gap-1 bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full text-xs'>
-                    {
-                      rewardTypeOptions.find(
-                        (opt) => opt.value === selectedType
-                      )?.label
-                    }
-                    <X
-                      onClick={() => setSelectedType('all')}
-                      className='w-3 h-3 cursor-pointer hover:text-purple-600'
-                    />
-                  </span>
-                )}
-                <button
-                  onClick={() => {
-                    setSearchTerm('')
-                    setSelectedType('all')
-                  }}
-                  className='text-xs text-gray-500 hover:text-gray-700 underline ml-1'
-                >
-                  Clear
-                </button>
-              </div>
-            )}
           </div>
+
+          {/* Active Filter Chips */}
+          {(searchTerm || selectedType !== 'all') && (
+            <div className='flex items-center gap-3 mt-4 flex-wrap animate-in fade-in slide-in-from-top-2 duration-300'>
+              <div className='text-xs font-semibold uppercase tracking-wider text-gray-400'>
+                Active filters:
+              </div>
+              
+              {searchTerm && (
+                <span className='inline-flex items-center gap-1.5 bg-pink-50 border border-pink-100 text-pink-700 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-pink-100 transition-colors'>
+                  <Search className="w-3 h-3" />
+                  "{searchTerm}"
+                  <button 
+                    onClick={() => setSearchTerm('')}
+                    className='ml-1 p-0.5 hover:bg-pink-200 rounded-full transition-colors'
+                  >
+                    <X className='w-3 h-3' />
+                  </button>
+                </span>
+              )}
+
+              {selectedType !== 'all' && (
+                <span className='inline-flex items-center gap-1.5 bg-purple-50 border border-purple-100 text-purple-700 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-purple-100 transition-colors'>
+                  <Filter className="w-3 h-3" />
+                  {rewardTypeOptions.find((opt) => opt.value === selectedType)?.label}
+                  <button 
+                    onClick={() => setSelectedType('all')}
+                    className='ml-1 p-0.5 hover:bg-purple-200 rounded-full transition-colors'
+                  >
+                    <X className='w-3 h-3' />
+                  </button>
+                </span>
+              )}
+
+              <button
+                onClick={() => {
+                  setSearchTerm('')
+                  setSelectedType('all')
+                }}
+                className='text-xs text-gray-500 hover:text-pink-600 font-semibold underline decoration-pink-300/50 hover:decoration-pink-500 decoration-2 transition-all ml-auto'
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
         </div>
 
 
