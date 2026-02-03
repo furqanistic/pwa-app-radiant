@@ -114,73 +114,93 @@ const GameResultModal = ({ result, onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] px-4'
+      className='fixed inset-0 bg-slate-900/95 backdrop-blur-xl flex items-center justify-center z-[70] px-4'
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 20 }}
-        className='bg-white rounded-2xl p-5 sm:p-6 max-w-sm w-full text-center border border-pink-100'
+        initial={{ scale: 0.8, y: 40, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.8, y: 40, opacity: 0 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className='bg-white rounded-[40px] p-8 sm:p-10 max-w-sm w-full text-center border-2 border-pink-100 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] relative overflow-hidden'
         onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
-          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
-            isPointsPrize
-              ? 'bg-gradient-to-r from-blue-500 to-indigo-600'
-              : 'bg-gradient-to-r from-green-500 to-emerald-600'
-          }`}
-        >
-          {isPointsPrize ? (
-            <Coins className='w-6 h-6 sm:w-8 sm:h-8 text-white' />
-          ) : (
-            <Trophy className='w-6 h-6 sm:w-8 sm:h-8 text-white' />
-          )}
-        </motion.div>
-
-        <h2 className='text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2'>
-          You Won! 🎉
-        </h2>
-        <p className='text-gray-600 mb-3 sm:mb-4 text-xs sm:text-sm'>
-          {isPointsPrize ? 'Points added!' : 'Amazing prize!'}
-        </p>
-
-        <div className='bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-3 sm:p-4 mb-3 sm:mb-4 border border-pink-100'>
-          <h3 className='text-base sm:text-lg font-bold text-gray-900 mb-2'>
-            {winningItem.title}
-          </h3>
-          <div
-            className={`text-2xl sm:text-3xl font-bold mb-1 ${
-              isPointsPrize ? 'text-blue-600' : 'text-pink-600'
-            }`}
-          >
-            {winningItem.value}
-          </div>
-          <div className='text-gray-600 text-xs sm:text-sm capitalize'>
-            {winningItem.valueType}
-          </div>
+        {/* Animated Background Confetti */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+           {[...Array(15)].map((_, i) => (
+             <motion.div
+               key={i}
+               initial={{ y: -20, x: Math.random() * 100 + '%', opacity: 0 }}
+               animate={{ 
+                 y: '120%', 
+                 opacity: [0, 1, 0],
+                 rotate: [0, 360],
+               }}
+               transition={{ 
+                 duration: 3 + Math.random() * 2, 
+                 repeat: Infinity,
+                 delay: Math.random() * 2
+               }}
+               className={`absolute w-2 h-2 rounded-full ${['bg-pink-400', 'bg-rose-500', 'bg-yellow-400', 'bg-blue-400'][i % 4]}`}
+             />
+           ))}
         </div>
 
-        {result.result.newPointsBalance !== undefined && (
-          <div className='bg-gray-50 rounded-lg p-3 mb-3 sm:mb-4'>
-            <p className='text-xs text-gray-600 mb-1'>New Balance</p>
-            <p className='text-xl sm:text-2xl font-bold text-blue-600'>
-              {result.result.newPointsBalance}
-            </p>
-          </div>
-        )}
+        <div className="relative z-10">
+          <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[32px] flex items-center justify-center mx-auto mb-6 shadow-2xl ${
+              isPointsPrize
+                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-200'
+                : 'bg-gradient-to-br from-pink-500 to-rose-600 shadow-pink-200'
+            }`}
+          >
+            {isPointsPrize ? (
+              <Coins className='w-10 h-10 sm:w-12 sm:h-12 text-white' />
+            ) : (
+              <Trophy className='w-10 h-10 sm:w-12 sm:h-12 text-white' />
+            )}
+          </motion.div>
 
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onClose}
-          className='w-full py-2 sm:py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600 transition-all'
-        >
-          Continue
-        </motion.button>
+          <h2 className='text-3xl sm:text-4xl font-black text-slate-900 mb-2 tracking-tight'>
+            BINGO! 🎁
+          </h2>
+          <p className='text-slate-400 mb-6 text-sm font-bold uppercase tracking-widest'>
+            Your Mystery Prize
+          </p>
+
+          <div className='bg-slate-50 rounded-[32px] p-6 sm:p-8 mb-8 border border-slate-100 relative overflow-hidden group'>
+            <Sparkles className='absolute top-4 left-4 w-6 h-6 text-pink-200 opacity-50 group-hover:scale-125 transition-transform' />
+            <Sparkles className='absolute bottom-4 right-4 w-6 h-6 text-pink-200 opacity-50 group-hover:scale-125 transition-transform' />
+            
+            <h3 className='text-xs sm:text-sm font-black text-pink-500 uppercase tracking-widest mb-2'>
+              {winningItem.title}
+            </h3>
+            <div className='text-4xl sm:text-5xl font-black text-slate-900 tracking-tighter mb-1'>
+              {winningItem.value}
+            </div>
+            {result.result.newPointsBalance !== undefined && (
+              <div className='mt-4 pt-4 border-t border-slate-200 flex items-center justify-center gap-2'>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">New Balance:</span>
+                <span className="text-sm font-black text-indigo-600">{result.result.newPointsBalance} pts</span>
+              </div>
+            )}
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={(e) => {
+              e.preventDefault()
+              onClose()
+            }}
+            className='w-full py-5 bg-slate-900 text-white rounded-[28px] font-black shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all cursor-pointer relative z-20'
+          >
+            Claim Reward
+          </motion.button>
+        </div>
       </motion.div>
     </motion.div>
   )

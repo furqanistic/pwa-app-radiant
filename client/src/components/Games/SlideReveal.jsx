@@ -1,137 +1,255 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Clock, Gift, Loader2, Star } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
-// "Magic Reveal" Card Component
+// "Magic Reveal" Canvas Scratch Card Component
 const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
   const [isRevealed, setIsRevealed] = useState(false)
+  const [isScratching, setIsScratching] = useState(false)
+  const canvasRef = useRef(null)
+  const containerRef = useRef(null)
+  const revealingRef = useRef(false)
+
+  useEffect(() => {
+    if (isRevealed) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    const container = containerRef.current
+    
+    // Set canvas dimensions to match container
+    const resizeCanvas = () => {
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+      canvas.width = rect.width
+      canvas.height = rect.height
+      
+      // Initial fill - Premium Charcoal Metallic
+      const gradient = ctx.createLinearGradient(0, 0, rect.width, rect.height)
+      gradient.addColorStop(0, '#0f172a')
+      gradient.addColorStop(0.5, '#334155')
+      gradient.addColorStop(1, '#0f172a')
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, rect.width, rect.height)
+
+      // Add "Mystery" text with embossed premium effect
+      ctx.shadowBlur = 10
+      ctx.shadowColor = 'rgba(0,0,0,0.8)'
+      ctx.shadowOffsetX = 4
+      ctx.shadowOffsetY = 4
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
+      ctx.font = '900 42px Outfit, Inter, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('MYSTERY', rect.width / 2, rect.height / 2)
+      
+      // Add hint text
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 0
+      ctx.font = 'bold 12px Inter, sans-serif'
+      ctx.fillStyle = '#64748b' // slate-500
+      ctx.fillText('SCRATCH TO REVEAL', rect.width / 2, rect.height / 2 + 45)
+    }
+
+    resizeCanvas()
+    const timer = setTimeout(resizeCanvas, 100) // Double check after initial render
+    window.addEventListener('resize', resizeCanvas)
+    return () => {
+      window.removeEventListener('resize', resizeCanvas)
+      clearTimeout(timer)
+    }
+  }, [isRevealed])
+
+  const getCoordinates = (e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    }
+  }
+
+  const scratch = (x, y) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.beginPath()
+    ctx.arc(x, y, 30, 0, Math.PI * 2)
+    ctx.fill()
+    
+    checkScratchedPercentage()
+  }
+
+  const checkScratchedPercentage = () => {
+    if (isRevealed || revealingRef.current) return
+
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const { width, height } = canvas
+    const imageData = ctx.getImageData(0, 0, width, height)
+    const pixels = imageData.data
+    let transparentPixels = 0
+
+    // Sample pixels for performance: check every 16th pixel (RGBA = 4 bytes)
+    for (let i = 0; i < pixels.length; i += 64) {
+      if (pixels[i + 3] === 0) {
+        transparentPixels++
+      }
+    }
+
+    const totalSampledPixels = (width * height) / 16
+    const percentage = (transparentPixels / totalSampledPixels) * 100
+    
+    // If more than 35% scratched, auto reveal
+    if (percentage > 35 && !isRevealed && !revealingRef.current) {
+      handleReveal()
+    }
+  }
 
   const handleReveal = () => {
-    if (!canPlay || isRevealed || isPlaying) return
-
+    if (!canPlay || isRevealed || isPlaying || revealingRef.current) return
+    
+    revealingRef.current = true
     setIsRevealed(true)
-    // Wait for reveal animation then trigger play
+    
+    // Trigger onPlay after local animation
     setTimeout(() => {
       onPlay()
     }, 800)
   }
 
+  const handleMouseDown = (e) => {
+    if (!canPlay || isRevealed || isPlaying || revealingRef.current) return
+    setIsScratching(true)
+    const { x, y } = getCoordinates(e)
+    scratch(x, y)
+    
+    // Prevent default to avoid scrolling on touch
+    if (e.cancelable) e.preventDefault()
+  }
+
+  const handleMouseMove = (e) => {
+    if (!isScratching) return
+    const { x, y } = getCoordinates(e)
+    scratch(x, y)
+    
+    if (e.cancelable) e.preventDefault()
+  }
+
+  const handleMouseUp = () => {
+    setIsScratching(false)
+  }
+
   return (
     <div className='flex flex-col items-center py-4'>
-      <div className='relative w-full max-w-[320px] aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl shadow-purple-500/20 border-4 border-white transform transition-transform duration-300 hover:scale-[1.01]'>
+      <div 
+        ref={containerRef}
+        className='relative w-full max-w-[320px] aspect-[4/3] rounded-[42px] overflow-hidden shadow-2xl shadow-pink-500/20 border-[6px] border-white transform transition-transform duration-300'
+      >
         
         {/* The Prize (Underneath) */}
-        <div className='absolute inset-0 bg-gradient-to-br from-pink-500 to-rose-600 flex flex-col items-center justify-center text-white z-0'>
+        <div className='absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 flex flex-col items-center justify-center text-white z-0'>
            <motion.div
              initial={{ scale: 0.5, opacity: 0 }}
              animate={isRevealed ? { scale: 1, opacity: 1 } : {}}
-             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+             transition={{ delay: 0.1, type: "spring", stiffness: 260, damping: 20 }}
              className="text-center p-4"
            >
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
-                <Gift className="w-8 h-8 text-white" />
+              <div className="w-20 h-20 bg-white/20 backdrop-blur-xl rounded-[32px] flex items-center justify-center mx-auto mb-4 shadow-2xl border border-white/40">
+                 <Gift className="w-10 h-10 text-white" />
               </div>
-              <h3 className="text-2xl font-bold mb-1">You Won!</h3>
-              <p className="text-white/90 font-medium">Check your prize below</p>
+              <h3 className="text-3xl font-black mb-1">Revealing...</h3>
+              <p className="text-white/80 font-bold text-xs uppercase tracking-widest">Mystery luck awaits</p>
            </motion.div>
            
-           {/* Particles effect (simulated with standard divs for performance) */}
            {isRevealed && (
-             <>
-               <motion.div 
-                 initial={{ opacity: 0, scale: 0 }}
-                 animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 2], x: -50, y: -50 }}
-                 transition={{ duration: 0.8, delay: 0.1 }}
-                 className="absolute top-1/2 left-1/2 w-4 h-4 bg-yellow-300 rounded-full"
-               />
-               <motion.div 
-                 initial={{ opacity: 0, scale: 0 }}
-                 animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 2], x: 50, y: -30 }}
-                 transition={{ duration: 0.8, delay: 0.2 }}
-                 className="absolute top-1/2 left-1/2 w-3 h-3 bg-white rounded-full"
-               />
-               <motion.div 
-                 initial={{ opacity: 0, scale: 0 }}
-                 animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 2], x: 0, y: 60 }}
-                 transition={{ duration: 0.8, delay: 0.3 }}
-                 className="absolute top-1/2 left-1/2 w-5 h-5 bg-pink-300 rounded-full"
-               />
-             </>
+             <div className="absolute inset-0 pointer-events-none overflow-hidden">
+               {[...Array(20)].map((_, i) => (
+                 <motion.div 
+                   key={i}
+                   initial={{ opacity: 0, scale: 0, x: '50%', y: '50%' }}
+                   animate={{ 
+                     opacity: [0, 1, 0], 
+                     scale: [0, 1, 2], 
+                     x: (Math.random() * 200 - 100) + '%',
+                     y: (Math.random() * 200 - 100) + '%'
+                   }}
+                   transition={{ 
+                     duration: 2, 
+                     delay: Math.random() * 0.5,
+                     repeat: Infinity
+                   }}
+                   className={`absolute w-4 h-4 rounded-full ${['bg-yellow-300', 'bg-white', 'bg-pink-300', 'bg-indigo-300'][i % 4]} blur-md`}
+                 />
+               ))}
+             </div>
            )}
         </div>
 
-        {/* The "Scratch" Overlay */}
+        {/* The Canvas Scratch Overlay */}
         <AnimatePresence>
           {!isRevealed && (
-            <motion.div
-              initial={{ x: 0, opacity: 1 }}
+            <motion.canvas
+              ref={canvasRef}
+              initial={{ opacity: 1 }}
               exit={{ 
-                x: '100%', 
                 opacity: 0,
-                transition: { duration: 0.7, ease: "easeInOut" }
+                scale: 1.2,
+                filter: 'blur(10px)',
+                transition: { duration: 0.8, ease: "anticipate" }
               }}
-              className='absolute inset-0 z-10 cursor-pointer'
-              onClick={handleReveal}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-               {/* Foil Texture Background */}
-               <div className="w-full h-full bg-slate-800 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-slate-800 via-slate-700 to-slate-800"></div>
-                  
-                  {/* Holographic/Shine effect */}
-                  <motion.div 
-                    animate={{ x: ['-100%', '200%'] }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12"
-                  />
-                  
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                     <div className="w-20 h-20 mb-4 relative">
-                        <Star className="w-full h-full text-yellow-400 fill-yellow-400 drop-shadow-lg" />
-                        <motion.div
-                           animate={{ rotate: [0, 15, -15, 0] }}
-                           transition={{ duration: 2, repeat: Infinity }}
-                           className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md"
-                        >
-                           WIN
-                        </motion.div>
-                     </div>
-                     <h3 className="text-2xl font-black uppercase tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-200 drop-shadow-sm">
-                        Mystery
-                     </h3>
-                     <p className="text-slate-400 text-sm mt-2 font-medium">Tap to Reveal</p>
-                  </div>
-               </div>
-               
-               {/* Disabled Overlay */}
-               {!canPlay && (
-                 <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-20">
-                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 text-white text-center border border-white/20">
-                       <Clock className="w-8 h-8 mx-auto mb-2 text-white/80" />
-                       <p className="font-bold text-sm">Play limit reached</p>
-                    </div>
-                 </div>
-               )}
-            </motion.div>
+              className='absolute inset-0 z-10 cursor-crosshair'
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleMouseDown}
+              onTouchMove={handleMouseMove}
+              onTouchEnd={handleMouseUp}
+              style={{ touchAction: 'none' }}
+            />
           )}
         </AnimatePresence>
+
+        {/* Disabled Overlay */}
+        {!canPlay && !isRevealed && (
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-20 pointer-events-none">
+             <div className="bg-white/10 backdrop-blur-xl rounded-[32px] p-6 text-white text-center border border-white/20 shadow-2xl">
+                <Clock className="w-10 h-10 mx-auto mb-3 text-white/80" />
+                <p className="font-black text-xs uppercase tracking-widest">Limit Reached</p>
+                <p className="text-[10px] text-white/60 mt-1 uppercase">Next chance soon</p>
+             </div>
+          </div>
+        )}
       </div>
 
-      <div className='mt-6 text-center'>
+      <div className='mt-8 text-center'>
          {isPlaying ? (
-           <div className="flex items-center gap-2 text-pink-600 font-medium justify-center">
-             <Loader2 className="w-4 h-4 animate-spin" />
-             <span>Claiming prize...</span>
+           <div className="flex flex-col items-center gap-3">
+             <div className="flex items-center gap-2 px-5 py-2.5 bg-pink-50 rounded-full border border-pink-100 shadow-sm animate-pulse">
+               <Loader2 className="w-4 h-4 animate-spin text-pink-600" />
+               <span className="text-pink-600 font-black text-xs uppercase tracking-widest">Validating Win...</span>
+             </div>
            </div>
          ) : !canPlay ? (
-           <p className="text-gray-400 italic text-sm">Come back later for more chances!</p>
+           <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em]">Check back later, sweetie!</p>
          ) : (
-           <p className="text-gray-500 text-sm">Tap the card to scratch it!</p>
+           <div className="space-y-1">
+             <p className="text-slate-900 font-black text-sm tracking-tight uppercase">Scribble to Scratch</p>
+             <p className="text-slate-400 font-medium text-xs">Uncover your daily wellness prize</p>
+           </div>
          )}
       </div>
     </div>
   )
 }
+
 
 export default SlideReveal

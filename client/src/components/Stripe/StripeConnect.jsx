@@ -1,12 +1,12 @@
 // File: client/src/components/Stripe/StripeConnect.jsx - Stripe Connect Integration
-import { useState, useEffect } from 'react';
+import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
 import stripeService from '../../services/stripeService';
+import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { CreditCard, CheckCircle2, XCircle, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 
 const StripeConnect = () => {
   const { currentUser } = useSelector((state) => state.user);
@@ -95,7 +95,7 @@ const StripeConnect = () => {
     }
   };
 
-  if (currentUser?.role !== 'team') {
+  if (currentUser?.role !== 'spa') {
     return null;
   }
 

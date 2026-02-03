@@ -1,33 +1,33 @@
 // File: client/src/pages/Spin/ScratchSpinManagement.jsx - FIXED WITH PROPER UPDATES AND NOTIFICATIONS
 import {
-  useAllGames,
-  useCreateGame,
-  useDeleteGame,
-  useUpdateGame,
+    useAllGames,
+    useCreateGame,
+    useDeleteGame,
+    useUpdateGame,
 } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertTriangle,
-  Calendar,
-  Check,
-  Clock,
-  Edit3,
-  Info,
-  Loader2,
-  MapPin,
-  Palette,
-  Plus,
-  RotateCcw,
-  Save,
-  Settings,
-  Sparkles,
-  Ticket,
-  Trash2,
-  Users,
-  X,
+    AlertTriangle,
+    Calendar,
+    Check,
+    Clock,
+    Edit3,
+    Info,
+    Loader2,
+    MapPin,
+    Palette,
+    Plus,
+    RotateCcw,
+    Save,
+    Settings,
+    Sparkles,
+    Ticket,
+    Trash2,
+    Users,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { toast } from 'sonner' // Add this import for notifications
+import { toast } from 'sonner'; // Add this import for notifications
 import Layout from '../Layout/Layout'
 
 const ScratchSpinManagement = () => {
@@ -51,7 +51,7 @@ const ScratchSpinManagement = () => {
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     setUserData(user)
-    setIsTeamUser(user.role === 'team')
+    setIsTeamUser(user.role === 'spa')
   }, [])
 
   const {

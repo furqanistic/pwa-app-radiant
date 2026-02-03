@@ -87,9 +87,9 @@ export const authService = {
     return response.data
   },
 
-  createTeamMember: async (userData) => {
+  createSpaMember: async (userData) => {
     const response = await axiosInstance.post(
-      '/auth/create-team-member',
+      '/auth/create-spa-member',
       userData
     )
     return response.data
@@ -139,7 +139,7 @@ export const authService = {
     const roleHierarchy = {
       'super-admin': 5,
       admin: 4,
-      team: 3,
+      spa: 3,
       enterprise: 2,
       user: 1,
     }
@@ -167,7 +167,7 @@ export const authService = {
     const allRoles = [
       { value: 'user', label: 'User', level: 1 },
       { value: 'enterprise', label: 'Enterprise', level: 2 },
-      { value: 'team', label: 'Team', level: 3 },
+      { value: 'spa', label: 'Spa', level: 3 },
       { value: 'admin', label: 'Admin', level: 4 },
       { value: 'super-admin', label: 'Super Admin', level: 5 },
     ]
@@ -175,7 +175,7 @@ export const authService = {
     const roleHierarchy = {
       'super-admin': 5,
       admin: 4,
-      team: 3,
+      spa: 3,
       enterprise: 2,
       user: 1,
     }
@@ -209,7 +209,7 @@ export const authService = {
     const roleMap = {
       'super-admin': 'Super Admin',
       admin: 'Admin',
-      team: 'Team',
+      spa: 'Spa',
       enterprise: 'Enterprise',
       user: 'User',
     }
@@ -220,7 +220,7 @@ export const authService = {
     const colorMap = {
       'super-admin': 'bg-gradient-to-r from-pink-500 to-rose-600 text-white',
       admin: 'bg-gradient-to-r from-pink-500 to-rose-600 text-white',
-      team: 'bg-gradient-to-r from-pink-500 to-rose-600 text-white',
+      spa: 'bg-gradient-to-r from-pink-500 to-rose-600 text-white',
       enterprise: 'bg-gradient-to-r from-pink-500 to-rose-600 text-white',
       user: 'bg-gray-100 text-gray-800 border border-gray-200',
     }

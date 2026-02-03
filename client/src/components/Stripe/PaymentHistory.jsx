@@ -1,21 +1,21 @@
 // File: client/src/components/Stripe/PaymentHistory.jsx - Payment History Component
-import { useState, useEffect } from 'react';
+import {
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    DollarSign,
+    Loader2,
+    Package,
+    RefreshCw,
+    User,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
 import stripeService from '../../services/stripeService';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import {
-  Loader2,
-  ChevronLeft,
-  ChevronRight,
-  DollarSign,
-  Calendar,
-  User,
-  Package,
-  RefreshCw,
-} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
 const PaymentHistory = () => {
   const { currentUser } = useSelector((state) => state.user);
@@ -89,7 +89,7 @@ const PaymentHistory = () => {
           <div>
             <CardTitle>Payment History</CardTitle>
             <CardDescription>
-              {currentUser?.role === 'team'
+              {currentUser?.role === 'spa'
                 ? 'Payments you have received from clients'
                 : 'Your payment transactions'
               }
@@ -111,7 +111,7 @@ const PaymentHistory = () => {
             <DollarSign className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No payments yet</h3>
             <p className="text-sm text-muted-foreground">
-              {currentUser?.role === 'team'
+              {currentUser?.role === 'spa'
                 ? 'Payments from clients will appear here'
                 : 'Your payment history will appear here'
               }
@@ -139,14 +139,14 @@ const PaymentHistory = () => {
                         <span>{formatDate(payment.createdAt)}</span>
                       </div>
 
-                      {currentUser?.role === 'team' && payment.customer && (
+                      {currentUser?.role === 'spa' && payment.customer && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                           <User className="h-3 w-3" />
                           <span>Customer: {payment.customer.name || 'Unknown'}</span>
                         </div>
                       )}
 
-                      {currentUser?.role !== 'team' && payment.spaOwner && (
+                      {currentUser?.role !== 'spa' && payment.spaOwner && (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                           <User className="h-3 w-3" />
                           <span>Spa: {payment.spaOwner.spaLocation?.locationName || 'Unknown'}</span>

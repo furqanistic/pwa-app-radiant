@@ -53,12 +53,12 @@ const createSendToken = (user, statusCode, res) => {
 // ENHANCED: Get all users with pagination and filtering
 export const getAllUsers = async (req, res, next) => {
   try {
-    // Check permissions - allow admin, team, and super-admin
-    if (!['admin', 'team', 'super-admin'].includes(req.user.role)) {
+    // Check permissions - allow admin, spa, and super-admin
+    if (!['admin', 'spa', 'super-admin'].includes(req.user.role)) {
       return next(
         createError(
           403,
-          'Access denied. Admin, Team, or Super-Admin rights required.'
+          'Access denied. Admin, Spa, or Super-Admin rights required.'
         )
       )
     }
@@ -107,13 +107,13 @@ export const getAllUsers = async (req, res, next) => {
     }
 
     // Role-based access control
-    if (req.user.role === 'team') {
-      // Team users can only see users in their spa location
+    if (req.user.role === 'spa') {
+      // Spa users can only see users in their spa location
       if (req.user.spaLocation?.locationId) {
         filters['selectedLocation.locationId'] = req.user.spaLocation.locationId
-        filters.role = 'user' // Team users can only see regular users
+        filters.role = 'user' // Spa users can only see regular users
       } else {
-        // If team user doesn't have spa location, return empty result
+        // If spa user doesn't have spa location, return empty result
         return res.status(200).json({
           status: 'success',
           results: 0,
@@ -203,15 +203,15 @@ export const getAssignableUsers = async (req, res, next) => {
     // Build filters for assignable users
     const filters = {
       isDeleted: false,
-      role: { $in: ['admin', 'team'] }, // Only admin and team users
+      role: { $in: ['admin', 'spa'] }, // Only admin and spa users
     }
 
     // Additional role-based filtering
     if (req.user.role === 'admin') {
-      // Admin can only assign locations to team users
-      filters.role = 'team'
+      // Admin can only assign locations to spa users
+      filters.role = 'spa'
     }
-    // Super-admin can assign to both admin and team (no additional filter needed)
+    // Super-admin can assign to both admin and spa (no additional filter needed)
 
     const users = await User.find(filters)
       .sort({ name: 1 })
@@ -243,7 +243,7 @@ export const changeUserRole = async (req, res, next) => {
     }
 
     if (
-      !['super-admin', 'admin', 'team', 'enterprise', 'user'].includes(newRole)
+      !['super-admin', 'admin', 'spa', 'enterprise', 'user'].includes(newRole)
     ) {
       return next(createError(400, 'Invalid role specified'))
     }
@@ -655,7 +655,7 @@ export const signup = async (req, res, next) => {
   }
 }
 
-export const createTeamMember = async (req, res, next) => {
+export const createSpaMember = async (req, res, next) => {
   try {
     const { name, email, password, assignedLocation, dateOfBirth, role } =
       req.body
@@ -674,15 +674,15 @@ export const createTeamMember = async (req, res, next) => {
     // Validate role assignment based on current user's role
     let userRole = role || 'user'
     if (req.user.role === 'admin') {
-      // Admin can only create user and team roles
-      if (!['user', 'team'].includes(userRole)) {
+      // Admin can only create user and spa roles
+      if (!['user', 'spa'].includes(userRole)) {
         return next(
-          createError(403, 'Admin can only create user and team roles')
+          createError(403, 'Admin can only create user and spa roles')
         )
       }
     } else if (req.user.role === 'super-admin') {
-      // Super-admin can create user, team, and admin roles
-      if (!['user', 'team', 'admin'].includes(userRole)) {
+      // Super-admin can create user, spa, and admin roles
+      if (!['user', 'spa', 'admin'].includes(userRole)) {
         return next(createError(400, 'Invalid role specified'))
       }
     }
@@ -708,8 +708,8 @@ export const createTeamMember = async (req, res, next) => {
       }
 
       // Prepare location data based on role
-      if (userRole === 'team') {
-        // Team users get spaLocation
+      if (userRole === 'spa') {
+        // Spa users get spaLocation
         spaLocationData = {
           locationId: location.locationId,
           locationName: location.name,
@@ -728,9 +728,9 @@ export const createTeamMember = async (req, res, next) => {
           selectedAt: new Date(),
         }
       }
-    } else if (userRole === 'team' && req.user.role === 'admin') {
-      // Admin creating team member must provide location
-      return next(createError(400, 'Location is required for team members'))
+    } else if (userRole === 'spa' && req.user.role === 'admin') {
+      // Admin creating spa member must provide location
+      return next(createError(400, 'Location is required for spa members'))
     }
 
     // Create user data
@@ -791,7 +791,7 @@ export const assignLocationToUser = async (req, res, next) => {
     // Check if current user can assign location to this user
     const canAssign =
       req.user.role === 'super-admin' ||
-      (req.user.role === 'admin' && user.role === 'team')
+      (req.user.role === 'admin' && user.role === 'spa')
 
     if (!canAssign) {
       return next(

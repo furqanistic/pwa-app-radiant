@@ -3,21 +3,21 @@
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
 import {
-  AlertCircle,
-  Building,
-  Calendar,
-  Check,
-  ChevronsUpDown,
-  Crown,
-  Heart,
-  Lock,
-  Mail,
-  MapPin,
-  Plus,
-  Search,
-  Shield,
-  User,
-  Users,
+    AlertCircle,
+    Building,
+    Calendar,
+    Check,
+    ChevronsUpDown,
+    Crown,
+    Heart,
+    Lock,
+    Mail,
+    MapPin,
+    Plus,
+    Search,
+    Shield,
+    User,
+    Users,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -25,32 +25,32 @@ import { useSelector } from 'react-redux'
 // shadcn/ui components
 import { Button } from '@/components/ui/button'
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
 } from '@/components/ui/command'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from '@/components/ui/select'
 
 const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
@@ -75,13 +75,13 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     if (isSuperAdmin) {
       return [
         { value: 'user', label: 'User' },
-        { value: 'team', label: 'Spa' },
+        { value: 'spa', label: 'Spa' },
         { value: 'admin', label: 'Admin' },
       ]
     } else if (isAdmin) {
       return [
         { value: 'user', label: 'User' },
-        { value: 'team', label: 'Spa' },
+        { value: 'spa', label: 'Spa' },
       ]
     } else {
       return [{ value: 'user', label: 'User' }]
@@ -180,7 +180,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     }
 
     // Location assignment validation
-    if (isAdmin && formData.role === 'team' && !formData.assignedLocation) {
+    if (isAdmin && formData.role === 'spa' && !formData.assignedLocation) {
       newErrors.assignedLocation = 'Location is required for Spa managers'
     }
 
@@ -283,7 +283,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     if (formData.role === 'user') return false
 
     if (isSuperAdmin) return true // Super admin can assign location to anyone
-    if (isAdmin && formData.role === 'team') return true // Admin can assign location to spa
+    if (isAdmin && formData.role === 'spa') return true // Admin can assign location to spa
     return false
   }
 
@@ -425,7 +425,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                   <SelectItem key={role.value} value={role.value}>
                     <div className='flex items-center gap-2'>
                       <span>{role.label}</span>
-                      {role.value === 'team' && (
+                      {role.value === 'spa' && (
                         <span className='text-xs text-gray-500'>
                           (Spa Manager)
                         </span>
@@ -448,7 +448,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                   • Regular users can access basic features and book services
                 </p>
               )}
-              {formData.role === 'team' && (
+              {formData.role === 'spa' && (
                 <p>
                   • Spa managers can manage users and services in their assigned
                   location
@@ -464,7 +464,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
           {shouldShowLocationAssignment() && (
             <div className='space-y-2'>
               <Label className='text-sm font-medium text-gray-700'>
-                Assign Location {isAdmin && formData.role === 'team' && '*'}
+                Assign Location {isAdmin && formData.role === 'spa' && '*'}
               </Label>
               <Popover open={locationOpen} onOpenChange={setLocationOpen}>
                 <PopoverTrigger asChild>
@@ -563,7 +563,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 </p>
               )}
               <p className='text-xs text-gray-500'>
-                {isAdmin && formData.role === 'team'
+                {isAdmin && formData.role === 'spa'
                   ? 'Required - Spa managers must be assigned to a location'
                   : 'Optional - assign user to a specific spa location'}
               </p>
@@ -679,7 +679,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
             <div>
               <h4 className='font-medium text-gray-900 mb-1'>
                 Creating:{' '}
-                {formData.role === 'team'
+                {formData.role === 'spa'
                   ? 'Spa Manager'
                   : formData.role.charAt(0).toUpperCase() +
                     formData.role.slice(1)}{' '}
@@ -688,11 +688,11 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
               <p className='text-sm text-gray-600'>
                 {formData.role === 'admin' &&
                   'Admin users can manage locations and spa managers.'}
-                {formData.role === 'team' &&
+                {formData.role === 'spa' &&
                   'Spa managers can manage users and services in their assigned location.'}
                 {formData.role === 'user' &&
                   'Regular users can access basic features and book services.'}
-                {selectedLocation && formData.role === 'team' && (
+                {selectedLocation && formData.role === 'spa' && (
                   <span className='block mt-1 font-medium'>
                     Will be assigned to:{' '}
                     {selectedLocation.name || selectedLocation.locationId}

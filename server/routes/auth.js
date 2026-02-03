@@ -2,33 +2,34 @@
 import express from 'express'
 import passport from 'passport'
 import {
-  adjustUserPoints,
-  assignLocationToUser,
-  bulkUpdateUsers,
-  changePassword,
-  changeUserRole,
-  createTeamMember,
-  deleteUser,
-  getAllUsers,
-  getAssignableUsers,
-  getCurrentUser,
-  getOnboardingStatus,
-  getUserProfile,
-  selectSpa,
-  signin,
-  signup,
-  updateUser,
+    adjustUserPoints,
+    assignLocationToUser,
+    bulkUpdateUsers,
+    changePassword,
+    changeUserRole,
+    createSpaMember,
+    deleteUser,
+    getAllUsers,
+    getAssignableUsers,
+    getCurrentUser,
+    getOnboardingStatus,
+    getUserProfile,
+    selectSpa,
+    signin,
+    signup,
+    updateUser,
 } from '../controller/auth.js'
 import {
-  auditLog,
-  canChangeRoles,
-  canManageUser,
-  canPerformBulkOperations,
-  canViewUsers,
-  checkManagementAccess,
-  requireAdminOrAbove,
-  requireSuperAdmin,
-  verifyToken,
+    auditLog,
+    canChangeRoles,
+    canManageUser,
+    canPerformBulkOperations,
+    canViewUsers,
+    checkManagementAccess,
+    requireAdminOrAbove,
+    requireSuperAdmin,
+    restrictTo,
+    verifyToken,
 } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
@@ -89,13 +90,8 @@ router.post(
   adjustUserPoints
 )
 
-// Create new team member or user
-router.post(
-  '/create-team-member',
-  requireAdminOrAbove,
-  auditLog('user_creation'),
-  createTeamMember
-)
+// Create new spa member (admin only)
+router.post('/create-spa-member', restrictTo('admin', 'super-admin'), auditLog('user_creation'), createSpaMember)
 
 // Change user role
 router.put(
@@ -131,7 +127,7 @@ router.post(
   '/create-admin',
   requireSuperAdmin,
   auditLog('admin_creation'),
-  createTeamMember
+  createSpaMember
 )
 
 export default router

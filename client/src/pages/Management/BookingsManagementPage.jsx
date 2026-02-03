@@ -1,24 +1,24 @@
 // File: pwa-app-radiant/client/src/pages/Management/BookingsManagementPage.js
 // File: client/src/pages/Management/BookingsManagementPage.jsx
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { bookingService } from '@/services/bookingService'
-import { useSelector } from 'react-redux'
-import Layout from '@/pages/Layout/Layout'
-import {
-  Calendar,
-  Clock,
-  MapPin,
-  User,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  CheckCircle,
-  AlertCircle,
-} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Layout from '@/pages/Layout/Layout'
+import { bookingService } from '@/services/bookingService'
+import { useQuery } from '@tanstack/react-query'
+import {
+    AlertCircle,
+    Calendar,
+    CheckCircle,
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Eye,
+    MapPin,
+    Search,
+    User,
+} from 'lucide-react'
+import { useState } from 'react'
+import { useSelector } from 'react-redux'
 
 const BookingsManagementPage = () => {
   const { currentUser } = useSelector((state) => state.user)
@@ -37,7 +37,7 @@ const BookingsManagementPage = () => {
         search: searchTerm,
         status: statusFilter !== 'all' ? statusFilter : undefined,
       }),
-    enabled: ['admin', 'super-admin', 'team'].includes(currentUser?.role),
+    enabled: ['admin', 'super-admin', 'spa'].includes(currentUser?.role),
   })
 
   const bookings = bookingsData?.data?.bookings || []

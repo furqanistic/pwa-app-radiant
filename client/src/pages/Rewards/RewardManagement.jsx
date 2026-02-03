@@ -1,30 +1,30 @@
 // File: client/src/pages/Rewards/RewardManagement.jsx
 import {
-  useCreateReward,
-  useDeleteReward,
-  useEnhancedRewardsCatalog,
-  useUpdateReward,
+    useCreateReward,
+    useDeleteReward,
+    useEnhancedRewardsCatalog,
+    useUpdateReward,
 } from '@/hooks/useRewards'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowLeft,
-  Award,
-  Calendar,
-  ChevronDown,
-  DollarSign,
-  Edit3,
-  Eye,
-  Gift,
-  Percent,
-  Plus,
-  Save,
-  Search,
-  Star,
-  Target,
-  Trash2,
-  Users,
-  X,
-  Zap,
+    ArrowLeft,
+    Award,
+    Calendar,
+    ChevronDown,
+    DollarSign,
+    Edit3,
+    Eye,
+    Gift,
+    Percent,
+    Plus,
+    Save,
+    Search,
+    Star,
+    Target,
+    Trash2,
+    Users,
+    X,
+    Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -60,7 +60,7 @@ const RewardHeader = ({
             Reward Management
           </h1>
           <p className='text-gray-600 text-sm'>
-            {userRole === 'admin' || userRole === 'team'
+            {userRole === 'admin' || userRole === 'spa'
               ? 'Create and manage reward redemptions'
               : 'View available rewards'}
           </p>
@@ -75,7 +75,7 @@ const RewardHeader = ({
         </div>
       </div>
 
-      {(userRole === 'admin' || userRole === 'team') && (
+      {(userRole === 'admin' || userRole === 'spa') && (
         <button
           onClick={onAddReward}
           className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-4 md:px-6 py-3 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-600 transition-all flex items-center justify-center gap-2 shadow-sm'
@@ -129,7 +129,7 @@ const RewardHeader = ({
 const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
   const rewardType = rewardTypes.find((t) => t.id === reward.type)
   const IconComponent = rewardType?.icon || Award
-  const canEdit = ['super-admin', 'admin', 'team'].includes(userRole)
+  const canEdit = ['super-admin', 'admin', 'spa'].includes(userRole)
 
   return (
     <div className='bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all group'>
@@ -520,7 +520,7 @@ const RewardManagement = () => {
 
   const { currentUser } = useSelector((state) => state.user)
   const userRole = currentUser?.role || 'user'
-  const canManageRewards = userRole === 'admin' || userRole === 'team'
+  const canManageRewards = userRole === 'admin' || userRole === 'spa'
 
   const {
     rewards = [],

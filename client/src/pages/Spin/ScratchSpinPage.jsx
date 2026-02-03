@@ -4,21 +4,21 @@ import SpinWheel from '@/components/Games/SpinWheel'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowRight,
-  CheckCircle,
-  ChevronRight,
-  Clock,
-  Coins,
-  Crown,
-  Gift,
-  Heart,
-  Loader2,
-  MapPin,
-  RefreshCcw,
-  Sparkles,
-  Star,
-  Trophy,
-  Trophy as TrophyIcon,
+    ArrowRight,
+    CheckCircle,
+    ChevronRight,
+    Clock,
+    Coins,
+    Crown,
+    Gift,
+    Heart,
+    Loader2,
+    MapPin,
+    RefreshCcw,
+    Sparkles,
+    Star,
+    Trophy,
+    Trophy as TrophyIcon,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -67,9 +67,11 @@ const ScratchSpinPage = () => {
   }
 
   const closeResult = () => {
+    console.log('Closing result modal')
     setShowResult(false)
     setGameResult(null)
     setActiveGame(null)
+    setIsPlaying(false)
   }
 
   if (isLoading) {
@@ -328,34 +330,68 @@ const ResultModal = ({ result, onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className='fixed inset-0 bg-white/95 backdrop-blur-xl flex items-end sm:items-center justify-center z-[70] sm:p-6'
+      className='fixed inset-0 bg-slate-900/90 backdrop-blur-xl flex items-end sm:items-center justify-center z-[70] sm:p-6'
+      onClick={(e) => {
+        // Allow clicking background to close if needed, but the button is primary
+        onClose()
+      }}
     >
       <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
+        initial={{ y: '100%', scale: 0.8 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: '100%', scale: 0.8 }}
         transition={{ type: 'spring', damping: 25, stiffness: 180 }}
-        className='text-center w-full max-w-md bg-white rounded-t-[45px] sm:rounded-[45px] shadow-2xl p-10 mt-auto sm:mt-0'
+        className='text-center w-full max-w-md bg-white rounded-t-[45px] sm:rounded-[45px] shadow-2xl p-10 mt-auto sm:mt-0 relative overflow-hidden'
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className='w-24 h-24 md:w-32 md:h-32 rounded-[40px] bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-pink-200 animate-bounce'>
-          <Trophy className='w-12 h-12 md:w-16 md:h-16 text-white' />
+        {/* Animated Background Confetti/SPA Elements */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+           {[...Array(20)].map((_, i) => (
+             <motion.div
+               key={i}
+               initial={{ y: -20, x: Math.random() * 100 + '%', opacity: 0 }}
+               animate={{ 
+                 y: '120%', 
+                 opacity: [0, 1, 0],
+                 rotate: [0, 360],
+                 x: (Math.random() * 100) + '%'
+               }}
+               transition={{ 
+                 duration: 2 + Math.random() * 2, 
+                 repeat: Infinity,
+                 delay: Math.random() * 2
+               }}
+               className={`absolute w-3 h-3 rounded-full ${['bg-pink-400', 'bg-rose-500', 'bg-yellow-400', 'bg-blue-400'][i % 4]}`}
+             />
+           ))}
         </div>
 
-        <h2 className='text-3xl md:text-5xl font-black text-slate-900 mb-2 tracking-tighter'>Congratulations!</h2>
-        <p className='text-slate-400 text-xs md:text-sm font-bold uppercase tracking-[0.2em] mb-10'>Your daily prize is here</p>
+        <div className='relative z-10'>
+          <div className='w-24 h-24 md:w-32 md:h-32 rounded-[40px] bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-pink-200 animate-bounce'>
+            <Trophy className='w-12 h-12 md:w-16 md:h-16 text-white' />
+          </div>
 
-        <div className='bg-slate-50 rounded-[40px] px-10 py-12 mb-10 border border-slate-100 relative overflow-hidden'>
-          <Sparkles className='absolute top-6 left-6 w-8 h-8 text-pink-200 opacity-50' />
-          <h3 className='text-xs md:text-sm font-black text-pink-500 uppercase tracking-widest mb-3'>{winningItem.title}</h3>
-          <div className='text-4xl md:text-6xl font-black text-slate-900 tracking-tighter'>{winningItem.value}</div>
+          <h2 className='text-3xl md:text-5xl font-black text-slate-900 mb-2 tracking-tighter'>Congratulations!</h2>
+          <p className='text-slate-400 text-xs md:text-sm font-bold uppercase tracking-[0.2em] mb-10'>Your daily prize is here</p>
+
+          <div className='bg-slate-50 rounded-[40px] px-10 py-12 mb-10 border border-slate-100 relative overflow-hidden'>
+            <Sparkles className='absolute top-6 left-6 w-8 h-8 text-pink-200 opacity-50' />
+            <Sparkles className='absolute bottom-6 right-6 w-8 h-8 text-pink-200 opacity-50' />
+            <h3 className='text-xs md:text-sm font-black text-pink-500 uppercase tracking-widest mb-3'>{winningItem.title}</h3>
+            <div className='text-4xl md:text-6xl font-black text-slate-900 tracking-tighter'>{winningItem.value}</div>
+          </div>
+
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onClose()
+            }}
+            className='w-full py-5 md:py-6 bg-slate-900 text-white rounded-[32px] font-black shadow-xl shadow-slate-200 active:scale-95 hover:bg-slate-800 transition-all text-sm md:text-base cursor-pointer relative z-50'
+          >
+            Collect Reward
+          </button>
         </div>
-
-        <button
-          onClick={onClose}
-          className='w-full py-5 md:py-6 bg-slate-900 text-white rounded-[32px] font-black shadow-xl shadow-slate-200 active:scale-95 transition-all text-sm md:text-base'
-        >
-          Collect Reward
-        </button>
       </motion.div>
     </motion.div>
   )

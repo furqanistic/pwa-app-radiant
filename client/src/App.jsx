@@ -368,7 +368,7 @@ const App = () => {
         <Route
           path="/management/bookings"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <BookingsManagementPage />
             </RoleProtectedRoute>
           }
@@ -413,7 +413,7 @@ const App = () => {
         <Route
           path="/contacts"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <ContactsPage />
             </RoleProtectedRoute>
           }
@@ -423,7 +423,7 @@ const App = () => {
         <Route
           path="/management"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <ManagementPage />
             </RoleProtectedRoute>
           }
@@ -432,7 +432,7 @@ const App = () => {
         <Route
           path="/management/services"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <ServiceManagementPage />
             </RoleProtectedRoute>
           }
@@ -441,7 +441,7 @@ const App = () => {
         <Route
           path="/management/spin"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <ScratchSpinManagement />
             </RoleProtectedRoute>
           }
@@ -450,7 +450,7 @@ const App = () => {
         <Route
           path="/management/rewards"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <RewardManagement />
             </RoleProtectedRoute>
           }
@@ -459,7 +459,7 @@ const App = () => {
         <Route
           path="/management/referral"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <ManageReferralPage />
             </RoleProtectedRoute>
           }
@@ -467,7 +467,7 @@ const App = () => {
         <Route
           path="/management/revenue"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <ClientRevenuePage />
             </RoleProtectedRoute>
           }
@@ -476,7 +476,7 @@ const App = () => {
         <Route
           path="/session"
           element={
-            <RoleProtectedRoute allowedRoles={["admin", "team", "super-admin"]}>
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <SessionTrackerPage />
             </RoleProtectedRoute>
           }

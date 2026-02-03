@@ -343,7 +343,7 @@ const NotificationSender = ({
                         ? 'bg-red-100 text-red-800'
                         : user.role === 'admin'
                         ? 'bg-purple-100 text-purple-800'
-                        : user.role === 'team'
+                        : user.role === 'spa'
                         ? 'bg-blue-100 text-blue-800'
                         : user.role === 'enterprise'
                         ? 'bg-yellow-100 text-yellow-800'

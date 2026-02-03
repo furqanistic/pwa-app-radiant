@@ -51,7 +51,7 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
   const isAdmin = currentUser?.role === 'admin'
   const isSuperAdmin = currentUser?.role === 'super-admin'
 
-  // Fetch users (admin/team only)
+  // Fetch users (admin/spa only)
   const { data: usersData, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['assignable-users'],
     queryFn: () =>
@@ -99,13 +99,13 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
 
     // Filter to only admin and team users
     let filteredUsers = users.filter((user) =>
-      ['admin', 'team'].includes(user.role)
+      ['admin', 'spa'].includes(user.role)
     )
 
     // Additional filtering based on current user role
     if (isAdmin) {
       // Admin can only assign locations to team users
-      filteredUsers = filteredUsers.filter((user) => user.role === 'team')
+      filteredUsers = filteredUsers.filter((user) => user.role === 'spa')
     }
     // Super-admin can assign to both admin and team (no additional filtering needed)
 
@@ -153,7 +153,7 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
             Assign Location to User
           </DialogTitle>
           <DialogDescription>
-            Assign a spa location to an existing admin or team member
+            Assign a spa location to an existing admin or spa member
           </DialogDescription>
         </DialogHeader>
 
@@ -169,9 +169,9 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
           <div className='p-3 bg-blue-50 border border-blue-200 rounded-lg'>
             <p className='text-sm text-blue-800'>
               {isSuperAdmin
-                ? 'As Super-Admin, you can assign locations to admin and team users.'
+                ? 'As Super-Admin, you can assign locations to admin and spa users.'
                 : isAdmin
-                ? 'As Admin, you can assign locations to team members only.'
+                ? 'As Admin, you can assign locations to spa members only.'
                 : 'You do not have permission to assign locations.'}
             </p>
           </div>

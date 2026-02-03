@@ -29,7 +29,7 @@ const UserSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['super-admin', 'admin', 'team', 'enterprise', 'user'], // Added super-admin as highest role
+      enum: ['super-admin', 'admin', 'spa', 'enterprise', 'user'], // Added super-admin as highest role
       default: 'user',
     },
     points: {
@@ -82,20 +82,20 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
-    // For team users (spa owners) - Their Spa Location
+    // For spa users (spa owners) - Their Spa Location
     spaLocation: {
       locationId: {
         type: String,
         default: null,
         required: function () {
-          return this.role === 'team'
+          return this.role === 'spa'
         },
       },
       locationName: {
         type: String,
         default: null,
         required: function () {
-          return this.role === 'team'
+          return this.role === 'spa'
         },
       },
       locationAddress: {
@@ -161,7 +161,7 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
-    // Stripe Connect Integration (for team role - spa owners)
+    // Stripe Connect Integration (for spa role - spa owners)
     stripe: {
       accountId: {
         type: String,
@@ -268,7 +268,7 @@ UserSchema.methods.canManageRole = function (targetRole) {
   const roleHierarchy = {
     'super-admin': 5,
     admin: 4,
-    team: 3,
+    spa: 3,
     enterprise: 2,
     user: 1,
   }
@@ -305,7 +305,7 @@ UserSchema.methods.canChangeUserRole = function (targetUser, newRole) {
 
 // Method to get user's relevant location based on role
 UserSchema.methods.getRelevantLocation = function () {
-  if (this.role === 'team') {
+  if (this.role === 'spa') {
     return this.spaLocation
   } else if (this.role === 'user') {
     return this.selectedLocation
@@ -317,7 +317,7 @@ UserSchema.methods.getRelevantLocation = function () {
 
 // Method to check if user has location configured
 UserSchema.methods.hasLocationConfigured = function () {
-  if (this.role === 'team') {
+  if (this.role === 'spa') {
     return !!(this.spaLocation?.locationId && this.spaLocation?.locationName)
   } else if (this.role === 'user') {
     return !!(
@@ -331,8 +331,8 @@ UserSchema.methods.hasLocationConfigured = function () {
 
 // Rest of the methods remain the same...
 UserSchema.methods.setupSpaLocation = function (locationData) {
-  if (this.role !== 'team') {
-    throw new Error('Only team users can have spa locations')
+  if (this.role !== 'spa') {
+    throw new Error('Only spa users can have spa locations')
   }
 
   this.spaLocation = {

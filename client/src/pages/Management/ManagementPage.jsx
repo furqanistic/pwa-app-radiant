@@ -58,13 +58,13 @@ const ManagementPage = () => {
   // Permission checks
   const isElevatedUser = [
     "admin",
-    "team",
+    "spa",
     "enterprise",
     "super-admin",
   ].includes(currentUser?.role);
   const isAdminOrAbove = ["admin", "super-admin"].includes(currentUser?.role);
   const isSuperAdmin = currentUser?.role === "super-admin";
-  const isTeamOrAbove = ["team", "admin", "super-admin"].includes(currentUser?.role); // Team check
+  const isTeamOrAbove = ["spa", "admin", "super-admin"].includes(currentUser?.role); // Spa check
 
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
@@ -83,7 +83,7 @@ const ManagementPage = () => {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: authService.createTeamMember,
+    mutationFn: authService.createSpaMember,
     onSuccess: () => {
       toast.success("User created successfully!");
       // Invalidate queries to update lists in other pages (like ContactsPage)
@@ -142,7 +142,7 @@ const ManagementPage = () => {
       icon: TrendingUp,
       path: "/management/revenue",
       color: "from-rose-500 to-rose-600",
-      visible: isTeamOrAbove, // Accessible to team role (spa managers)
+      visible: isTeamOrAbove, // Accessible to spa role (spa managers)
     },
   ];
 
@@ -254,7 +254,7 @@ const ManagementPage = () => {
           </div>
 
           {/* Stripe Connect - Team Role Only */}
-          {currentUser?.role === "team" && (
+          {currentUser?.role === "spa" && (
             <div className="mb-8">
               <StripeConnect />
             </div>

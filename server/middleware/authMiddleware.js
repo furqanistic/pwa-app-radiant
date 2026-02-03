@@ -67,7 +67,7 @@ export const requireAdminOrAbove = (req, res, next) => {
 
 // ENHANCED: Management access - includes all roles that can manage games
 export const checkManagementAccess = (req, res, next) => {
-  if (!['admin', 'team', 'super-admin', 'enterprise'].includes(req.user.role)) {
+  if (!['admin', 'spa', 'super-admin', 'enterprise'].includes(req.user.role)) {
     return next(createError(403, 'Management access required'))
   }
   next()
@@ -76,11 +76,11 @@ export const checkManagementAccess = (req, res, next) => {
 // NEW: Game management access - specifically for game operations
 export const checkGameManagementAccess = (req, res, next) => {
   // Allow admin, super-admin, and team roles to manage games
-  if (!['admin', 'team', 'super-admin'].includes(req.user.role)) {
+  if (!['admin', 'spa', 'super-admin'].includes(req.user.role)) {
     return next(
       createError(
         403,
-        'Game management access required. Only spa owners (team), admins, and super-admins can manage games.'
+        'Game management access required. Only spa owners (spa), admins, and super-admins can manage games.'
       )
     )
   }
@@ -121,8 +121,8 @@ export const canManageUser = async (req, res, next) => {
       return next()
     }
 
-    // Team users can only manage users in their spa
-    if (currentUser.role === 'team') {
+    // Spa users can only manage users in their spa
+    if (currentUser.role === 'spa') {
       const targetUser = await User.findById(targetUserId)
       if (!targetUser) {
         return next(createError(404, 'Target user not found'))
@@ -136,7 +136,7 @@ export const canManageUser = async (req, res, next) => {
         return next(createError(403, 'Can only manage users in your spa'))
       }
 
-      // Team users can only manage regular users
+      // Spa users can only manage regular users
       if (targetUser.role !== 'user') {
         return next(createError(403, 'Can only manage regular users'))
       }
@@ -169,11 +169,11 @@ export const canViewUsers = (req, res, next) => {
     return next()
   }
 
-  // Team users can only see users in their spa
-  if (userRole === 'team') {
+  // Spa users can only see users in their spa
+  if (userRole === 'spa') {
     if (!req.user.spaLocation?.locationId) {
       return next(
-        createError(400, 'Team user must have spa location configured')
+        createError(400, 'Spa user must have spa location configured')
       )
     }
 
@@ -251,7 +251,7 @@ export const checkPermission = (requiredLevel = 'admin') => {
     const roleHierarchy = {
       'super-admin': 5,
       admin: 4,
-      team: 3,
+      spa: 3,
       enterprise: 2,
       user: 1,
     }
@@ -283,11 +283,11 @@ export const checkGameAccess = async (req, res, next) => {
       return next()
     }
 
-    // Team users can only access games from their spa
-    if (currentUser.role === 'team') {
+    // Spa users can only access games from their spa
+    if (currentUser.role === 'spa') {
       if (!currentUser.spaLocation?.locationId) {
         return next(
-          createError(400, 'Team user must have spa location configured')
+          createError(400, 'Spa user must have spa location configured')
         )
       }
 
@@ -326,11 +326,11 @@ export const checkLocationAccess = (req, res, next) => {
     return next()
   }
 
-  // Team users can only access their spa location
-  if (currentUser.role === 'team') {
+  // Spa users can only access their spa location
+  if (currentUser.role === 'spa') {
     if (!currentUser.spaLocation?.locationId) {
       return next(
-        createError(400, 'Team user must have spa location configured')
+        createError(400, 'Spa user must have spa location configured')
       )
     }
     // Add location filter to request
@@ -350,13 +350,13 @@ export const checkLocationAccess = (req, res, next) => {
   return next(createError(403, 'Access denied'))
 }
 
-// NEW: Check if team user has connected Stripe account
+// NEW: Check if spa user has connected Stripe account
 export const requireStripeConnection = async (req, res, next) => {
   try {
     const currentUser = req.user
 
-    // Only check for team users
-    if (currentUser.role !== 'team') {
+    // Only check for spa users
+    if (currentUser.role !== 'spa') {
       return next()
     }
 

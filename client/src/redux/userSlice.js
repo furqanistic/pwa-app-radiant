@@ -173,11 +173,11 @@ export const selectIsSuperAdmin = (state) =>
   state.user.currentUser?.role === 'super-admin'
 export const selectIsAdmin = (state) => {
   const role = state.user.currentUser?.role
-  return ['admin', 'team', 'enterprise'].includes(role)
+  return ['admin', 'spa', 'enterprise'].includes(role)
 }
 export const selectIsElevatedUser = (state) => {
   const role = state.user.currentUser?.role
-  return ['super-admin', 'admin', 'team', 'enterprise'].includes(role)
+  return ['super-admin', 'admin', 'spa', 'enterprise'].includes(role)
 }
 export const selectIsUser = (state) => state.user.currentUser?.role === 'user'
 

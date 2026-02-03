@@ -765,7 +765,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
   // Check if team user has Stripe connected
   const hasStripeConnected =
-    currentUser?.role !== 'team' || // Admins bypass this check
+    currentUser?.role !== 'spa' || // Admins bypass this check
     (currentUser?.stripe?.accountId && currentUser?.stripe?.chargesEnabled)
 
   // API hooks

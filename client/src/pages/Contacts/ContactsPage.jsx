@@ -53,7 +53,7 @@ const ContactsPage = () => {
   // Permission checks
   const isElevatedUser = [
     "admin",
-    "team",
+    "spa",
     "enterprise",
     "super-admin",
   ].includes(currentUser?.role);
@@ -93,7 +93,7 @@ const ContactsPage = () => {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: authService.createTeamMember,
+    mutationFn: authService.createSpaMember,
     onSuccess: () => {
       toast.success("User created successfully!");
       queryClient.invalidateQueries(["all-users"]);
@@ -399,7 +399,7 @@ const ContactsPage = () => {
                                   ? "bg-red-100 text-red-800"
                                   : user.role === "admin"
                                   ? "bg-purple-100 text-purple-800"
-                                  : user.role === "team"
+                                  : user.role === "spa"
                                   ? "bg-blue-100 text-blue-800"
                                   : user.role === "enterprise"
                                   ? "bg-yellow-100 text-yellow-800"
