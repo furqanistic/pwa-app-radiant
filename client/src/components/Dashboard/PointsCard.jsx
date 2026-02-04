@@ -81,11 +81,11 @@ const PointsCard = () => {
               <div className='flex items-center gap-2'>
                 <div className='w-2 h-2 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,1)] animate-pulse' />
                 <span className='text-[10px] font-black tracking-[0.25em] text-white/90 uppercase drop-shadow-sm'>
-                  Radiant Rewards Member
+                   {currentUser?.referralStats?.currentTier || 'Radiant'} Member
                 </span>
               </div>
-              <h3 className='text-xl font-bold text-white tracking-tight flex items-center gap-2 drop-shadow-md'>
-                Elite Status
+              <h3 className='text-xl font-bold text-white tracking-tight flex items-center gap-2 drop-shadow-md capitalize'>
+                {currentUser?.referralStats?.currentTier || 'Bronze'} Status
                 <Crown size={18} className='text-pink-100 fill-pink-100/20' />
               </h3>
             </div>

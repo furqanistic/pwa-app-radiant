@@ -58,7 +58,8 @@ router.get('/me', getCurrentUser)
 router.get('/profile/:id', getUserProfile)
 
 // Update user profile
-router.put('/profile/:id', updateUser)
+// Update user profile
+router.put('/update/:id', updateUser)
 
 // Change user password
 router.put('/change-password', changePassword)

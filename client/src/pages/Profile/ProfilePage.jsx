@@ -3,18 +3,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
     AlertCircle,
-    Camera,
     Check,
     Edit3,
     Loader2,
     Lock,
     Mail,
+    Shield,
     Sparkles,
     User,
-    X,
+    Zap
 } from "lucide-react";
 import React, { useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { toast } from "sonner";
+import { updateProfile } from "../../redux/userSlice";
 import Layout from "../Layout/Layout";
 
 
@@ -25,13 +27,11 @@ const profileAPI = {
     return data.data.user;
   },
   updateUser: async ({ userId, userData }) => {
-    console.log("API: Updating user:", userId, "with data:", userData);
     try {
       const { data } = await axiosInstance.put(
         `/auth/update/${userId}`,
         userData
       );
-      console.log("API: Update successful:", data);
       return data.data.user;
     } catch (error) {
       console.error(
@@ -75,42 +75,44 @@ const ProfileField = ({
       {!isEditing ? (
         <motion.div
           whileTap={{ scale: disabled ? 1 : 0.98 }}
-          className={`flex items-center justify-between p-4 md:p-6 bg-white/90 rounded-xl md:rounded-2xl border border-gray-100 hover:border-pink-200 transition-all ${
+          className={`flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-pink-100 hover:border-pink-300 transition-all ${
             disabled
               ? "opacity-60 cursor-not-allowed"
-              : "active:bg-gray-50 cursor-pointer"
+              : "active:bg-pink-50 cursor-pointer shadow-sm hover:shadow-md"
           }`}
           onClick={disabled ? undefined : onEdit}
         >
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-100 to-rose-100 rounded-lg md:rounded-xl shrink-0">
-              <Icon className="w-4 h-4 md:w-5 md:h-5 text-pink-600" />
+            <div className="p-2.5 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl shrink-0 text-pink-600">
+              <Icon className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs md:text-sm font-medium text-gray-500 mb-0.5 md:mb-1">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
                 {label}
               </p>
-              <p className="text-sm md:text-base text-gray-900 font-medium truncate">
+              <p className="text-base font-semibold text-gray-900 truncate">
                 {value}
               </p>
             </div>
           </div>
           {!disabled && (
-            <Edit3 className="w-4 h-4 md:w-5 md:h-5 text-gray-400 shrink-0 opacity-0 group-hover:opacity-100 md:opacity-100 transition-opacity" />
+            <div className="p-2 bg-gray-50 rounded-full group-hover:bg-pink-50 transition-colors">
+                 <Edit3 className="w-4 h-4 text-gray-400 group-hover:text-pink-500 transition-colors" />
+            </div>
           )}
         </motion.div>
       ) : (
         <motion.div
-          initial={{ scale: 0.98 }}
-          animate={{ scale: 1 }}
-          className="p-4 md:p-6 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl md:rounded-2xl border-2 border-pink-200"
+          initial={{ scale: 0.98, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="p-4 md:p-5 bg-gradient-to-br from-white to-pink-50 rounded-2xl border-2 border-pink-200 shadow-lg"
         >
-          <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg md:rounded-xl">
-              <Icon className="w-4 h-4 md:w-5 md:h-5 text-white" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl shadow-lg shadow-pink-500/30">
+              <Icon className="w-5 h-5 text-white" />
             </div>
-            <p className="text-xs md:text-sm font-medium text-gray-700">
-              {label}
+            <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+              Editing {label}
             </p>
           </div>
           <input
@@ -118,35 +120,35 @@ const ProfileField = ({
             value={value}
             onChange={onChange}
             placeholder={placeholder}
-            className={`w-full px-3 md:px-4 py-2.5 md:py-3 bg-white rounded-lg md:rounded-xl border ${
+            className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
               error
                 ? "border-red-300 focus:border-red-400 focus:ring-red-100"
-                : "border-gray-200 focus:border-pink-400 focus:ring-pink-100"
-            } focus:ring-2 md:focus:ring-4 transition-all outline-none text-sm md:text-base`}
+                : "border-gray-100 focus:border-pink-500"
+            } focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium placeholder:text-gray-300`}
             autoFocus
           />
-          {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
-          <div className="flex gap-2 md:gap-3 mt-3 md:mt-4">
+          {error && <p className="text-red-500 text-xs mt-2 font-medium flex items-center gap-1"><AlertCircle size={12}/> {error}</p>}
+          <div className="flex gap-3 mt-4">
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={onSave}
               disabled={disabled}
-              className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-2.5 md:py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:shadow-lg transition-all disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-pink-500/25 transition-all disabled:opacity-70"
             >
               {disabled ? (
-                <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <Check className="w-4 h-4" />
               )}
-              {disabled ? "Saving..." : "Save"}
+              {disabled ? "Saving..." : "Save Changes"}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={onCancel}
               disabled={disabled}
-              className="px-4 md:px-6 py-2.5 md:py-3 bg-gray-100 text-gray-600 rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:bg-gray-200 transition-all disabled:opacity-50"
+              className="px-6 py-3 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
             >
-              <X className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              Cancel
             </motion.button>
           </div>
         </motion.div>
@@ -216,40 +218,42 @@ const PasswordChangeField = ({
       {!isEditing ? (
         <motion.div
           whileTap={{ scale: 0.98 }}
-          className="flex items-center justify-between p-4 md:p-6 bg-white/90 rounded-xl md:rounded-2xl border border-gray-100 hover:border-pink-200 transition-all active:bg-gray-50 cursor-pointer"
+          className="flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-pink-100 hover:border-pink-300 transition-all active:bg-pink-50 cursor-pointer shadow-sm hover:shadow-md"
           onClick={onEdit}
         >
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-100 to-rose-100 rounded-lg md:rounded-xl shrink-0">
-              <Lock className="w-4 h-4 md:w-5 md:h-5 text-pink-600" />
+            <div className="p-2.5 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl shrink-0 text-pink-600">
+              <Lock className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs md:text-sm font-medium text-gray-500 mb-0.5 md:mb-1">
-                Password
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
+                Security
               </p>
-              <p className="text-sm md:text-base text-gray-900 font-medium truncate">
-                ••••••••••
+              <p className="text-base font-semibold text-gray-900 truncate">
+                Change Password
               </p>
             </div>
           </div>
-          <Edit3 className="w-4 h-4 md:w-5 md:h-5 text-gray-400 shrink-0 opacity-0 group-hover:opacity-100 md:opacity-100 transition-opacity" />
+           <div className="p-2 bg-gray-50 rounded-full group-hover:bg-pink-50 transition-colors">
+                <Shield className="w-4 h-4 text-gray-400 group-hover:text-pink-500 transition-colors" />
+           </div>
         </motion.div>
       ) : (
         <motion.div
-          initial={{ scale: 0.98 }}
-          animate={{ scale: 1 }}
-          className="p-4 md:p-6 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl md:rounded-2xl border-2 border-pink-200"
+          initial={{ scale: 0.98, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+           className="p-4 md:p-5 bg-gradient-to-br from-white to-pink-50 rounded-2xl border-2 border-pink-200 shadow-lg"
         >
-          <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-            <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg md:rounded-xl">
-              <Lock className="w-4 h-4 md:w-5 md:h-5 text-white" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl shadow-lg shadow-pink-500/30">
+              <Lock className="w-5 h-5 text-white" />
             </div>
-            <p className="text-xs md:text-sm font-medium text-gray-700">
+            <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
               Change Password
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
               <input
                 type="password"
@@ -261,15 +265,13 @@ const PasswordChangeField = ({
                     currentPassword: e.target.value,
                   })
                 }
-                className={`w-full px-3 md:px-4 py-2.5 md:py-3 bg-white rounded-lg md:rounded-xl border ${
-                  errors.currentPassword ? "border-red-300" : "border-gray-200"
-                } focus:border-pink-400 focus:ring-2 md:focus:ring-4 focus:ring-pink-100 transition-all outline-none text-sm md:text-base`}
+                className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
+                  errors.currentPassword ? "border-red-300" : "border-gray-100"
+                } focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium`}
                 autoFocus
               />
               {errors.currentPassword && (
-                <p className="text-red-500 text-xs mt-1">
-                  {errors.currentPassword}
-                </p>
+                <p className="text-red-500 text-xs mt-1 font-medium">{errors.currentPassword}</p>
               )}
             </div>
 
@@ -281,14 +283,12 @@ const PasswordChangeField = ({
                 onChange={(e) =>
                   setPasswords({ ...passwords, newPassword: e.target.value })
                 }
-                className={`w-full px-3 md:px-4 py-2.5 md:py-3 bg-white rounded-lg md:rounded-xl border ${
-                  errors.newPassword ? "border-red-300" : "border-gray-200"
-                } focus:border-pink-400 focus:ring-2 md:focus:ring-4 focus:ring-pink-100 transition-all outline-none text-sm md:text-base`}
+                className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
+                  errors.newPassword ? "border-red-300" : "border-gray-100"
+                } focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium`}
               />
               {errors.newPassword && (
-                <p className="text-red-500 text-xs mt-1">
-                  {errors.newPassword}
-                </p>
+                <p className="text-red-500 text-xs mt-1 font-medium">{errors.newPassword}</p>
               )}
             </div>
 
@@ -303,39 +303,37 @@ const PasswordChangeField = ({
                     confirmPassword: e.target.value,
                   })
                 }
-                className={`w-full px-3 md:px-4 py-2.5 md:py-3 bg-white rounded-lg md:rounded-xl border ${
-                  errors.confirmPassword ? "border-red-300" : "border-gray-200"
-                } focus:border-pink-400 focus:ring-2 md:focus:ring-4 focus:ring-pink-100 transition-all outline-none text-sm md:text-base`}
+                className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
+                  errors.confirmPassword ? "border-red-300" : "border-gray-100"
+                } focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium`}
               />
               {errors.confirmPassword && (
-                <p className="text-red-500 text-xs mt-1">
-                  {errors.confirmPassword}
-                </p>
+                <p className="text-red-500 text-xs mt-1 font-medium">{errors.confirmPassword}</p>
               )}
             </div>
           </div>
 
-          <div className="flex gap-2 md:gap-3 mt-4">
+          <div className="flex gap-3 mt-5">
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleSave}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-2.5 md:py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:shadow-lg transition-all disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-pink-500/25 transition-all disabled:opacity-70"
             >
               {isLoading ? (
-                <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Check className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <Check className="w-4 h-4" />
               )}
-              {isLoading ? "Changing..." : "Save"}
+              {isLoading ? "Updating..." : "Update Password"}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleCancel}
               disabled={isLoading}
-              className="px-4 md:px-6 py-2.5 md:py-3 bg-gray-100 text-gray-600 rounded-lg md:rounded-xl text-sm md:text-base font-medium hover:bg-gray-200 transition-all disabled:opacity-50"
+               className="px-6 py-3 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
             >
-              <X className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              Cancel
             </motion.button>
           </div>
         </motion.div>
@@ -344,101 +342,45 @@ const PasswordChangeField = ({
   );
 };
 
-// Responsive Profile Avatar
-const ProfileAvatar = ({ user }) => {
-  const getInitials = (name) => {
-    return (
-      name
-        ?.split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase() || "U"
-    );
-  };
-
-  const getRoleDisplay = (role) => {
-    const roleMap = {
-      admin: "Admin User",
-      enterprise: "Enterprise Member",
-      team: "Team Member",
-      user: "Premium Member",
-    };
-    return roleMap[role] || "Member";
-  };
-
-  return (
-    <div className="flex flex-col items-center mb-6 md:mb-8">
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 200, damping: 15 }}
-        className="relative"
-      >
-        <div className="w-20 h-20 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-pink-400 via-rose-500 to-red-500 p-0.5 md:p-1 shadow-lg md:shadow-2xl">
-          <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-            <span className="text-lg md:text-3xl font-bold text-gray-600">
-              {getInitials(user?.name)}
-            </span>
-          </div>
-        </div>
-
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 p-1.5 md:p-3 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full shadow-md md:shadow-lg hover:shadow-xl transition-all"
-        >
-          <Camera className="w-3 h-3 md:w-4 md:h-4 text-white" />
-        </motion.button>
-      </motion.div>
-
-      <div className="text-center mt-3 md:mt-6">
-        <h2 className="text-lg md:text-2xl font-bold text-gray-900">
-          {user?.name || "Loading..."}
-        </h2>
-        <div className="flex items-center justify-center gap-1 md:gap-2 text-pink-600 mt-1 md:mt-2">
-          <Sparkles className="w-3 h-3 md:w-4 md:h-4" />
-          <span className="text-xs md:text-sm font-medium">
-            {getRoleDisplay(user?.role)}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // Loading Component
 const LoadingState = () => (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-pink-50/40 flex items-center justify-center">
-    <div className="text-center">
-      <Loader2 className="w-8 h-8 animate-spin text-pink-500 mx-auto mb-4" />
-      <p className="text-gray-600">Loading your profile...</p>
-    </div>
-  </div>
+  <Layout>
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-50 p-4 md:p-8 space-y-8 max-w-7xl mx-auto flex items-center justify-center">
+        <div className="text-center">
+            <div className="w-16 h-16 bg-white/50 rounded-2xl animate-pulse mx-auto mb-4" />
+            <div className="h-4 bg-white/50 rounded w-32 mx-auto animate-pulse" />
+        </div>
+      </div>
+  </Layout>
 );
 
 // Error Component
 const ErrorState = ({ error, retry }) => (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-pink-50/40 flex items-center justify-center">
-    <div className="text-center max-w-md mx-auto p-6">
-      <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Failed to load profile
-      </h2>
-      <p className="text-gray-600 mb-4">
-        {error?.message || "Something went wrong"}
-      </p>
-      <button
-        onClick={retry}
-        className="px-6 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg font-medium hover:shadow-lg transition-all"
-      >
-        Try Again
-      </button>
-    </div>
-  </div>
+    <Layout>
+        <div className="min-h-screen grid place-items-center bg-gradient-to-br from-pink-50 to-rose-50 p-4">
+             <div className="text-center p-8 bg-white rounded-3xl shadow-xl max-w-sm w-full border border-pink-100">
+                <AlertCircle className="w-12 h-12 text-pink-500 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                    Failed to load profile
+                </h2>
+                <p className="text-gray-500 mb-6 text-sm">
+                    {error?.message || "Something went wrong"}
+                </p>
+                <button
+                    onClick={retry}
+                    className="w-full py-3 bg-pink-500 text-white rounded-xl font-bold hover:bg-pink-600 transition-all"
+                >
+                    Try Again
+                </button>
+            </div>
+        </div>
+    </Layout>
 );
 
 // Main Profile Component
 const ProfilePage = () => {
   const queryClient = useQueryClient();
+  const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
 
   // React Query hooks
@@ -461,35 +403,22 @@ const ProfilePage = () => {
     mutationFn: profileAPI.updateUser,
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(["currentUser"], updatedUser);
-      alert("Profile updated successfully!");
+      dispatch(updateProfile(updatedUser)); // Update Redux state
+      toast.success("Profile updated successfully");
     },
     onError: (error) => {
-      console.error("Full error object:", error);
-      console.error("Error response:", error.response);
-      console.error("Error response data:", error.response?.data);
-
-      let errorMessage = "Failed to update profile";
-
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      alert(`Error updating profile: ${errorMessage}`);
+        console.error("Update failed", error);
+        toast.error(error.response?.data?.message || "Failed to update profile");
     },
   });
 
   const changePasswordMutation = useMutation({
     mutationFn: profileAPI.changePassword,
     onSuccess: (data) => {
-      alert(data.message || "Password changed successfully!");
+        toast.success("Password changed successfully");
     },
     onError: (error) => {
-      console.error("Error changing password:", error);
-      const errorMessage =
-        error.response?.data?.message || "Failed to change password";
-      alert(`Error: ${errorMessage}`);
+        toast.error(error.response?.data?.message || "Failed to change password");
     },
   });
 
@@ -507,6 +436,11 @@ const ProfilePage = () => {
         points: userData.points || 0,
       }
     : null;
+    
+  const getMembershipDisplay = (user) => {
+    const tier = user?.referralStats?.currentTier || 'Bronze';
+    return `${tier} Membership`;
+  };
 
   const handleEdit = (field) => {
     setEditingField(field);
@@ -525,26 +459,29 @@ const ProfilePage = () => {
     const value = tempValues[field]?.trim();
 
     if (!value) {
-      alert("Field cannot be empty");
+      toast.error("Field cannot be empty");
       return;
+    }
+
+    if (field === "name") {
+      if (value.length > 20) {
+        toast.error("Name cannot exceed 20 characters");
+        return;
+      }
     }
 
     if (field === "email") {
       if (!validateEmail(value)) {
-        alert("Please enter a valid email address");
+        toast.error("Please enter a valid email address");
         return;
       }
 
       if (value === user.email) {
-        alert("New email is the same as current email");
         setEditingField(null);
         setTempValues({});
         return;
       }
     }
-
-    console.log("Saving field:", field, "with value:", value);
-    console.log("User ID:", user._id);
 
     updateProfileMutation.mutate(
       {
@@ -555,9 +492,6 @@ const ProfilePage = () => {
         onSuccess: () => {
           setEditingField(null);
           setTempValues({});
-        },
-        onError: (error) => {
-          console.log("Save failed for field:", field);
         },
       }
     );
@@ -589,94 +523,62 @@ const ProfilePage = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-pink-50/40 overflow-x-hidden">
-        {/* Background Elements */}
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-4 md:left-1/4 w-32 h-32 md:w-64 md:h-64 bg-pink-200/20 md:bg-pink-200/30 rounded-full blur-2xl md:blur-3xl animate-pulse" />
-          <div
-            className="absolute bottom-20 right-4 md:right-1/4 w-40 h-40 md:w-80 md:h-80 bg-rose-200/15 md:bg-rose-200/20 rounded-full blur-2xl md:blur-3xl animate-pulse"
-            style={{ animationDelay: "1s" }}
-          />
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-50 pb-20 md:pb-12">
+        <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
+            
+            {/* Expanded Header Section */}
+            <div className="relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-r from-pink-600 via-rose-500 to-pink-700 text-white p-6 md:p-12 mb-8 shadow-xl shadow-pink-500/20">
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
+                
+                <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start justify-between gap-8">
+                    <div className="text-center md:text-left">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-[10px] md:text-xs font-bold tracking-wider uppercase mb-3 text-white shadow-sm capitalize">
+                            <Sparkles size={12} className="text-yellow-300 fill-yellow-300" />
+                            {getMembershipDisplay(user)}
+                        </div>
+                        <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight mb-2">
+                           Hello, <span className="text-pink-100">{user.name.split(' ')[0]}</span>
+                        </h1>
+                         <p className="text-white/80 font-medium text-sm md:text-base">
+                            Welcome to your personal dashboard.
+                        </p>
+                    </div>
 
-        <div className="relative z-10 w-full max-w-md md:max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-12">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8 md:mb-16"
-          >
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 bg-clip-text text-transparent mb-2 md:mb-6">
-              Profile
-            </h1>
-            <p className="text-sm md:text-xl text-gray-600 max-w-2xl mx-auto">
-              <span className="md:hidden">Manage your RadiantAI account</span>
-              <span className="hidden md:block">
-                Manage your identity with style.
-              </span>
-            </p>
-          </motion.div>
-
-          {/* Responsive Layout */}
-          <div className="md:grid md:grid-cols-5 md:gap-8 lg:gap-12">
-            {/* Profile Sidebar - Desktop */}
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="md:col-span-2 mb-6 md:mb-0"
-            >
-              <div className="bg-white/90 backdrop-blur-lg rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-xl border border-white/50 md:sticky md:top-8">
-                <ProfileAvatar user={user} />
-
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  <div className="p-3 md:p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl md:rounded-2xl text-center">
-                    <p className="text-xs md:text-sm text-gray-600 mb-1">
-                      Member since
-                    </p>
-                    <p className="text-sm md:text-base font-semibold text-gray-900">
-                      {user.memberSince}
-                    </p>
-                  </div>
-                  <div className="p-3 md:p-4 bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl md:rounded-2xl text-center">
-                    <p className="text-xs md:text-sm text-gray-600 mb-1">
-                      Points
-                    </p>
-                    <p className="text-sm md:text-base font-semibold text-gray-900">
-                      {user.points}
-                    </p>
-                  </div>
+                    <div className="flex gap-3">
+                         <div className="p-3 md:px-5 md:py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-center min-w-[90px]">
+                            <div className="text-lg md:text-xl font-bold">{user.points}</div>
+                            <div className="text-[10px] md:text-xs text-white/80 font-medium uppercase tracking-wider">Points</div>
+                        </div>
+                         <div className="p-3 md:px-5 md:py-4 bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl text-center min-w-[90px]">
+                            <div className="text-lg md:text-xl font-bold">{user.memberSince}</div>
+                            <div className="text-[10px] md:text-xs text-white/80 font-medium uppercase tracking-wider">Joined</div>
+                        </div>
+                    </div>
                 </div>
-              </div>
-            </motion.div>
+            </div>
 
-            {/* Settings Panel */}
+            {/* Main Content - Personal Info */}
             <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="md:col-span-3"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
             >
-              <div className="bg-white/90 backdrop-blur-lg rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-xl border border-white/50">
-                <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-                  <div className="p-2 md:p-3 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg md:rounded-xl">
-                    <User className="w-4 h-4 md:w-6 md:h-6 text-white" />
+              <div className="bg-white rounded-[2.5rem] p-6 md:p-10 shadow-lg shadow-gray-100 border border-pink-100/50">
+                <div className="flex items-center gap-4 mb-8 border-b border-gray-50 pb-6">
+                  <div className="p-3 bg-pink-50 rounded-2xl text-pink-600">
+                    <Zap className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg md:text-2xl font-bold text-gray-900">
-                      Account Settings
+                    <h3 className="text-xl font-black text-gray-900">
+                      Personal Settings
                     </h3>
-                    <p className="text-xs md:text-base text-gray-600">
-                      <span className="md:hidden">Tap any field to edit</span>
-                      <span className="hidden md:block">
-                        Manage your personal information
-                      </span>
+                    <p className="text-sm text-gray-500 font-medium">
+                      Update your identity and login credentials
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-4 md:space-y-6">
+                <div className="space-y-6">
                   <ProfileField
                     icon={User}
                     label="Full Name"
@@ -718,7 +620,7 @@ const ProfilePage = () => {
                 </div>
               </div>
             </motion.div>
-          </div>
+        
         </div>
       </div>
     </Layout>

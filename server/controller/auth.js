@@ -7,6 +7,7 @@ import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import { createSystemNotification } from './notification.js'
+import { updateUserTier } from './referral.js'
 
 const signToken = (id) => {
   const jwtSecret = process.env.JWT_SECRET
@@ -1169,6 +1170,9 @@ const processInitialReferral = async (referredUserId, referralCode) => {
     referrer.referralStats.activeReferrals += 1
     await referrer.save()
 
+    // Check for tier upgrade
+    await updateUserTier(referrer._id)
+
     return {
       success: true,
       message:
@@ -1200,7 +1204,7 @@ export const updateUser = async (req, res, next) => {
     }
 
     if (
-      req.user.id !== userId &&
+      req.user._id.toString() !== userId &&
       !['admin', 'super-admin'].includes(req.user.role)
     ) {
       return next(createError(403, 'You can only update your own profile'))
@@ -1470,10 +1474,20 @@ const processReferralOnSpaSelection = async (referredUserId, referralCode) => {
       }
     }
 
-    // Get referral config (you might want to create this model)
+    // Get referral config
+    const config = await ReferralConfig.getActiveConfig()
+    
+    // Calculate tier multiplier
+    const currentTier = referrer.referralStats?.currentTier || 'bronze'
+    const tierMultiplier = config.tierMultipliers[currentTier] || 1.0
+    
+    // Get spa specific config if available, otherwise global defaults
+    // Note: In a real scenario, we'd use getSpaConfig similar to referral.js
+    // For now using global signupReward but scaling with tier
+    
     const referralRewards = {
-      referrerPoints: 100,
-      referredPoints: 50,
+      referrerPoints: Math.round(config.signupReward.referrerPoints * tierMultiplier),
+      referredPoints: Math.round(config.signupReward.referredPoints * tierMultiplier),
     }
 
     // Create or update referral record
@@ -1519,6 +1533,9 @@ const processReferralOnSpaSelection = async (referredUserId, referralCode) => {
     referredUser.referredBy = referrer._id
 
     await Promise.all([referrer.save(), referredUser.save()])
+
+    // Check for tier upgrade (conversion might count too)
+    await updateUserTier(referrer._id)
 
     // Create notifications
     await createSystemNotification(

@@ -6,7 +6,7 @@ import User from '../models/User.js'
 import { createSystemNotification } from './notification.js'
 
 // Helper: Auto-update user tier based on total referrals
-const updateUserTier = async (userId) => {
+export const updateUserTier = async (userId) => {
   try {
     const user = await User.findById(userId)
     if (!user) return null
@@ -17,9 +17,11 @@ const updateUserTier = async (userId) => {
 
     // Determine new tier based on thresholds
     let newTier = 'bronze'
-    if (totalReferrals >= 10) {
+    const thresholds = config.tierThresholds || { gold: 5, platinum: 10 }
+    
+    if (totalReferrals >= thresholds.platinum) {
       newTier = 'platinum'
-    } else if (totalReferrals >= 5) {
+    } else if (totalReferrals >= thresholds.gold) {
       newTier = 'gold'
     }
 
