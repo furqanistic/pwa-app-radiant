@@ -2,6 +2,7 @@
 import ClinicLocations from '@/components/Dashboard/ClinicLocations'
 import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
+import SpaDashboard from '@/components/Dashboard/SpaDashboard'
 import { useDashboardData } from '@/hooks/useDashboard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -650,6 +651,74 @@ const SpaRewardsSection = () => {
   )
 }
 
+// Automated Gifts Section for Clients
+const AutomatedGiftsSection = ({ gifts = [] }) => {
+  if (gifts.length === 0) return null
+
+  return (
+    <div className='mb-4 sm:mb-6 lg:mb-8'>
+      <DashboardCard>
+        <div className='flex items-center gap-3 mb-6'>
+          <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl'>
+            <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+          </div>
+          <div>
+            <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
+              Automated Gifts
+            </h2>
+            <p className='text-xs sm:text-sm text-gray-600'>
+              Special gifts prepared just for you
+            </p>
+          </div>
+        </div>
+
+        <div className='flex overflow-x-auto gap-4 pb-4 no-scrollbar'>
+          {gifts.map((gift, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ y: -5 }}
+              className='min-w-[280px] md:min-w-[320px] bg-white border-2 border-pink-50 rounded-[2rem] overflow-hidden shadow-sm hover:shadow-md transition-all'
+            >
+              <div className='relative h-40'>
+                {gift.image ? (
+                  <img
+                    src={gift.image}
+                    alt={gift.name}
+                    className='w-full h-full object-cover'
+                  />
+                ) : (
+                  <div className='w-full h-full bg-pink-50 flex items-center justify-center'>
+                    <Gift className='w-12 h-12 text-pink-200' />
+                  </div>
+                )}
+                <div className='absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm'>
+                  <span className='text-xs font-black text-pink-500 uppercase tracking-widest'>
+                    Active
+                  </span>
+                </div>
+              </div>
+              <div className='p-6'>
+                <h3 className='text-lg font-black text-gray-900 mb-1 truncate'>
+                  {gift.name}
+                </h3>
+                <p className='text-2xl font-black text-pink-500 mb-3'>
+                  {gift.content}
+                </p>
+                <div className='flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-tighter'>
+                  <Sparkles className='w-3 h-3 text-pink-300' />
+                  <span>Available at your location</span>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </DashboardCard>
+    </div>
+  )
+}
+
 // Need More Points Section
 const NeedMorePointsSection = ({ methods = [] }) => {
   const navigate = useNavigate()
@@ -798,327 +867,337 @@ const DashboardPage = () => {
     <Layout>
       <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
         <div className='max-w-7xl mx-auto'>
-          {/* Points Card - Full Width at Top */}
-          <div className='mb-4 sm:mb-6 lg:mb-8'>
-            <PointsCard />
-          </div>
+          {data.role === 'spa' ? (
+            <SpaDashboard data={data} refetch={refetch} />
+          ) : (
+            <>
+              {/* Points Card - Full Width at Top */}
+              <div className='mb-4 sm:mb-6 lg:mb-8'>
+                <PointsCard />
+              </div>
 
-          {/* Spa Rewards Section - Full Width */}
-          <SpaRewardsSection />
-          <div className='mb-4 sm:mb-6 lg:mb-8'>
-            <GamesSection />
-          </div>
-          <div className='mb-4 sm:mb-6 lg:mb-8'>
-            <ClinicLocations />
-          </div>
-          {/* Need More Points Section - Full Width */}
-          {data.pointsEarningMethods && (
-            <div className='mb-4 sm:mb-6 lg:mb-8'>
-              <NeedMorePointsSection methods={data.pointsEarningMethods} />
-            </div>
-          )}
+              {/* Spa Rewards Section - Full Width */}
+              <SpaRewardsSection />
 
-          {/* Rest of the Dashboard - Better Balanced Layout */}
-          <div className='grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8'>
-            {/* Left Column - Takes 7 columns on desktop */}
-            <div className='lg:col-span-7 space-y-4 sm:space-y-6 lg:space-y-8'>
-              {/* Upcoming Appointments */}
-              {data.upcomingAppointments && (
-                <DashboardCard gradient='pink'>
-                  <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
-                    <div className='flex items-center mb-2 sm:mb-0'>
-                      <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-                        <Calendar className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-                      </div>
-                      <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
-                        Upcoming Appointments
-                      </h2>
-                    </div>
-                    <span className='bg-pink-200 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold w-fit'>
-                      {data.upcomingAppointments.length} scheduled
-                    </span>
-                  </div>
-                  {data.upcomingAppointments.length > 0 ? (
-                    <div className='grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4'>
-                      {data.upcomingAppointments.map((appointment) => (
-                        <motion.div
-                          key={appointment._id}
-                          whileHover={{ scale: 1.02 }}
-                          className='bg-white border-2 border-pink-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-pink-300 transition-colors cursor-pointer'
-                        >
-                          <h3 className='text-sm sm:text-base lg:text-lg font-bold text-gray-800 mb-1 sm:mb-2'>
-                            {appointment.serviceName}
-                          </h3>
-                          <p className='text-xs sm:text-sm lg:text-base text-gray-600 mb-2 sm:mb-3'>
-                            {appointment.providerName}
-                          </p>
-                          <div className='flex items-center bg-pink-50 rounded-lg p-2 sm:p-3'>
-                            <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-pink-500 mr-2 sm:mr-3' />
-                            <div>
-                              <p className='text-xs sm:text-sm font-semibold text-pink-700'>
-                                {formatDate(appointment.date)}
-                              </p>
-                              <p className='text-xs sm:text-sm text-pink-600'>
-                                {appointment.time}
-                              </p>
-                            </div>
+              {/* Automated Gifts Section */}
+              <AutomatedGiftsSection gifts={data.automatedGifts} />
+
+              <div className='mb-4 sm:mb-6 lg:mb-8'>
+                <GamesSection />
+              </div>
+              <div className='mb-4 sm:mb-6 lg:mb-8'>
+                <ClinicLocations />
+              </div>
+              {/* Need More Points Section - Full Width */}
+              {data.pointsEarningMethods && (
+                <div className='mb-4 sm:mb-6 lg:mb-8'>
+                  <NeedMorePointsSection methods={data.pointsEarningMethods} />
+                </div>
+              )}
+
+              {/* Rest of the Dashboard - Better Balanced Layout */}
+              <div className='grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8'>
+                {/* Left Column - Takes 7 columns on desktop */}
+                <div className='lg:col-span-7 space-y-4 sm:space-y-6 lg:space-y-8'>
+                  {/* Upcoming Appointments */}
+                  {data.upcomingAppointments && (
+                    <DashboardCard gradient='pink'>
+                      <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
+                        <div className='flex items-center mb-2 sm:mb-0'>
+                          <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+                            <Calendar className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
                           </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className='text-center py-8'>
-                      <Calendar className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-                      <p className='text-gray-600 mb-4'>
-                        No upcoming appointments
-                      </p>
-                      <button
-                        onClick={() => navigate('/services')}
-                        className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-xl hover:from-pink-600 hover:to-rose-600 transition-all'
-                      >
-                        Book Now
-                      </button>
-                    </div>
+                          <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
+                            Upcoming Appointments
+                          </h2>
+                        </div>
+                        <span className='bg-pink-200 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold w-fit'>
+                          {data.upcomingAppointments.length} scheduled
+                        </span>
+                      </div>
+                      {data.upcomingAppointments.length > 0 ? (
+                        <div className='grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4'>
+                          {data.upcomingAppointments.map((appointment) => (
+                            <motion.div
+                              key={appointment._id}
+                              whileHover={{ scale: 1.02 }}
+                              className='bg-white border-2 border-pink-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-pink-300 transition-colors cursor-pointer'
+                            >
+                              <h3 className='text-sm sm:text-base lg:text-lg font-bold text-gray-800 mb-1 sm:mb-2'>
+                                {appointment.serviceName}
+                              </h3>
+                              <p className='text-xs sm:text-sm lg:text-base text-gray-600 mb-2 sm:mb-3'>
+                                {appointment.providerName}
+                              </p>
+                              <div className='flex items-center bg-pink-50 rounded-lg p-2 sm:p-3'>
+                                <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-pink-500 mr-2 sm:mr-3' />
+                                <div>
+                                  <p className='text-xs sm:text-sm font-semibold text-pink-700'>
+                                    {formatDate(appointment.date)}
+                                  </p>
+                                  <p className='text-xs sm:text-sm text-pink-600'>
+                                    {appointment.time}
+                                  </p>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className='text-center py-8'>
+                          <Calendar className='w-12 h-12 text-gray-400 mx-auto mb-4' />
+                          <p className='text-gray-600 mb-4'>
+                            No upcoming appointments
+                          </p>
+                          <button
+                            onClick={() => navigate('/services')}
+                            className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-xl hover:from-pink-600 hover:to-rose-600 transition-all'
+                          >
+                            Book Now
+                          </button>
+                        </div>
+                      )}
+                    </DashboardCard>
                   )}
-                </DashboardCard>
-              )}
 
-              {/* Referral Program */}
-              {data.referralStats && (
-                <DashboardCard gradient='indigo'>
-                  <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
-                    <div className='flex items-center mb-2 sm:mb-0'>
-                      <div className='bg-gradient-to-r from-pink-500 to-rose-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
-                        <Users className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-                      </div>
-                      <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
-                        Referral Program
-                      </h2>
-                    </div>
-                    <div className='flex items-center bg-green-100 border-2 border-green-200 rounded-full px-2 sm:px-3 py-1 w-fit'>
-                      <TrendingUp className='w-3 h-3 sm:w-4 sm:h-4 text-green-600 mr-1 sm:mr-2' />
-                      <span className='text-green-700 font-semibold text-xs sm:text-sm'>
-                        Active
-                      </span>
-                    </div>
-                  </div>
-                  <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6'>
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      className='bg-white border-2 border-indigo-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-indigo-300 transition-colors cursor-pointer'
-                    >
-                      <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                        <Users className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-indigo-600' />
-                      </div>
-                      <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-indigo-600 mb-1'>
-                        {data.referralStats.total}
-                      </p>
-                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                        Total
-                      </p>
-                    </motion.div>
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      className='bg-white border-2 border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors cursor-pointer'
-                    >
-                      <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                        <Calendar className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-green-600' />
-                      </div>
-                      <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-green-600 mb-1'>
-                        {data.referralStats.thisMonth}
-                      </p>
-                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                        This Month
-                      </p>
-                    </motion.div>
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
-                    >
-                      <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                        <Gift className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
-                      </div>
-                      <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-purple-600 mb-1'>
-                        {data.referralStats.earnings}
-                      </p>
-                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                        Points
-                      </p>
-                    </motion.div>
-                  </div>
-                  <div className='bg-white border-2 border-indigo-200 rounded-xl sm:rounded-2xl p-3 sm:p-4'>
-                    <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
-                      <div>
-                        <p className='text-sm sm:text-base lg:text-lg font-bold text-gray-800'>
-                          Your Code:{' '}
-                          {data.referralStats.referralCode || 'Generate Code'}
-                        </p>
-                        <p className='text-xs sm:text-sm text-gray-600'>
-                          Share with friends and earn rewards
-                        </p>
-                      </div>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate('/referrals')}
-                        className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'
-                      >
-                        Share Now
-                      </motion.button>
-                    </div>
-                  </div>
-                </DashboardCard>
-              )}
-            </div>
-
-            {/* Right Column - Takes 5 columns on desktop */}
-            <div className='lg:col-span-5 space-y-4 sm:space-y-6 lg:space-y-8'>
-              {/* Available Credits & Gifts */}
-              {data.credits && (
-                <DashboardCard gradient='purple'>
-                  <div className='flex items-center justify-between mb-4 sm:mb-6'>
-                    <div className='flex items-center'>
-                      <div className='bg-gradient-to-r from-purple-500 to-purple-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
-                        <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-                      </div>
-                      <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
-                        Credits & Gifts
-                      </h2>
-                    </div>
-                  </div>
-
-                  <div className='grid grid-cols-2 gap-3 sm:gap-4 mb-4'>
-                    {/* Available Credits */}
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
-                    >
-                      <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
-                        <CreditCard className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
-                      </div>
-                      <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-purple-600 mb-1'>
-                        {data.credits.available}
-                      </p>
-                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                        Available Credits
-                      </p>
-                    </motion.div>
-
-                    {/* Gift Cards */}
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-pink-300 transition-colors cursor-pointer'
-                    >
-                      <div className='bg-gradient-to-r from-pink-100 to-pink-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
-                        <Gift className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-pink-600' />
-                      </div>
-                      <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-pink-600 mb-1'>
-                        {data.credits.gifts}
-                      </p>
-                      <p className='text-xs sm:text-sm font-semibold text-gray-700'>
-                        Gift Cards
-                      </p>
-                    </motion.div>
-                  </div>
-
-                  {/* Expiration Warning */}
-                  {data.credits.expiring && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className='bg-amber-50 border-2 border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'
-                    >
-                      <div className='flex items-center'>
-                        <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mr-2 sm:mr-3' />
-                        <div>
-                          <p className='text-xs sm:text-sm font-semibold text-amber-800'>
-                            Credits Expiring Soon
-                          </p>
-                          <p className='text-xs sm:text-sm text-amber-700'>
-                            Expires on {formatDate(data.credits.expiring)}
-                          </p>
+                  {/* Referral Program */}
+                  {data.referralStats && (
+                    <DashboardCard gradient='indigo'>
+                      <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
+                        <div className='flex items-center mb-2 sm:mb-0'>
+                          <div className='bg-gradient-to-r from-pink-500 to-rose-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                            <Users className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+                          </div>
+                          <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
+                            Referral Program
+                          </h2>
+                        </div>
+                        <div className='flex items-center bg-green-100 border-2 border-green-200 rounded-full px-2 sm:px-3 py-1 w-fit'>
+                          <TrendingUp className='w-3 h-3 sm:w-4 sm:h-4 text-green-600 mr-1 sm:mr-2' />
+                          <span className='text-green-700 font-semibold text-xs sm:text-sm'>
+                            Active
+                          </span>
                         </div>
                       </div>
-                    </motion.div>
-                  )}
-
-                  {/* Use Credits Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate('/rewards')}
-                    className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-600 transition-all'
-                  >
-                    Use Credits
-                  </motion.button>
-                </DashboardCard>
-              )}
-
-              {/* Past Visits */}
-              {data.pastVisits && (
-                <DashboardCard gradient='pink'>
-                  <div className='flex items-center justify-between mb-4 sm:mb-6'>
-                    <div className='flex items-center'>
-                      <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
-                        <Heart className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
-                      </div>
-                      <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
-                        Past Visits
-                      </h2>
-                    </div>
-                  </div>
-                  <div className='space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 lg:max-h-96 overflow-y-auto'>
-                    {data.pastVisits.length > 0 ? (
-                      data.pastVisits.map((visit) => (
+                      <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6'>
                         <motion.div
-                          key={visit._id}
-                          whileHover={{ scale: 1.02 }}
-                          className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-pink-300 transition-colors cursor-pointer'
+                          whileHover={{ scale: 1.05 }}
+                          className='bg-white border-2 border-indigo-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-indigo-300 transition-colors cursor-pointer'
                         >
-                          <div className='flex items-center justify-between'>
-                            <div className='flex-1 min-w-0'>
-                              <p className='font-semibold text-gray-800 text-xs sm:text-sm lg:text-base truncate'>
-                                {visit.serviceName}
+                          <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                            <Users className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-indigo-600' />
+                          </div>
+                          <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-indigo-600 mb-1'>
+                            {data.referralStats.total}
+                          </p>
+                          <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                            Total
+                          </p>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          className='bg-white border-2 border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors cursor-pointer'
+                        >
+                          <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                            <Calendar className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-green-600' />
+                          </div>
+                          <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-green-600 mb-1'>
+                            {data.referralStats.thisMonth}
+                          </p>
+                          <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                            This Month
+                          </p>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
+                        >
+                          <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                            <Gift className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
+                          </div>
+                          <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-purple-600 mb-1'>
+                            {data.referralStats.earnings}
+                          </p>
+                          <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                            Points
+                          </p>
+                        </motion.div>
+                      </div>
+                      <div className='bg-white border-2 border-indigo-200 rounded-xl sm:rounded-2xl p-3 sm:p-4'>
+                        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
+                          <div>
+                            <p className='text-sm sm:text-base lg:text-lg font-bold text-gray-800'>
+                              Your Code:{' '}
+                              {data.referralStats.referralCode || 'Generate Code'}
+                            </p>
+                            <p className='text-xs sm:text-sm text-gray-600'>
+                              Share with friends and earn rewards
+                            </p>
+                          </div>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => navigate('/referrals')}
+                            className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'
+                          >
+                            Share Now
+                          </motion.button>
+                        </div>
+                      </div>
+                    </DashboardCard>
+                  )}
+                </div>
+
+                {/* Right Column - Takes 5 columns on desktop */}
+                <div className='lg:col-span-5 space-y-4 sm:space-y-6 lg:space-y-8'>
+                  {/* Available Credits & Gifts */}
+                  {data.credits && (
+                    <DashboardCard gradient='purple'>
+                      <div className='flex items-center justify-between mb-4 sm:mb-6'>
+                        <div className='flex items-center'>
+                          <div className='bg-gradient-to-r from-purple-500 to-purple-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                            <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+                          </div>
+                          <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
+                            Credits & Gifts
+                          </h2>
+                        </div>
+                      </div>
+
+                      <div className='grid grid-cols-2 gap-3 sm:gap-4 mb-4'>
+                        {/* Available Credits */}
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
+                        >
+                          <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
+                            <CreditCard className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
+                          </div>
+                          <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-purple-600 mb-1'>
+                            {data.credits.available}
+                          </p>
+                          <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                            Available Credits
+                          </p>
+                        </motion.div>
+
+                        {/* Gift Cards */}
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-pink-300 transition-colors cursor-pointer'
+                        >
+                          <div className='bg-gradient-to-r from-pink-100 to-pink-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
+                            <Gift className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-pink-600' />
+                          </div>
+                          <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-pink-600 mb-1'>
+                            {data.credits.gifts}
+                          </p>
+                          <p className='text-xs sm:text-sm font-semibold text-gray-700'>
+                            Gift Cards
+                          </p>
+                        </motion.div>
+                      </div>
+
+                      {/* Expiration Warning */}
+                      {data.credits.expiring && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className='bg-amber-50 border-2 border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'
+                        >
+                          <div className='flex items-center'>
+                            <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mr-2 sm:mr-3' />
+                            <div>
+                              <p className='text-xs sm:text-sm font-semibold text-amber-800'>
+                                Credits Expiring Soon
                               </p>
-                              <p className='text-xs sm:text-sm text-gray-500'>
-                                {formatDate(visit.date)}
+                              <p className='text-xs sm:text-sm text-amber-700'>
+                                Expires on {formatDate(data.credits.expiring)}
                               </p>
-                            </div>
-                            <div className='flex items-center ml-2 sm:ml-3 flex-shrink-0'>
-                              {visit.rating ? (
-                                [...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`w-3 h-3 sm:w-4 sm:h-4 ${
-                                      i < visit.rating
-                                        ? 'text-yellow-400 fill-current'
-                                        : 'text-gray-300'
-                                    }`}
-                                  />
-                                ))
-                              ) : (
-                                <button
-                                  onClick={() => navigate('/Booking')}
-                                  className='text-xs text-pink-600 hover:text-pink-700 bg-pink-50 px-2 py-1 rounded'
-                                >
-                                  Rate
-                                </button>
-                              )}
                             </div>
                           </div>
                         </motion.div>
-                      ))
-                    ) : (
-                      <div className='text-center py-8'>
-                        <Heart className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-                        <p className='text-gray-600'>No past visits yet</p>
+                      )}
+
+                      {/* Use Credits Button */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => navigate('/rewards')}
+                        className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-600 transition-all'
+                      >
+                        Use Credits
+                      </motion.button>
+                    </DashboardCard>
+                  )}
+
+                  {/* Past Visits */}
+                  {data.pastVisits && (
+                    <DashboardCard gradient='pink'>
+                      <div className='flex items-center justify-between mb-4 sm:mb-6'>
+                        <div className='flex items-center'>
+                          <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                            <Heart className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+                          </div>
+                          <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
+                            Past Visits
+                          </h2>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </DashboardCard>
-              )}
-            </div>
-          </div>
+                      <div className='space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 lg:max-h-96 overflow-y-auto'>
+                        {data.pastVisits.length > 0 ? (
+                          data.pastVisits.map((visit) => (
+                            <motion.div
+                              key={visit._id}
+                              whileHover={{ scale: 1.02 }}
+                              className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-pink-300 transition-colors cursor-pointer'
+                            >
+                              <div className='flex items-center justify-between'>
+                                <div className='flex-1 min-w-0'>
+                                  <p className='font-semibold text-gray-800 text-xs sm:text-sm lg:text-base truncate'>
+                                    {visit.serviceName}
+                                  </p>
+                                  <p className='text-xs sm:text-sm text-gray-500'>
+                                    {formatDate(visit.date)}
+                                  </p>
+                                </div>
+                                <div className='flex items-center ml-2 sm:ml-3 flex-shrink-0'>
+                                  {visit.rating ? (
+                                    [...Array(5)].map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={`w-3 h-3 sm:w-4 sm:h-4 ${
+                                          i < visit.rating
+                                            ? 'text-yellow-400 fill-current'
+                                            : 'text-gray-300'
+                                        }`}
+                                      />
+                                    ))
+                                  ) : (
+                                    <button
+                                      onClick={() => navigate('/Booking')}
+                                      className='text-xs text-pink-600 hover:text-pink-700 bg-pink-50 px-2 py-1 rounded'
+                                    >
+                                      Rate
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))
+                        ) : (
+                          <div className='text-center py-8'>
+                            <Heart className='w-12 h-12 text-gray-400 mx-auto mb-4' />
+                            <p className='text-gray-600'>No past visits yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </DashboardCard>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Layout>

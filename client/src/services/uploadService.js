@@ -17,4 +17,27 @@ export const uploadService = {
 
     return response.data;
   },
+  deleteAudio: async (fileUrl) => {
+    if (!fileUrl || !fileUrl.includes("/uploads/audio/")) return;
+    
+    try {
+      const urlObject = new URL(fileUrl);
+      const filename = urlObject.pathname.split("/").pop();
+      const response = await axios.delete(`${API_URL}/upload/audio`, {
+        data: { filename },
+        withCredentials: true,
+      });
+
+      return response.data;
+    } catch (e) {
+      console.error("Error parsing audio URL for deletion:", e);
+      // Fallback to simple split if URL parsing fails
+      const filename = fileUrl.split("/").pop();
+      const response = await axios.delete(`${API_URL}/upload/audio`, {
+        data: { filename },
+        withCredentials: true,
+      });
+      return response.data;
+    }
+  },
 };

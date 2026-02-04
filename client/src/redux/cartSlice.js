@@ -49,6 +49,14 @@ const cartSlice = createSlice({
       state.totalItems = 0
     },
   },
+  extraReducers: (builder) => {
+    // Clear cart when user logs out
+    builder.addCase('user/logout', (state) => {
+      state.items = []
+      state.totalAmount = 0
+      state.totalItems = 0
+    })
+  },
 })
 
 export const { addToCart, removeFromCart, updateCartItem, clearCart } =

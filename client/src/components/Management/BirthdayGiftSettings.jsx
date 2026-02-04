@@ -245,14 +245,23 @@ const BirthdayGiftSettings = ({ isOpen, onClose }) => {
                       initialUrl={birthdayGift.voiceNoteUrl}
                       onUploadSuccess={async (blob) => {
                         try {
+                          const oldUrl = birthdayGift.voiceNoteUrl;
                           const res = await uploadService.uploadAudio(blob);
+                          if (oldUrl) {
+                            await uploadService.deleteAudio(oldUrl).catch(console.error);
+                          }
                           setBirthdayGift(prev => ({ ...prev, voiceNoteUrl: res.url }));
                           toast.success("Voice note uploaded!");
                         } catch (error) {
                           toast.error("Failed to upload voice note");
                         }
                       }}
-                      onReset={() => setBirthdayGift(prev => ({ ...prev, voiceNoteUrl: "" }))}
+                      onReset={async () => {
+                        if (birthdayGift.voiceNoteUrl) {
+                          await uploadService.deleteAudio(birthdayGift.voiceNoteUrl).catch(console.error);
+                        }
+                        setBirthdayGift(prev => ({ ...prev, voiceNoteUrl: "" }));
+                      }}
                     />
                   </div>
                 )}

@@ -99,6 +99,45 @@ const LocationSchema = new mongoose.Schema(
       },
     },
 
+    // ==================== AUTOMATED GIFTS SETTINGS ====================
+    automatedGifts: [
+      {
+        name: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        content: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        image: {
+          type: String,
+          default: "",
+        },
+        isActive: {
+          type: Boolean,
+          default: false,
+        },
+        type: {
+          type: String,
+          enum: ["fixed-date", "birthday", "anniversary", "custom"],
+          default: "fixed-date",
+        },
+        month: {
+          type: Number,
+          min: 1,
+          max: 12,
+        },
+        day: {
+          type: Number,
+          min: 1,
+          max: 31,
+        },
+      },
+    ],
+
     // ==================== QR CODE FIELDS ====================
     // NEW: QR Code data for this location
     qrCode: {

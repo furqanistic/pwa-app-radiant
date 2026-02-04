@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 
 // Import components
 import AddUserForm from "@/components/Management/AddUserForm";
+import AutomatedGiftSettings from "@/components/Management/AutomatedGiftSettings";
 import AvailabilitySettings from "@/components/Management/AvailabilitySettings"; // Import
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
@@ -55,6 +56,7 @@ const ManagementPage = () => {
     useState(false);
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
+  const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
   const [selectedQRLocation, setSelectedQRLocation] = useState(null);
 
   // Permission checks
@@ -231,6 +233,14 @@ const ManagementPage = () => {
                 <Gift className="w-4 h-4 mr-2" />
                 Gift Settings
               </Button>
+
+              <Button
+                onClick={() => setIsAutomatedGiftOpen(true)}
+                className="bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700"
+              >
+                <Gift className="w-4 h-4 mr-2" />
+                Automated Gifts
+              </Button>
               </>
             )}
 
@@ -394,6 +404,12 @@ const ManagementPage = () => {
         <BirthdayGiftSettings
           isOpen={isBirthdayGiftOpen}
           onClose={() => setIsBirthdayGiftOpen(false)}
+        />
+
+        {/* Automated Gift Modal */}
+        <AutomatedGiftSettings
+          isOpen={isAutomatedGiftOpen}
+          onClose={() => setIsAutomatedGiftOpen(false)}
         />
 
         {/* QR Code Modal */}

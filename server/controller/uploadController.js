@@ -21,3 +21,46 @@ export const uploadAudio = async (req, res, next) => {
     next(error);
   }
 };
+
+export const deleteAudio = async (req, res, next) => {
+  try {
+    const { filename } = req.body;
+    if (!filename) {
+      return next(createError(400, "Filename is required"));
+    }
+
+    // Safety check: ensure filename doesn't contain path traversal characters
+    if (filename.includes("..") || filename.includes("/")) {
+      return next(createError(400, "Invalid filename"));
+    }
+
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const { fileURLToPath } = await import("url");
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    
+    // The public folder is at the root of the server
+    const filePath = path.join(__dirname, "..", "public", "uploads", "audio", filename);
+
+    try {
+      await fs.unlink(filePath);
+      res.status(200).json({
+        success: true,
+        message: "Audio deleted successfully"
+      });
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        // File already gone, consider success
+        return res.status(200).json({
+          success: true,
+          message: "Audio file not found, but considered deleted"
+        });
+      }
+      throw err;
+    }
+  } catch (error) {
+    next(error);
+  }
+};

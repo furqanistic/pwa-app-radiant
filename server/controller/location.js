@@ -41,6 +41,17 @@ export const createLocation = async (req, res, next) => {
       phone: phone?.trim() || '',
       hours: hours || [],
       coordinates: coordinates || { latitude: null, longitude: null },
+      automatedGifts: req.body.automatedGifts || [
+        { name: "New Years", content: "20% Off", isActive: false, type: "fixed-date", month: 1, day: 1 },
+        { name: "St. Valentine's Day", content: "$30 Off", isActive: false, type: "fixed-date", month: 2, day: 14 },
+        { name: "St. Patrick's Day", content: "25% Off", isActive: false, type: "fixed-date", month: 3, day: 17 },
+        { name: "Easter Special", content: "10% Off", isActive: false, type: "fixed-date", month: 3, day: 31 },
+        { name: "Halloween", content: "30% Off", isActive: false, type: "fixed-date", month: 10, day: 31 },
+        { name: "Black Friday", content: "No Discount", isActive: false, type: "fixed-date", month: 11, day: 29 },
+        { name: "Christmas", content: "10% Off", isActive: false, type: "fixed-date", month: 12, day: 25 },
+        { name: "Birthday Special", content: "15% Off", isActive: false, type: "birthday" },
+        { name: "Client Anniversary", content: "$50 Off", isActive: false, type: "anniversary" },
+      ],
       addedBy: req.user.id,
     })
 
@@ -59,7 +70,7 @@ export const createLocation = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { locationId, name, description, address, phone, hours, isActive, coordinates } = req.body
+    const { locationId, name, description, address, phone, hours, isActive, coordinates, automatedGifts } = req.body
 
     const location = await Location.findById(id)
     if (!location) {
@@ -67,8 +78,13 @@ export const updateLocation = async (req, res, next) => {
     }
 
     // RBAC: Spa owners can only update their own location
-    if (req.user.role === 'spa' && location.addedBy.toString() !== req.user.id) {
-      return next(createError(403, 'You can only update your own location'))
+    if (req.user.role === 'spa') {
+      const isOwnerByAddedBy = location.addedBy.toString() === req.user.id;
+      const isOwnerByLocationId = location.locationId === req.user.spaLocation?.locationId;
+      
+      if (!isOwnerByAddedBy && !isOwnerByLocationId) {
+        return next(createError(403, 'You can only update your own location'));
+      }
     }
 
     // If updating locationId, check if new one already exists
@@ -92,6 +108,7 @@ export const updateLocation = async (req, res, next) => {
     if (hours !== undefined) updateData.hours = hours
     if (isActive !== undefined) updateData.isActive = isActive
     if (coordinates !== undefined) updateData.coordinates = coordinates
+    if (automatedGifts !== undefined) updateData.automatedGifts = automatedGifts
 
     const updatedLocation = await Location.findByIdAndUpdate(id, updateData, {
       new: true,
@@ -205,23 +222,55 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
 export const getMyLocation = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    // Find user to get location ID
-    // We could also pass locationId in query but it's safer to trust the user profile
-    // However, to avoid circular deps we can just query Location by addedBy if possible?
-    // No, addedBy is good. 
-    // OR fetch user first.
+    const user = req.user;
     
-    // Simpler: Find Location where addedBy = userId OR assume user knows their locationId
-    // Let's use the pattern from availability controller: fetch User
-    // But to avoid importing User (circular dep risk?), let's import it or use mongoose.model
-    // actually location.js doesn't import User.
-    
-    // Alternative: The authenticated user's ID is in req.user.id. 
-    // The Location model has `addedBy` field.
-    const location = await Location.findOne({ addedBy: userId });
+    // Find location either by addedBy OR by the locationId in user's profile
+    const location = await Location.findOne({ 
+      $or: [
+        { addedBy: userId },
+        { locationId: user.spaLocation?.locationId }
+      ]
+    });
     
     if (!location) {
+        console.log(`[getMyLocation] No location found for user ${userId}. SPA Location ID: ${user.spaLocation?.locationId}`);
         return next(createError(404, 'No location found for this user'));
+    }
+
+    // List of pre-defined template gifts
+    const templateGifts = [
+      { name: "New Years", content: "20% Off", isActive: false, type: "fixed-date", month: 1, day: 1 },
+      { name: "St. Valentine's Day", content: "$30 Off", isActive: false, type: "fixed-date", month: 2, day: 14 },
+      { name: "St. Patrick's Day", content: "25% Off", isActive: false, type: "fixed-date", month: 3, day: 17 },
+      { name: "Easter Special", content: "10% Off", isActive: false, type: "fixed-date", month: 3, day: 31 },
+      { name: "Halloween", content: "30% Off", isActive: false, type: "fixed-date", month: 10, day: 31 },
+      { name: "Black Friday", content: "No Discount", isActive: false, type: "fixed-date", month: 11, day: 29 },
+      { name: "Christmas", content: "10% Off", isActive: false, type: "fixed-date", month: 12, day: 25 },
+      { name: "Birthday Special", content: "15% Off", isActive: false, type: "birthday" },
+      { name: "Client Anniversary", content: "$50 Off", isActive: false, type: "anniversary" },
+    ];
+
+    // Ensure all templates exist in the location's automatedGifts
+    let hasChanges = false;
+    
+    // If automatedGifts is empty or null, initialize it with all templates
+    if (!location.automatedGifts || location.automatedGifts.length === 0) {
+      location.automatedGifts = [...templateGifts];
+      hasChanges = true;
+    } else {
+      // Otherwise, add any missing templates individually
+      templateGifts.forEach(template => {
+        const exists = location.automatedGifts.some(g => g.name === template.name);
+        if (!exists) {
+          location.automatedGifts.push(template);
+          hasChanges = true;
+        }
+      });
+    }
+
+    if (hasChanges) {
+      location.markModified('automatedGifts');
+      await location.save();
     }
 
     res.status(200).json({

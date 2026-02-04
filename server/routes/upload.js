@@ -3,7 +3,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { uploadAudio } from "../controller/uploadController.js";
+import { deleteAudio, uploadAudio } from "../controller/uploadController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,5 +39,6 @@ const upload = multer({
 
 // POST /api/upload/audio - Secure with token
 router.post("/audio", verifyToken, upload.single("audio"), uploadAudio);
+router.delete("/audio", verifyToken, deleteAudio);
 
 export default router;

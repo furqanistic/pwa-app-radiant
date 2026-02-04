@@ -497,14 +497,23 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       initialUrl={formData.voiceNoteUrl}
                       onUploadSuccess={async (blob) => {
                         try {
+                          const oldUrl = formData.voiceNoteUrl;
                           const res = await uploadService.uploadAudio(blob);
+                          if (oldUrl) {
+                            await uploadService.deleteAudio(oldUrl).catch(console.error);
+                          }
                           setFormData(prev => ({ ...prev, voiceNoteUrl: res.url }));
                           toast.success("Voice note uploaded!");
                         } catch (error) {
                           toast.error("Failed to upload voice note");
                         }
                       }}
-                      onReset={() => setFormData(prev => ({ ...prev, voiceNoteUrl: "" }))}
+                      onReset={async () => {
+                        if (formData.voiceNoteUrl) {
+                          await uploadService.deleteAudio(formData.voiceNoteUrl).catch(console.error);
+                        }
+                        setFormData(prev => ({ ...prev, voiceNoteUrl: "" }));
+                      }}
                     />
                   </div>
                 </div>
