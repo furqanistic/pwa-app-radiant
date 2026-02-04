@@ -161,6 +161,10 @@ const RewardSchema = new mongoose.Schema(
       default: null,
     },
 
+    voiceNoteUrl: {
+      type: String,
+      default: '',
+    },
     isDeleted: {
       type: Boolean,
       default: false,

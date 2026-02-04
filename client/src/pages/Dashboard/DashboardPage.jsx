@@ -18,7 +18,9 @@ import {
     Heart,
     Lock,
     MapPin,
+    Pause,
     Percent,
+    Play,
     Plus,
     RefreshCw,
     Share2,
@@ -30,10 +32,11 @@ import {
     Unlock,
     UserPlus,
     Users,
+    Volume2,
     XCircle,
     Zap,
 } from 'lucide-react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -58,6 +61,20 @@ const RewardCard = ({
   const [isClaiming, setIsClaiming] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [claimStatus, setClaimStatus] = useState(null) // 'success', 'error', null
+  const [isPlaying, setIsPlaying] = useState(false)
+  const audioRef = useRef(null)
+
+  const toggleVoiceNote = (e) => {
+    e.stopPropagation()
+    if (!audioRef.current) return
+    
+    if (isPlaying) {
+      audioRef.current.pause()
+    } else {
+      audioRef.current.play()
+    }
+    setIsPlaying(!isPlaying)
+  }
 
   const canAfford = reward.canClaim && !isOptimisticUpdate
   const isAffordable = reward.isAffordable
@@ -243,6 +260,28 @@ const RewardCard = ({
             {reward.pointCost}
           </span>
         </div>
+
+        {/* Voice Note Button */}
+        {reward.voiceNoteUrl && (
+          <div className='absolute bottom-3 right-3 z-30'>
+            <button
+              onClick={toggleVoiceNote}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                isPlaying 
+                  ? 'bg-pink-500 text-white animate-pulse' 
+                  : 'bg-white/90 text-pink-500 hover:bg-white hover:scale-110'
+              }`}
+            >
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </button>
+            <audio 
+              ref={audioRef} 
+              src={reward.voiceNoteUrl} 
+              onEnded={() => setIsPlaying(false)}
+              className="hidden"
+            />
+          </div>
+        )}
 
         {/* Status Badge */}
         <div className='absolute bottom-3 left-3'>

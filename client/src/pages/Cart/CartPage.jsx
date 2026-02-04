@@ -396,6 +396,12 @@ const CartPage = () => {
                       ${finalTotal.toFixed(2)}
                     </span>
                   </div>
+                  <div className="flex justify-end mt-1">
+                    <p className="text-xs font-semibold text-purple-600 flex items-center gap-1">
+                      <Gift className="w-3 h-3" />
+                      You'll earn {Math.floor(finalTotal)} points
+                    </p>
+                  </div>
                 </div>
               </div>
 

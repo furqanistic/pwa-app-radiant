@@ -5,6 +5,8 @@ import dotenv from 'dotenv'
 import express from 'express'
 import mongoose from 'mongoose'
 import passport from 'passport'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import './config/passport.js'
 import authRoute from './routes/auth.js'
 import bookingsRouter from './routes/bookings.js'; // NEW
@@ -19,8 +21,12 @@ import rewardsRouter from './routes/rewards.js'
 import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
 import stripeRoutes from './routes/stripe.js'; // STRIPE INTEGRATION
+import uploadRouter from './routes/upload.js'; // NEW
 import userRewardsRouter from './routes/userRewards.js'
 import { initScheduler } from './utils/scheduler.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 
 const app = express()
@@ -70,6 +76,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions))
 app.use(cookieParser())
+app.use(express.static('public')) // Serve static files from public folder
 
 // Stripe webhook needs raw body - mount before express.json()
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }))
@@ -96,6 +103,7 @@ app.use('/api/dashboard', dashboardRouter) // NEW
 app.use('/api/user-rewards', userRewardsRouter)
 app.use('/api/stripe', stripeRoutes) // STRIPE INTEGRATION
 app.use("/api/qr-codes", qrCodeRoutes);
+app.use("/api/upload", uploadRouter); // NEW: Upload route for voice notes
 
 const connect = () => {
   mongoose

@@ -5,6 +5,7 @@ import {
     useEnhancedRewardsCatalog,
     useUpdateReward,
 } from '@/hooks/useRewards'
+import { uploadService } from '@/services/uploadService'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     ArrowLeft,
@@ -15,6 +16,7 @@ import {
     Edit3,
     Eye,
     Gift,
+    Mic,
     Percent,
     Plus,
     Save,
@@ -29,6 +31,7 @@ import {
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
+import VoiceRecorder from '../../components/common/VoiceRecorder'
 import Layout from '../Layout/Layout'
 
 const rewardTypes = [
@@ -161,10 +164,19 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
 
         <div className='absolute top-3 right-3'>
           <span className='bg-black/70 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
-            <Zap className='w-3 h-3' />
+             <Zap className='w-3 h-3' />
             {reward.pointCost} pts
           </span>
         </div>
+
+        {reward.voiceNoteUrl && (
+          <div className='absolute bottom-3 left-3'>
+            <div className='bg-pink-500/80 backdrop-blur-sm text-white p-1.5 rounded-lg shadow-sm flex items-center gap-1.5'>
+              <Mic className='w-3.5 h-3.5' />
+              <span className='text-[10px] font-black uppercase tracking-widest'>Voice Note</span>
+            </div>
+          </div>
+        )}
 
         {canEdit && (
           <div className='absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity'>
@@ -248,6 +260,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
     limit: 1,
     status: 'active',
     image: '',
+    voiceNoteUrl: '',
   })
 
   useEffect(() => {
@@ -262,6 +275,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
         limit: reward.limit || 1,
         status: reward.status || 'active',
         image: reward.image || '',
+        voiceNoteUrl: reward.voiceNoteUrl || '',
       })
     } else {
       setFormData({
@@ -274,6 +288,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
         limit: 1,
         status: 'active',
         image: '',
+        voiceNoteUrl: '',
       })
     }
   }, [reward, isOpen])
@@ -412,8 +427,8 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                     </label>
                     <input
                       type='number'
-                      value={formData.value}
-                      onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                      value={formData.value === 0 ? "" : formData.value}
+                      onChange={(e) => setFormData({ ...formData, value: e.target.value === "" ? 0 : parseFloat(e.target.value) })}
                       className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
                       required
                     />
@@ -426,8 +441,8 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                     </label>
                     <input
                       type='number'
-                      value={formData.pointCost}
-                      onChange={(e) => setFormData({ ...formData, pointCost: e.target.value })}
+                      value={formData.pointCost === 0 ? "" : formData.pointCost}
+                      onChange={(e) => setFormData({ ...formData, pointCost: e.target.value === "" ? 0 : parseInt(e.target.value) })}
                       className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
                       required
                     />
@@ -440,8 +455,8 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                     </label>
                     <input
                       type='number'
-                      value={formData.validDays}
-                      onChange={(e) => setFormData({ ...formData, validDays: e.target.value })}
+                      value={formData.validDays === 0 ? "" : formData.validDays}
+                      onChange={(e) => setFormData({ ...formData, validDays: e.target.value === "" ? 0 : parseInt(e.target.value) })}
                       className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
                     />
                   </div>
@@ -473,6 +488,23 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                       placeholder='https://...'
                       className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
+                    />
+                  </div>
+
+                  {/* Voice Note Section */}
+                  <div className="md:col-span-2">
+                    <VoiceRecorder 
+                      initialUrl={formData.voiceNoteUrl}
+                      onUploadSuccess={async (blob) => {
+                        try {
+                          const res = await uploadService.uploadAudio(blob);
+                          setFormData(prev => ({ ...prev, voiceNoteUrl: res.url }));
+                          toast.success("Voice note uploaded!");
+                        } catch (error) {
+                          toast.error("Failed to upload voice note");
+                        }
+                      }}
+                      onReset={() => setFormData(prev => ({ ...prev, voiceNoteUrl: "" }))}
                     />
                   </div>
                 </div>

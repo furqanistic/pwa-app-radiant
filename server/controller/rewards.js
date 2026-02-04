@@ -185,6 +185,7 @@ export const createReward = async (req, res, next) => {
       excludeServices = [],
       includeServices = [],
       locationId,
+      voiceNoteUrl,
     } = req.body
 
     // Validate required fields
@@ -222,6 +223,7 @@ export const createReward = async (req, res, next) => {
       limit: parseInt(limit),
       validDays: parseInt(validDays),
       createdBy: req.user.id,
+      voiceNoteUrl: voiceNoteUrl || '',
     }
 
     // Add optional fields

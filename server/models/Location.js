@@ -84,7 +84,7 @@ const LocationSchema = new mongoose.Schema(
         default: 0,
       },
       serviceId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.Mixed, // Allows ObjectId or "any"
         ref: "Service",
         default: null,
       },
@@ -92,6 +92,10 @@ const LocationSchema = new mongoose.Schema(
         type: String,
         default: "Happy Birthday! Here is a special gift for you.",
         trim: true,
+      },
+      voiceNoteUrl: {
+        type: String,
+        default: "",
       },
     },
 
@@ -160,7 +164,7 @@ LocationSchema.index({ isActive: 1 });
 LocationSchema.index({ isActive: 1, locationId: 1 });
 
 // NEW: Indexes for QR code queries
-LocationSchema.index({ "qrCode.qrId": 1 });
+
 LocationSchema.index({ "qrCode.isEnabled": 1 });
 LocationSchema.index({ "qrCode.isEnabled": 1, "qrCode.qrId": 1 });
 

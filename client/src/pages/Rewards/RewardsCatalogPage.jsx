@@ -9,16 +9,19 @@ import {
     Filter,
     Gift,
     Heart,
+    Pause,
     Percent,
+    Play,
     Search,
     SortAsc,
     Sparkles,
     Star,
     Users,
+    Volume2,
     X,
     Zap,
 } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
@@ -127,7 +130,20 @@ const PremiumDropdown = ({
 // Reward Card Component
 const RewardCard = ({ reward, onClaim, userPoints }) => {
   const [isClaiming, setIsClaiming] = useState(false)
-  const [showConfetti, setShowConfetti] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const audioRef = useRef(null)
+
+  const toggleVoiceNote = (e) => {
+    e.stopPropagation()
+    if (!audioRef.current) return
+    
+    if (isPlaying) {
+      audioRef.current.pause()
+    } else {
+      audioRef.current.play()
+    }
+    setIsPlaying(!isPlaying)
+  }
 
   const canAfford = reward.canClaim
   const isAffordable = reward.isAffordable
@@ -256,13 +272,34 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
           </span>
         </div>
 
-        {/* Point Cost */}
         <div className='absolute top-3 right-3'>
           <span className='bg-black/70 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
             <Zap className='w-3 h-3' />
             {reward.pointCost}
           </span>
         </div>
+
+        {/* Voice Note Button */}
+        {reward.voiceNoteUrl && (
+          <div className='absolute bottom-3 right-3 z-30'>
+            <button
+              onClick={toggleVoiceNote}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${
+                isPlaying 
+                  ? 'bg-pink-500 text-white animate-pulse' 
+                  : 'bg-white/90 text-pink-500 hover:bg-white hover:scale-110'
+              }`}
+            >
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            </button>
+            <audio 
+              ref={audioRef} 
+              src={reward.voiceNoteUrl} 
+              onEnded={() => setIsPlaying(false)}
+              className="hidden"
+            />
+          </div>
+        )}
 
         {/* Status Badge */}
         <div className='absolute bottom-3 left-3'>

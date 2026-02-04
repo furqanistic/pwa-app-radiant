@@ -87,6 +87,8 @@ const ServiceDetailPage = () => {
     );
   };
 
+  const availableTimes = getFinalAvailableTimes();
+
   // Auto-select ALL treatments by default
   useEffect(() => {
     if (service?.subTreatments?.length > 0 && selectedTreatments.length === 0) {

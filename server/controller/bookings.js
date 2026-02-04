@@ -123,6 +123,22 @@ export const getUserBookingStats = async (req, res, next) => {
             },
           },
         ]),
+        // NEW: Calculate total lifetime points earned
+        Booking.aggregate([
+          {
+            $match: {
+              userId: new mongoose.Types.ObjectId(userId),
+              status: 'completed', // Only completed bookings count
+              pointsEarned: { $exists: true, $gt: 0 } // Ensure field exists
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalPoints: { $sum: '$pointsEarned' }
+            }
+          }
+        ])
       ])
 
     res.status(200).json({
@@ -134,6 +150,7 @@ export const getUserBookingStats = async (req, res, next) => {
           totalSpent: totalSpent[0]?.total || 0,
           averageRating: averageRating[0]?.average || 0,
           totalRatings: averageRating[0]?.count || 0,
+          totalPointsEarned: arguments[0][4]?.[0]?.totalPoints || 0 // Access the 5th result from Promise.all
         },
       },
     })

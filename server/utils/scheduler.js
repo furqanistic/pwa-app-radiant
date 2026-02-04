@@ -102,6 +102,7 @@ const checkBirthdays = async () => {
                     giftType: giftSettings.giftType || "free",
                     giftValue: giftSettings.value || 0,
                     serviceId: giftSettings.serviceId,
+                    voiceNoteUrl: giftSettings.voiceNoteUrl,
                     giftDate: new Date()
                 }
             });

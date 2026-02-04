@@ -67,18 +67,16 @@ export const getAvailability = async (req, res, next) => {
     }
     const duration = service.duration || 60
 
-    // 2. Get Location Business Hours (from Team User)
-    // We need to find the user who OWNS this location (role=team)
-    // Or if multiple, just take the first one found (assuming one owner per location)
-    const teamUser = await User.findOne({
-      'spaLocation.locationId': locationId,
-      role: 'team',
-    })
+    // 2. Get Location Business Hours (from Location Model)
+    // We should query the Location model directly as it is the source of truth
+    const Location = (await import('../models/Location.js')).default;
+    const location = await Location.findOne({ locationId });
 
-    if (!teamUser || !teamUser.spaLocation?.businessHours) {
-      // Fallback or error?
-      // If no hours set, maybe return empty availability or default 9-5?
-      // Let's return empty with a clear message or just empty
+    if (!location) {
+        return next(createError(404, 'Location not found'));
+    }
+
+    if (!location.hours || location.hours.length === 0) {
       return res.status(200).json({
         status: 'success',
         data: { slots: [], reason: 'No business hours configured' },
@@ -87,18 +85,18 @@ export const getAvailability = async (req, res, next) => {
 
     const queryDate = new Date(date)
     const days = [
-      'sunday',
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
     ]
     const dayName = days[queryDate.getDay()]
-    const hours = teamUser.spaLocation.businessHours[dayName]
+    const dayConfig = location.hours.find(h => h.day === dayName);
 
-    if (!hours || hours.closed || !hours.open || !hours.close) {
+    if (!dayConfig || dayConfig.isClosed || !dayConfig.open || !dayConfig.close) {
       return res.status(200).json({
         status: 'success',
         data: { slots: [], reason: 'Closed on this day' },
@@ -107,11 +105,14 @@ export const getAvailability = async (req, res, next) => {
 
     // 3. Generate All Possible Slots
     const potentialSlots = generateSlots(
-      hours.open,
-      hours.close,
+      dayConfig.open,
+      dayConfig.close,
       duration,
       queryDate
     )
+
+    const hours = { open: dayConfig.open, close: dayConfig.close }; // For response consistency
+
 
     // 4. Fetch Existing Bookings
     const startOfDay = new Date(date)
@@ -227,8 +228,11 @@ export const updateAvailability = async (req, res, next) => {
              if (birthdayGift) {
                  if (!location.birthdayGift) location.birthdayGift = {};
                  if (birthdayGift.isActive !== undefined) location.birthdayGift.isActive = birthdayGift.isActive;
+                 if (birthdayGift.giftType !== undefined) location.birthdayGift.giftType = birthdayGift.giftType;
+                 if (birthdayGift.value !== undefined) location.birthdayGift.value = birthdayGift.value;
                  if (birthdayGift.serviceId !== undefined) location.birthdayGift.serviceId = birthdayGift.serviceId;
                  if (birthdayGift.message !== undefined) location.birthdayGift.message = birthdayGift.message;
+                 if (birthdayGift.voiceNoteUrl !== undefined) location.birthdayGift.voiceNoteUrl = birthdayGift.voiceNoteUrl;
              }
              
              location.markModified('coordinates');

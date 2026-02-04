@@ -4,7 +4,7 @@
 import CancelBookingModal from "@/components/Bookings/CancelBookingModal";
 import RescheduleModal from "@/components/Bookings/RescheduleModal";
 import BNPLBanner from "@/components/Common/BNPLBanner";
-import { usePastBookings, useUpcomingBookings } from "@/hooks/useBookings";
+import { useBookingStats, usePastBookings, useUpcomingBookings } from "@/hooks/useBookings";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import Layout from "@/pages/Layout/Layout";
 import { clearCart, removeFromCart } from "@/redux/cartSlice";
@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Clock,
   Edit2,
+  Gift,
   MapPin,
   ShoppingBag,
   Trash2,
@@ -65,7 +66,7 @@ const BookingCard = ({
 
     // Derived Status for Label
     let statusLabel = booking.status || "Confirmed";
-    if (isPending) statusLabel = "Pending Payment";
+    if (isPending) statusLabel = "Pending";
     else if (booking.status === "cancelled") statusLabel = "Cancelled";
     else if (isPast) statusLabel = "Completed";
 
@@ -129,12 +130,12 @@ const BookingCard = ({
                     <Clock className="w-3.5 h-3.5 text-gray-400" />
                     {booking.time} ({booking.duration}m)
                 </div>
-                 {(booking.providerName || booking.practitioner) && (
+                 {(booking.providerName && booking.providerName !== 'To be assigned') || (booking.practitioner && booking.practitioner !== 'TBA') ? (
                      <div className="flex items-center gap-1">
                         <span className="w-3.5 h-3.5 flex items-center justify-center text-[10px] bg-gray-100 rounded-full">👤</span>
                         <span className="truncate max-w-[80px]">{booking.providerName || booking.practitioner}</span>
                      </div>
-                 )}
+                 ) : null}
              </div>
         </div>
       </div>
@@ -145,11 +146,28 @@ const BookingCard = ({
              <MapPin className="w-3.5 h-3.5 text-gray-400" />
              <span className="truncate max-w-[150px]">{booking.locationName || booking.location}</span>
           </div>
-          <div className="font-bold text-gray-900 text-sm">
-             ${getTotalPrice().toFixed(2)}
+          <div className="flex flex-col items-end">
+             <div className="font-bold text-gray-900 text-sm">
+                ${getTotalPrice().toFixed(2)}
+             </div>
+             {(booking.status === 'completed' || booking.paymentStatus === 'paid') && (
+                <div className="text-[10px] font-bold text-purple-600">
+                   +{booking.pointsEarned || Math.floor(getTotalPrice())} pts
+                </div>
+             )}
           </div>
       </div>
 
+
+      {/* Potential Points for Upcoming & Pending */}
+      {!isPast && booking.status !== 'cancelled' && (
+        <div className="mt-3 mb-4 bg-purple-50 border-l-4 border-purple-500 rounded-r-xl p-3 flex items-start gap-3">
+             <AlertTriangle className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-purple-900 font-medium leading-tight">
+                Hurry up! Complete this booking and claim your <span className="font-bold">{Math.floor(getTotalPrice())} points</span> reward
+            </p>
+        </div>
+      )}
 
       {/* Action Buttons */}
       {isPending ? (
@@ -303,8 +321,8 @@ const BookingsPage = () => {
     finalPrice: item.finalPrice || item.totalPrice || item.price || 0,
     locationName: item.locationName || item.location?.name || "To be confirmed",
     location: item.location?.name || item.locationName || "TBA",
-    providerName: item.providerName || item.provider?.name || "To be assigned",
-    practitioner: item.practitioner || item.provider?.name || "TBA",
+    providerName: item.providerName || item.provider?.name || null,
+    practitioner: item.practitioner || item.provider?.name || null,
     status: "pending",
     isPending: true,
   });
@@ -348,12 +366,30 @@ const BookingsPage = () => {
 
   const isListLoading = (activeTab === 'history' && pastLoading) || (activeTab === 'upcoming' && upcomingLoading);
 
+  // ✅ Fetch booking stats for total points
+  const { data: statsData } = useBookingStats(currentUser?._id);
+  const totalPointsEarned = statsData?.data?.stats?.totalPointsEarned || 0;
+
   return (
     <Layout>
       <div className="px-4 py-6 max-w-md mx-auto md:max-w-4xl min-h-[80vh]">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">My Bookings</h1>
+
+          {/* Points Summary Card */}
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-5 mb-6 text-white flex items-center justify-between shadow-lg shadow-gray-200">
+             <div>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Total Points Claimed From Bookings</p>
+                <div className="text-3xl font-bold flex items-baseline gap-1">
+                   {totalPointsEarned}
+                   <span className="text-sm font-medium text-purple-400">pts</span>
+                </div>
+             </div>
+             <div className="h-12 w-12 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
+                <Gift className="w-6 h-6 text-purple-400" />
+             </div>
+          </div>
 
             {/* Premium Segmented Control Tabs */}
             <div className="bg-gray-100 p-1 rounded-2xl flex relative">

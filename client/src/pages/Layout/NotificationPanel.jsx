@@ -1,4 +1,5 @@
 // File: client/src/pages/Layout/NotificationPanel.jsx - REDESIGNED
+import BirthdayGiftVoicePlayer from '@/components/Dashboard/BirthdayGiftVoicePlayer'
 import PushNotificationSettings from '@/components/Layout/PushNotificationSettings'
 import { axiosInstance } from '@/config'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
@@ -447,6 +448,9 @@ const NotificationPanel = ({ className = '' }) => {
                                 <p className="text-xs text-gray-500 mt-1 leading-relaxed font-medium">
                                   {notification.message}
                                 </p>
+                                {notification.metadata?.isBirthdayGift && notification.metadata?.voiceNoteUrl && (
+                                  <BirthdayGiftVoicePlayer voiceNoteUrl={notification.metadata.voiceNoteUrl} />
+                                )}
                               </div>
 
                               <button
