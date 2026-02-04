@@ -129,6 +129,7 @@ export const updateLocation = async (req, res, next) => {
                 locationAddress: updatedLocation.address,
                 locationPhone: updatedLocation.phone,
                 coordinates: updatedLocation.coordinates,
+                logo: updatedLocation.logo,
                 businessHours: transformHoursFromModel(updatedLocation.hours)
             };
 
@@ -141,6 +142,29 @@ export const updateLocation = async (req, res, next) => {
                 return user.save();
             }));
             console.log(`Synced ${spaUsers.length} spa user profiles for location ${updatedLocation.locationId}`);
+        }
+
+        // SYNC: Also update regular users who have this spa selected
+        try {
+            const regularUsersResult = await User.updateMany(
+                { 
+                    'selectedLocation.locationId': updatedLocation.locationId,
+                    role: 'user'
+                },
+                { 
+                    $set: { 
+                        'selectedLocation.locationName': updatedLocation.name,
+                        'selectedLocation.locationAddress': updatedLocation.address,
+                        'selectedLocation.locationPhone': updatedLocation.phone,
+                        'selectedLocation.logo': updatedLocation.logo
+                    } 
+                }
+            );
+            if (regularUsersResult.modifiedCount > 0) {
+                console.log(`Synced ${regularUsersResult.modifiedCount} regular user profiles for location ${updatedLocation.locationId}`);
+            }
+        } catch (regularSyncError) {
+            console.error('Error syncing regular users:', regularSyncError);
         }
     }
 

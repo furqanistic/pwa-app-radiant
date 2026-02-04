@@ -8,9 +8,15 @@ import { useSelector } from 'react-redux';
  */
 const AppIconManager = () => {
     const { currentUser } = useSelector((state) => state.user);
-    const selectedLocation = currentUser?.selectedLocation;
-    const spaLogo = selectedLocation?.logo;
-    const spaName = selectedLocation?.name;
+    
+    // Determine the active location based on role
+    // Spa owners use spaLocation, regular users use selectedLocation
+    const activeLocation = currentUser?.role === 'spa' 
+        ? currentUser?.spaLocation 
+        : currentUser?.selectedLocation;
+
+    const spaLogo = activeLocation?.logo;
+    const spaName = activeLocation?.locationName;
 
     useEffect(() => {
         // Default values from index.html/manifest.json
@@ -27,19 +33,29 @@ const AppIconManager = () => {
             // 1. Update Title
             document.title = spaName ? `${spaName} | RadiantAI` : DEFAULT_APP_NAME;
 
-            // 2. Update Icon Links
-            const iconLinks = document.querySelectorAll("link[rel*='icon']");
-            iconLinks.forEach(link => {
-                // If it's a specific size, we might want to keep it or just overwrite all with the spa logo
-                // Most modern browsers handle a single high-res icon well
-                link.href = logoToUse;
-            });
+            // 2. Update Icon Links (Force refresh by replacing elements)
+            const updateLink = (rel, href) => {
+                let link = document.querySelector(`link[rel="${rel}"]`);
+                if (link) {
+                    link.href = href;
+                } else {
+                    link = document.createElement('link');
+                    link.rel = rel;
+                    link.href = href;
+                    document.head.appendChild(link);
+                }
+                // Force browser to re-read by toggling the rel
+                const originalRel = link.rel;
+                link.rel = 'search';
+                link.rel = originalRel;
+            };
 
+            // Update various icon sizes
+            updateLink('icon', logoToUse);
+            updateLink('shortcut icon', logoToUse);
+            
             // 3. Update Apple Touch Icon
-            let appleTouchIcon = document.querySelector("link[rel='apple-touch-icon']");
-            if (appleTouchIcon) {
-                appleTouchIcon.href = appleLogoToUse;
-            }
+            updateLink('apple-touch-icon', appleLogoToUse);
 
             // 4. Update Meta Tags
             const metaTitle = document.querySelector("meta[name='apple-mobile-web-app-title']");

@@ -972,6 +972,29 @@ export const getOnboardingStatus = async (req, res, next) => {
     const profileCompleted = user.profileCompleted || false
     const onboardingCompleted = user.onboardingCompleted || false
 
+    // AUTO-SYNC: Ensure logo and name are up to date if hasSelectedSpa is true
+    if (hasSelectedSpa) {
+      try {
+        const activeLoc = user.role === 'spa' ? user.spaLocation : user.selectedLocation;
+        if (activeLoc?.locationId) {
+          const location = await Location.findOne({ locationId: activeLoc.locationId });
+          if (location && location.logo && activeLoc.logo !== location.logo) {
+            if (user.role === 'spa') {
+              user.spaLocation.logo = location.logo;
+              user.markModified('spaLocation');
+            } else {
+              user.selectedLocation.logo = location.logo;
+              user.markModified('selectedLocation');
+            }
+            await user.save({ validateBeforeSave: false });
+            console.log(`Auto-synced logo for user ${user.email}`);
+          }
+        }
+      } catch (syncError) {
+        console.error('Auto-sync failed in getOnboardingStatus:', syncError);
+      }
+    }
+
     const onboardingStatus = {
       hasSelectedSpa,
       profileCompleted,
@@ -1003,19 +1026,56 @@ export const getCurrentUser = async (req, res, next) => {
     }
 
     // SAME improved logic as onboarding status
-    const hasSelectedSpa = !!(
-      user.selectedLocation &&
-      user.selectedLocation.locationId &&
-      user.selectedLocation.locationId.trim() !== '' &&
-      user.selectedLocation.locationName &&
-      user.selectedLocation.locationName.trim() !== ''
-    )
+    let hasSelectedSpa = false
+
+    if (user.role === 'spa') {
+      hasSelectedSpa = !!(
+        user.spaLocation &&
+        user.spaLocation.locationId &&
+        user.spaLocation.locationId.trim() !== '' &&
+        user.spaLocation.locationName &&
+        user.spaLocation.locationName.trim() !== ''
+      )
+    } else if (['admin', 'super-admin'].includes(user.role)) {
+      hasSelectedSpa = true
+    } else {
+      hasSelectedSpa = !!(
+        user.selectedLocation &&
+        user.selectedLocation.locationId &&
+        user.selectedLocation.locationId.trim() !== '' &&
+        user.selectedLocation.locationName &&
+        user.selectedLocation.locationName.trim() !== ''
+      )
+    }
 
     console.log('getCurrentUser Debug:', {
       userId: user._id,
       hasSelectedSpa,
       selectedLocation: user.selectedLocation,
     })
+
+    // AUTO-SYNC: Ensure logo and name are up to date if hasSelectedSpa is true
+    if (hasSelectedSpa) {
+      try {
+        const activeLoc = user.role === 'spa' ? user.spaLocation : user.selectedLocation;
+        if (activeLoc?.locationId) {
+          const location = await Location.findOne({ locationId: activeLoc.locationId });
+          if (location && location.logo && activeLoc.logo !== location.logo) {
+            if (user.role === 'spa') {
+              user.spaLocation.logo = location.logo;
+              user.markModified('spaLocation');
+            } else {
+              user.selectedLocation.logo = location.logo;
+              user.markModified('selectedLocation');
+            }
+            await user.save({ validateBeforeSave: false });
+            console.log(`Auto-synced logo for user ${user.email} in getCurrentUser`);
+          }
+        }
+      } catch (syncError) {
+        console.error('Auto-sync failed in getCurrentUser:', syncError);
+      }
+    }
 
     // Add hasSelectedSpa to user object for frontend
     const userWithStatus = {
