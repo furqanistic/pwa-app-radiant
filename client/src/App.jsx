@@ -48,9 +48,11 @@ const SpaSelectionGuard = ({ children }) => {
 
   // Check if user already has spa data in Redux
   const userHasSpaInRedux = !!(
-    currentUser?.selectedLocation?.locationId &&
-    currentUser?.selectedLocation?.locationName &&
-    currentUser?.selectedLocation?.locationName.trim() !== ''
+    (['admin', 'super-admin'].includes(currentUser?.role)) ||
+    (currentUser?.role === 'spa' && currentUser?.spaLocation?.locationId) ||
+    (currentUser?.selectedLocation?.locationId &&
+     currentUser?.selectedLocation?.locationName &&
+     currentUser?.selectedLocation?.locationName.trim() !== '')
   )
 
   // Only query onboarding status if we don't have spa data in Redux
@@ -74,6 +76,7 @@ const SpaSelectionGuard = ({ children }) => {
         const updatedUser = {
           ...currentUser,
           selectedLocation: data.data.onboardingStatus.selectedLocation,
+          spaLocation: data.data.onboardingStatus.spaLocation, // Added for spa role
           hasSelectedSpa: data.data.onboardingStatus.hasSelectedSpa,
         }
         dispatch(updateProfile(updatedUser))

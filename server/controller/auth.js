@@ -928,13 +928,30 @@ export const getOnboardingStatus = async (req, res, next) => {
     }
 
     // IMPROVED: Check if user has actually selected a spa with real data
-    const hasSelectedSpa = !!(
-      user.selectedLocation &&
-      user.selectedLocation.locationId &&
-      user.selectedLocation.locationId.trim() !== '' &&
-      user.selectedLocation.locationName &&
-      user.selectedLocation.locationName.trim() !== ''
-    )
+    let hasSelectedSpa = false
+
+    if (user.role === 'spa') {
+      // For spa owners, check spaLocation
+      hasSelectedSpa = !!(
+        user.spaLocation &&
+        user.spaLocation.locationId &&
+        user.spaLocation.locationId.trim() !== '' &&
+        user.spaLocation.locationName &&
+        user.spaLocation.locationName.trim() !== ''
+      )
+    } else if (['admin', 'super-admin'].includes(user.role)) {
+      // Admins and super-admins don't need to select a spa
+      hasSelectedSpa = true
+    } else {
+      // For regular users, check selectedLocation
+      hasSelectedSpa = !!(
+        user.selectedLocation &&
+        user.selectedLocation.locationId &&
+        user.selectedLocation.locationId.trim() !== '' &&
+        user.selectedLocation.locationName &&
+        user.selectedLocation.locationName.trim() !== ''
+      )
+    }
 
     // Debug logging to see what we're checking
     console.log('Onboarding Status Debug:', {

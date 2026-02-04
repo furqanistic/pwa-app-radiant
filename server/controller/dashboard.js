@@ -166,8 +166,14 @@ export const getDashboardData = async (req, res, next) => {
       prevMonthStart.setDate(prevMonthStart.getDate() - 60)
       
       const getGrowth = async (model, query, dateField = 'createdAt') => {
-        const currentCount = await model.countDocuments({ ...query, [dateField]: { $gte: thirtyDaysAgo } })
-        const prevCount = await model.countDocuments({ ...query, [dateField]: { $gte: prevMonthStart, [dateField]: { $lt: thirtyDaysAgo } } })
+        const currentCount = await model.countDocuments({
+          ...query,
+          [dateField]: { $gte: thirtyDaysAgo },
+        })
+        const prevCount = await model.countDocuments({
+          ...query,
+          [dateField]: { $gte: prevMonthStart, $lt: thirtyDaysAgo },
+        })
         if (prevCount === 0) return currentCount > 0 ? 100 : 0
         return Math.round(((currentCount - prevCount) / prevCount) * 100)
       }
