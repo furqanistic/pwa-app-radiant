@@ -9,7 +9,7 @@ import { Gift, Save, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
-import VoiceRecorder from "../common/VoiceRecorder";
+import VoiceRecorder from "../Common/VoiceRecorder";
 
 const BirthdayGiftSettings = ({ isOpen, onClose }) => {
   const { currentUser } = useSelector((state) => state.user);

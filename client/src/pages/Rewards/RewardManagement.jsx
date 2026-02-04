@@ -31,7 +31,7 @@ import {
 import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
-import VoiceRecorder from '../../components/common/VoiceRecorder'
+import VoiceRecorder from '../../components/Common/VoiceRecorder'
 import Layout from '../Layout/Layout'
 
 const rewardTypes = [
