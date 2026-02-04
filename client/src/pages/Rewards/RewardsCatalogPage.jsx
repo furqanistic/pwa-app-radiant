@@ -131,6 +131,7 @@ const PremiumDropdown = ({
 const RewardCard = ({ reward, onClaim, userPoints }) => {
   const [isClaiming, setIsClaiming] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
   const audioRef = useRef(null)
 
   const toggleVoiceNote = (e) => {
