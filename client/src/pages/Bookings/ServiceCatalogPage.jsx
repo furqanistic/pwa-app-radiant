@@ -399,12 +399,12 @@ const ServiceCatalog = ({ onServiceSelect }) => {
       const showPromo = true
 
       return (
-        <div className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 mb-8'>
+        <div className='grid grid-cols-3 sm:grid-cols-4 gap-3 mb-8 md:flex md:flex-wrap md:justify-center md:gap-4'>
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 active:scale-95 ${
+              className={`md:w-36 relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 active:scale-95 ${
                 selectedCategory === 'all'
-                  ? 'bg-gray-900 text-white border-gray-900 scale-105 z-10'
+                  ? 'bg-gray-900 text-white border-gray-900 scale-105 z-10 shadow-xl shadow-gray-200'
                   : 'bg-white text-gray-500 border-gray-100 hover:border-pink-200 hover:scale-105'
               }`}
             >
@@ -430,9 +430,9 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                 <button
                   key={cat._id}
                   onClick={() => setSelectedCategory(cat._id)}
-                  className={`group relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 active:scale-95 ${
+                  className={`md:w-36 group relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 active:scale-95 ${
                     isActive
-                      ? 'bg-gradient-to-br from-pink-500 to-rose-600 text-white border-pink-500 scale-105 z-10'
+                      ? 'bg-gradient-to-br from-pink-500 to-rose-600 text-white border-pink-500 scale-105 z-10 shadow-xl shadow-pink-200'
                       : 'bg-white text-gray-600 border-gray-100 hover:border-pink-200 hover:scale-105'
                   }`}
                 >
@@ -455,7 +455,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             {showPromo && (
                <button
                   onClick={() => setActiveTab('membership')}
-                  className={`${mobileSpanClass} sm:col-span-1 relative overflow-hidden rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-amber-300 active:scale-95 group`}
+                  className={`${mobileSpanClass} sm:col-span-1 md:w-36 relative overflow-hidden rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-amber-300 active:scale-95 group`}
                 >
                     <div className='absolute inset-0 opacity-20 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]' />
                     <div className='absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-amber-200 to-orange-200 opacity-20 rounded-bl-[2rem]' />
