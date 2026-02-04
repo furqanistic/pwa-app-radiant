@@ -616,6 +616,7 @@ export const signup = async (req, res, next) => {
         locationName: location.name,
         locationAddress: location.address,
         locationPhone: location.phone,
+        logo: location.logo,
         selectedAt: new Date(),
       }
     }
@@ -716,6 +717,7 @@ export const createSpaMember = async (req, res, next) => {
           locationName: location.name,
           locationAddress: location.address,
           locationPhone: location.phone,
+          logo: location.logo,
           setupAt: new Date(),
           setupCompleted: true,
         }
@@ -726,6 +728,7 @@ export const createSpaMember = async (req, res, next) => {
           locationName: location.name,
           locationAddress: location.address,
           locationPhone: location.phone,
+          logo: location.logo,
           selectedAt: new Date(),
         }
       }
@@ -816,9 +819,10 @@ export const assignLocationToUser = async (req, res, next) => {
       locationName: location.name,
       locationAddress: location.address,
       locationPhone: location.phone,
+      logo: location.logo,
     }
 
-    if (user.role === 'team') {
+    if (user.role === 'spa' || user.role === 'team') {
       // Team users get spaLocation
       user.spaLocation = {
         ...locationData,
@@ -831,6 +835,7 @@ export const assignLocationToUser = async (req, res, next) => {
         locationName: null,
         locationAddress: null,
         locationPhone: null,
+        logo: null,
         selectedAt: null,
       }
     } else {
@@ -1403,6 +1408,7 @@ export const selectSpa = async (req, res, next) => {
       locationName: location.name,
       locationAddress: location.address,
       locationPhone: location.phone,
+      logo: location.logo,
       selectedAt: new Date(),
     }
 

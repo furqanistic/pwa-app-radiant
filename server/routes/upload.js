@@ -3,7 +3,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { deleteAudio, uploadAudio } from "../controller/uploadController.js";
+import { deleteAudio, deleteImage, uploadAudio, uploadImage } from "../controller/uploadController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -37,8 +37,38 @@ const upload = multer({
   },
 });
 
+// Configure Multer for image storage
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "public/uploads/images/");
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname) || ".png";
+    cb(null, "image-" + uniqueSuffix + ext);
+  },
+});
+
+const uploadImageMulter = multer({
+  storage: imageStorage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed!"), false);
+    }
+  },
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit
+  },
+});
+
 // POST /api/upload/audio - Secure with token
 router.post("/audio", verifyToken, upload.single("audio"), uploadAudio);
 router.delete("/audio", verifyToken, deleteAudio);
+
+// POST /api/upload/image - Secure with token
+router.post("/image", verifyToken, uploadImageMulter.single("image"), uploadImage);
+router.delete("/image", verifyToken, deleteImage);
 
 export default router;

@@ -40,4 +40,40 @@ export const uploadService = {
       return response.data;
     }
   },
+  uploadImage: async (imageFile) => {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+
+    const response = await axios.post(`${API_URL}/upload/image`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      withCredentials: true,
+    });
+
+    return response.data;
+  },
+  deleteImage: async (fileUrl) => {
+    if (!fileUrl || !fileUrl.includes("/uploads/images/")) return;
+    
+    try {
+      const urlObject = new URL(fileUrl);
+      const filename = urlObject.pathname.split("/").pop();
+      const response = await axios.delete(`${API_URL}/upload/image`, {
+        data: { filename },
+        withCredentials: true,
+      });
+
+      return response.data;
+    } catch (e) {
+      console.error("Error parsing image URL for deletion:", e);
+      // Fallback
+      const filename = fileUrl.split("/").pop();
+      const response = await axios.delete(`${API_URL}/upload/image`, {
+        data: { filename },
+        withCredentials: true,
+      });
+      return response.data;
+    }
+  },
 };

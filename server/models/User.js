@@ -80,6 +80,10 @@ const UserSchema = new mongoose.Schema(
         type: Date,
         default: null,
       },
+      logo: {
+        type: String,
+        default: null,
+      },
     },
 
     // For spa users (spa owners) - Their Spa Location
@@ -162,6 +166,10 @@ const UserSchema = new mongoose.Schema(
       coordinates: {
         latitude: { type: Number, default: null },
         longitude: { type: Number, default: null },
+      },
+      logo: {
+        type: String,
+        default: null,
       },
     },
 

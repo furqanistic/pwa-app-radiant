@@ -1,10 +1,11 @@
 // File: client/src/components/Management/LocationForm.jsx
 // client/src/components/Management/LocationForm.jsx
 import { locationService } from '@/services/locationService'
+import { uploadService } from '@/services/uploadService'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
-import { AlertCircle, Clock, ExternalLink, Loader2, LocateFixed, MapPin, Plus, Search } from 'lucide-react'
+import { AlertCircle, Clock, ExternalLink, Image as ImageIcon, Loader2, LocateFixed, MapPin, Plus, Search, Trash2, Upload } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import { toast } from 'sonner'
@@ -86,7 +87,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       close: '17:00',
       isClosed: false,
     })),
+    logo: '',
   })
+
+  const [isUploading, setIsUploading] = useState(false)
 
   const [position, setPosition] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -111,7 +115,8 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
               close: '17:00',
               isClosed: false,
             })),
-        coordinates: initialData.coordinates || { latitude: null, longitude: null }
+        coordinates: initialData.coordinates || { latitude: null, longitude: null },
+        logo: initialData.logo || '',
       })
       if (initialData.coordinates?.latitude && initialData.coordinates?.longitude) {
         setPosition({ lat: initialData.coordinates.latitude, lng: initialData.coordinates.longitude });
@@ -164,7 +169,8 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
         close: '17:00',
         isClosed: false,
       })),
-      coordinates: { latitude: null, longitude: null }
+      coordinates: { latitude: null, longitude: null },
+      logo: '',
     })
     setPosition(null);
     setSearchTerm("");
@@ -180,6 +186,43 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     const newHours = [...formData.hours]
     newHours[index] = { ...newHours[index], [field]: value }
     setFormData((prev) => ({ ...prev, hours: newHours }))
+  }
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo image must be less than 2MB')
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const resp = await uploadService.uploadImage(file)
+      if (resp.success) {
+        setFormData((prev) => ({ ...prev, logo: resp.url }))
+        toast.success('Logo uploaded successfully')
+      }
+    } catch (err) {
+      console.error('Logo upload error:', err)
+      toast.error('Failed to upload logo')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleRemoveLogo = async () => {
+    if (!formData.logo) return
+    
+    // Optional: delete from server
+    // try {
+    //   await uploadService.deleteImage(formData.logo)
+    // } catch (err) {
+    //   console.error('Delete logo error:', err)
+    // }
+
+    setFormData((prev) => ({ ...prev, logo: '' }))
   }
 
   const handleSubmit = (e) => {
@@ -203,7 +246,8 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       address: formData.address.trim(),
       phone: formData.phone.trim(),
       hours: formData.hours,
-      coordinates: position ? { latitude: position.lat, longitude: position.lng } : formData.coordinates
+      coordinates: position ? { latitude: position.lat, longitude: position.lng } : formData.coordinates,
+      logo: formData.logo
     }
 
     if (initialData?._id) {
@@ -287,6 +331,62 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
               <p className='text-xs text-gray-400 font-medium'>
                 Enter the internal unique identifier for this clinic.
               </p>
+            </div>
+            
+            {/* Logo Upload */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <ImageIcon className='w-4 h-4 text-pink-500' />
+                Location Logo
+              </Label>
+              <div className='flex items-center gap-4'>
+                <div className='relative w-24 h-24 bg-white border border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center shadow-sm group'>
+                  {formData.logo ? (
+                    <>
+                      <img src={formData.logo} alt='Logo' className='w-full h-full object-cover' />
+                      <button
+                        type='button'
+                        onClick={handleRemoveLogo}
+                        className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white'
+                      >
+                        <Trash2 className='w-6 h-6' />
+                      </button>
+                    </>
+                  ) : (
+                    <ImageIcon className='w-8 h-8 text-gray-300' />
+                  )}
+                  {isUploading && (
+                    <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
+                      <Loader2 className='w-6 h-6 animate-spin text-pink-500' />
+                    </div>
+                  )}
+                </div>
+                <div className='flex-1'>
+                  <p className='text-xs text-gray-500 mb-2'>
+                    Upload a high-quality logo for this spa. It will be used as the PWA icon for users.
+                  </p>
+                  <div className='flex gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={() => document.getElementById('logo-upload').click()}
+                      disabled={isUploading}
+                      className='rounded-xl border-pink-100 text-pink-600 hover:bg-pink-50'
+                    >
+                      <Upload className='w-4 h-4 mr-2' />
+                      {formData.logo ? 'Change' : 'Upload'}
+                    </Button>
+                    <input
+                      id='logo-upload'
+                      type='file'
+                      accept='image/*'
+                      className='hidden'
+                      onChange={handleLogoUpload}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

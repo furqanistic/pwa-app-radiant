@@ -180,6 +180,11 @@ const LocationSchema = new mongoose.Schema(
       },
     },
     // ==================== END QR CODE FIELDS ====================
+    
+    logo: {
+      type: String,
+      default: "",
+    },
 
     // NEW: Coordinates for map precision
     coordinates: {

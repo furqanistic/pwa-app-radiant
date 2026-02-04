@@ -21,7 +21,7 @@ const transformHoursFromModel = (hoursArray) => {
 // Create a new location
 export const createLocation = async (req, res, next) => {
   try {
-    const { locationId, name, description, address, phone, hours, coordinates } = req.body
+    const { locationId, name, description, address, phone, hours, coordinates, logo } = req.body
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -41,6 +41,7 @@ export const createLocation = async (req, res, next) => {
       phone: phone?.trim() || '',
       hours: hours || [],
       coordinates: coordinates || { latitude: null, longitude: null },
+      logo: logo || '',
       automatedGifts: req.body.automatedGifts || [
         { name: "New Years", content: "20% Off", isActive: false, type: "fixed-date", month: 1, day: 1 },
         { name: "St. Valentine's Day", content: "$30 Off", isActive: false, type: "fixed-date", month: 2, day: 14 },
@@ -70,7 +71,7 @@ export const createLocation = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { locationId, name, description, address, phone, hours, isActive, coordinates, automatedGifts } = req.body
+    const { locationId, name, description, address, phone, hours, isActive, coordinates, automatedGifts, logo } = req.body
 
     const location = await Location.findById(id)
     if (!location) {
@@ -109,6 +110,7 @@ export const updateLocation = async (req, res, next) => {
     if (isActive !== undefined) updateData.isActive = isActive
     if (coordinates !== undefined) updateData.coordinates = coordinates
     if (automatedGifts !== undefined) updateData.automatedGifts = automatedGifts
+    if (logo !== undefined) updateData.logo = logo
 
     const updatedLocation = await Location.findByIdAndUpdate(id, updateData, {
       new: true,
@@ -200,7 +202,7 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
       isActive: true,
       name: { $ne: '', $exists: true, $ne: null },
     })
-      .select('locationId name address phone hours coordinates')
+      .select('locationId name address phone hours coordinates logo')
       .sort({ name: 1 })
 
     const validLocations = locations.filter(

@@ -11,6 +11,7 @@ import {
     Routes,
     useLocation,
 } from 'react-router-dom'
+import AppIconManager from './components/Common/AppIconManager'
 import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
 import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
@@ -268,6 +269,7 @@ const App = () => {
         }}
       />
       <InstallPrompt />
+      <AppIconManager />
 
       <Routes>
         {/* Public routes */}
