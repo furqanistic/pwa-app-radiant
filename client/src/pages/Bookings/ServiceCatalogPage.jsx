@@ -58,19 +58,19 @@ const getCategoryIcon = (name) => {
 const TabNavigation = ({ activeTab, onTabChange }) => {
   const tabs = [
     { id: 'browse', label: 'Browse' },
-    { id: 'membership', label: 'Memberships' },
+    { id: 'membership', label: 'Members' },
     { id: 'treatment', label: 'Treatments' },
   ]
 
   return (
-    <div className='flex p-1.5 bg-white/60 backdrop-blur-xl border-2 border-pink-100 rounded-[2rem] mb-8 w-fit mx-auto shadow-sm'>
+    <div className='flex p-1 bg-white/60 backdrop-blur-xl border border-pink-100 rounded-2xl mb-8 w-full max-w-md mx-auto shadow-sm'>
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
-          className={`px-8 py-3 rounded-[1.7rem] text-sm font-bold transition-all duration-300 ${
+          className={`flex-1 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 ${
             activeTab === tab.id
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-200 scale-105'
+              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md shadow-pink-200'
               : 'text-gray-500 hover:text-pink-600 hover:bg-pink-50/50'
           }`}
         >
@@ -348,35 +348,36 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   // ---- RENDERERS ----
 
   const renderHeader = () => (
-    <div className='relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-pink-600 via-rose-500 to-pink-700 text-white p-6 md:p-12 mb-8'>
+    <div className='relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-pink-600 via-rose-500 to-pink-700 text-white p-6 md:p-12 mb-8'>
         <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-10 mix-blend-overlay' />
         
         <div className='relative z-10 flex flex-col md:flex-row items-center md:items-end justify-between gap-6'>
-            <div className='text-center md:text-left space-y-4 max-w-2xl w-full'>
+            <div className='text-center md:text-left space-y-3 md:space-y-4 max-w-2xl w-full'>
                 <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-[10px] md:text-xs font-bold tracking-wider uppercase mx-auto md:mx-0'>
                     Premium Treatments
                 </div>
-                {/* Fixed: One line on mobile via text scaling */}
-                <h1 className='text-[2.5rem] sm:text-4xl md:text-6xl font-black tracking-tighter leading-none whitespace-nowrap'>
+                <h1 className='text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-none'>
                     Find Your <span className='text-pink-100'>Glow Up.</span>
                 </h1>
-                <p className='text-lg text-white/90 font-medium max-w-md hidden md:block'>
+                <p className='text-base md:text-lg text-white/90 font-medium max-w-md hidden md:block'>
                     Browse our exclusive selection of beauty services and treatments designed just for you.
                 </p>
             </div>
             
             {/* Search Input Integrated in Header */}
-            <div className='w-full md:w-auto min-w-[300px]'>
+            <div className='w-full md:w-auto min-w-full md:min-w-[340px]'>
                <div className='relative group'>
-                  <div className='absolute inset-0 bg-white/20 blur-xl rounded-full group-hover:bg-white/30 transition-all' />
-                  <div className='relative bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center p-2 transition-all group-hover:bg-white/20'>
-                      <Search className='text-pink-100 ml-3 mr-2' size={20} />
+                  <div className='absolute inset-0 bg-white/10 blur-xl rounded-2xl group-hover:bg-white/20 transition-all' />
+                  <div className='relative bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center p-1.5 transition-all group-hover:bg-white/20'>
+                      <div className='bg-white/10 p-2 rounded-xl ml-1'>
+                        <Search className='text-white' size={18} />
+                      </div>
                       <input 
                         type="text" 
                         placeholder="Search services..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className='bg-transparent border-none text-white placeholder-pink-100 focus:outline-none w-full font-medium py-2'
+                        className='bg-transparent border-none text-white placeholder-pink-100/70 focus:outline-none w-full font-medium py-2 px-3 text-sm'
                       />
                   </div>
                </div>
@@ -393,10 +394,8 @@ const ServiceCatalog = ({ onServiceSelect }) => {
       const remainder = totalItems % 3
       // If remainder is 1 (e.g., 4 items), we have 1 item on last row -> 2 empty slots. Span 2.
       // If remainder is 2 (e.g., 5 items), we have 2 items on last row -> 1 empty slot. Span 1.
-      // If remainder is 0 (e.g., 3 items), row full. Start new row. Span 3? Or just 1.
-      // User specifically requested filling the "space of 2".
-      const mobileSpanClass = remainder === 1 ? 'col-span-2' : 'col-span-1'
-      const showPromo = true
+      const mobileSpanClass = remainder === 1 ? 'col-span-2' : remainder === 2 ? 'col-span-1' : 'hidden'
+      const showPromo = remainder !== 0
 
       return (
         <div className='grid grid-cols-3 sm:grid-cols-4 gap-3 mb-8 md:flex md:flex-wrap md:justify-center md:gap-4'>
@@ -410,12 +409,12 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             >
               <div className='absolute inset-0 opacity-10 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]' />
               
-              <div className={`relative z-10 w-9 h-9 rounded-2xl flex items-center justify-center transition-colors ${selectedCategory === 'all' ? 'bg-white/20' : 'bg-gray-100 group-hover:bg-pink-50'}`}>
+              <div className={`relative z-10 w-9 h-9 rounded-2xl flex items-center justify-center transition-colors ${selectedCategory === 'all' ? 'bg-white/20' : 'bg-gray-100'}`}>
                   <Search size={18} className={selectedCategory === 'all' ? 'text-white' : 'text-gray-500'} />
               </div>
               <div className='relative z-10 text-left'>
-                  <span className='block font-black text-xs sm:text-sm leading-tight tracking-tight'>All<br/>Services</span>
-                  <span className='text-[10px] opacity-60 font-medium mt-1.5 block bg-white/10 w-fit px-1.5 py-0.5 rounded-md backdrop-blur-sm'>
+                  <span className='block font-black text-[10px] sm:text-xs leading-tight tracking-tighter uppercase'>All<br/>Services</span>
+                  <span className='text-[8px] opacity-60 font-black mt-1 block uppercase tracking-tighter'>
                       {services?.length || 0} items
                   </span>
               </div>
@@ -423,8 +422,8 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             
             {categories.map((cat) => {
               const isActive = selectedCategory === cat._id;
-              const Icon = getCategoryIcon(cat.name);
               const count = categoryCounts[cat._id] || 0;
+              const initial = cat.name.charAt(0).toUpperCase();
               
               return (
                 <button
@@ -438,12 +437,12 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                 >
                   <div className='absolute inset-0 opacity-10 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]' />
 
-                  <div className={`relative z-10 w-9 h-9 rounded-2xl flex items-center justify-center transition-colors ${isActive ? 'bg-white/20' : 'bg-pink-50 group-hover:bg-pink-100'}`}>
-                      <Icon size={18} className={`transition-colors ${isActive ? 'text-white' : 'text-pink-500'}`} />
+                  <div className={`relative z-10 w-9 h-9 rounded-2xl flex items-center justify-center transition-colors font-black text-lg ${isActive ? 'bg-white/20 text-white' : 'bg-pink-50 text-pink-500'}`}>
+                      {initial}
                   </div>
                   <div className='relative z-10 text-left w-full'>
-                      <span className='block font-black text-xs sm:text-sm leading-tight line-clamp-1 break-words tracking-tight'>{cat.name}</span>
-                      <span className={`text-[10px] font-bold mt-1.5 inline-block px-1.5 py-0.5 rounded-md backdrop-blur-sm ${isActive ? 'text-white bg-white/20' : 'text-pink-500 bg-pink-50'}`}>
+                      <span className='block font-black text-[10px] sm:text-xs leading-tight line-clamp-1 break-words tracking-tighter uppercase'>{cat.name}</span>
+                      <span className={`text-[8px] font-black mt-1 inline-block uppercase tracking-tighter ${isActive ? 'text-white/70' : 'text-pink-400'}`}>
                           {count} items
                       </span>
                   </div>
@@ -465,8 +464,8 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                     </div>
                     
                     <div className='relative z-10 text-left w-full'>
-                        <span className='block font-black text-xs sm:text-sm leading-tight text-amber-900 tracking-tight'>
-                             Join<br/>Membership
+                        <span className='block font-black text-xs sm:text-sm leading-tight text-amber-900 tracking-tight uppercase'>
+                             Join<br/>Members
                         </span>
                         <div className='mt-1.5 flex items-center text-[10px] font-bold text-amber-700 bg-amber-100 w-fit px-1.5 py-0.5 rounded-md'>
                             Get Perks <Zap size={8} className="ml-1 fill-current" />

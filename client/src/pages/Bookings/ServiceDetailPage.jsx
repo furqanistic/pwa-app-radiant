@@ -246,7 +246,6 @@ const ServiceDetailPage = () => {
       time: selectedTime,
       duration: totalDuration,
       totalPrice: totalPrice,
-      totalPrice: totalPrice,
       treatments: selectedTreatments.map(t => ({
         id: t._id || t.id,
         name: t.name,
@@ -315,8 +314,6 @@ const ServiceDetailPage = () => {
         duration: totalDuration,
         locationId: currentUser.selectedLocation.locationId,
         notes: "",
-        rewardUsed: null,
-        pointsUsed: 0,
         rewardUsed: null,
         pointsUsed: 0,
         treatments: selectedTreatments.map(t => ({
