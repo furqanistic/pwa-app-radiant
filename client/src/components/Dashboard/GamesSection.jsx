@@ -4,14 +4,14 @@ import SpinWheel from '@/components/Games/SpinWheel'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    Clock,
-    Coins,
-    Gift,
-    Loader2,
-    RefreshCw,
-    Sparkles,
-    Trophy,
-    Zap,
+  Clock,
+  Coins,
+  Gift,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+  Trophy,
+  Zap,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { toast } from 'sonner'
@@ -27,79 +27,78 @@ const CompactGameCard = ({ game, title, icon, onPlay, canPlay }) => {
     const reset = new Date(resetTime)
     const diffHours = Math.ceil((reset - now) / (1000 * 60 * 60))
 
-    if (diffHours <= 1) return 'in < 1h'
-    if (diffHours < 24) return `in ${diffHours}h`
+    if (diffHours <= 1) return '< 1h'
+    if (diffHours < 24) return `${diffHours}h`
     const diffDays = Math.ceil(diffHours / 24)
-    return `in ${diffDays}d`
+    return `${diffDays}d`
   }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileTap={canPlay ? { scale: 0.98 } : undefined}
+      layout
+      whileHover={canPlay ? { y: -3 } : {}}
+      whileTap={canPlay ? { scale: 0.98 } : {}}
       onClick={canPlay ? onPlay : undefined}
-      className={`bg-white rounded-xl sm:rounded-2xl border-2 p-3 sm:p-4 cursor-pointer transition-all ${
+      className={`relative group overflow-hidden rounded-[2rem] p-4 sm:p-5 transition-all duration-300 border-2 ${
         canPlay
-          ? 'border-pink-200 hover:border-pink-300 hover:shadow-md'
-          : 'border-gray-200 opacity-50 cursor-not-allowed'
+          ? 'bg-white border-pink-100/50 hover:border-pink-200 hover:shadow-xl hover:shadow-pink-100/20 cursor-pointer'
+          : 'bg-gray-50 border-gray-100 opacity-70 cursor-not-allowed grayscale'
       }`}
     >
-      <div className='flex items-center justify-between mb-3'>
-        <div className='flex items-center gap-3 flex-1 min-w-0'>
-          <div
-            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0 ${
-              game.type === 'spin'
-                ? 'bg-gradient-to-br from-pink-400 to-rose-500'
-                : 'bg-gradient-to-br from-purple-400 to-violet-500'
-            }`}
-          >
-            {icon}
-          </div>
-          <div className='min-w-0 flex-1'>
-            <h3 className='text-sm sm:text-base font-bold text-gray-900 truncate'>
-              {title}
-            </h3>
-            <p className='text-xs text-gray-600 truncate'>
-              {game.type === 'spin' ? 'Spin to win' : 'Slide to reveal'}
-            </p>
-          </div>
-        </div>
-      </div>
+      <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-[0.03] mix-blend-overlay pointer-events-none' />
+      {/* Background Glow */}
+      <div className={`absolute -right-4 -top-4 w-16 h-16 blur-2xl rounded-full opacity-20 pointer-events-none transition-transform duration-500 group-hover:scale-150 ${
+        game.type === 'spin' ? 'bg-pink-400' : 'bg-rose-400'
+      }`}></div>
 
-      {/* Play Status */}
-      <div className='flex items-center justify-between pt-2 border-t border-gray-100'>
-        {canPlay ? (
-          <div className='flex items-center gap-1'>
-            <div className='w-2 h-2 bg-green-500 rounded-full animate-pulse'></div>
-            <span className='text-xs font-medium text-gray-700'>
-              {playsRemaining > 0 ? `${playsRemaining} left` : 'Ready!'}
-            </span>
-          </div>
-        ) : (
-          <div className='flex items-center gap-1'>
-            <Clock className='w-3 h-3 text-gray-400' />
-            <span className='text-xs text-gray-500'>
-              {formatResetTime(nextReset)}
-            </span>
-          </div>
-        )}
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            if (canPlay) onPlay()
-          }}
-          disabled={!canPlay}
-          className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
-            canPlay
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600'
-              : 'bg-gray-200 text-gray-500'
+      <div className='flex items-center gap-3'>
+        <div
+          className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-105 transition-transform duration-300 ${
+            game.type === 'spin'
+              ? 'bg-gradient-to-br from-pink-500 to-rose-600 shadow-pink-100'
+              : 'bg-gradient-to-br from-rose-500 to-pink-500 shadow-rose-100'
           }`}
         >
-          Play
-        </button>
+          {React.cloneElement(icon, { className: 'w-6 h-6 text-white' })}
+        </div>
+        
+        <div className='flex-1 min-w-0'>
+          <h3 className='text-base font-black text-gray-800 truncate tracking-tight leading-tight'>
+            {title}
+          </h3>
+          <div className='flex items-center gap-2 mt-1'>
+            {canPlay ? (
+              <div className='flex items-center gap-1.5'>
+                <div className='w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]'></div>
+                <span className='text-[10px] font-black uppercase tracking-widest text-emerald-600/80'>
+                   {playsRemaining > 0 ? `${playsRemaining} Left` : 'Active'}
+                </span>
+              </div>
+            ) : (
+              <div className='flex items-center gap-1.5'>
+                <Clock className='w-3 h-3 text-gray-400' />
+                <span className='text-[10px] font-black uppercase tracking-widest text-gray-400'>
+                   Ends in {formatResetTime(nextReset)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <motion.div
+           initial={false}
+           animate={canPlay ? { x: 0, opacity: 1 } : { x: 5, opacity: 0.5 }}
+           className={`p-1.5 rounded-lg flex items-center justify-center ${
+            canPlay ? 'bg-white/80 text-gray-800 shadow-sm' : 'bg-gray-100 text-gray-400'
+           }`}
+        >
+          <Zap className={`w-3.5 h-3.5 ${canPlay ? 'text-yellow-500 fill-yellow-500' : ''}`} />
+        </motion.div>
       </div>
+
+      {!canPlay && (
+        <div className='absolute inset-0 bg-white/10 backdrop-blur-[1px] pointer-events-none'></div>
+      )}
     </motion.div>
   )
 }
@@ -141,7 +140,7 @@ const GameResultModal = ({ result, onClose }) => {
                  repeat: Infinity,
                  delay: Math.random() * 2
                }}
-               className={`absolute w-2 h-2 rounded-full ${['bg-pink-400', 'bg-rose-500', 'bg-yellow-400', 'bg-blue-400'][i % 4]}`}
+               className={`absolute w-2 h-2 rounded-full ${['bg-pink-400', 'bg-rose-500', 'bg-orange-300', 'bg-rose-300'][i % 4]}`}
              />
            ))}
         </div>
@@ -153,8 +152,8 @@ const GameResultModal = ({ result, onClose }) => {
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
             className={`w-20 h-20 sm:w-24 sm:h-24 rounded-[32px] flex items-center justify-center mx-auto mb-6 shadow-2xl ${
               isPointsPrize
-                ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-200'
-                : 'bg-gradient-to-br from-pink-500 to-rose-600 shadow-pink-200'
+                ? 'bg-gradient-to-br from-pink-500 to-rose-600 shadow-pink-200'
+                : 'bg-gradient-to-br from-rose-500 to-orange-500 shadow-rose-200'
             }`}
           >
             {isPointsPrize ? (
@@ -184,7 +183,7 @@ const GameResultModal = ({ result, onClose }) => {
             {result.result.newPointsBalance !== undefined && (
               <div className='mt-4 pt-4 border-t border-slate-200 flex items-center justify-center gap-2'>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">New Balance:</span>
-                <span className="text-sm font-black text-indigo-600">{result.result.newPointsBalance} pts</span>
+                <span className="text-sm font-black text-pink-600">{result.result.newPointsBalance} pts</span>
               </div>
             )}
           </div>
@@ -250,14 +249,26 @@ const GamePlayModal = ({
             <div className='w-12 h-1 bg-pink-200 rounded-full'></div>
           </div>
 
-          <div className='px-4 py-3 border-b border-pink-100'>
-            <div className='text-center'>
-              <h2 className='text-lg sm:text-xl font-bold text-gray-900'>
-                {game.type === 'spin'
-                  ? '🎯 Spin the Wheel'
-                  : '🎫 Mystery Cards'}
-              </h2>
+          <div className='px-6 py-5 border-b border-pink-100/30 flex items-center justify-between'>
+            <div className='flex items-center gap-3'>
+              <div className='bg-gradient-to-br from-pink-500 to-rose-600 p-2.5 rounded-xl shadow-lg shadow-pink-200'>
+                {game.type === 'spin' ? <Zap className='w-5 h-5 text-white' /> : <Gift className='w-5 h-5 text-white' />}
+              </div>
+              <div>
+                <h2 className='text-xl font-black text-gray-900 tracking-tight'>
+                  {game.type === 'spin' ? 'Lucky Spin' : 'Wonder Boxes'}
+                </h2>
+                <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>
+                  {game.type === 'spin' ? 'Test your luck' : 'Pick a card'}
+                </p>
+              </div>
             </div>
+            <button 
+              onClick={onClose}
+              className='p-2 hover:bg-gray-100 rounded-xl transition-colors'
+            >
+              <Loader2 className={`w-5 h-5 text-gray-400 ${isPlaying ? 'animate-spin' : ''}`} />
+            </button>
           </div>
           
            {/* Play Limit Display */}
@@ -384,31 +395,50 @@ const GamesSection = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className='bg-white rounded-2xl sm:rounded-3xl border-2 border-pink-100 p-4 sm:p-6'
+        className='relative overflow-hidden bg-gradient-to-br from-pink-50/20 to-white rounded-[2rem] border-2 border-pink-100/50 p-5 sm:p-6 shadow-xl shadow-pink-100/20 group'
       >
-        <div className='flex items-center justify-between mb-4 sm:mb-6'>
-          <div className='flex items-center gap-2 sm:gap-3'>
-            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-lg sm:rounded-xl'>
-              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+        <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-[0.03] mix-blend-overlay pointer-events-none' />
+        {/* Decorative elements */}
+        <div className='absolute -right-20 -top-20 w-64 h-64 bg-pink-100/40 rounded-full blur-[100px] pointer-events-none group-hover:bg-pink-200/40 transition-colors duration-700'></div>
+        <div className='absolute -left-20 -bottom-20 w-64 h-64 bg-rose-100/40 rounded-full blur-[100px] pointer-events-none group-hover:bg-rose-200/40 transition-colors duration-700'></div>
+
+        <div className='relative z-10 flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3'>
+          <div className='flex items-center gap-3'>
+            <div className='bg-gradient-to-br from-pink-500 via-rose-500 to-pink-600 p-3 rounded-xl shadow-lg shadow-pink-100'>
+              <Sparkles className='w-5 h-5 text-white' />
             </div>
-            <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-900'>
-              Lucky Games
-            </h2>
+            <div>
+              <h2 className='text-xl sm:text-2xl font-black text-gray-800 tracking-tight'>
+                Lucky Games
+              </h2>
+              <p className='text-[10px] text-gray-500 font-medium'>
+                Win mystery prizes daily
+              </p>
+            </div>
           </div>
-          <button
-            onClick={() => refetch()}
-            className='text-pink-600 hover:text-pink-700 p-1.5 sm:p-2 rounded-lg hover:bg-pink-50 transition-colors'
-          >
-            <RefreshCw className='w-4 h-4 sm:w-5 sm:h-5' />
-          </button>
+          <div className='flex items-center gap-2 self-end sm:self-auto'>
+            <button
+              onClick={() => refetch()}
+              className={`text-pink-600 p-2 rounded-xl bg-white/50 backdrop-blur-sm border border-pink-100 hover:bg-pink-50 transition-all ${isLoading ? 'opacity-50' : ''}`}
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => (window.location.href = '/spin')}
+              className='bg-gradient-to-r from-gray-800 to-gray-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all hover:scale-105 flex items-center gap-2'
+            >
+              Full Games
+              <Trophy className='w-3 h-3 text-yellow-400' />
+            </button>
+          </div>
         </div>
 
-        <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4'>
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10'>
           {spinGame && (
             <CompactGameCard
               game={spinGame}
-              title='Spin the Wheel'
-              icon={<Zap className='w-5 h-5 sm:w-6 sm:h-6 text-white' />}
+              title='Lucky Spin'
+              icon={<Zap />}
               onPlay={() => setActiveGame(spinGame)}
               canPlay={spinGame.eligibility?.canPlay ?? true}
             />
@@ -417,22 +447,13 @@ const GamesSection = () => {
           {scratchGame && (
             <CompactGameCard
               game={scratchGame}
-              title='Mystery Cards'
-              icon={<Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />}
+              title='Wonder Boxes'
+              icon={<Gift />}
               onPlay={() => setActiveGame(scratchGame)}
               canPlay={scratchGame.eligibility?.canPlay ?? true}
             />
           )}
         </div>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => (window.location.href = '/spin')}
-          className='w-full mt-4 py-2 text-sm font-medium text-pink-600 hover:text-pink-700 hover:bg-pink-50 rounded-lg transition-colors'
-        >
-          Explore Full Games →
-        </motion.button>
       </motion.div>
 
       <AnimatePresence>

@@ -59,30 +59,31 @@ const ClinicCard = ({ clinic }) => {
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-white rounded-3xl p-6 shadow-sm border border-pink-50 hover:shadow-md transition-shadow overflow-hidden"
+      className="relative bg-white rounded-[2rem] p-5 sm:p-6 shadow-xl shadow-gray-100/50 border-2 border-pink-50 hover:border-pink-200 hover:shadow-pink-100/30 transition-all overflow-hidden group"
     >
-      <div className="flex flex-col gap-6">
+      <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-[0.03] mix-blend-overlay pointer-events-none' />
+      <div className="relative z-10 flex flex-col gap-4">
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <h3 className="text-xl font-bold text-gray-900 mb-1">{clinic.name}</h3>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs font-bold uppercase tracking-wider ${status.color}`}>
+            <h3 className="text-lg font-bold text-gray-900 mb-0.5">{clinic.name}</h3>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${status.color}`}>
                 {status.text}
               </span>
               <span className="text-gray-300">•</span>
-              <span className="text-xs text-gray-500">
+              <span className="text-[10px] text-gray-500 font-medium">
                 {todayHours.isClosed ? 'Closed' : `${todayHours.open} - ${todayHours.close}`}
               </span>
             </div>
           </div>
-          <div className="bg-pink-50 p-2.5 rounded-2xl">
-            <Globe className="w-5 h-5 text-pink-500" />
+          <div className="bg-pink-50 p-2 rounded-xl">
+            <Globe className="w-4 h-4 text-pink-500" />
           </div>
         </div>
 
         {/* Google Map Embed */}
-        <div className="w-full h-48 rounded-2xl overflow-hidden shadow-inner border border-gray-100">
+        <div className="w-full h-32 rounded-xl overflow-hidden shadow-inner border border-gray-100">
           <iframe
             title={`${clinic.name} Map`}
             width="100%"
@@ -97,32 +98,32 @@ const ClinicCard = ({ clinic }) => {
         </div>
 
         {/* Info Grid */}
-        <div className="space-y-4">
-          <div className="flex items-start gap-4">
-            <div className="bg-gray-50 p-2 rounded-xl mt-0.5">
-              <MapPin className="w-4 h-4 text-gray-600" />
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="bg-gray-50 p-1.5 rounded-lg mt-0.5">
+              <MapPin className="w-3.5 h-3.5 text-gray-600" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-700 leading-relaxed">
+              <p className="text-xs font-medium text-gray-600 leading-relaxed">
                 {clinic.address || 'Address not listed'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="bg-gray-50 p-2 rounded-xl">
-              <Phone className="w-4 h-4 text-gray-600" />
+          <div className="flex items-center gap-3">
+            <div className="bg-gray-50 p-1.5 rounded-lg">
+              <Phone className="w-3.5 h-3.5 text-gray-600" />
             </div>
             <a 
               href={`tel:${clinic.phone}`} 
-              className="text-sm font-bold text-pink-600 hover:text-pink-700 transition-colors"
+              className="text-xs font-bold text-pink-600 hover:text-pink-700 transition-colors"
             >
               {clinic.phone || 'Phone not listed'}
             </a>
           </div>
 
           {/* Hours Section */}
-          <div className="bg-gray-50 rounded-2xl p-4">
+          <div className="bg-gray-50 rounded-xl p-3">
             <button 
               onClick={() => setShowAllHours(!showAllHours)}
               className="flex items-center justify-between w-full"
@@ -161,22 +162,22 @@ const ClinicCard = ({ clinic }) => {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <Button 
             onClick={handleDirections}
-            className="flex-1 bg-gray-900 hover:bg-black text-white rounded-2xl h-12 font-bold gap-2"
+            className="flex-1 bg-rose-950 hover:bg-black text-white rounded-xl h-10 text-xs font-bold gap-1.5"
           >
-            <Navigation className="w-4 h-4" />
-            Get Directions
+            <Navigation className="w-3.5 h-3.5" />
+            Directions
           </Button>
           <Button 
             asChild
             variant="outline"
-            className="flex-1 border-pink-200 text-pink-600 hover:bg-pink-50 rounded-2xl h-12 font-bold gap-2"
+            className="flex-1 border-pink-200 text-pink-600 hover:bg-pink-50 rounded-xl h-10 text-xs font-bold gap-1.5"
           >
             <a href={`tel:${clinic.phone}`}>
-              <Phone className="w-4 h-4" />
-              Call Now
+              <Phone className="w-3.5 h-3.5" />
+              Call
             </a>
           </Button>
         </div>
@@ -239,18 +240,15 @@ const ClinicLocations = () => {
   if (locations.length === 0) return null
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="bg-gradient-to-r from-pink-500 to-rose-500 p-3 rounded-2xl shadow-lg shadow-pink-200">
-          <MapPin className="w-6 h-6 text-white" />
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
         <div>
-          <h2 className="text-2xl font-black text-gray-900">Our Clinics</h2>
-          <p className="text-sm text-gray-500 font-medium">Find us and book your next visit</p>
+          <h2 className="text-xl font-black text-gray-900 tracking-tight">Our Clinics</h2>
+          <p className="text-[10px] text-gray-500 font-medium">Find us and book your next visit</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {locations.map(clinic => (
           <ClinicCard key={clinic._id} clinic={clinic} />
         ))}
