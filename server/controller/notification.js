@@ -317,7 +317,8 @@ export const testPushNotification = async (req, res, next) => {
 // Original functions (unchanged)
 export const getUserNotifications = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, unreadOnly = false } = req.query
+    const { page = 1, unreadOnly = false } = req.query
+    const limit = 15
     const userId = req.user.id
 
     const query = { recipient: userId }
@@ -328,7 +329,7 @@ export const getUserNotifications = async (req, res, next) => {
     const notifications = await Notification.find(query)
       .populate('sender', 'name avatar')
       .sort({ createdAt: -1 })
-      .limit(limit * 1)
+      .limit(limit)
       .skip((page - 1) * limit)
 
     const total = await Notification.countDocuments(query)

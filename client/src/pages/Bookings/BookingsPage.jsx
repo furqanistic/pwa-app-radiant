@@ -4,6 +4,7 @@
 import CancelBookingModal from "@/components/Bookings/CancelBookingModal";
 import RescheduleModal from "@/components/Bookings/RescheduleModal";
 import BNPLBanner from "@/components/Common/BNPLBanner";
+import { useBranding } from '@/context/BrandingContext';
 import { useBookingStats, usePastBookings, useUpcomingBookings } from "@/hooks/useBookings";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import Layout from "@/pages/Layout/Layout";
@@ -33,7 +34,7 @@ import { toast } from 'sonner';
 // SKELETON COMPONENT
 // ============================================
 const BookingCardSkeleton = () => (
-  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm animate-pulse">
+  <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-sm animate-pulse">
     <div className="flex gap-4">
       <div className="w-20 h-20 bg-gray-200 rounded-xl flex-shrink-0"></div>
       <div className="flex-1 space-y-2">
@@ -74,7 +75,7 @@ const BookingCard = ({
   const getStatusStyles = () => {
     if (isPending) return "bg-yellow-50 text-yellow-700 border-yellow-100";
     if (booking.status === "cancelled") return "bg-red-50 text-red-700 border-red-100";
-    if (isPast) return "bg-gray-50 text-gray-600 border-gray-100";
+    if (isPast) return "bg-gray-50 text-gray-600 border-gray-200/70";
     return "bg-green-50 text-green-700 border-green-100";
   };
 
@@ -95,7 +96,7 @@ const BookingCard = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-5 shadow-[0_2px_20px_-8px_rgba(0,0,0,0.06)] border border-gray-100 relative group overflow-hidden hover:border-pink-200 transition-all duration-300">
+    <div className="bg-white rounded-3xl p-5 shadow-[0_2px_20px_-8px_rgba(0,0,0,0.06)] border border-gray-200/70 relative group overflow-hidden hover:border-gray-200/70 transition-all duration-300">
       
       {/* Pending Banner */}
       {isPending && (
@@ -105,7 +106,7 @@ const BookingCard = ({
       {/* Main Content Row */}
       <div className="flex gap-4 mb-4">
         {/* Date Block */}
-        <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200/50">
+        <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex flex-col items-center justify-center border border-gray-200/70">
             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{new Date(booking.date).toLocaleDateString('en-US', { month: 'short' })}</span>
             <span className="text-xl font-bold text-gray-900 leading-none mt-0.5">{new Date(booking.date).getDate()}</span>
         </div>
@@ -151,7 +152,7 @@ const BookingCard = ({
                 ${getTotalPrice().toFixed(2)}
              </div>
              {(booking.status === 'completed' || booking.paymentStatus === 'paid') && (
-                <div className="text-[10px] font-bold text-purple-600">
+                <div className="text-[10px] font-bold text-[color:var(--brand-primary)]">
                    +{booking.pointsEarned || Math.floor(getTotalPrice())} pts
                 </div>
              )}
@@ -161,9 +162,9 @@ const BookingCard = ({
 
       {/* Potential Points for Upcoming & Pending */}
       {!isPast && booking.status !== 'cancelled' && (
-        <div className="mt-3 mb-4 bg-purple-50 border-l-4 border-purple-500 rounded-r-xl p-3 flex items-start gap-3">
-             <AlertTriangle className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-purple-900 font-medium leading-tight">
+        <div className="mt-3 mb-4 bg-gray-50/80 border-l-4 border-gray-200/70 rounded-r-xl p-3 flex items-start gap-3">
+             <AlertTriangle className="w-4 h-4 text-[color:var(--brand-primary)] mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-gray-800 font-medium leading-tight">
                 Hurry up! Complete this booking and claim your <span className="font-bold">{Math.floor(getTotalPrice())} points</span> reward
             </p>
         </div>
@@ -191,13 +192,13 @@ const BookingCard = ({
             <>
                <button
                 onClick={() => onReschedule(booking)}
-                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors"
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200/70 hover:bg-gray-100 transition-colors"
               >
                 Reschedule
               </button>
               <button
                 onClick={() => onCancel(booking)}
-                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition-colors"
+                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] border border-gray-200/70 hover:bg-[color:var(--brand-primary)/0.12] transition-colors"
               >
                 Cancel
               </button>
@@ -212,7 +213,7 @@ const BookingCard = ({
          // Completed/Cancelled Actions (Book Again?)
          <button 
            onClick={() => window.location.href = `/services`}
-           className="w-full py-2.5 rounded-xl text-xs font-semibold text-pink-600 bg-pink-50 hover:bg-pink-100 transition-colors"
+           className="w-full py-2.5 rounded-xl text-xs font-semibold text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] hover:bg-[color:var(--brand-primary)/0.12] transition-colors"
          >
             Book Again
          </button>
@@ -232,6 +233,30 @@ const BookingsPage = () => {
 
   const { currentUser } = useSelector((state) => state.user);
   const cartItems = useSelector((state) => state.cart?.items || []);
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '');
+    if (cleaned.length !== 6) return '#b0164e';
+    const num = parseInt(cleaned, 16);
+    const r = Math.max(0, ((num >> 16) & 255) - 24);
+    const g = Math.max(0, ((num >> 8) & 255) - 24);
+    const b = Math.max(0, (num & 255) - 24);
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  })();
+
+  const toastStyle = {
+    style: {
+      background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+      color: '#fff',
+      border: 'none',
+    },
+  };
+
+  const toastSuccess = (message, options = {}) =>
+    toast.success(message, { ...toastStyle, ...options });
 
   const { 
     isSupported, 
@@ -302,7 +327,7 @@ const BookingsPage = () => {
 
   const handleRemoveFromCart = (itemId) => {
     dispatch(removeFromCart(itemId));
-    toast.success("Item removed from cart");
+    toastSuccess("Item removed from cart");
   };
 
   // ✅ Normalization
@@ -378,16 +403,16 @@ const BookingsPage = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-6">My Bookings</h1>
 
           {/* Points Summary Card */}
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-5 mb-6 text-white flex items-center justify-between shadow-lg shadow-gray-200">
+          <div className="bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-2xl p-5 mb-6 text-white flex items-center justify-between shadow-lg shadow-gray-200">
              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Total Points Claimed From Bookings</p>
+                <p className="text-xs font-medium text-white uppercase tracking-wider mb-1">Total Points Claimed From Bookings</p>
                 <div className="text-3xl font-bold flex items-baseline gap-1">
                    {totalPointsEarned}
-                   <span className="text-sm font-medium text-purple-400">pts</span>
+                   <span className="text-sm font-medium text-[color:var(--brand-primary)/0.6]">pts</span>
                 </div>
              </div>
              <div className="h-12 w-12 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-                <Gift className="w-6 h-6 text-purple-400" />
+                <Gift className="w-6 h-6 text-[color:var(--brand-primary)/0.6]" />
              </div>
           </div>
 
@@ -403,7 +428,7 @@ const BookingsPage = () => {
                     className={`flex-1 relative z-10 py-2.5 text-sm font-semibold transition-colors text-center ${activeTab === 'upcoming' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                     Upcoming
-                    {upcomingCount > 0 && <span className="ml-1.5 text-[10px] bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded-full align-middle inline-block">{upcomingCount}</span>}
+                    {upcomingCount > 0 && <span className="ml-1.5 text-[10px] bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] px-1.5 py-0.5 rounded-full align-middle inline-block">{upcomingCount}</span>}
                 </button>
                  <button
                     onClick={() => setActiveTab('history')}
@@ -419,7 +444,7 @@ const BookingsPage = () => {
 
         {/* Birthday Gift Banner */}
         {birthdayNotification && (
-          <div className="mb-6 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl shadow-purple-100 relative overflow-hidden group">
+          <div className="mb-6 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-3xl p-6 text-white shadow-xl shadow-[color:var(--brand-primary)/0.25] relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl group-hover:scale-110 transition-transform duration-500" />
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-3">
@@ -428,7 +453,7 @@ const BookingsPage = () => {
                 </div>
                 <h3 className="text-lg font-black tracking-tight">{birthdayNotification.title}</h3>
               </div>
-              <p className="text-sm text-purple-50 font-medium mb-5 opacity-90 leading-relaxed">
+              <p className="text-sm text-white/90 font-medium mb-5 opacity-90 leading-relaxed">
                 {birthdayNotification.message}
               </p>
               <button 
@@ -440,7 +465,7 @@ const BookingsPage = () => {
                     giftValue: birthdayNotification.metadata?.giftValue
                   } 
                 })}
-                className="w-full sm:w-auto bg-white text-purple-600 font-black px-8 py-3.5 rounded-2xl active:scale-95 transition-all shadow-lg hover:shadow-xl hover:bg-purple-50 flex items-center justify-center gap-2"
+                className="w-full sm:w-auto bg-white text-[color:var(--brand-primary)] font-black px-8 py-3.5 rounded-2xl active:scale-95 transition-all shadow-lg hover:shadow-xl hover:bg-gray-50/80 flex items-center justify-center gap-2"
               >
                 Claim My Gift <ChevronRight className="w-4 h-4" />
               </button>
@@ -450,17 +475,17 @@ const BookingsPage = () => {
 
         {/* Push Notification Banner - nicely integrated if needed */}
         {isSupported && !isSubscribed && permission === 'default' && (
-           <div className="mb-6 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl p-4 text-white shadow-lg shadow-pink-200">
+           <div className="mb-6 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-2xl p-4 text-white shadow-lg shadow-[color:var(--brand-primary)/0.25]">
                <div className="flex items-start gap-3">
                    <div className="p-2 bg-white/20 rounded-xl">
                        <BellRing className="w-5 h-5 text-white" />
                    </div>
                    <div className="flex-1">
                        <h3 className="font-bold text-sm mb-1">Stay Updated</h3>
-                       <p className="text-xs text-pink-50 opacity-90 mb-3">Enable notifications for appointment reminders.</p>
+                       <p className="text-xs text-white/90 opacity-90 mb-3">Enable notifications for appointment reminders.</p>
                        <button 
                          onClick={requestPermissionAndSubscribe}
-                         className="text-xs bg-white text-pink-600 font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
+                         className="text-xs bg-white text-[color:var(--brand-primary)] font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
                         >
                             {isSubscribing ? 'Enabling...' : 'Turn On'}
                        </button>

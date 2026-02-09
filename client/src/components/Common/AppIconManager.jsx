@@ -1,6 +1,7 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
+import { useBranding } from '@/context/BrandingContext';
 
 /**
  * AppIconManager dynamically updates the PWA manifest and icons based on the selected spa location.
@@ -8,6 +9,8 @@ import { useSelector } from 'react-redux';
  */
 const AppIconManager = () => {
     const { currentUser } = useSelector((state) => state.user);
+    const { branding } = useBranding();
+    const manifestUrlRef = useRef(null);
     
     // Determine the active location based on role
     // Spa owners use spaLocation, regular users use selectedLocation
@@ -17,21 +20,32 @@ const AppIconManager = () => {
 
     const spaLogo = activeLocation?.logo;
     const spaName = activeLocation?.locationName;
+    const spaThemeColor = activeLocation?.themeColor;
+
+    // Prefer subdomain branding, then selected spa data
+    const brandName = branding?.name || spaName;
+    const brandLogo = branding?.logo || spaLogo;
+    const brandFavicon = branding?.favicon || brandLogo;
+    const brandThemeColor = branding?.themeColor || spaThemeColor;
 
     useEffect(() => {
         // Default values from index.html/manifest.json
         const DEFAULT_ICON = '/favicon_io/android-chrome-512x512.png';
+        const DEFAULT_FAVICON = '/favicon_io/favicon.ico';
         const DEFAULT_APPLE_ICON = '/favicon_io/apple-touch-icon.png';
         const DEFAULT_MANIFEST = '/manifest.json';
         const DEFAULT_APP_NAME = 'RadiantAI';
+        const DEFAULT_THEME_COLOR = '#ec4899';
 
         const updateMetadata = async () => {
-            const logoToUse = spaLogo || DEFAULT_ICON;
-            const appleLogoToUse = spaLogo || DEFAULT_APPLE_ICON;
-            const nameToUse = spaName ? `${spaName}` : DEFAULT_APP_NAME;
+            const pwaIconToUse = brandLogo || brandFavicon || DEFAULT_ICON;
+            const faviconToUse = brandFavicon || DEFAULT_FAVICON;
+            const appleLogoToUse = brandLogo || brandFavicon || DEFAULT_APPLE_ICON;
+            const nameToUse = brandName ? `${brandName}` : DEFAULT_APP_NAME;
+            const themeColorToUse = brandThemeColor || DEFAULT_THEME_COLOR;
 
             // 1. Update Title
-            document.title = spaName ? `${spaName} | RadiantAI` : DEFAULT_APP_NAME;
+            document.title = brandName ? `${brandName} | RadiantAI` : DEFAULT_APP_NAME;
 
             // 2. Update Icon Links (Force refresh by replacing elements)
             const updateLink = (rel, href) => {
@@ -50,25 +64,51 @@ const AppIconManager = () => {
                 link.rel = originalRel;
             };
 
+            const updateAllLinks = (selector, href) => {
+                document.querySelectorAll(selector).forEach((link) => {
+                    link.href = href;
+                    const originalRel = link.rel;
+                    link.rel = 'search';
+                    link.rel = originalRel;
+                });
+            };
+
             // Update various icon sizes
-            updateLink('icon', logoToUse);
-            updateLink('shortcut icon', logoToUse);
+            updateAllLinks("link[rel='icon']", faviconToUse);
+            updateLink('icon', faviconToUse);
+            updateLink('shortcut icon', faviconToUse);
             
             // 3. Update Apple Touch Icon
+            updateAllLinks("link[rel='apple-touch-icon']", appleLogoToUse);
             updateLink('apple-touch-icon', appleLogoToUse);
 
             // 4. Update Meta Tags
             const metaTitle = document.querySelector("meta[name='apple-mobile-web-app-title']");
             if (metaTitle) metaTitle.setAttribute("content", nameToUse);
             
+            const applicationName = document.querySelector("meta[name='application-name']");
+            if (applicationName) applicationName.setAttribute("content", nameToUse);
+
+            const themeColor = document.querySelector("meta[name='theme-color']");
+            if (themeColor) themeColor.setAttribute("content", themeColorToUse);
+
+            const msNavColor = document.querySelector("meta[name='msapplication-navbutton-color']");
+            if (msNavColor) msNavColor.setAttribute("content", themeColorToUse);
+            
             const ogTitle = document.querySelector("meta[property='og:title']");
             if (ogTitle) ogTitle.setAttribute("content", nameToUse);
             
             const ogImage = document.querySelector("meta[property='og:image']");
-            if (ogImage) ogImage.setAttribute("content", logoToUse);
+            if (ogImage) ogImage.setAttribute("content", pwaIconToUse);
+
+            const twitterTitle = document.querySelector("meta[name='twitter:title']");
+            if (twitterTitle) twitterTitle.setAttribute("content", nameToUse);
+
+            const twitterImage = document.querySelector("meta[name='twitter:image']");
+            if (twitterImage) twitterImage.setAttribute("content", pwaIconToUse);
 
             // 5. Dynamic Manifest Update (Crucial for PWA)
-            if (spaLogo || spaName) {
+            if (brandLogo || brandName || brandThemeColor) {
                 try {
                     // Fetch original manifest or use a base template
                     const response = await fetch(DEFAULT_MANIFEST);
@@ -76,24 +116,25 @@ const AppIconManager = () => {
 
                     // Customize manifest
                     manifest.name = nameToUse;
-                    manifest.short_name = spaName || DEFAULT_APP_NAME;
+                    manifest.short_name = brandName || DEFAULT_APP_NAME;
+                    manifest.theme_color = themeColorToUse;
                     
-                    if (spaLogo) {
+                    if (pwaIconToUse) {
                         manifest.icons = [
                             {
-                                src: spaLogo,
+                                src: pwaIconToUse,
                                 sizes: "192x192",
                                 type: "image/png",
                                 purpose: "any"
                             },
                             {
-                                src: spaLogo,
+                                src: pwaIconToUse,
                                 sizes: "512x512",
                                 type: "image/png",
                                 purpose: "any"
                             },
                             {
-                                src: spaLogo,
+                                src: pwaIconToUse,
                                 sizes: "512x512",
                                 type: "image/png",
                                 purpose: "maskable"
@@ -111,6 +152,11 @@ const AppIconManager = () => {
                     if (manifestLink) {
                         manifestLink.href = manifestURL;
                     }
+
+                    if (manifestUrlRef.current) {
+                        URL.revokeObjectURL(manifestUrlRef.current);
+                    }
+                    manifestUrlRef.current = manifestURL;
                 } catch (error) {
                     console.error("Error updating dynamic manifest:", error);
                 }
@@ -124,7 +170,13 @@ const AppIconManager = () => {
         };
 
         updateMetadata();
-    }, [spaLogo, spaName]);
+        return () => {
+            if (manifestUrlRef.current) {
+                URL.revokeObjectURL(manifestUrlRef.current);
+                manifestUrlRef.current = null;
+            }
+        };
+    }, [brandLogo, brandFavicon, brandName, brandThemeColor]);
 
     return null; // This component doesn't render anything
 };

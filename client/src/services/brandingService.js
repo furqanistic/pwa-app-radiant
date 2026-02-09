@@ -12,6 +12,16 @@ export const getBrandingBySubdomain = async (subdomain) => {
 };
 
 /**
+ * Get branding data for a location ID
+ * @param {string} locationId - Location ID to fetch branding for
+ * @returns {Promise} - Branding data
+ */
+export const getBrandingByLocationId = async (locationId) => {
+  const response = await axiosInstance.get(`/branding/location/${locationId}`);
+  return response.data;
+};
+
+/**
  * Validate subdomain availability
  * @param {string} subdomain - Subdomain to validate
  * @param {string} locationId - Optional location ID if editing
@@ -27,5 +37,6 @@ export const validateSubdomain = async (subdomain, locationId = null) => {
 
 export const brandingService = {
   getBrandingBySubdomain,
+  getBrandingByLocationId,
   validateSubdomain,
 };

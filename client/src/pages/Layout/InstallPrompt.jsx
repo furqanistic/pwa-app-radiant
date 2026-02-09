@@ -15,6 +15,7 @@ import {
     Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useBranding } from '@/context/BrandingContext'
 
 const STORAGE_KEYS = {
   DISMISSED: 'radiant-install-dismissed',
@@ -39,6 +40,19 @@ const InstallPrompt = () => {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [isInstalling, setIsInstalling] = useState(false)
   const [promptState, setPromptState] = useState(PROMPT_STATES.INITIAL)
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
 
   // Improved browser detection
   const browserInfo = useMemo(() => {
@@ -298,15 +312,19 @@ const InstallPrompt = () => {
         exit={{ opacity: 0, y: 100, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className='fixed bottom-6 left-4 right-4 max-w-sm mx-auto lg:left-auto lg:right-6 lg:max-w-none lg:w-96 lg:mx-0 bg-white border border-gray-100/50 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] p-5 z-[100] overflow-hidden'
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
       >
         {/* Background Blur Elements */}
-        <div className='absolute top-0 right-0 w-32 h-32 bg-pink-500/5 rounded-full -translate-y-16 translate-x-16 blur-2xl'></div>
-        <div className='absolute bottom-0 left-0 w-24 h-24 bg-purple-500/5 rounded-full translate-y-12 -translate-x-12 blur-2xl'></div>
+        <div className='absolute top-0 right-0 w-32 h-32 bg-[color:var(--brand-primary)/0.08] rounded-full -translate-y-16 translate-x-16 blur-2xl'></div>
+        <div className='absolute bottom-0 left-0 w-24 h-24 bg-[color:var(--brand-primary)/0.06] rounded-full translate-y-12 -translate-x-12 blur-2xl'></div>
 
         <div className='relative'>
           {/* Header */}
           <div className='flex items-start justify-between mb-4'>
-            <div className='w-12 h-12 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-200/50'>
+            <div className='w-12 h-12 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-2xl flex items-center justify-center shadow-lg shadow-[color:var(--brand-primary)/0.25]'>
               <Zap className='w-6 h-6 text-white' />
             </div>
             <button
@@ -337,7 +355,7 @@ const InstallPrompt = () => {
                 <button
                   onClick={handleAutoInstall}
                   disabled={isInstalling}
-                  className='w-full py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold rounded-2xl shadow-lg shadow-pink-200 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group'
+                  className='w-full py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white font-bold rounded-2xl shadow-lg shadow-[color:var(--brand-primary)/0.25] hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group'
                 >
                   {isInstalling ? (
                     <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin'></div>
@@ -397,11 +415,11 @@ const InstallPrompt = () => {
                   </p>
                 </div>
                 <div className='flex items-center gap-4 p-3 bg-gray-50 rounded-2xl'>
-                  <div className='w-8 h-8 flex-shrink-0 bg-pink-500 shadow-sm rounded-lg flex items-center justify-center text-white'>
+                  <div className='w-8 h-8 flex-shrink-0 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] shadow-sm rounded-lg flex items-center justify-center text-white'>
                     <ChevronRight className='w-5 h-5' />
                   </div>
                   <p className='text-sm font-semibold text-gray-700'>
-                    3. Tap <span className='text-pink-600 font-bold'>'Add'</span> in the top right
+                    3. Tap <span className='text-[color:var(--brand-primary)] font-bold'>'Add'</span> in the top right
                   </p>
                 </div>
               </div>
@@ -495,7 +513,7 @@ const InstallPrompt = () => {
 
               <div className='space-y-3'>
                 <div className='flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100'>
-                  <Smartphone className='w-10 h-10 text-pink-500' />
+                  <Smartphone className='w-10 h-10 text-[color:var(--brand-primary)]' />
                   <div>
                     <h4 className='text-sm font-bold text-gray-900'>Mobile</h4>
                     <p className='text-xs text-gray-500'>Use 'Add to Home Screen' in your browser menu.</p>
@@ -503,7 +521,7 @@ const InstallPrompt = () => {
                 </div>
                 <div className='flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100'>
                   <div className='w-10 h-10 bg-white shadow-sm rounded-xl flex items-center justify-center'>
-                    <Zap className='w-6 h-6 text-purple-600' />
+                    <Zap className='w-6 h-6 text-[color:var(--brand-primary)]' />
                   </div>
                   <div>
                     <h4 className='text-sm font-bold text-gray-900'>Desktop</h4>

@@ -1,10 +1,24 @@
 // File: client/src/pages/Layout/InstallButton.jsx
 import { Download, Smartphone } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import { useBranding } from '@/context/BrandingContext'
 
 const InstallButton = ({ className = '' }) => {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [isInstalled, setIsInstalled] = useState(false)
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
 
   useEffect(() => {
     // Check if already installed
@@ -110,7 +124,10 @@ const InstallButton = ({ className = '' }) => {
   return (
     <button
       onClick={handleInstall}
-      className={`inline-flex items-center space-x-1.5 lg:space-x-2 px-2.5 lg:px-3 py-1.5 lg:py-2  bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs lg:text-sm font-medium rounded-lg hover:from-pink-600 hover:to-rose-700 transition-all duration-200 shadow-sm hover:shadow-md ${className}`}
+      className={`inline-flex items-center space-x-1.5 lg:space-x-2 px-2.5 lg:px-3 py-1.5 lg:py-2 text-white text-xs lg:text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${className}`}
+      style={{
+        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+      }}
     >
       <Download className='w-3.5 h-3.5 lg:w-4 lg:h-4' />
       <span className='hidden sm:inline'>Install App</span>

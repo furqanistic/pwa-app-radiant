@@ -24,6 +24,7 @@ import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
+import { useBranding } from '@/context/BrandingContext'
 
 const ScratchSpinPage = () => {
   const [activeGame, setActiveGame] = useState(null)
@@ -32,6 +33,27 @@ const ScratchSpinPage = () => {
   const [isPlaying, setIsPlaying] = useState(false)
   
   const { currentUser } = useSelector((state) => state.user)
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
+
+  const toastStyle = {
+    style: {
+      background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+      color: '#fff',
+      border: 'none',
+    },
+  }
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -52,6 +74,7 @@ const ScratchSpinPage = () => {
     onError: (error) => {
       setIsPlaying(false)
       toast.error('Game Error', {
+        ...toastStyle,
         description: error.response?.data?.message || 'Failed to play game.',
       })
     },
@@ -78,7 +101,7 @@ const ScratchSpinPage = () => {
     return (
       <Layout>
         <div className='min-h-screen bg-white flex items-center justify-center'>
-          <div className='animate-bounce w-12 h-12 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-200'>
+          <div className='animate-bounce w-12 h-12 bg-[color:var(--brand-primary)] rounded-2xl flex items-center justify-center shadow-lg shadow-[color:var(--brand-primary)/0.25]'>
             <Heart className='w-6 h-6 text-white' />
           </div>
         </div>
@@ -93,7 +116,14 @@ const ScratchSpinPage = () => {
 
   return (
     <Layout>
-      <div className='bg-[#fafbfc] relative overflow-hidden flex flex-col' style={{ height: 'calc(100vh - 53px)' }}>
+      <div
+        className='bg-[#fafbfc] relative overflow-hidden flex flex-col'
+        style={{
+          height: 'calc(100vh - 53px)',
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
         {/* Responsive Content Container - Scrollable */}
         <div className='flex-1 overflow-y-auto pb-24 md:pb-12'>
           <div className='max-w-6xl mx-auto'>
@@ -102,12 +132,12 @@ const ScratchSpinPage = () => {
             <header className='relative px-6 py-4 md:py-6 lg:py-10 bg-white md:bg-transparent border-b md:border-none border-gray-50 flex flex-row items-center justify-between gap-4'>
               <div className='relative z-10 flex-1 min-w-0'>
                 <div className='flex items-center gap-1.5 mb-1'>
-                  <Sparkles className='w-3 h-3 text-pink-500' />
-                  <span className='text-[9px] font-black text-pink-500 uppercase tracking-widest'>Arena Daily</span>
+                  <Sparkles className='w-3 h-3 text-[color:var(--brand-primary)]' />
+                  <span className='text-[9px] font-black text-[color:var(--brand-primary)] uppercase tracking-widest'>Arena Daily</span>
                   
                   {location && (
-                    <div className='hidden md:flex items-center gap-1 px-2.5 py-1 bg-white shadow-sm rounded-full border border-gray-100 ml-3'>
-                      <MapPin className='w-3 h-3 text-pink-500' />
+                    <div className='hidden md:flex items-center gap-1 px-2.5 py-1 bg-white shadow-sm rounded-full border border-gray-200/70 ml-3'>
+                      <MapPin className='w-3 h-3 text-[color:var(--brand-primary)]' />
                       <span className='text-[10px] font-black text-slate-500 uppercase'>{location.locationName}</span>
                     </div>
                   )}
@@ -116,7 +146,7 @@ const ScratchSpinPage = () => {
                 
                 {location && (
                   <div className='flex md:hidden items-center gap-1 mt-1'>
-                    <MapPin className='w-2.5 h-2.5 text-pink-500' />
+                    <MapPin className='w-2.5 h-2.5 text-[color:var(--brand-primary)]' />
                     <span className='text-[8px] font-bold text-slate-400 uppercase tracking-wider truncate'>{location.locationName}</span>
                   </div>
                 )}
@@ -140,7 +170,7 @@ const ScratchSpinPage = () => {
                
                {/* Banner Section */}
                <div className='lg:col-span-5'>
-                  <div className='bg-gradient-to-br from-pink-500 to-rose-600 rounded-[32px] md:rounded-[40px] p-6 md:p-10 text-white shadow-2xl shadow-pink-200/50 relative overflow-hidden h-full min-h-[200px] flex flex-col justify-end'>
+                  <div className='bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-[32px] md:rounded-[40px] p-6 md:p-10 text-white shadow-2xl shadow-[color:var(--brand-primary)/0.25] relative overflow-hidden h-full min-h-[200px] flex flex-col justify-end'>
                      <div className='relative z-10'>
                         <div className='flex items-center gap-2 mb-2'>
                            <Crown className='w-5 h-5 text-yellow-300 fill-current' />
@@ -182,7 +212,7 @@ const ScratchSpinPage = () => {
                         )}
                       </>
                     ) : (
-                      <div className='bg-white rounded-3xl p-10 text-center border border-gray-100 col-span-2'>
+                      <div className='bg-white rounded-3xl p-10 text-center border border-gray-200/70 col-span-2'>
                         <Heart className='w-12 h-12 text-gray-100 mx-auto mb-4' />
                         <h3 className='text-sm font-black text-slate-800 uppercase tracking-widest'>No Active Games</h3>
                         <p className='text-xs text-slate-400 mt-1 uppercase'>Check back tomorrow, sweetie!</p>
@@ -241,13 +271,13 @@ const PremiumResponsiveCard = ({ game, title, subtitle, onPlay, color, icon }) =
       onClick={canPlay ? onPlay : undefined}
       className={`relative group overflow-hidden rounded-[28px] md:rounded-[32px] border p-5 md:p-6 transition-all h-full ${
         canPlay 
-          ? 'bg-white border-gray-100 shadow-sm active:border-pink-200 cursor-pointer' 
-          : 'bg-gray-50 border-gray-100 opacity-60 grayscale'
+          ? 'bg-white border-gray-200/70 shadow-sm active:border-gray-200/70 cursor-pointer' 
+          : 'bg-gray-50 border-gray-200/70 opacity-60 grayscale'
       }`}
     >
       <div className='flex items-center gap-5 md:gap-6 relative z-10'>
         <div className={`w-14 h-14 md:w-16 md:h-16 rounded-2xl md:rounded-[24px] flex items-center justify-center flex-shrink-0 ${
-          color === 'pink' ? 'bg-pink-50 text-pink-500' : 'bg-indigo-50 text-indigo-500'
+          color === 'pink' ? 'bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary)]' : 'bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)]'
         } border border-white shadow-sm`}>
           {icon === 'spin' ? <RefreshCcw className='w-7 h-7 md:w-8 md:h-8' /> : <Star className='w-7 h-7 md:w-8 md:h-8 fill-current' />}
         </div>
@@ -361,13 +391,13 @@ const ResultModal = ({ result, onClose }) => {
                  repeat: Infinity,
                  delay: Math.random() * 2
                }}
-               className={`absolute w-3 h-3 rounded-full ${['bg-pink-400', 'bg-rose-500', 'bg-yellow-400', 'bg-blue-400'][i % 4]}`}
+               className={`absolute w-3 h-3 rounded-full ${['bg-[color:var(--brand-primary)]', 'bg-[color:var(--brand-primary-dark)]', 'bg-yellow-400', 'bg-blue-400'][i % 4]}`}
              />
            ))}
         </div>
 
         <div className='relative z-10'>
-          <div className='w-24 h-24 md:w-32 md:h-32 rounded-[40px] bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-pink-200 animate-bounce'>
+          <div className='w-24 h-24 md:w-32 md:h-32 rounded-[40px] bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-[color:var(--brand-primary)/0.25] animate-bounce'>
             <Trophy className='w-12 h-12 md:w-16 md:h-16 text-white' />
           </div>
 
@@ -375,9 +405,9 @@ const ResultModal = ({ result, onClose }) => {
           <p className='text-slate-400 text-xs md:text-sm font-bold uppercase tracking-[0.2em] mb-10'>Your daily prize is here</p>
 
           <div className='bg-slate-50 rounded-[40px] px-10 py-12 mb-10 border border-slate-100 relative overflow-hidden'>
-            <Sparkles className='absolute top-6 left-6 w-8 h-8 text-pink-200 opacity-50' />
-            <Sparkles className='absolute bottom-6 right-6 w-8 h-8 text-pink-200 opacity-50' />
-            <h3 className='text-xs md:text-sm font-black text-pink-500 uppercase tracking-widest mb-3'>{winningItem.title}</h3>
+            <Sparkles className='absolute top-6 left-6 w-8 h-8 text-[color:var(--brand-primary)/0.35] opacity-50' />
+            <Sparkles className='absolute bottom-6 right-6 w-8 h-8 text-[color:var(--brand-primary)/0.35] opacity-50' />
+            <h3 className='text-xs md:text-sm font-black text-[color:var(--brand-primary)] uppercase tracking-widest mb-3'>{winningItem.title}</h3>
             <div className='text-4xl md:text-6xl font-black text-slate-900 tracking-tighter'>{winningItem.value}</div>
           </div>
 

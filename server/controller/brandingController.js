@@ -49,6 +49,51 @@ export const getBrandingBySubdomain = async (req, res, next) => {
 };
 
 /**
+ * Get branding information by locationId
+ * GET /api/branding/location/:locationId
+ */
+export const getBrandingByLocationId = async (req, res, next) => {
+  try {
+    const { locationId } = req.params;
+
+    if (!locationId) {
+      return res.status(400).json({
+        success: false,
+        message: "Location ID is required",
+      });
+    }
+
+    const location = await Location.findOne({
+      locationId,
+      isActive: true,
+    }).select('name logo favicon themeColor subdomain locationId address');
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        message: "Location not found for this location ID",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        subdomain: location.subdomain,
+        locationId: location.locationId,
+        name: location.name,
+        logo: location.logo,
+        favicon: location.favicon || location.logo,
+        themeColor: location.themeColor || "#ec4899",
+        address: location.address,
+      },
+    });
+  } catch (error) {
+    console.error("Get branding by locationId error:", error);
+    next(error);
+  }
+};
+
+/**
  * Generate dynamic PWA manifest for a subdomain
  * GET /api/manifest/:subdomain.webmanifest
  */

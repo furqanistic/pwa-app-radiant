@@ -20,6 +20,7 @@ import {
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
+import { useBranding } from '@/context/BrandingContext'
 
 // ==========================================
 // 1. UTILITY HOOKS & HELPERS
@@ -63,15 +64,15 @@ const TabNavigation = ({ activeTab, onTabChange }) => {
   ]
 
   return (
-    <div className='flex p-1 bg-white/60 backdrop-blur-xl border border-pink-100 rounded-2xl mb-8 w-full max-w-md mx-auto shadow-sm'>
+    <div className='flex p-1 bg-white/60 backdrop-blur-xl border border-[color:var(--brand-primary)/0.2] rounded-2xl mb-8 w-full max-w-md mx-auto shadow-sm'>
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
           className={`flex-1 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 ${
             activeTab === tab.id
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-md shadow-pink-200'
-              : 'text-gray-500 hover:text-pink-600 hover:bg-pink-50/50'
+              ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white shadow-md shadow-[color:var(--brand-primary)/0.25]'
+              : 'text-gray-500 hover:text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)/0.08]'
           }`}
         >
           {tab.label}
@@ -85,14 +86,14 @@ const TabNavigation = ({ activeTab, onTabChange }) => {
 const MembershipCard = ({ service, onSelect }) => (
     <div 
         onClick={() => onSelect(service)}
-        className="relative overflow-hidden rounded-[2.5rem] p-6 md:p-10 text-white cursor-pointer group transition-all duration-300 hover:scale-[1.01] bg-gray-900 border border-gray-800 shadow-2xl h-full flex flex-col justify-center"
+        className="relative overflow-hidden rounded-[2.5rem] p-6 md:p-10 text-white cursor-pointer group transition-all duration-300 hover:scale-[1.01] bg-gray-900 border border-gray-200/70 shadow-2xl h-full flex flex-col justify-center"
     >
         {/* Background - Dark Premium Gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-[#1A1A1A] to-black" />
         
         {/* Decorative Gold Elements */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 blur-[80px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-pink-500/5 blur-[60px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-[color:var(--brand-primary)/0.08] blur-[60px] rounded-full pointer-events-none" />
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 mix-blend-overlay" />
         
         {/* Shine Effect on Hover */}
@@ -186,9 +187,9 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
   // Specific styles for membership vs standard service
   const containerClasses = isMembership
     ? 'border-amber-100 from-amber-50/50 to-white'
-    : 'border-pink-100 from-pink-50/50 to-white'
+    : 'border-[color:var(--brand-primary)/0.2] from-[color:var(--brand-primary)/0.08] to-white'
   
-  const accentColor = isMembership ? 'text-amber-500' : 'text-pink-500'
+  const accentColor = isMembership ? 'text-amber-500' : 'text-[color:var(--brand-primary)]'
 
   // DEMO LOGIC: Simulate Member Price if not explicitly in data (for visual demo)
   // In real app, check service.memberPrice
@@ -198,7 +199,7 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
   return (
     <div
       onClick={() => onSelect(service)}
-      className={`relative group cursor-pointer bg-gradient-to-br ${containerClasses} rounded-[2rem] border-2 p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-pink-100/50 hover:border-pink-200`}
+      className={`relative group cursor-pointer bg-gradient-to-br ${containerClasses} rounded-[2rem] border border-gray-200/70 p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-[color:var(--brand-primary)/0.18] hover:border-gray-200/70`}
     >
       {/* Image Container */}
       <div className='relative h-48 rounded-[1.5rem] overflow-hidden mb-4 shadow-sm bg-gray-100'>
@@ -225,7 +226,7 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
       {/* Content */}
       <div className='px-2 pb-2'>
         <div className='flex justify-between items-start mb-2'>
-          <h3 className='text-xl font-black text-gray-900 leading-tight group-hover:text-pink-600 transition-colors'>
+          <h3 className='text-xl font-black text-gray-900 leading-tight group-hover:text-[color:var(--brand-primary)] transition-colors'>
             {service.name}
           </h3>
         </div>
@@ -260,7 +261,7 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
                    {isDiscountActive ? (
                        <>
                            <span className='text-2xl font-black text-gray-900'>${calculateDiscountedPrice(service.basePrice)}</span>
-                           <span className='text-sm font-bold text-gray-400 line-through decoration-pink-300'>${service.basePrice}</span>
+                           <span className='text-sm font-bold text-gray-400 line-through decoration-[color:var(--brand-primary)/0.5]'>${service.basePrice}</span>
                        </>
                    ) : (
                        <span className='text-2xl font-black text-gray-900'>${service.basePrice}</span>
@@ -268,7 +269,7 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
                </div>
            </div>
 
-           <button className='bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-transform active:scale-95 group-hover:bg-pink-500'>
+           <button className='bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-transform active:scale-95 group-hover:bg-[color:var(--brand-primary)]'>
                Book
            </button>
         </div>
@@ -279,7 +280,7 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
 
 // Clean Skeleton
 const ServiceCardSkeleton = () => (
-    <div className='bg-white rounded-[2rem] border-2 border-gray-100 p-4 h-[340px]'>
+    <div className='bg-white rounded-[2rem] border border-gray-200/70 p-4 h-[340px]'>
         <div className='bg-gray-100 h-48 rounded-[1.5rem] w-full animate-pulse mb-4' />
         <div className='h-6 bg-gray-100 rounded-lg w-2/3 mb-3 animate-pulse' />
         <div className='h-4 bg-gray-100 rounded-lg w-full mb-2 animate-pulse' />
@@ -295,6 +296,19 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const [activeTab, setActiveTab] = useState('browse')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
@@ -348,7 +362,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   // ---- RENDERERS ----
 
   const renderHeader = () => (
-    <div className='relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-pink-600 via-rose-500 to-pink-700 text-white p-6 md:p-12 mb-8'>
+    <div className='relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-6 md:p-12 mb-8'>
         <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-10 mix-blend-overlay' />
         
         <div className='relative z-10 flex flex-col md:flex-row items-center md:items-end justify-between gap-6'>
@@ -357,7 +371,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                     Premium Treatments
                 </div>
                 <h1 className='text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-none'>
-                    Find Your <span className='text-pink-100'>Glow Up.</span>
+                    Find Your <span className='text-white/90'>Glow Up.</span>
                 </h1>
                 <p className='text-base md:text-lg text-white/90 font-medium max-w-md hidden md:block'>
                     Browse our exclusive selection of beauty services and treatments designed just for you.
@@ -377,7 +391,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                         placeholder="Search services..." 
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className='bg-transparent border-none text-white placeholder-pink-100/70 focus:outline-none w-full font-medium py-2 px-3 text-sm'
+                        className='bg-transparent border-none text-white placeholder-white/70 focus:outline-none w-full font-medium py-2 px-3 text-sm'
                       />
                   </div>
                </div>
@@ -401,10 +415,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
         <div className='grid grid-cols-3 sm:grid-cols-4 gap-3 mb-8 md:flex md:flex-wrap md:justify-center md:gap-4'>
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`md:w-36 relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 active:scale-95 ${
+              className={`md:w-36 relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border border-gray-200/70 active:scale-95 ${
                 selectedCategory === 'all'
-                  ? 'bg-gray-900 text-white border-gray-900 scale-105 z-10 shadow-xl shadow-gray-200'
-                  : 'bg-white text-gray-500 border-gray-100 hover:border-pink-200 hover:scale-105'
+                  ? 'bg-gray-900 text-white border-gray-200/70 scale-105 z-10 shadow-xl shadow-gray-200'
+                  : 'bg-white text-gray-500 border-gray-200/70 hover:border-gray-200/70 hover:scale-105'
               }`}
             >
               <div className='absolute inset-0 opacity-10 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]' />
@@ -429,20 +443,20 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                 <button
                   key={cat._id}
                   onClick={() => setSelectedCategory(cat._id)}
-                  className={`md:w-36 group relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 active:scale-95 ${
+                  className={`md:w-36 group relative overflow-hidden aspect-square rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border border-gray-200/70 active:scale-95 ${
                     isActive
-                      ? 'bg-gradient-to-br from-pink-500 to-rose-600 text-white border-pink-500 scale-105 z-10 shadow-xl shadow-pink-200'
-                      : 'bg-white text-gray-600 border-gray-100 hover:border-pink-200 hover:scale-105'
+                      ? 'bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-gray-200/70 scale-105 z-10 shadow-xl shadow-[color:var(--brand-primary)/0.25]'
+                      : 'bg-white text-gray-600 border-gray-200/70 hover:border-gray-200/70 hover:scale-105'
                   }`}
                 >
                   <div className='absolute inset-0 opacity-10 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]' />
 
-                  <div className={`relative z-10 w-9 h-9 rounded-2xl flex items-center justify-center transition-colors font-black text-lg ${isActive ? 'bg-white/20 text-white' : 'bg-pink-50 text-pink-500'}`}>
+                  <div className={`relative z-10 w-9 h-9 rounded-2xl flex items-center justify-center transition-colors font-black text-lg ${isActive ? 'bg-white/20 text-white' : 'bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)]'}`}>
                       {initial}
                   </div>
                   <div className='relative z-10 text-left w-full'>
                       <span className='block font-black text-[10px] sm:text-xs leading-tight line-clamp-1 break-words tracking-tighter uppercase'>{cat.name}</span>
-                      <span className={`text-[8px] font-black mt-1 inline-block uppercase tracking-tighter ${isActive ? 'text-white/70' : 'text-pink-400'}`}>
+                      <span className={`text-[8px] font-black mt-1 inline-block uppercase tracking-tighter ${isActive ? 'text-white/70' : 'text-[color:var(--brand-primary)]'}`}>
                           {count} items
                       </span>
                   </div>
@@ -454,7 +468,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             {showPromo && (
                <button
                   onClick={() => setActiveTab('membership')}
-                  className={`${mobileSpanClass} sm:col-span-1 md:w-36 relative overflow-hidden rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-amber-300 active:scale-95 group`}
+                  className={`${mobileSpanClass} sm:col-span-1 md:w-36 relative overflow-hidden rounded-[1.5rem] p-3 flex flex-col justify-between transition-all duration-300 border border-gray-200/70 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-gray-200/70 active:scale-95 group`}
                 >
                     <div className='absolute inset-0 opacity-20 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]' />
                     <div className='absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-amber-200 to-orange-200 opacity-20 rounded-bl-[2rem]' />
@@ -479,7 +493,13 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
   return (
     <Layout>
-      <div className='min-h-screen bg-[#FAFAFA] pb-20'>
+      <div
+        className='min-h-screen bg-[#FAFAFA] pb-20'
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
         <div className='max-w-7xl mx-auto px-3 py-4 md:px-6 md:py-8'>
             
             {renderHeader()}
@@ -501,7 +521,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                             ))}
                         </div>
                     ) : (
-                        <div className='text-center py-20 bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100'>
+                        <div className='text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-gray-200/70'>
                             <p className='text-gray-400 font-bold'>No services found matching that criteria.</p>
                         </div>
                     )}
@@ -547,7 +567,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                                 <ServiceCard key={service._id} service={service} onSelect={onServiceSelect} />
                             ))
                         ) : (
-                             <div className='col-span-full text-center py-20 bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100'>
+                             <div className='col-span-full text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-gray-200/70'>
                                 <p className='text-gray-400 font-bold'>No treatments available.</p>
                             </div>
                         )}
@@ -563,7 +583,14 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
 const ServiceCatalogPage = () => {
   const navigate = useNavigate()
-  return <ServiceCatalog onServiceSelect={(s) => navigate(`/services/${s._id}`)} />
+  const { locationId } = useBranding()
+  const withSpaParam = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+  return (
+    <ServiceCatalog
+      onServiceSelect={(s) => navigate(withSpaParam(`/services/${s._id}`))}
+    />
+  )
 }
 
 export default ServiceCatalogPage

@@ -34,6 +34,42 @@ const DAYS_OF_WEEK = [
   'Sunday',
 ]
 
+const THEME_COLORS = [
+  { name: 'Royal Blue', value: '#1d4ed8' },
+  { name: 'Emerald', value: '#15803d' },
+  { name: 'Orange', value: '#ea580c' },
+  { name: 'Red', value: '#b91c1c' },
+  { name: 'Yellow', value: '#ca8a04' },
+  { name: 'Pink', value: '#be185d' },
+  { name: 'Ocean Blue', value: '#1e3a8a' },
+  { name: 'Brown', value: '#7c3f00' },
+  { name: 'Black', value: '#0b0b0b' },
+]
+
+const clampChannel = (value) => Math.max(0, Math.min(255, value))
+
+const hexToRgb = (hex) => {
+  if (!hex) return { r: 12, g: 16, b: 32 }
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) return { r: 12, g: 16, b: 32 }
+  const num = parseInt(cleaned, 16)
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  }
+}
+
+const adjustHex = (hex, amount) => {
+  const { r, g, b } = hexToRgb(hex)
+  const rr = clampChannel(r + amount)
+  const gg = clampChannel(g + amount)
+  const bb = clampChannel(b + amount)
+  return `#${rr.toString(16).padStart(2, '0')}${gg
+    .toString(16)
+    .padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`
+}
+
 // Fix Leaflet icon issue
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -576,24 +612,60 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 <Palette className='w-4 h-4 text-pink-500' />
                 Theme Color
               </Label>
-              <div className='flex items-center gap-3'>
-                <input
-                  type='color'
-                  value={formData.themeColor}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, themeColor: e.target.value }))}
-                  className='w-16 h-10 rounded-lg border border-gray-200 cursor-pointer'
-                />
-                <Input
-                  type='text'
-                  value={formData.themeColor}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, themeColor: e.target.value }))}
-                  placeholder='#ec4899'
-                  className='flex-1 bg-white rounded-xl'
-                  pattern='^#[0-9A-Fa-f]{6}$'
-                />
+              <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
+                {THEME_COLORS.map((color) => {
+                  const isSelected = formData.themeColor === color.value
+                  const gradientEnd = adjustHex(color.value, -22)
+                  return (
+                    <button
+                      key={color.value}
+                      type='button'
+                      onClick={() =>
+                        setFormData((prev) => ({ ...prev, themeColor: color.value }))
+                      }
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                        isSelected
+                          ? 'border-gray-900 bg-gray-50 text-gray-900'
+                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span
+                        className='w-7 h-5 rounded-full border border-gray-200'
+                        style={{
+                          background: `linear-gradient(135deg, ${color.value}, ${gradientEnd})`,
+                        }}
+                      />
+                      {color.name}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className='rounded-2xl border border-gray-200 overflow-hidden'>
+                <div
+                  className='px-4 py-3 text-white font-semibold text-sm'
+                  style={{
+                    background: `linear-gradient(135deg, ${formData.themeColor}, ${adjustHex(formData.themeColor, -22)})`,
+                  }}
+                >
+                  Preview: App header style
+                </div>
+                <div className='p-4 bg-white'>
+                  <div className='flex items-center gap-3'>
+                    <div
+                      className='w-10 h-10 rounded-xl'
+                      style={{
+                        background: `linear-gradient(135deg, ${formData.themeColor}, ${adjustHex(formData.themeColor, -22)})`,
+                      }}
+                    />
+                    <div>
+                      <div className='text-sm font-semibold text-gray-900'>Your Brand</div>
+                      <div className='text-xs text-gray-500'>Dark gradient preview</div>
+                    </div>
+                  </div>
+                </div>
               </div>
               <p className='text-xs text-gray-400 font-medium'>
-                Custom theme color for PWA manifest (hex color code).
+                Choose a dark theme color. The gradient preview shows how it will look in the app.
               </p>
             </div>
           </div>

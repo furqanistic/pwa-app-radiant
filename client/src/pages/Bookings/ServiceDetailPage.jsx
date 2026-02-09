@@ -25,6 +25,7 @@ import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from 'sonner';
+import { useBranding } from '@/context/BrandingContext';
 import { addToCart } from "../../redux/cartSlice";
 import stripeService from "../../services/stripeService";
 
@@ -38,6 +39,32 @@ const ServiceDetailPage = () => {
   const giftValue = location.state?.giftValue || 0;
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '');
+    if (cleaned.length !== 6) return '#b0164e';
+    const num = parseInt(cleaned, 16);
+    const r = Math.max(0, ((num >> 16) & 255) - 24);
+    const g = Math.max(0, ((num >> 8) & 255) - 24);
+    const b = Math.max(0, (num & 255) - 24);
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  })();
+
+  const toastStyle = {
+    style: {
+      background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+      color: '#fff',
+      border: 'none',
+    },
+  };
+
+  const toastSuccess = (message, options = {}) =>
+    toast.success(message, { ...toastStyle, ...options });
+  const toastError = (message, options = {}) =>
+    toast.error(message, { ...toastStyle, ...options });
   // ✅ GET CART FROM REDUX
   const { items: cartItems } = useSelector((state) => state.cart);
 
@@ -103,7 +130,7 @@ const ServiceDetailPage = () => {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color:var(--brand-primary)]"></div>
           <span className="ml-3 text-lg font-medium text-gray-600">
             Loading service details...
           </span>
@@ -116,7 +143,7 @@ const ServiceDetailPage = () => {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[50vh] px-4">
-          <div className="text-center max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+          <div className="text-center max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-gray-200/70">
             <div className="text-red-500 text-3xl mb-4">⚠️</div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">
               Service not found
@@ -161,7 +188,7 @@ const ServiceDetailPage = () => {
       if (exists) {
         // Prevent deselecting if it's the last one
         if (prev.length <= 1) {
-            toast.error("At least one treatment must be selected");
+            toastError("At least one treatment must be selected");
             return prev;
         }
         return prev.filter((t) => (t._id || t.id) !== (treatment._id || treatment.id));
@@ -212,13 +239,13 @@ const ServiceDetailPage = () => {
   const handleAddToCart = () => {
     // Validation
     if ((service.subTreatments?.length > 0) && selectedTreatments.length === 0) {
-      toast.error("Please select at least one treatment option");
+      toastError("Please select at least one treatment option");
       const element = document.getElementById('treatments-section');
       if (element) element.scrollIntoView({ behavior: 'smooth' });
       return;
     }
     if (!selectedDate || !selectedTime) {
-      toast.error("Please select date and time");
+      toastError("Please select date and time");
       const element = document.getElementById('datetime-section');
       if (element) element.scrollIntoView({ behavior: 'smooth' });
       return;
@@ -233,7 +260,7 @@ const ServiceDetailPage = () => {
     );
 
     if (isAlreadyInCart) {
-      toast.error("❌ This time slot is already in your cart!");
+      toastError("❌ This time slot is already in your cart!");
       return;
     }
 
@@ -273,7 +300,7 @@ const ServiceDetailPage = () => {
     };
 
     dispatch(addToCart(cartItem));
-    toast.success("Added to cart!", {
+    toastSuccess("Added to cart!", {
       icon: "🛒",
     });
 
@@ -285,21 +312,21 @@ const ServiceDetailPage = () => {
 
   const handleBooking = async () => {
     if ((service.subTreatments?.length > 0) && selectedTreatments.length === 0) {
-      toast.error("Please select at least one treatment option");
+      toastError("Please select at least one treatment option");
 
        const element = document.getElementById('treatments-section');
        if (element) element.scrollIntoView({ behavior: 'smooth' });
       return;
     }
     if (!selectedDate || !selectedTime) {
-      toast.error("Please select date and time");
+      toastError("Please select date and time");
        const element = document.getElementById('datetime-section');
        if (element) element.scrollIntoView({ behavior: 'smooth' });
       return;
     }
 
     if (!currentUser?.selectedLocation?.locationId) {
-      toast.error("Please select a spa location first");
+      toastError("Please select a spa location first");
       return;
     }
 
@@ -349,12 +376,12 @@ const ServiceDetailPage = () => {
       if (response.success && response.sessionUrl) {
         window.location.href = response.sessionUrl;
       } else {
-        toast.error("Failed to create payment session");
+        toastError("Failed to create payment session");
         setIsProcessing(false);
       }
     } catch (error) {
       console.error("Error creating checkout session:", error);
-      toast.error(
+      toastError(
         error.response?.data?.message ||
           "Failed to process booking. Please try again."
       );
@@ -396,7 +423,7 @@ const ServiceDetailPage = () => {
 
                <div className="space-y-3 mb-2 animate-in slide-in-from-bottom-5 fade-in duration-500 relative z-10">
                   <div className="flex gap-2 items-center">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 text-white text-xs font-bold shadow-lg shadow-pink-500/20">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white text-xs font-bold shadow-lg shadow-[color:var(--brand-primary)/0.2]">
                       {service.categoryId?.name || service.categoryName || "Premium Service"}
                     </span>
                     {service.popular && (
@@ -412,12 +439,12 @@ const ServiceDetailPage = () => {
 
                   <div className="flex flex-wrap items-center gap-4 text-white/90 text-sm md:text-base font-medium">
                     {isBirthdayGift && (
-                        <div className="bg-white text-purple-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm animate-pulse">
+                        <div className="bg-white text-[color:var(--brand-primary)] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm animate-pulse">
                             🎉 Birthday Gift Applied
                         </div>
                     )}
                     <div className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-pink-400" />
+                      <Clock className="w-4 h-4 text-[color:var(--brand-primary)]" />
                       <span>{service.duration} mins</span>
                     </div>
                     <div className="w-1 h-1 rounded-full bg-white/40" />
@@ -438,7 +465,7 @@ const ServiceDetailPage = () => {
             <div className="lg:col-span-2 space-y-8">
               
               {/* Description Card */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
                  <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
                     <Info className="w-5 h-5 text-gray-400" /> About this service
                  </h2>
@@ -447,7 +474,7 @@ const ServiceDetailPage = () => {
                  </p>
                  
                  {/* Quick Stats Grid */}
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-100">
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-200/70">
                     <div className="text-center p-3 rounded-xl bg-blue-50/50">
                        <User className="w-5 h-5 mx-auto text-blue-600 mb-1.5" />
                        <div className="text-xs text-gray-500">Practitioner</div>
@@ -463,8 +490,8 @@ const ServiceDetailPage = () => {
                        <div className="text-xs text-gray-500">Availability</div>
                        <div className="font-semibold text-gray-900 text-sm">Mon-Sun</div>
                     </div>
-                     <div className="text-center p-3 rounded-xl bg-purple-50/50">
-                       <Zap className="w-5 h-5 mx-auto text-purple-600 mb-1.5" />
+                     <div className="text-center p-3 rounded-xl bg-[color:var(--brand-primary)/0.08]">
+                       <Zap className="w-5 h-5 mx-auto text-[color:var(--brand-primary)] mb-1.5" />
                        <div className="text-xs text-gray-500">Instant</div>
                        <div className="font-semibold text-gray-900 text-sm">Booking</div>
                     </div>
@@ -472,7 +499,7 @@ const ServiceDetailPage = () => {
               </div>
 
               {/* Treatment Options */}
-              <div id="treatments-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div id="treatments-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Select Treatment</h2>
                 
                 {service.subTreatments && service.subTreatments.length > 0 ? (
@@ -490,23 +517,23 @@ const ServiceDetailPage = () => {
                         <div
                           key={treatment._id || treatment.id}
                           onClick={() => handleTreatmentSelect(treatment)}
-                          className={`relative cursor-pointer rounded-2xl p-5 transition-all duration-200 border-2 ${
+                          className={`relative cursor-pointer rounded-2xl p-5 transition-all duration-200 border ${
                             isSelected
-                              ? "border-pink-500 bg-pink-50 ring-2 ring-pink-200 ring-offset-1"
-                              : "border-gray-100 hover:border-pink-200 hover:bg-gray-50"
+                              ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] ring-2 ring-[color:var(--brand-primary)/0.25] ring-offset-1"
+                              : "border-gray-200/70 hover:border-gray-200/70 hover:bg-gray-50"
                           }`}
                         >
                            <div className="flex justify-between items-start">
                               <div className="flex gap-4">
                                  {/* Custom Radio Button */}
-                                 <div className={`mt-0.5 h-6 w-6 min-w-[1.5rem] rounded-full border-2 flex items-center justify-center transition-all ${
-                                    isSelected ? "border-pink-500 bg-pink-500" : "border-gray-300"
+                                 <div className={`mt-0.5 h-6 w-6 min-w-[1.5rem] rounded-full border flex items-center justify-center transition-all ${
+                                    isSelected ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08]" : "border-gray-200/70"
                                  }`}>
                                     {isSelected && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
                                  </div>
                                  
                                  <div>
-                                    <h3 className={`font-bold text-lg mb-1 leading-snug ${isSelected ? "text-pink-900" : "text-gray-900"}`}>
+                                    <h3 className={`font-bold text-lg mb-1 leading-snug ${isSelected ? "text-[color:var(--brand-primary)]" : "text-gray-900"}`}>
                                       {treatment.name}
                                     </h3>
                                     <p className="text-gray-600 text-sm mb-3">
@@ -521,7 +548,7 @@ const ServiceDetailPage = () => {
                               </div>
                               
                               <div className="text-right pl-4">
-                                 <div className={`text-xl font-bold ${isSelected ? "text-pink-600" : "text-gray-900"}`}>
+                                 <div className={`text-xl font-bold ${isSelected ? "text-[color:var(--brand-primary)]" : "text-gray-900"}`}>
                                     ${treatment.price}
                                  </div>
                               </div>
@@ -531,7 +558,7 @@ const ServiceDetailPage = () => {
                     })}
                   </div>
                 ) : (
-                  <div className="bg-gray-50 rounded-xl p-6 text-center border border-dashed border-gray-300">
+                  <div className="bg-gray-50 rounded-xl p-6 text-center border border-dashed border-gray-200/70">
                      <p className="text-gray-500">Standard service booking. No variants available.</p>
                   </div>
                 )}
@@ -539,10 +566,10 @@ const ServiceDetailPage = () => {
 
                {/* Add-ons Section */}
                {service.linkedServices && service.linkedServices.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
                    <div className="flex items-center justify-between mb-4">
                       <h2 className="text-xl font-bold text-gray-900">Recommended Add-ons</h2>
-                      <span className="bg-pink-100 text-pink-700 text-xs font-bold px-2 py-1 rounded-full">Optional</span>
+                      <span className="bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] text-xs font-bold px-2 py-1 rounded-full">Optional</span>
                    </div>
                    
                    <div className="grid gap-3">
@@ -557,12 +584,12 @@ const ServiceDetailPage = () => {
                                className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
                                   isSelected 
                                     ? "border-green-500 bg-green-50/50 ring-1 ring-green-200" 
-                                    : "border-gray-200 hover:border-gray-300"
+                                    : "border-gray-200/70 hover:border-gray-200/70"
                                }`}
                             >
                                <div className="flex items-center gap-3">
-                                  <div className={`flex items-center justify-center h-5 w-5 min-w-[1.25rem] rounded-md border-2 transition-colors ${
-                                     isSelected ? "bg-green-500 border-green-500" : "border-gray-300"
+                                  <div className={`flex items-center justify-center h-5 w-5 min-w-[1.25rem] rounded-md border transition-colors ${
+                                     isSelected ? "bg-green-500 border-green-500" : "border-gray-200/70"
                                   }`}>
                                      {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
                                   </div>
@@ -582,7 +609,7 @@ const ServiceDetailPage = () => {
                )}
 
               {/* Date & Time Section */}
-              <div id="datetime-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div id="datetime-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Select Date & Time</h2>
                 
                 <div className="space-y-6">
@@ -597,7 +624,7 @@ const ServiceDetailPage = () => {
                            setSelectedTime(""); 
                         }}
                         min={new Date().toISOString().split("T")[0]}
-                        className="w-full h-12 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition-all appearance-none text-base"
+                        className="w-full h-12 px-4 bg-gray-50 border border-gray-200/70 rounded-xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:border-[color:var(--brand-primary)] outline-none transition-all appearance-none text-base"
                         style={{ WebkitAppearance: 'none' }} 
                       />
                    </div>
@@ -606,7 +633,7 @@ const ServiceDetailPage = () => {
                    <div>
                       <div className="flex items-center justify-between mb-3">
                          <label className="block text-sm font-medium text-gray-700">Available Slots</label>
-                         {loadingAvailability && <span className="text-xs text-pink-500 animate-pulse">Checking availability...</span>}
+                         {loadingAvailability && <span className="text-xs text-[color:var(--brand-primary)] animate-pulse">Checking availability...</span>}
                       </div>
                       
                       {selectedDate ? (
@@ -618,8 +645,8 @@ const ServiceDetailPage = () => {
                                  onClick={() => setSelectedTime(time)}
                                  className={`py-2 px-1 text-sm font-medium rounded-lg border transition-all ${
                                    selectedTime === time
-                                     ? "bg-gradient-to-r from-pink-500 to-rose-600 text-white border-transparent shadow-lg"
-                                     : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                                     ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
+                                     : "bg-white text-gray-700 border-gray-200/70 hover:border-gray-200/70 hover:bg-gray-50"
                                  }`}
                                >
                                  {time}
@@ -627,12 +654,12 @@ const ServiceDetailPage = () => {
                              ))}
                            </div>
                          ) : (
-                           <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-100">
+                           <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
                               <p className="text-gray-500">No time slots available for this date.</p>
                            </div>
                          )
                       ) : (
-                         <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-100">
+                         <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
                             <p className="text-gray-500">Please select a date to view times.</p>
                          </div>
                       )}
@@ -644,7 +671,7 @@ const ServiceDetailPage = () => {
 
              {/* RIGHT COLUMN - DESKTOP SUMMARY */}
              <div className="hidden lg:block lg:col-span-1">
-                <div className="sticky top-24 bg-white rounded-2xl p-6 shadow-xl shadow-gray-200/50 border border-gray-100">
+                <div className="sticky top-24 bg-white rounded-2xl p-6 shadow-xl shadow-gray-200/50 border border-gray-200/70">
                    <h3 className="font-bold text-gray-900 mb-4 text-lg">Booking Summary</h3>
                    
                    <div className="space-y-4 mb-6">
@@ -671,7 +698,7 @@ const ServiceDetailPage = () => {
                       <div className="flex justify-between items-center">
                          <span className="text-gray-900 font-bold">Total</span>
                          <div className="text-right">
-                            <div className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-rose-600 bg-clip-text text-transparent">
+                            <div className="text-2xl font-bold bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] bg-clip-text text-transparent">
                                ${totalPrice.toFixed(2)}
                             </div>
                             <div className="text-xs text-gray-500 font-medium">{totalDuration} mins</div>
@@ -685,13 +712,13 @@ const ServiceDetailPage = () => {
                       <button
                         onClick={handleBooking}
                         disabled={isProcessing}
-                        className="w-full py-3.5 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-xl font-bold shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40 transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] hover:shadow-[color:var(--brand-primary)/0.4] transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isProcessing ? "Processing..." : "Book Now"}
                       </button>
                       <button
                         onClick={handleAddToCart}
-                        className="w-full py-3.5 bg-white border-2 border-gray-100 text-gray-900 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-3.5 bg-white border border-gray-200/70 text-gray-900 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-200/70 transition-all flex items-center justify-center gap-2"
                       >
                          <Plus className="w-4 h-4" /> Add to Cart
                       </button>
@@ -710,7 +737,7 @@ const ServiceDetailPage = () => {
       </div>
 
       {/* MOBILE STICKY BOTTOM BAR */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-[60] pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200/70 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-[60] pb-[calc(1rem+env(safe-area-inset-bottom))]">
          <div className="flex items-center gap-4 max-w-lg mx-auto">
             <div className="flex-1">
                <div className="text-xs text-gray-500 font-medium mb-0.5">Total for {totalDuration} min</div>
@@ -721,18 +748,18 @@ const ServiceDetailPage = () => {
             <div className="flex gap-2">
                <button
                   onClick={handleAddToCart}
-                   className="p-3.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                   className="p-3.5 rounded-xl border border-gray-200/70 text-gray-600 hover:bg-gray-50 transition-colors"
                >
                   <Plus className="w-6 h-6" />
                </button>
                <button
                   onClick={handleBooking}
                   disabled={isProcessing}
-                  className="px-6 py-3.5 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-xl font-bold shadow-lg shadow-pink-500/25 disabled:opacity-50"
+                  className="px-6 py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] disabled:opacity-50"
                >
                   {isProcessing ? (
                      <span className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <div className="w-4 h-4 border border-white/30 border-t-white rounded-full animate-spin" />
                      </span>
                   ) : (
                      "Book"

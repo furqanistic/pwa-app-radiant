@@ -18,6 +18,7 @@ import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { useBranding } from '@/context/BrandingContext'
 import axiosInstance from '../../config'
 import { clearCart, removeFromCart } from '../../redux/cartSlice'
 import stripeService from '../../services/stripeService'
@@ -27,6 +28,32 @@ const CartPage = () => {
   const navigate = useNavigate()
   const { items, totalAmount, totalItems } = useSelector((state) => state.cart)
   const { currentUser } = useSelector((state) => state.user)
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
+
+  const toastStyle = {
+    style: {
+      background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+      color: '#fff',
+      border: 'none',
+    },
+  }
+
+  const toastSuccess = (message, options = {}) =>
+    toast.success(message, { ...toastStyle, ...options })
+  const toastError = (message, options = {}) =>
+    toast.error(message, { ...toastStyle, ...options })
   const [isProcessing, setIsProcessing] = useState(false)
   const [availableRewards, setAvailableRewards] = useState([])
   const [selectedReward, setSelectedReward] = useState(null)
@@ -124,24 +151,24 @@ const CartPage = () => {
 
   const handleRemoveItem = (itemId) => {
     dispatch(removeFromCart(itemId))
-    toast.success('Item removed from cart')
+    toastSuccess('Item removed from cart')
   }
 
   const handleClearCart = () => {
     if (window.confirm('Are you sure you want to clear your cart?')) {
       dispatch(clearCart())
-      toast.success('Cart cleared')
+      toastSuccess('Cart cleared')
     }
   }
 
   const handleCheckout = async () => {
     if (!currentUser?.selectedLocation?.locationId) {
-      toast.error('Please select a spa location first')
+      toastError('Please select a spa location first')
       return
     }
 
     if (items.length === 0) {
-      toast.error('Your cart is empty')
+      toastError('Your cart is empty')
       return
     }
 
@@ -173,12 +200,12 @@ const CartPage = () => {
         // Redirect to Stripe Checkout
         window.location.href = response.sessionUrl
       } else {
-        toast.error('Failed to create payment session')
+        toastError('Failed to create payment session')
         setIsProcessing(false)
       }
     } catch (error) {
       console.error('Error creating checkout session:', error)
-      toast.error(
+      toastError(
         error.response?.data?.message ||
           'Failed to process checkout. Please try again.'
       )
@@ -189,12 +216,18 @@ const CartPage = () => {
   if (items.length === 0) {
     return (
       <Layout>
-        <div className='px-4 py-6 max-w-4xl mx-auto'>
+      <div
+        className='px-4 py-6 max-w-4xl mx-auto'
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
           <div className='flex items-center justify-between mb-6'>
            
           </div>
 
-          <div className='bg-white rounded-lg shadow-sm p-12 text-center'>
+          <div className='bg-white rounded-lg shadow-sm p-12 text-center border border-gray-200/70'>
             <ShoppingBag className='w-20 h-20 mx-auto mb-4 text-gray-300' />
             <h2 className='text-2xl font-bold text-gray-900 mb-2'>
               Your cart is empty
@@ -204,7 +237,7 @@ const CartPage = () => {
             </p>
             <button
               onClick={() => navigate('/services')}
-              className='bg-gradient-to-r from-pink-500 to-rose-600 text-white px-6 h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 inline-flex items-center gap-2'
+              className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-6 h-10 rounded-lg font-semibold hover:brightness-95 inline-flex items-center gap-2'
             >
               <ShoppingCart className='w-5 h-5' />
               Browse Services
@@ -217,7 +250,13 @@ const CartPage = () => {
 
   return (
     <Layout>
-      <div className='px-4 py-6 max-w-6xl mx-auto'>
+      <div
+        className='px-4 py-6 max-w-6xl mx-auto'
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
         {/* Header */}
         <div className='flex items-center justify-between mb-6'>
           <button
@@ -239,7 +278,7 @@ const CartPage = () => {
         <div className='grid lg:grid-cols-3 gap-6'>
           {/* Cart Items */}
           <div className='lg:col-span-2 space-y-4'>
-            <div className='bg-white rounded-lg shadow-sm p-6'>
+            <div className='bg-white rounded-lg shadow-sm p-6 border border-gray-200/70'>
               <h1 className='text-2xl font-bold text-gray-900 mb-2'>
                 Shopping Cart
               </h1>
@@ -251,7 +290,7 @@ const CartPage = () => {
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className='border border-gray-200 rounded-lg p-4 hover:border-pink-300 transition-colors'
+                    className='border border-gray-200/70 rounded-lg p-4 hover:border-gray-200/70 transition-colors'
                   >
                     <div className='flex gap-4'>
                       <img
@@ -331,7 +370,7 @@ const CartPage = () => {
 
           <div className='lg:col-span-1'>
             <BNPLBanner className="mb-4" />
-            <div className='bg-white rounded-lg shadow-sm p-6 sticky top-6'>
+              <div className='bg-white rounded-lg shadow-sm p-6 sticky top-6 border border-gray-200/70'>
               <h3 className='text-xl font-bold text-gray-900 mb-6'>
                 Order Summary
               </h3>
@@ -345,7 +384,7 @@ const CartPage = () => {
                 {/* Rewards Section */}
                 <div className='border-t border-gray-50 pt-3'>
                   <div className='flex items-center gap-2 mb-3'>
-                    <Gift className='w-4 h-4 text-pink-500' />
+                    <Gift className='w-4 h-4 text-[color:var(--brand-primary)]' />
                     <span className='text-sm font-bold text-gray-900 uppercase tracking-wider'>
                       Apply Rewards
                     </span>
@@ -355,7 +394,7 @@ const CartPage = () => {
                     <div className='space-y-2'>
                       <div className='relative'>
                         <select
-                          className='w-full pl-3 pr-10 py-2 text-sm border border-gray-200 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all font-medium text-gray-700'
+                          className='w-full pl-3 pr-10 py-2 text-sm border border-gray-200/70 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all font-medium text-gray-700'
                           value={selectedReward?._id || ''}
                           onChange={(e) => {
                             const reward = availableRewards.find(
@@ -375,7 +414,7 @@ const CartPage = () => {
                         <ChevronDown className='absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
                       </div>
                       {rewardDiscount > 0 && (
-                        <div className='flex justify-between text-pink-600 text-sm font-semibold'>
+                        <div className='flex justify-between text-[color:var(--brand-primary)] text-sm font-semibold'>
                           <span>Reward Discount</span>
                           <span>-${rewardDiscount.toFixed(2)}</span>
                         </div>
@@ -397,7 +436,7 @@ const CartPage = () => {
                     </span>
                   </div>
                   <div className="flex justify-end mt-1">
-                    <p className="text-xs font-semibold text-purple-600 flex items-center gap-1">
+                    <p className="text-xs font-semibold text-[color:var(--brand-primary)] flex items-center gap-1">
                       <Gift className="w-3 h-3" />
                       You'll earn {Math.floor(finalTotal)} points
                     </p>
@@ -408,7 +447,7 @@ const CartPage = () => {
               <button
                 onClick={handleCheckout}
                 disabled={isProcessing}
-                className='w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 mb-4'
+                className='w-full bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white h-10 rounded-lg font-semibold hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 mb-4'
               >
                 {isProcessing ? (
                   <>

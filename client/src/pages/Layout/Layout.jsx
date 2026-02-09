@@ -1,5 +1,6 @@
 // File: client/src/pages/Layout/Layout.jsx
 import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
+import { useBranding } from '@/context/BrandingContext'
 import {
     logout,
     selectIsElevatedUser,
@@ -35,17 +36,15 @@ const sidebarVariants = {
   open: {
     x: 0,
     transition: {
-      type: 'spring',
-      stiffness: 400,
-      damping: 30,
+      duration: 0.3,
+      ease: 'easeOut',
     },
   },
   closed: {
     x: '-100%',
     transition: {
-      type: 'spring',
-      stiffness: 400,
-      damping: 30,
+      duration: 0.3,
+      ease: 'easeIn',
     },
   },
 }
@@ -69,9 +68,8 @@ const navItemVariants = {
   hover: {
     x: 4,
     transition: {
-      type: 'spring',
-      stiffness: 400,
-      damping: 30,
+      duration: 0.2,
+      ease: 'easeInOut',
     },
   },
 }
@@ -94,6 +92,19 @@ const Layout = ({
   const navigate = useNavigate()
   const location = useLocation()
   const dispatch = useDispatch()
+  const { branding, locationId } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
 
   // Add selectors to check user roles
   const isSuperAdmin = useSelector(selectIsSuperAdmin)
@@ -173,8 +184,7 @@ const Layout = ({
       href: '/rewards',
       badge: {
         text: 'NEW',
-        color:
-          'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
+        color: 'bg-[color:var(--brand-primary)]',
       },
       // Available to everyone
     },
@@ -193,8 +203,7 @@ const Layout = ({
       href: '/spin',
       badge: {
         text: 'HOT',
-        color:
-          'bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600 ',
+        color: 'bg-[color:var(--brand-primary)]',
       },
       hideForElevated: true,
       // Available to everyone
@@ -226,8 +235,22 @@ const Layout = ({
     },
   ]
 
+  const withSpaParam = (href) => {
+    if (!locationId || !href || href.startsWith('http')) return href
+    try {
+      const url = new URL(href, window.location.origin)
+      if (!url.searchParams.has('spa')) {
+        url.searchParams.set('spa', locationId)
+      }
+      return `${url.pathname}${url.search}${url.hash}`
+    } catch (error) {
+      return href
+    }
+  }
+
   const handleNavigation = async (href, isLogout = false) => {
     try {
+      const destination = isLogout ? href : withSpaParam(href)
       // If we're already on this route and it's not a logout, just close the menu
       if (location.pathname === href && !isLogout) {
         setIsOpen(false)
@@ -243,7 +266,7 @@ const Layout = ({
       }
 
       // Navigate to the new route
-      navigate(href)
+      navigate(destination)
 
       // Close mobile menu
       setIsOpen(false)
@@ -272,7 +295,7 @@ const Layout = ({
           onClick={() => handleNavigation(item.href, true)}
           disabled={isNavigating}
           className={cn(
-            'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-all duration-200 group relative overflow-hidden text-red-600 hover:bg-red-50 hover:text-red-700',
+            'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors duration-200 group relative overflow-hidden text-red-600 hover:bg-red-50 hover:text-red-700',
             isNavigating && 'opacity-50 cursor-not-allowed'
           )}
         >
@@ -295,9 +318,9 @@ const Layout = ({
         onClick={() => handleNavigation(item.href)}
         disabled={isNavigating || isActive}
         className={cn(
-          'w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden',
+          'w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors duration-200 group relative overflow-hidden',
           isActive
-            ? 'bg-gradient-to-r from-pink-50 to-pink-50 text-pink-700 shadow-sm border border-pink-200/60 cursor-default'
+            ? 'bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary)] shadow-sm border border-[color:var(--brand-primary)/0.35] cursor-default'
             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 cursor-pointer',
           isNavigating && !isActive && 'opacity-50 cursor-not-allowed'
         )}
@@ -307,7 +330,7 @@ const Layout = ({
             className={cn(
               'w-5 h-5 transition-colors flex-shrink-0',
               isActive
-                ? 'text-pink-600'
+                ? 'text-[color:var(--brand-primary)]'
                 : 'text-gray-400 group-hover:text-gray-600'
             )}
           />
@@ -325,14 +348,12 @@ const Layout = ({
             </span>
           )}
           {isNavigating && location.pathname !== item.href && (
-            <div className='w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin flex-shrink-0' />
+            <div className='w-4 h-4 border-2 border-[color:var(--brand-primary)] border-t-transparent rounded-full animate-spin flex-shrink-0' />
           )}
         </div>
         {isActive && (
-          <motion.div
-            layoutId='activeIndicator'
-            className='absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-600  rounded-r-full'
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          <div
+            className='absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-r-full'
           />
         )}
       </motion.button>
@@ -340,7 +361,13 @@ const Layout = ({
   }
 
   return (
-    <div className='min-h-screen bg-gray-50'>
+    <div
+      className='min-h-screen bg-gray-50'
+      style={{
+        ['--brand-primary']: brandColor,
+        ['--brand-primary-dark']: brandColorDark,
+      }}
+    >
       {/* Sidebar - Desktop Only */}
       <AnimatePresence>
         {isDesktop && (
@@ -363,7 +390,7 @@ const Layout = ({
           <div className='flex items-center space-x-2.5 pr-6'>
             <div className='min-w-0 flex-1'>
               <h1 className='text-base font-bold text-gray-900 truncate'>
-                RadiantAI
+                {branding?.name || 'RadiantAI'}
               </h1>
               <p className='text-xs text-gray-500 font-medium'>
                 Beauty & Wellness
@@ -414,7 +441,7 @@ const Layout = ({
       {/* Main Content Area - With proper margin for sidebar */}
       <main
         className={cn(
-          'min-h-screen transition-all duration-200',
+          'min-h-screen transition-[margin,padding] duration-200 ease-in-out',
           // Desktop: always have left margin for sidebar
           'lg:ml-64',
           // Mobile: no margin when sidebar is closed, add padding for bottom nav
@@ -431,7 +458,7 @@ const Layout = ({
           {isNavigating && (
             <div className='absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center'>
               <div className='flex items-center space-x-2 bg-white rounded-lg px-4 py-2 shadow-lg'>
-                <div className='w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin' />
+                <div className='w-4 h-4 border-2 border-[color:var(--brand-primary)] border-t-transparent rounded-full animate-spin' />
                 <span className='text-sm text-gray-600'>Loading...</span>
               </div>
             </div>

@@ -40,10 +40,12 @@ import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
 import { updateProfile } from './redux/userSlice'
 import { authService } from './services/authService'
+import { useBranding } from './context/BrandingContext'
 
 // IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { locationId } = useBranding()
   const location = useLocation()
   const dispatch = useDispatch()
   const [hasInitialCheck, setHasInitialCheck] = useState(false)
@@ -97,6 +99,8 @@ const SpaSelectionGuard = ({ children }) => {
   }
 
   const isOnWelcomePage = location.pathname === '/welcome'
+  const buildSpaPath = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   // IMPROVED: Only show loader when actually needed
   if (shouldCheckOnboarding && isLoading && !hasInitialCheck) {
@@ -141,11 +145,11 @@ const SpaSelectionGuard = ({ children }) => {
 
   // Redirect logic remains the same
   if (!hasSelectedSpa && !isOnWelcomePage) {
-    return <Navigate to='/welcome' replace />
+    return <Navigate to={buildSpaPath('/welcome')} replace />
   }
 
   if (hasSelectedSpa && isOnWelcomePage) {
-    return <Navigate to='/dashboard' replace />
+    return <Navigate to={buildSpaPath('/dashboard')} replace />
   }
 
   return children
@@ -178,9 +182,12 @@ const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
 
 const PublicRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { locationId } = useBranding()
+  const buildSpaPath = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   if (currentUser) {
-    return <Navigate to='/dashboard' replace />
+    return <Navigate to={buildSpaPath('/dashboard')} replace />
   }
 
   return children
@@ -188,9 +195,12 @@ const PublicRoute = ({ children }) => {
 
 const WelcomeRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { locationId } = useBranding()
+  const buildSpaPath = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   if (!currentUser) {
-    return <Navigate to='/auth' replace />
+    return <Navigate to={buildSpaPath('/auth')} replace />
   }
 
   return children
@@ -252,8 +262,8 @@ const App = () => {
   }, [])
 
   return (
-    <BrandingProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <BrandingProvider>
         <Toaster 
           richColors 
           position="top-center" 
@@ -492,8 +502,8 @@ const App = () => {
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/auth" replace />} />
       </Routes>
+      </BrandingProvider>
     </BrowserRouter>
-    </BrandingProvider>
   );
 }
 

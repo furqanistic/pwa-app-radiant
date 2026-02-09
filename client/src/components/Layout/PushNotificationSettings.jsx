@@ -91,7 +91,7 @@ const PushNotificationSettings = ({ className = '' }) => {
 
   return (
     <div
-      className={cn('bg-white rounded-xl border border-gray-200', className)}
+      className={cn('bg-white rounded-xl border border-gray-200/70', className)}
     >
       {/* Header */}
       <div className='p-6 border-b border-gray-100'>
@@ -101,7 +101,7 @@ const PushNotificationSettings = ({ className = '' }) => {
               className={cn(
                 'w-10 h-10 rounded-lg flex items-center justify-center',
                 isSubscribed
-                  ? 'bg-green-100 text-green-600'
+                  ? 'bg-[color:var(--brand-primary)/0.14] text-[color:var(--brand-primary)]'
                   : permissionDenied
                   ? 'bg-red-100 text-red-600'
                   : 'bg-gray-100 text-gray-600'
@@ -125,7 +125,7 @@ const PushNotificationSettings = ({ className = '' }) => {
 
           <button
             onClick={() => setShowDetails(!showDetails)}
-            className='p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100'
+            className='p-2 text-gray-400 hover:text-[color:var(--brand-primary)] rounded-lg hover:bg-[color:var(--brand-primary)/0.08]'
           >
             <Settings className='h-4 w-4' />
           </button>
@@ -164,7 +164,7 @@ const PushNotificationSettings = ({ className = '' }) => {
               <button
                 onClick={handleTestNotification}
                 disabled={isTesting}
-                className='px-3 py-1.5 text-sm font-medium text-pink-600 hover:text-pink-700 hover:bg-pink-50 rounded-lg transition-colors disabled:opacity-50'
+                className='px-3 py-1.5 text-sm font-medium text-[color:var(--brand-primary)] hover:text-[color:var(--brand-dark)] hover:bg-[color:var(--brand-primary)/0.08] rounded-lg transition-colors disabled:opacity-50'
               >
                 {isTesting ? (
                   <>
@@ -185,9 +185,11 @@ const PushNotificationSettings = ({ className = '' }) => {
               disabled={isSubscribing || isUnsubscribing || permissionDenied}
               className={cn(
                 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                'focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2',
+                'focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]/60 focus:ring-offset-2',
                 'disabled:opacity-50 disabled:cursor-not-allowed',
-                isSubscribed ? 'bg-pink-500' : 'bg-gray-200'
+                isSubscribed
+                  ? 'bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))]'
+                  : 'bg-gray-200'
               )}
             >
               <span
@@ -252,21 +254,21 @@ const PushNotificationSettings = ({ className = '' }) => {
 
         {/* Call to Action */}
         {canEnableNotifications && !error && (
-          <div className='p-4 bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg border border-pink-200'>
+          <div className='p-4 bg-gradient-to-r from-[color:var(--brand-primary)/0.12] via-white to-[color:var(--brand-primary)/0.06] rounded-lg border border-[color:var(--brand-primary)/0.18]'>
             <div className='flex items-start gap-3'>
-              <div className='w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center flex-shrink-0'>
-                <Smartphone className='h-4 w-4 text-pink-600' />
+              <div className='w-8 h-8 bg-[color:var(--brand-primary)/0.12] rounded-lg flex items-center justify-center flex-shrink-0'>
+                <Smartphone className='h-4 w-4 text-[color:var(--brand-primary)]' />
               </div>
               <div>
-                <h4 className='font-medium text-pink-900'>Stay Connected</h4>
-                <p className='text-pink-700 text-sm mt-1'>
+                <h4 className='font-medium text-[color:var(--brand-primary)]'>Stay Connected</h4>
+                <p className='text-[color:var(--brand-primary)]/70 text-sm mt-1'>
                   Enable push notifications to receive important updates
                   instantly, even when you're not using the app.
                 </p>
                 <button
                   onClick={handleToggleNotifications}
                   disabled={isSubscribing}
-                  className='mt-3 px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50'
+                  className='mt-3 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] hover:brightness-105'
                 >
                   {isSubscribing ? (
                     <>

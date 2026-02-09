@@ -53,7 +53,7 @@ const NotificationSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
-      default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      default: () => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
     },
     read: {
       type: Boolean,
@@ -70,9 +70,6 @@ const NotificationSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    // Auto-delete expired notifications
-    expireAfterSeconds: 0,
-    expireAfterSeconds: 'expiresAt',
   }
 )
 

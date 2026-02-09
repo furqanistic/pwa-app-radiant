@@ -3,9 +3,10 @@ import { Clock, Gift, Loader2, Star } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 
 // "Magic Reveal" Canvas Scratch Card Component
-const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
+const SlideReveal = ({ game, onPlay, isPlaying, canPlay, result, onComplete }) => {
   const [isRevealed, setIsRevealed] = useState(false)
   const [isScratching, setIsScratching] = useState(false)
+  const [hasStartedPlaying, setHasStartedPlaying] = useState(false)
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const revealingRef = useRef(false)
@@ -26,20 +27,31 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
       canvas.width = rect.width
       canvas.height = rect.height
       
-      // Initial fill - Premium Charcoal Metallic
+      const getCssVar = (name, fallback) => {
+        if (typeof window === 'undefined') return fallback
+        const value = getComputedStyle(document.documentElement)
+          .getPropertyValue(name)
+          .trim()
+        return value || fallback
+      }
+
+      const base = '#ffffff'
+      const dark = '#f8fafc' // slate-50
+
+      // Initial fill - Premium white/light-gray gradient
       const gradient = ctx.createLinearGradient(0, 0, rect.width, rect.height)
-      gradient.addColorStop(0, '#0f172a')
-      gradient.addColorStop(0.5, '#334155')
-      gradient.addColorStop(1, '#0f172a')
+      gradient.addColorStop(0, base)
+      gradient.addColorStop(0.5, dark)
+      gradient.addColorStop(1, base)
       ctx.fillStyle = gradient
       ctx.fillRect(0, 0, rect.width, rect.height)
 
       // Add "Mystery" text with embossed premium effect
-      ctx.shadowBlur = 10
-      ctx.shadowColor = 'rgba(0,0,0,0.8)'
-      ctx.shadowOffsetX = 4
-      ctx.shadowOffsetY = 4
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
+      ctx.shadowBlur = 4
+      ctx.shadowColor = 'rgba(0,0,0,0.1)'
+      ctx.shadowOffsetX = 2
+      ctx.shadowOffsetY = 2
+      ctx.fillStyle = getCssVar('--brand-primary', '#ec4899')
       ctx.font = '900 42px Outfit, Inter, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -50,7 +62,7 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
       ctx.shadowOffsetX = 0
       ctx.shadowOffsetY = 0
       ctx.font = 'bold 12px Inter, sans-serif'
-      ctx.fillStyle = '#64748b' // slate-500
+      ctx.fillStyle = '#94a3b8' // slate-400
       ctx.fillText('SCRATCH TO REVEAL', rect.width / 2, rect.height / 2 + 45)
     }
 
@@ -122,6 +134,10 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
     // Trigger onPlay after local animation
     setTimeout(() => {
       onPlay()
+      // Wait a bit more for the "Revealing..." state to be seen then complete
+      setTimeout(() => {
+        if (onComplete) onComplete()
+      }, 1500)
     }, 800)
   }
 
@@ -130,6 +146,12 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
     setIsScratching(true)
     const { x, y } = getCoordinates(e)
     scratch(x, y)
+    
+    // Trigger onPlay as soon as user starts scratching
+    if (!hasStartedPlaying) {
+      setHasStartedPlaying(true)
+      onPlay()
+    }
     
     // Prevent default to avoid scrolling on touch
     if (e.cancelable) e.preventDefault()
@@ -151,11 +173,11 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
     <div className='flex flex-col items-center py-4'>
       <div 
         ref={containerRef}
-        className='relative w-full max-w-[320px] aspect-[4/3] rounded-[42px] overflow-hidden shadow-2xl shadow-pink-500/20 border-[6px] border-white transform transition-transform duration-300'
+        className='relative w-full max-w-[320px] aspect-[4/3] rounded-[42px] overflow-hidden shadow-2xl shadow-[color:var(--brand-primary)/0.25] border-[6px] border-white transform transition-transform duration-300'
       >
         
         {/* The Prize (Underneath) */}
-        <div className='absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 flex flex-col items-center justify-center text-white z-0'>
+        <div className='absolute inset-0 bg-gradient-to-br from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] flex flex-col items-center justify-center text-white z-0'>
            <motion.div
              initial={{ scale: 0.5, opacity: 0 }}
              animate={isRevealed ? { scale: 1, opacity: 1 } : {}}
@@ -163,10 +185,18 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
              className="text-center p-4"
            >
               <div className="w-20 h-20 bg-white/20 backdrop-blur-xl rounded-[32px] flex items-center justify-center mx-auto mb-4 shadow-2xl border border-white/40">
-                 <Gift className="w-10 h-10 text-white" />
+                 {result ? (
+                   <Star className="w-10 h-10 text-yellow-300 fill-yellow-300" />
+                 ) : (
+                   <Gift className="w-10 h-10 text-white" />
+                 )}
               </div>
-              <h3 className="text-3xl font-black mb-1">Revealing...</h3>
-              <p className="text-white/80 font-bold text-xs uppercase tracking-widest">Mystery luck awaits</p>
+              <h3 className="text-3xl font-black mb-1">
+                {result ? result.result.winningItem.value : 'Revealing...'}
+              </h3>
+              <p className="text-white/80 font-bold text-xs uppercase tracking-widest">
+                {result ? result.result.winningItem.title : 'Mystery luck awaits'}
+              </p>
            </motion.div>
            
            {isRevealed && (
@@ -186,7 +216,7 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
                      delay: Math.random() * 0.5,
                      repeat: Infinity
                    }}
-                   className={`absolute w-4 h-4 rounded-full ${['bg-yellow-300', 'bg-white', 'bg-pink-300', 'bg-indigo-300'][i % 4]} blur-md`}
+                   className={`absolute w-4 h-4 rounded-full ${['bg-yellow-300', 'bg-white', 'bg-[color:var(--brand-primary)/0.5]', 'bg-[color:var(--brand-primary-dark)]'][i % 4]} blur-md`}
                  />
                ))}
              </div>
@@ -233,9 +263,9 @@ const SlideReveal = ({ game, onPlay, isPlaying, canPlay }) => {
       <div className='mt-8 text-center'>
          {isPlaying ? (
            <div className="flex flex-col items-center gap-3">
-             <div className="flex items-center gap-2 px-5 py-2.5 bg-pink-50 rounded-full border border-pink-100 shadow-sm animate-pulse">
-               <Loader2 className="w-4 h-4 animate-spin text-pink-600" />
-               <span className="text-pink-600 font-black text-xs uppercase tracking-widest">Validating Win...</span>
+             <div className="flex items-center gap-2 px-5 py-2.5 bg-[color:var(--brand-primary)/0.08] rounded-full border border-gray-200/70 shadow-sm animate-pulse">
+               <Loader2 className="w-4 h-4 animate-spin text-[color:var(--brand-primary)]" />
+               <span className="text-[color:var(--brand-primary)] font-black text-xs uppercase tracking-widest">Validating Win...</span>
              </div>
            </div>
          ) : !canPlay ? (

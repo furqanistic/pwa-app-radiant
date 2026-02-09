@@ -3,39 +3,40 @@ import ClinicLocations from '@/components/Dashboard/ClinicLocations'
 import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
 import SpaDashboard from '@/components/Dashboard/SpaDashboard'
+import { useBranding } from '@/context/BrandingContext'
 import { useDashboardData } from '@/hooks/useDashboard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    AlertCircle,
-    Award,
-    Calendar,
-    CheckCircle,
-    ChevronRight,
-    Clock,
-    CreditCard,
-    DollarSign,
-    Gift,
-    Heart,
-    Lock,
-    MapPin,
-    Pause,
-    Percent,
-    Play,
-    Plus,
-    RefreshCw,
-    Share2,
-    ShoppingBag,
-    Sparkles,
-    Star,
-    Target,
-    TrendingUp,
-    Unlock,
-    UserPlus,
-    Users,
-    Volume2,
-    XCircle,
-    Zap,
+  AlertCircle,
+  Award,
+  Calendar,
+  CheckCircle,
+  ChevronRight,
+  Clock,
+  CreditCard,
+  DollarSign,
+  Gift,
+  Heart,
+  Lock,
+  MapPin,
+  Pause,
+  Percent,
+  Play,
+  Plus,
+  RefreshCw,
+  Share2,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Target,
+  TrendingUp,
+  Unlock,
+  UserPlus,
+  Users,
+  Volume2,
+  XCircle,
+  Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -85,9 +86,9 @@ const RewardCard = ({
       case 'credit':
         return <DollarSign className='w-4 h-4 text-green-500' />
       case 'discount':
-        return <Percent className='w-4 h-4 text-pink-500' />
+        return <Percent className='w-4 h-4 text-[color:var(--brand-primary)]' />
       case 'service':
-        return <Gift className='w-4 h-4 text-purple-500' />
+        return <Gift className='w-4 h-4 text-[color:var(--brand-primary)]' />
       case 'combo':
         return <Star className='w-4 h-4 text-yellow-500' />
       case 'referral':
@@ -102,9 +103,9 @@ const RewardCard = ({
       case 'credit':
         return 'from-green-400 to-emerald-400'
       case 'discount':
-        return 'from-pink-400 to-rose-400'
+        return 'from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)]'
       case 'service':
-        return 'from-purple-400 to-violet-400'
+        return 'from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)]'
       case 'combo':
         return 'from-yellow-400 to-orange-400'
       case 'referral':
@@ -154,7 +155,7 @@ const RewardCard = ({
   const getButtonIcon = () => {
     if (isClaiming)
       return (
-        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
+        <div className='w-4 h-4 border border-white border-t-transparent rounded-full animate-spin' />
       )
     if (claimStatus === 'success') return <CheckCircle className='w-4 h-4' />
     if (claimStatus === 'error') return <XCircle className='w-4 h-4' />
@@ -169,9 +170,9 @@ const RewardCard = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: canAfford ? -2 : 0 }}
-      className={`relative bg-white rounded-2xl overflow-hidden transition-all border-2 ${
+      className={`relative bg-white rounded-2xl overflow-hidden transition-all border ${
         canAfford && !isOptimisticUpdate
-          ? 'border-pink-200 hover:border-pink-300 cursor-pointer group hover:shadow-lg'
+          ? 'border-gray-200/70 cursor-pointer group hover:shadow-lg'
           : isOptimisticUpdate
           ? 'border-blue-200 opacity-75'
           : 'opacity-60 border-gray-100'
@@ -198,7 +199,7 @@ const RewardCard = ({
                     delay: Math.random() * 0.5,
                   },
                 }}
-                className='absolute w-3 h-3 bg-gradient-to-r from-pink-400 to-purple-400 rounded-full'
+                className='absolute w-3 h-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-full'
               />
             ))}
           </motion.div>
@@ -269,8 +270,8 @@ const RewardCard = ({
               onClick={toggleVoiceNote}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${
                 isPlaying 
-                  ? 'bg-pink-500 text-white animate-pulse' 
-                  : 'bg-white/90 text-pink-500 hover:bg-white hover:scale-110'
+                  ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white animate-pulse' 
+                  : 'bg-white/90 text-[color:var(--brand-primary)] hover:bg-white hover:scale-110'
               }`}
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
@@ -308,7 +309,7 @@ const RewardCard = ({
         </p>
 
         {/* Reward Value */}
-        <div className='bg-gradient-to-r from-pink-50 to-purple-50 p-3 rounded-xl mb-3'>
+        <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-xl mb-3'>
           <div className='flex items-center justify-between'>
             <span className='text-sm font-semibold text-gray-700'>Value:</span>
             <span className='font-bold text-base text-gray-900'>
@@ -340,7 +341,7 @@ const RewardCard = ({
           whileTap={{ scale: canAfford ? 0.98 : 1 }}
           className={`w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
             isClaiming
-              ? 'bg-pink-400 text-white cursor-wait'
+              ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white cursor-wait'
               : claimStatus === 'success'
               ? 'bg-green-500 text-white'
               : claimStatus === 'error'
@@ -348,7 +349,7 @@ const RewardCard = ({
               : isOptimisticUpdate
               ? 'bg-blue-400 text-white cursor-not-allowed'
               : canAfford
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 hover:scale-[1.02] transform'
+              ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white hover:brightness-95 hover:scale-[1.02] transform'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
           }`}
         >
@@ -370,12 +371,10 @@ const DashboardCard = ({
   description = '',
 }) => {
   const gradients = {
-    default: 'bg-white border-2 border-pink-100',
-    pink: 'bg-gradient-to-br from-pink-50 to-pink-100 border-2 border-pink-200',
-    purple:
-      'bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200',
-    indigo:
-      'bg-gradient-to-br from-indigo-50 to-indigo-100 border-2 border-indigo-200',
+    default: 'bg-gray-50/80 border border-gray-200/70',
+    pink: 'bg-gray-50/70 border border-gray-200/70',
+    purple: 'bg-gray-50/70 border border-gray-200/70',
+    indigo: 'bg-gray-50/70 border border-gray-200/70',
   }
 
   if (isLoading) {
@@ -417,6 +416,7 @@ const DashboardCard = ({
 const SpaRewardsSection = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  const { locationId } = useBranding()
   const { currentUser } = useSelector((state) => state.user)
   const [optimisticRewards, setOptimisticRewards] = useState(new Set())
 
@@ -558,7 +558,7 @@ const SpaRewardsSection = () => {
             </p>
             <button
               onClick={handleRefresh}
-              className='bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors'
+              className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-4 py-2 rounded-lg hover:brightness-95 transition-colors'
             >
               Try Again
             </button>
@@ -577,7 +577,7 @@ const SpaRewardsSection = () => {
             <p className='text-gray-600 mb-4'>New rewards coming soon!</p>
             <button
               onClick={handleRefresh}
-              className='bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600 transition-colors flex items-center gap-2 mx-auto'
+              className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-4 py-2 rounded-lg hover:brightness-95 transition-colors flex items-center gap-2 mx-auto'
             >
               <RefreshCw className='w-4 h-4' />
               Refresh
@@ -593,8 +593,8 @@ const SpaRewardsSection = () => {
       <DashboardCard>
         <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
           <div className='flex items-center mb-2 sm:mb-0'>
-            <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
-              <Sparkles className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
+            <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+              <Award className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
             </div>
             <div>
               <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
@@ -606,7 +606,7 @@ const SpaRewardsSection = () => {
             </div>
           </div>
           <div className='flex items-center gap-2'>
-            <span className='bg-pink-100 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold'>
+            <span className='bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold'>
               {
                 lastThreeRewards.filter(
                   (r) => r.canClaim && !optimisticRewards.has(r._id)
@@ -617,15 +617,15 @@ const SpaRewardsSection = () => {
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className='text-pink-600 hover:text-pink-700 p-2 rounded-lg hover:bg-pink-50 transition-colors'
+              className='text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] p-2 rounded-lg hover:bg-[color:var(--brand-primary)/0.06] transition-colors'
             >
               <RefreshCw
                 className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
               />
             </button>
             <button
-              onClick={() => navigate('/rewards')}
-              className='text-pink-600 hover:text-pink-700 flex items-center gap-1 text-sm font-semibold hover:bg-pink-50 px-3 py-2 rounded-lg transition-colors'
+              onClick={() => navigate(withSpaParam('/rewards'))}
+              className='text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] flex items-center gap-1 text-sm font-semibold hover:bg-[color:var(--brand-primary)/0.06] px-3 py-2 rounded-lg transition-colors'
             >
               View All
               <ChevronRight className='w-4 h-4' />
@@ -659,7 +659,7 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
     <div className='mb-4 sm:mb-6 lg:mb-8'>
       <DashboardCard>
         <div className='flex items-center gap-3 mb-6'>
-          <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl'>
+          <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl'>
             <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
           </div>
           <div>
@@ -679,7 +679,7 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               whileHover={{ y: -5 }}
-              className='min-w-[280px] md:min-w-[320px] bg-white border-2 border-pink-50 rounded-[2rem] overflow-hidden shadow-sm hover:shadow-md transition-all'
+              className='min-w-[280px] md:min-w-[320px] bg-gray-50/80 border border-gray-200/70 rounded-[2rem] overflow-hidden shadow-sm hover:shadow-md transition-all'
             >
               <div className='relative h-40'>
                 {gift.image ? (
@@ -689,12 +689,12 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
                     className='w-full h-full object-cover'
                   />
                 ) : (
-                  <div className='w-full h-full bg-pink-50 flex items-center justify-center'>
-                    <Gift className='w-12 h-12 text-pink-200' />
+                  <div className='w-full h-full bg-[color:var(--brand-primary)/0.06] flex items-center justify-center'>
+                    <Gift className='w-12 h-12 text-[color:var(--brand-primary)/0.55]' />
                   </div>
                 )}
                 <div className='absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm'>
-                  <span className='text-xs font-black text-pink-500 uppercase tracking-widest'>
+                  <span className='text-xs font-black text-[color:var(--brand-primary)] uppercase tracking-widest'>
                     Active
                   </span>
                 </div>
@@ -703,11 +703,11 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
                 <h3 className='text-lg font-black text-gray-900 mb-1 truncate'>
                   {gift.name}
                 </h3>
-                <p className='text-2xl font-black text-pink-500 mb-3'>
+                <p className='text-2xl font-black text-[color:var(--brand-primary)] mb-3'>
                   {gift.content}
                 </p>
                 <div className='flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-tighter'>
-                  <Sparkles className='w-3 h-3 text-pink-300' />
+                  <Sparkles className='w-3 h-3 text-[color:var(--brand-primary)/0.6]' />
                   <span>Available at your location</span>
                 </div>
               </div>
@@ -722,20 +722,24 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
 // Need More Points Section
 const NeedMorePointsSection = ({ methods = [] }) => {
   const navigate = useNavigate()
+  const { locationId } = useBranding()
+
+  const withSpaParam = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   const handleAction = (method) => {
     switch (method.action) {
       case 'Share Now':
-        navigate('/referrals')
+        navigate(withSpaParam('/referrals'))
         break
       case 'Book Now':
-        navigate('/services')
+        navigate(withSpaParam('/services'))
         break
       case 'Shop Now':
-        navigate('/services')
+        navigate(withSpaParam('/services'))
         break
       case 'Review':
-        navigate('/Booking')
+        navigate(withSpaParam('/Booking'))
         break
       default:
         break
@@ -745,7 +749,7 @@ const NeedMorePointsSection = ({ methods = [] }) => {
   return (
     <DashboardCard gradient='purple'>
       <div className='flex items-center mb-4 sm:mb-6'>
-        <div className='bg-gradient-to-r from-pink-500 to-rose-500 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+        <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
           <Zap className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
         </div>
         <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
@@ -764,12 +768,12 @@ const NeedMorePointsSection = ({ methods = [] }) => {
               transition={{ duration: 0.4, delay: method.id * 0.1 }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className='bg-white border-2 border-purple-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-purple-300 transition-all cursor-pointer'
+              className='bg-gray-50/80 border border-gray-200/70 rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-all cursor-pointer'
             >
               <div className='flex items-start justify-between mb-3 sm:mb-4'>
                 <div className='flex items-start flex-1 min-w-0'>
-                  <div className='bg-gradient-to-r from-purple-100 to-purple-200 p-2 sm:p-3 rounded-lg sm:rounded-xl mr-3 flex-shrink-0'>
-                    <IconComponent className='w-4 h-4 sm:w-6 sm:h-6 text-purple-600' />
+                  <div className='bg-[color:var(--brand-primary)/0.18] p-2 sm:p-3 rounded-lg sm:rounded-xl mr-3 flex-shrink-0'>
+                    <IconComponent className='w-4 h-4 sm:w-6 sm:h-6 text-[color:var(--brand-primary)]' />
                   </div>
                   <div className='min-w-0 flex-1'>
                     <h3 className='text-sm sm:text-lg font-bold text-gray-800 mb-1'>
@@ -781,7 +785,7 @@ const NeedMorePointsSection = ({ methods = [] }) => {
                   </div>
                 </div>
                 <div className='ml-2 flex-shrink-0'>
-                  <span className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold'>
+                  <span className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-bold'>
                     {method.points}
                   </span>
                 </div>
@@ -789,7 +793,7 @@ const NeedMorePointsSection = ({ methods = [] }) => {
 
               <button
                 onClick={() => handleAction(method)}
-                className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-600 transition-all'
+                className='w-full bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:brightness-95 transition-all'
               >
                 {method.action}
               </button>
@@ -803,7 +807,11 @@ const NeedMorePointsSection = ({ methods = [] }) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate()
+  const { locationId } = useBranding()
   const { currentUser } = useSelector((state) => state.user)
+
+  const withSpaParam = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   // Fetch dashboard data
   const { data: dashboardData, isLoading, error, refetch } = useDashboardData()
@@ -819,7 +827,7 @@ const DashboardPage = () => {
   if (isLoading) {
     return (
       <Layout>
-        <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
+        <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
           <div className='max-w-7xl mx-auto space-y-6'>
             <DashboardCard isLoading={true} />
             <DashboardCard isLoading={true} />
@@ -840,7 +848,7 @@ const DashboardPage = () => {
   if (error) {
     return (
       <Layout>
-        <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
+        <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
           <div className='max-w-7xl mx-auto'>
             <div className='text-center py-12'>
               <AlertCircle className='w-16 h-16 text-red-500 mx-auto mb-4' />
@@ -849,7 +857,7 @@ const DashboardPage = () => {
               </p>
               <button
                 onClick={() => refetch()}
-                className='bg-pink-500 text-white px-6 py-3 rounded-lg hover:bg-pink-600 transition-colors flex items-center gap-2 mx-auto'
+                className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-6 py-3 rounded-lg hover:brightness-95 transition-colors flex items-center gap-2 mx-auto'
               >
                 <RefreshCw className='w-4 h-4' />
                 Retry
@@ -865,7 +873,7 @@ const DashboardPage = () => {
 
   return (
     <Layout>
-      <div className='min-h-screen bg-gradient-to-br from-pink-25 via-purple-25 to-indigo-25 p-3 sm:p-4 lg:p-6'>
+      <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
         <div className='max-w-7xl mx-auto'>
           {data.role === 'spa' ? (
             <SpaDashboard data={data} refetch={refetch} />
@@ -904,14 +912,14 @@ const DashboardPage = () => {
                     <DashboardCard gradient='pink'>
                       <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
                         <div className='flex items-center mb-2 sm:mb-0'>
-                          <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+                          <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
                             <Calendar className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
                           </div>
                           <h2 className='text-lg sm:text-xl lg:text-2xl font-bold text-gray-800'>
                             Upcoming Appointments
                           </h2>
                         </div>
-                        <span className='bg-pink-200 text-pink-800 px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold w-fit'>
+                        <span className='bg-[color:var(--brand-primary)/0.18] text-[color:var(--brand-primary)] px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold w-fit'>
                           {data.upcomingAppointments.length} scheduled
                         </span>
                       </div>
@@ -921,7 +929,7 @@ const DashboardPage = () => {
                             <motion.div
                               key={appointment._id}
                               whileHover={{ scale: 1.02 }}
-                              className='bg-white border-2 border-pink-200 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-pink-300 transition-colors cursor-pointer'
+                              className='bg-gray-50/80 border border-gray-200/70 rounded-xl sm:rounded-2xl p-4 sm:p-5 transition-colors cursor-pointer'
                             >
                               <h3 className='text-sm sm:text-base lg:text-lg font-bold text-gray-800 mb-1 sm:mb-2'>
                                 {appointment.serviceName}
@@ -929,13 +937,13 @@ const DashboardPage = () => {
                               <p className='text-xs sm:text-sm lg:text-base text-gray-600 mb-2 sm:mb-3'>
                                 {appointment.providerName}
                               </p>
-                              <div className='flex items-center bg-pink-50 rounded-lg p-2 sm:p-3'>
-                                <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-pink-500 mr-2 sm:mr-3' />
+                              <div className='flex items-center bg-[color:var(--brand-primary)/0.06] rounded-lg p-2 sm:p-3'>
+                                <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-[color:var(--brand-primary)] mr-2 sm:mr-3' />
                                 <div>
-                                  <p className='text-xs sm:text-sm font-semibold text-pink-700'>
+                                  <p className='text-xs sm:text-sm font-semibold text-[color:var(--brand-primary)]'>
                                     {formatDate(appointment.date)}
                                   </p>
-                                  <p className='text-xs sm:text-sm text-pink-600'>
+                                  <p className='text-xs sm:text-sm text-[color:var(--brand-primary)]'>
                                     {appointment.time}
                                   </p>
                                 </div>
@@ -950,8 +958,8 @@ const DashboardPage = () => {
                             No upcoming appointments
                           </p>
                           <button
-                            onClick={() => navigate('/services')}
-                            className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-xl hover:from-pink-600 hover:to-rose-600 transition-all'
+                            onClick={() => navigate(withSpaParam('/services'))}
+                            className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-6 py-3 rounded-xl hover:brightness-95 transition-all'
                           >
                             Book Now
                           </button>
@@ -965,14 +973,14 @@ const DashboardPage = () => {
                     <DashboardCard gradient='indigo'>
                       <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
                         <div className='flex items-center mb-2 sm:mb-0'>
-                          <div className='bg-gradient-to-r from-pink-500 to-rose-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                          <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
                             <Users className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
                           </div>
                           <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
                             Referral Program
                           </h2>
                         </div>
-                        <div className='flex items-center bg-green-100 border-2 border-green-200 rounded-full px-2 sm:px-3 py-1 w-fit'>
+                        <div className='flex items-center bg-green-100 border border-green-200 rounded-full px-2 sm:px-3 py-1 w-fit'>
                           <TrendingUp className='w-3 h-3 sm:w-4 sm:h-4 text-green-600 mr-1 sm:mr-2' />
                           <span className='text-green-700 font-semibold text-xs sm:text-sm'>
                             Active
@@ -982,12 +990,12 @@ const DashboardPage = () => {
                       <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-4 sm:mb-6'>
                         <motion.div
                           whileHover={{ scale: 1.05 }}
-                          className='bg-white border-2 border-indigo-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-indigo-300 transition-colors cursor-pointer'
+                          className='bg-gray-50/80 border border-gray-200/70 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center transition-colors cursor-pointer'
                         >
-                          <div className='bg-gradient-to-r from-indigo-100 to-indigo-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                            <Users className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-indigo-600' />
+                          <div className='bg-[color:var(--brand-primary)/0.18] rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                            <Users className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-[color:var(--brand-primary)]' />
                           </div>
-                          <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-indigo-600 mb-1'>
+                          <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-[color:var(--brand-primary)] mb-1'>
                             {data.referralStats.total}
                           </p>
                           <p className='text-xs sm:text-sm font-semibold text-gray-700'>
@@ -996,7 +1004,7 @@ const DashboardPage = () => {
                         </motion.div>
                         <motion.div
                           whileHover={{ scale: 1.05 }}
-                          className='bg-white border-2 border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors cursor-pointer'
+                          className='bg-white border border-green-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-green-300 transition-colors cursor-pointer'
                         >
                           <div className='bg-gradient-to-r from-green-100 to-green-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
                             <Calendar className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-green-600' />
@@ -1010,12 +1018,12 @@ const DashboardPage = () => {
                         </motion.div>
                         <motion.div
                           whileHover={{ scale: 1.05 }}
-                          className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
+                          className='bg-gray-50/80 border border-gray-200/70 rounded-lg sm:rounded-2xl p-2 sm:p-4 text-center transition-colors cursor-pointer'
                         >
-                          <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
-                            <Gift className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
+                          <div className='bg-[color:var(--brand-primary)/0.18] rounded-full w-8 h-8 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-1 sm:mb-2'>
+                            <Gift className='w-4 h-4 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-[color:var(--brand-primary)]' />
                           </div>
-                          <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-purple-600 mb-1'>
+                          <p className='text-lg sm:text-2xl lg:text-4xl font-bold text-[color:var(--brand-primary)] mb-1'>
                             {data.referralStats.earnings}
                           </p>
                           <p className='text-xs sm:text-sm font-semibold text-gray-700'>
@@ -1023,7 +1031,7 @@ const DashboardPage = () => {
                           </p>
                         </motion.div>
                       </div>
-                      <div className='bg-white border-2 border-indigo-200 rounded-xl sm:rounded-2xl p-3 sm:p-4'>
+                      <div className='bg-gray-50/80 border border-gray-200/70 rounded-xl sm:rounded-2xl p-3 sm:p-4'>
                         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
                           <div>
                             <p className='text-sm sm:text-base lg:text-lg font-bold text-gray-800'>
@@ -1037,8 +1045,8 @@ const DashboardPage = () => {
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => navigate('/referrals')}
-                            className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:from-pink-600 hover:to-rose-600 transition-colors w-full sm:w-auto'
+                            onClick={() => navigate(withSpaParam('/referrals'))}
+                            className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm hover:brightness-95 transition-colors w-full sm:w-auto'
                           >
                             Share Now
                           </motion.button>
@@ -1055,7 +1063,7 @@ const DashboardPage = () => {
                     <DashboardCard gradient='purple'>
                       <div className='flex items-center justify-between mb-4 sm:mb-6'>
                         <div className='flex items-center'>
-                          <div className='bg-gradient-to-r from-purple-500 to-purple-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                          <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
                             <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
                           </div>
                           <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
@@ -1068,12 +1076,12 @@ const DashboardPage = () => {
                         {/* Available Credits */}
                         <motion.div
                           whileHover={{ scale: 1.05 }}
-                          className='bg-white border-2 border-purple-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-purple-300 transition-colors cursor-pointer'
+                          className='bg-gray-50/80 border border-gray-200/70 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center transition-colors cursor-pointer'
                         >
-                          <div className='bg-gradient-to-r from-purple-100 to-purple-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
-                            <CreditCard className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-purple-600' />
+                          <div className='bg-[color:var(--brand-primary)/0.18] rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
+                            <CreditCard className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-[color:var(--brand-primary)]' />
                           </div>
-                          <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-purple-600 mb-1'>
+                          <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-[color:var(--brand-primary)] mb-1'>
                             {data.credits.available}
                           </p>
                           <p className='text-xs sm:text-sm font-semibold text-gray-700'>
@@ -1084,12 +1092,12 @@ const DashboardPage = () => {
                         {/* Gift Cards */}
                         <motion.div
                           whileHover={{ scale: 1.05 }}
-                          className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center hover:border-pink-300 transition-colors cursor-pointer'
+                          className='bg-gray-50/80 border border-gray-200/70 rounded-lg sm:rounded-xl p-3 sm:p-4 text-center transition-colors cursor-pointer'
                         >
-                          <div className='bg-gradient-to-r from-pink-100 to-pink-200 rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
-                            <Gift className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-pink-600' />
+                          <div className='bg-[color:var(--brand-primary)/0.18] rounded-full w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 flex items-center justify-center mx-auto mb-2 sm:mb-3'>
+                            <Gift className='w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 text-[color:var(--brand-primary)]' />
                           </div>
-                          <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-pink-600 mb-1'>
+                          <p className='text-xl sm:text-2xl lg:text-3xl font-bold text-[color:var(--brand-primary)] mb-1'>
                             {data.credits.gifts}
                           </p>
                           <p className='text-xs sm:text-sm font-semibold text-gray-700'>
@@ -1103,7 +1111,7 @@ const DashboardPage = () => {
                         <motion.div
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className='bg-amber-50 border-2 border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'
+                          className='bg-amber-50 border border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4'
                         >
                           <div className='flex items-center'>
                             <Clock className='w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mr-2 sm:mr-3' />
@@ -1123,8 +1131,8 @@ const DashboardPage = () => {
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => navigate('/rewards')}
-                        className='w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:from-pink-600 hover:to-rose-600 transition-all'
+                        onClick={() => navigate(withSpaParam('/rewards'))}
+                        className='w-full bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base font-semibold hover:brightness-95 transition-all'
                       >
                         Use Credits
                       </motion.button>
@@ -1136,7 +1144,7 @@ const DashboardPage = () => {
                     <DashboardCard gradient='pink'>
                       <div className='flex items-center justify-between mb-4 sm:mb-6'>
                         <div className='flex items-center'>
-                          <div className='bg-gradient-to-r from-pink-500 to-pink-600 p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
+                          <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-2 sm:mr-3'>
                             <Heart className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
                           </div>
                           <h2 className='text-base sm:text-lg lg:text-xl font-bold text-gray-800'>
@@ -1150,7 +1158,7 @@ const DashboardPage = () => {
                             <motion.div
                               key={visit._id}
                               whileHover={{ scale: 1.02 }}
-                              className='bg-white border-2 border-pink-200 rounded-lg sm:rounded-xl p-3 sm:p-4 hover:border-pink-300 transition-colors cursor-pointer'
+                              className='bg-gray-50/80 border border-gray-200/70 rounded-lg sm:rounded-xl p-3 sm:p-4 transition-colors cursor-pointer'
                             >
                               <div className='flex items-center justify-between'>
                                 <div className='flex-1 min-w-0'>
@@ -1175,8 +1183,8 @@ const DashboardPage = () => {
                                     ))
                                   ) : (
                                     <button
-                                      onClick={() => navigate('/Booking')}
-                                      className='text-xs text-pink-600 hover:text-pink-700 bg-pink-50 px-2 py-1 rounded'
+                                      onClick={() => navigate(withSpaParam('/Booking'))}
+                                      className='text-xs text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.06] px-2 py-1 rounded'
                                     >
                                       Rate
                                     </button>
@@ -1205,3 +1213,5 @@ const DashboardPage = () => {
 }
 
 export default DashboardPage
+  const withSpaParam = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path

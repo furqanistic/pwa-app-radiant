@@ -27,8 +27,9 @@ import {
     User,
     Zap,
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 
 const signupUser = async (userData) => {
   const response = await axiosInstance.post('/auth/signup', userData)
@@ -40,7 +41,38 @@ const signinUser = async (credentials) => {
   return response.data
 }
 
-const FloatingElements = () => {
+const clampChannel = (value) => Math.max(0, Math.min(255, value))
+
+const hexToRgb = (hex) => {
+  if (!hex) return { r: 236, g: 72, b: 153 }
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) return { r: 236, g: 72, b: 153 }
+  const num = parseInt(cleaned, 16)
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  }
+}
+
+const rgbaFromHex = (hex, alpha) => {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const adjustHex = (hex, amount) => {
+  const { r, g, b } = hexToRgb(hex)
+  const rr = clampChannel(r + amount)
+  const gg = clampChannel(g + amount)
+  const bb = clampChannel(b + amount)
+  return `#${rr.toString(16).padStart(2, '0')}${gg
+    .toString(16)
+    .padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`
+}
+
+const FloatingElements = ({ brandColor }) => {
+  const tintSoft = rgbaFromHex(brandColor, 0.2)
+  const tintSoftAlt = rgbaFromHex(brandColor, 0.25)
   return (
     <div className='absolute inset-0 overflow-hidden pointer-events-none z-0'>
       {[...Array(8)].map((_, i) => (
@@ -54,13 +86,13 @@ const FloatingElements = () => {
           }}
         >
           {i % 4 === 0 ? (
-            <Sparkles className='h-3 w-3 text-pink-300/20' />
+            <Sparkles className='h-3 w-3' style={{ color: tintSoft }} />
           ) : i % 4 === 1 ? (
-            <Bot className='h-3 w-3 text-purple-300/20' />
+            <Bot className='h-3 w-3' style={{ color: tintSoftAlt }} />
           ) : i % 4 === 2 ? (
-            <Heart className='h-2 w-2 text-pink-400/20' />
+            <Heart className='h-2 w-2' style={{ color: tintSoft }} />
           ) : (
-            <Zap className='h-3 w-3 text-purple-400/20' />
+            <Zap className='h-3 w-3' style={{ color: tintSoftAlt }} />
           )}
         </div>
       ))}
@@ -68,10 +100,19 @@ const FloatingElements = () => {
   )
 }
 
-const AnimatedBackground = () => {
+const AnimatedBackground = ({ brandColor }) => {
+  const mid = adjustHex(brandColor, -10)
+  const dark = adjustHex(brandColor, -30)
+  const blobA = rgbaFromHex(brandColor, 0.2)
+  const blobB = rgbaFromHex(brandColor, 0.15)
   return (
     <div className='absolute inset-0 overflow-hidden z-0'>
-      <div className='absolute inset-0 bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600' />
+      <div
+        className='absolute inset-0'
+        style={{
+          background: `linear-gradient(135deg, ${brandColor} 0%, ${mid} 50%, ${dark} 100%)`,
+        }}
+      />
       <div className='absolute inset-0 bg-[linear-gradient(0deg,transparent_calc(100%-1px),rgba(255,255,255,0.05)_100%),linear-gradient(90deg,transparent_calc(100%-1px),rgba(255,255,255,0.05)_100%)] bg-[size:40px_40px]' />
 
       <motion.div
@@ -80,7 +121,8 @@ const AnimatedBackground = () => {
           opacity: [0.1, 0.2, 0.1],
         }}
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-        className='absolute w-[500px] h-[500px] -top-40 -left-40 rounded-full bg-pink-300/20 blur-[100px]'
+        className='absolute w-[500px] h-[500px] -top-40 -left-40 rounded-full blur-[100px]'
+        style={{ backgroundColor: blobA }}
       />
       <motion.div
         animate={{
@@ -93,7 +135,8 @@ const AnimatedBackground = () => {
           ease: 'easeInOut',
           delay: 1,
         }}
-        className='absolute w-[400px] h-[400px] -bottom-20 -right-20 rounded-full bg-purple-400/20 blur-[100px]'
+        className='absolute w-[400px] h-[400px] -bottom-20 -right-20 rounded-full blur-[100px]'
+        style={{ backgroundColor: blobB }}
       />
     </div>
   )
@@ -134,11 +177,12 @@ const SuccessAlert = ({ message }) => (
 
 const AuthPage = () => {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const isLoading = useSelector(selectIsLoading)
   const reduxError = useSelector((state) => state.user.error)
   
   // Get branding context
-  const { branding, loading: brandingLoading, hasBranding } = useBranding()
+  const { branding, loading: brandingLoading, hasBranding, locationId } = useBranding()
 
   const [view, setView] = useState('signup') // 'signup' or 'login'
   const [signupStep, setSignupStep] = useState(1)
@@ -173,6 +217,11 @@ const AuthPage = () => {
     setSignupStep(1)
   }, [view])
 
+  const buildSpaPath = useMemo(() => {
+    return (path) =>
+      locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+  }, [locationId])
+
   const signupMutation = useMutation({
     mutationFn: signupUser,
     onMutate: () => {
@@ -184,7 +233,7 @@ const AuthPage = () => {
       dispatch(loginSuccess(data))
       setSuccess('Radiant account created! Transforming your experience...')
       setTimeout(() => {
-        window.location.href = '/welcome'
+        navigate(buildSpaPath('/welcome'))
       }, 1500)
     },
     onError: (error) => {
@@ -211,7 +260,7 @@ const AuthPage = () => {
       dispatch(loginSuccess(data))
       setSuccess('Welcome back! Loading your dashboard...')
       setTimeout(() => {
-        window.location.href = '/dashboard'
+        navigate(buildSpaPath('/dashboard'))
       }, 1000)
     },
     onError: (error) => {
@@ -287,12 +336,19 @@ const AuthPage = () => {
   const displayError =
     localError || (typeof reduxError === 'string' ? reduxError : null)
 
+  const brandColor = branding?.themeColor || '#ec4899'
+
   return (
-    <div className='min-h-screen bg-white flex font-sans selection:bg-pink-100 selection:text-pink-600'>
+    <div
+      className='min-h-screen bg-white flex font-sans'
+      style={{
+        ['--brand-primary']: brandColor,
+      }}
+    >
       {!isMobile && (
         <div className='w-1/2 relative overflow-hidden flex items-center justify-center p-12'>
-          <AnimatedBackground />
-          <FloatingElements />
+          <AnimatedBackground brandColor={brandColor} />
+          <FloatingElements brandColor={brandColor} />
 
           <div className='relative z-20 w-full max-w-lg'>
             <motion.div
@@ -308,13 +364,16 @@ const AuthPage = () => {
                       alt={branding.name} 
                       className="h-24 w-auto mb-4 object-contain shadow-2xl rounded-2xl p-2 bg-white/10 backdrop-blur-md"
                     />
-                    <h1 className='text-4xl font-black text-white tracking-tighter uppercase text-center'>
-                      {branding.name}
-                    </h1>
-                  </div>
-                ) : (
+                  <h1
+                    className='text-4xl font-black text-white tracking-tighter uppercase text-center'
+                    style={{ textShadow: `0 8px 40px ${brandColor}66` }}
+                  >
+                    {branding.name}
+                  </h1>
+                </div>
+              ) : (
                   <h1 className='text-6xl font-black text-white tracking-tighter'>
-                    Radiant<span className='text-pink-200'>AI</span>
+                    Radiant<span style={{ color: 'var(--brand-primary)' }}>AI</span>
                   </h1>
                 )}
               </div>
@@ -324,31 +383,31 @@ const AuthPage = () => {
                   <>
                     REVEAL YOUR
                     <br />
-                    <span className='text-pink-200'>TRUE RADIANCE</span>
+                    <span className='text-white/95'>TRUE RADIANCE</span>
                   </>
                 ) : (
                   <>
                     GLOWING
                     <br />
-                    <span className='text-pink-200'>RETURNS HERE</span>
+                    <span className='text-white/95'>RETURNS HERE</span>
                   </>
                 )}
               </h2>
 
-              <p className='text-xl text-pink-50/80 font-light leading-relaxed max-w-md'>
+              <p className='text-xl text-white/80 font-light leading-relaxed max-w-md'>
                 Experience the next generation of beauty management.
                 Intelligent, elegant, and uniquely yours.
               </p>
 
               <div className='mt-12 flex gap-4'>
                 <div className='px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 flex items-center gap-2'>
-                  <Bot className='w-4 h-4 text-pink-200' />
+                  <Bot className='w-4 h-4 text-white/90' />
                   <span className='text-white text-sm font-medium'>
                     AI-Powered Insights
                   </span>
                 </div>
                 <div className='px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 flex items-center gap-2'>
-                  <Zap className='w-4 h-4 text-pink-200' />
+                  <Zap className='w-4 h-4 text-white/90' />
                   <span className='text-white text-sm font-medium'>
                     Pro Features
                   </span>
@@ -382,7 +441,7 @@ const AuthPage = () => {
                   </div>
                 ) : (
                   <h1 className='text-4xl font-black text-gray-900 tracking-tighter'>
-                    Radiant<span className='text-pink-600'>AI</span>
+                    Radiant<span style={{ color: 'var(--brand-primary)' }}>AI</span>
                   </h1>
                 )}
               </div>
@@ -403,9 +462,10 @@ const AuthPage = () => {
               onClick={() => setView('signup')}
               className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-sm ${
                 view === 'signup'
-                  ? 'bg-white text-pink-600 shadow-sm border border-gray-100'
+                  ? 'bg-white shadow-sm border border-gray-100'
                   : 'text-gray-500 hover:text-gray-900'
               }`}
+              style={view === 'signup' ? { color: 'var(--brand-primary)' } : undefined}
             >
               Join Us
             </button>
@@ -413,9 +473,10 @@ const AuthPage = () => {
               onClick={() => setView('login')}
               className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-sm ${
                 view === 'login'
-                  ? 'bg-white text-pink-600 shadow-sm border border-gray-100'
+                  ? 'bg-white shadow-sm border border-gray-100'
                   : 'text-gray-500 hover:text-gray-900'
               }`}
+              style={view === 'login' ? { color: 'var(--brand-primary)' } : undefined}
             >
               Sign In
             </button>
@@ -440,10 +501,9 @@ const AuthPage = () => {
                   <div
                     key={step}
                     className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
-                      step <= signupStep
-                        ? 'bg-pink-500 w-full'
-                        : 'bg-gray-100 w-full'
+                      step <= signupStep ? 'w-full' : 'bg-gray-100 w-full'
                     }`}
+                    style={step <= signupStep ? { background: 'var(--brand-primary)' } : undefined}
                   />
                 ))}
               </div>
@@ -464,11 +524,11 @@ const AuthPage = () => {
                         className='space-y-5'
                       >
                         <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-pink-600 transition-colors'>
+                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                             What's your name?
                           </label>
                           <div className='relative'>
-                            <User className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                            <User className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                             <input
                               type='text'
                               placeholder='Full Name'
@@ -476,7 +536,7 @@ const AuthPage = () => {
                               onChange={(e) =>
                                 updateFormData('fullName', e.target.value)
                               }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all placeholder:text-gray-400'
+                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all placeholder:text-gray-400'
                               required
                               disabled={isLoading}
                             />
@@ -484,11 +544,11 @@ const AuthPage = () => {
                         </div>
 
                         <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-pink-600 transition-colors'>
+                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                             Phone Number
                           </label>
                           <div className='relative'>
-                            <Phone className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                            <Phone className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                             <input
                               type='tel'
                               placeholder='+1 (555) 000-0000'
@@ -496,7 +556,7 @@ const AuthPage = () => {
                               onChange={(e) =>
                                 updateFormData('phone', e.target.value)
                               }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all placeholder:text-gray-400'
+                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all placeholder:text-gray-400'
                               disabled={isLoading}
                               required
                             />
@@ -506,7 +566,8 @@ const AuthPage = () => {
                         <button
                           type='button'
                           onClick={handleNextStep}
-                          className='w-full py-4 px-6 bg-gray-900 hover:bg-black text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] mt-10 shadow-lg shadow-gray-200'
+                          className='w-full py-4 px-6 text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] mt-10 shadow-lg shadow-gray-200'
+                          style={{ background: 'var(--brand-primary)' }}
                         >
                           Continue
                           <ChevronRight className='w-5 h-5 group-hover:translate-x-1 transition-transform' />
@@ -525,21 +586,21 @@ const AuthPage = () => {
                         className='space-y-5'
                       >
                         <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-pink-600 transition-colors'>
+                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                             When's your birthday?
                           </label>
                           <p className='text-xs text-gray-400 mb-4'>
                             We'll send you something special on your big day!
                           </p>
                           <div className='relative'>
-                            <Calendar className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                            <Calendar className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                             <input
                               type='date'
                               value={formData.birthdate}
                               onChange={(e) =>
                                 updateFormData('birthdate', e.target.value)
                               }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all'
+                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
                               disabled={isLoading}
                               required
                             />
@@ -558,7 +619,8 @@ const AuthPage = () => {
                           <button
                             type='button'
                             onClick={handleNextStep}
-                            className='flex-[2] py-4 px-6 bg-gray-900 hover:bg-black text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-gray-200'
+                            className='flex-[2] py-4 px-6 text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-gray-200'
+                            style={{ background: 'var(--brand-primary)' }}
                           >
                             Next Step
                             <ChevronRight className='w-5 h-5 group-hover:translate-x-1 transition-transform' />
@@ -578,11 +640,11 @@ const AuthPage = () => {
                         className='space-y-5'
                       >
                         <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-pink-600 transition-colors'>
+                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                             Email Address
                           </label>
                           <div className='relative'>
-                            <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                            <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                             <input
                               type='email'
                               placeholder='hello@example.com'
@@ -590,7 +652,7 @@ const AuthPage = () => {
                               onChange={(e) =>
                                 updateFormData('email', e.target.value)
                               }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all'
+                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
                               required
                               disabled={isLoading}
                             />
@@ -599,11 +661,11 @@ const AuthPage = () => {
 
                         <div className='grid grid-cols-1 gap-5'>
                           <div className='group'>
-                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-pink-600 transition-colors'>
+                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                               Password
                             </label>
                             <div className='relative'>
-                              <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                              <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                               <input
                                 type={showPassword ? 'text' : 'password'}
                                 placeholder='••••••••'
@@ -611,7 +673,7 @@ const AuthPage = () => {
                                 onChange={(e) =>
                                   updateFormData('password', e.target.value)
                                 }
-                                className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all'
+                                className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
                                 required
                                 minLength={8}
                                 disabled={isLoading}
@@ -631,11 +693,11 @@ const AuthPage = () => {
                           </div>
 
                           <div className='group'>
-                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-pink-600 transition-colors'>
+                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                               Confirm Password
                             </label>
                             <div className='relative'>
-                              <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                              <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                               <input
                                 type={showConfirmPassword ? 'text' : 'password'}
                                 placeholder='••••••••'
@@ -646,7 +708,7 @@ const AuthPage = () => {
                                     e.target.value
                                   )
                                 }
-                                className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all'
+                                className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
                                 required
                                 disabled={isLoading}
                               />
@@ -671,21 +733,22 @@ const AuthPage = () => {
                           <input
                             type='checkbox'
                             required
-                            className='mt-1 w-5 h-5 rounded-lg border-gray-200 text-pink-500 focus:ring-pink-200 transition-all'
+                            className='mt-1 w-5 h-5 rounded-lg border-gray-200 focus:ring-[color:var(--brand-primary)/0.25] transition-all'
+                            style={{ color: 'var(--brand-primary)' }}
                             disabled={isLoading}
                           />
                           <label className='text-sm text-gray-500 leading-snug'>
                             I agree to the{' '}
                             <button
                               type='button'
-                              className='text-gray-900 border-b border-gray-900 hover:text-pink-600 hover:border-pink-600'
+                              className='text-gray-900 border-b border-gray-900 hover:text-[color:var(--brand-primary)] hover:border-[color:var(--brand-primary)]'
                             >
                               Terms Service
                             </button>{' '}
                             and{' '}
                             <button
                               type='button'
-                              className='text-gray-900 border-b border-gray-900 hover:text-pink-600 hover:border-pink-600'
+                              className='text-gray-900 border-b border-gray-900 hover:text-[color:var(--brand-primary)] hover:border-[color:var(--brand-primary)]'
                             >
                               Privacy Policy
                             </button>
@@ -703,11 +766,18 @@ const AuthPage = () => {
                           <button
                             type='submit'
                             disabled={isLoading}
-                            className={`flex-[4] py-4 px-6 rounded-2xl font-bold text-white shadow-xl shadow-pink-500/20 transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] ${
-                              isLoading
-                                ? 'bg-gray-300'
-                                : 'bg-gradient-to-r from-pink-500 to-rose-600 hover:shadow-pink-500/40'
+                            className={`flex-[4] py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] ${
+                              isLoading ? 'bg-gray-300' : ''
                             }`}
+                            style={
+                              isLoading
+                                ? undefined
+                                : {
+                                    background: 'var(--brand-primary)',
+                                    boxShadow:
+                                      '0 20px 45px rgba(0,0,0,0.12)',
+                                  }
+                            }
                           >
                             {isLoading ? (
                               <Loader2 className='w-6 h-6 animate-spin' />
@@ -732,11 +802,11 @@ const AuthPage = () => {
                     className='space-y-6'
                   >
                     <div className='group'>
-                      <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-pink-600 transition-colors'>
+                      <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                         Email Address
                       </label>
                       <div className='relative'>
-                        <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                        <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                         <input
                           type='email'
                           placeholder='hello@example.com'
@@ -744,7 +814,7 @@ const AuthPage = () => {
                           onChange={(e) =>
                             updateFormData('email', e.target.value)
                           }
-                          className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all'
+                          className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
                           required
                           disabled={isLoading}
                         />
@@ -753,18 +823,19 @@ const AuthPage = () => {
 
                     <div className='group'>
                       <div className='flex items-center justify-between mb-2'>
-                        <label className='text-sm font-semibold text-gray-700 group-focus-within:text-pink-600 transition-colors'>
+                        <label className='text-sm font-semibold text-gray-700 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
                           Password
                         </label>
                         <button
                           type='button'
-                          className='text-xs font-bold text-pink-600 hover:text-pink-700'
+                          className='text-xs font-bold hover:text-[color:var(--brand-primary)]'
+                          style={{ color: 'var(--brand-primary)' }}
                         >
                           Forgot?
                         </button>
                       </div>
                       <div className='relative'>
-                        <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors' />
+                        <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                         <input
                           type={showPassword ? 'text' : 'password'}
                           placeholder='••••••••'
@@ -772,7 +843,7 @@ const AuthPage = () => {
                           onChange={(e) =>
                             updateFormData('password', e.target.value)
                           }
-                          className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-pink-500 focus:ring-4 focus:ring-pink-50 outline-none transition-all'
+                          className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
                           required
                           disabled={isLoading}
                         />
@@ -793,11 +864,18 @@ const AuthPage = () => {
                     <button
                       type='submit'
                       disabled={isLoading}
-                      className={`w-full py-4 px-6 rounded-2xl font-bold text-white shadow-xl shadow-pink-500/20 transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] mt-4 ${
-                        isLoading
-                          ? 'bg-gray-300'
-                          : 'bg-gradient-to-r from-pink-500 to-rose-600 hover:shadow-pink-500/40'
+                      className={`w-full py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] mt-4 ${
+                        isLoading ? 'bg-gray-300' : ''
                       }`}
+                      style={
+                        isLoading
+                          ? undefined
+                          : {
+                              background: 'var(--brand-primary)',
+                              boxShadow:
+                                '0 20px 45px rgba(0,0,0,0.12)',
+                            }
+                      }
                     >
                       {isLoading ? (
                         <Loader2 className='w-6 h-6 animate-spin' />
@@ -817,7 +895,7 @@ const AuthPage = () => {
           <footer className='mt-12 text-center'>
             <p className='text-sm text-gray-400'>
               Need help?{' '}
-              <button className='text-gray-900 font-bold hover:text-pink-600 transition-colors'>
+              <button className='text-gray-900 font-bold hover:text-[color:var(--brand-primary)] transition-colors'>
                 Contact Support
               </button>
             </p>

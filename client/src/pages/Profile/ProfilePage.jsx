@@ -18,6 +18,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
 import { updateProfile } from "../../redux/userSlice";
 import Layout from "../Layout/Layout";
+import { useBranding } from '@/context/BrandingContext';
 
 
 // API Functions
@@ -75,15 +76,15 @@ const ProfileField = ({
       {!isEditing ? (
         <motion.div
           whileTap={{ scale: disabled ? 1 : 0.98 }}
-          className={`flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-pink-100 hover:border-pink-300 transition-all ${
+          className={`flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all ${
             disabled
               ? "opacity-60 cursor-not-allowed"
-              : "active:bg-pink-50 cursor-pointer shadow-sm hover:shadow-md"
+              : "active:bg-[color:var(--brand-primary)/0.08] cursor-pointer shadow-sm hover:shadow-md"
           }`}
           onClick={disabled ? undefined : onEdit}
         >
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2.5 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl shrink-0 text-pink-600">
+            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)/0.12] to-[color:var(--brand-primary)/0.08] rounded-xl shrink-0 text-[color:var(--brand-primary)]">
               <Icon className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
@@ -96,8 +97,8 @@ const ProfileField = ({
             </div>
           </div>
           {!disabled && (
-            <div className="p-2 bg-gray-50 rounded-full group-hover:bg-pink-50 transition-colors">
-                 <Edit3 className="w-4 h-4 text-gray-400 group-hover:text-pink-500 transition-colors" />
+            <div className="p-2 bg-gray-50 rounded-full group-hover:bg-[color:var(--brand-primary)/0.08] transition-colors">
+                 <Edit3 className="w-4 h-4 text-gray-400 group-hover:text-[color:var(--brand-primary)] transition-colors" />
             </div>
           )}
         </motion.div>
@@ -105,10 +106,10 @@ const ProfileField = ({
         <motion.div
           initial={{ scale: 0.98, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="p-4 md:p-5 bg-gradient-to-br from-white to-pink-50 rounded-2xl border-2 border-pink-200 shadow-lg"
+          className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70 shadow-lg"
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl shadow-lg shadow-pink-500/30">
+            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl shadow-lg shadow-[color:var(--brand-primary)/0.3]">
               <Icon className="w-5 h-5 text-white" />
             </div>
             <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
@@ -120,11 +121,11 @@ const ProfileField = ({
             value={value}
             onChange={onChange}
             placeholder={placeholder}
-            className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
+            className={`w-full px-4 py-3 bg-white rounded-xl border ${
               error
                 ? "border-red-300 focus:border-red-400 focus:ring-red-100"
-                : "border-gray-100 focus:border-pink-500"
-            } focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium placeholder:text-gray-300`}
+                : "border-gray-100 focus:border-[color:var(--brand-primary)]"
+            } focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium placeholder:text-gray-300`}
             autoFocus
           />
           {error && <p className="text-red-500 text-xs mt-2 font-medium flex items-center gap-1"><AlertCircle size={12}/> {error}</p>}
@@ -133,7 +134,7 @@ const ProfileField = ({
               whileTap={{ scale: 0.95 }}
               onClick={onSave}
               disabled={disabled}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-pink-500/25 transition-all disabled:opacity-70"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-[color:var(--brand-primary)/0.25] transition-all disabled:opacity-70"
             >
               {disabled ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -218,11 +219,11 @@ const PasswordChangeField = ({
       {!isEditing ? (
         <motion.div
           whileTap={{ scale: 0.98 }}
-          className="flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-pink-100 hover:border-pink-300 transition-all active:bg-pink-50 cursor-pointer shadow-sm hover:shadow-md"
+          className="flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all active:bg-[color:var(--brand-primary)/0.08] cursor-pointer shadow-sm hover:shadow-md"
           onClick={onEdit}
         >
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2.5 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl shrink-0 text-pink-600">
+            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)/0.12] to-[color:var(--brand-primary)/0.08] rounded-xl shrink-0 text-[color:var(--brand-primary)]">
               <Lock className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
@@ -234,18 +235,18 @@ const PasswordChangeField = ({
               </p>
             </div>
           </div>
-           <div className="p-2 bg-gray-50 rounded-full group-hover:bg-pink-50 transition-colors">
-                <Shield className="w-4 h-4 text-gray-400 group-hover:text-pink-500 transition-colors" />
+           <div className="p-2 bg-gray-50 rounded-full group-hover:bg-[color:var(--brand-primary)/0.08] transition-colors">
+                <Shield className="w-4 h-4 text-gray-400 group-hover:text-[color:var(--brand-primary)] transition-colors" />
            </div>
         </motion.div>
       ) : (
         <motion.div
           initial={{ scale: 0.98, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-           className="p-4 md:p-5 bg-gradient-to-br from-white to-pink-50 rounded-2xl border-2 border-pink-200 shadow-lg"
+           className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70 shadow-lg"
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl shadow-lg shadow-pink-500/30">
+            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl shadow-lg shadow-[color:var(--brand-primary)/0.3]">
               <Lock className="w-5 h-5 text-white" />
             </div>
             <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
@@ -265,9 +266,9 @@ const PasswordChangeField = ({
                     currentPassword: e.target.value,
                   })
                 }
-                className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
+                className={`w-full px-4 py-3 bg-white rounded-xl border ${
                   errors.currentPassword ? "border-red-300" : "border-gray-100"
-                } focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium`}
+                } focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium`}
                 autoFocus
               />
               {errors.currentPassword && (
@@ -283,9 +284,9 @@ const PasswordChangeField = ({
                 onChange={(e) =>
                   setPasswords({ ...passwords, newPassword: e.target.value })
                 }
-                className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
+                className={`w-full px-4 py-3 bg-white rounded-xl border ${
                   errors.newPassword ? "border-red-300" : "border-gray-100"
-                } focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium`}
+                } focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium`}
               />
               {errors.newPassword && (
                 <p className="text-red-500 text-xs mt-1 font-medium">{errors.newPassword}</p>
@@ -303,9 +304,9 @@ const PasswordChangeField = ({
                     confirmPassword: e.target.value,
                   })
                 }
-                className={`w-full px-4 py-3 bg-white rounded-xl border-2 ${
+                className={`w-full px-4 py-3 bg-white rounded-xl border ${
                   errors.confirmPassword ? "border-red-300" : "border-gray-100"
-                } focus:border-pink-500 focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all text-base font-medium`}
+                } focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium`}
               />
               {errors.confirmPassword && (
                 <p className="text-red-500 text-xs mt-1 font-medium">{errors.confirmPassword}</p>
@@ -318,7 +319,7 @@ const PasswordChangeField = ({
               whileTap={{ scale: 0.95 }}
               onClick={handleSave}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-pink-500/25 transition-all disabled:opacity-70"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-[color:var(--brand-primary)/0.25] transition-all disabled:opacity-70"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -343,45 +344,118 @@ const PasswordChangeField = ({
 };
 
 // Loading Component
-const LoadingState = () => (
-  <Layout>
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-50 p-4 md:p-8 space-y-8 max-w-7xl mx-auto flex items-center justify-center">
+const LoadingState = () => {
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '');
+    if (cleaned.length !== 6) return '#b0164e';
+    const num = parseInt(cleaned, 16);
+    const r = Math.max(0, ((num >> 16) & 255) - 24);
+    const g = Math.max(0, ((num >> 8) & 255) - 24);
+    const b = Math.max(0, (num & 255) - 24);
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  })();
+
+  return (
+    <Layout>
+      <div
+        className="min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white p-4 md:p-8 space-y-8 max-w-7xl mx-auto flex items-center justify-center"
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
         <div className="text-center">
-            <div className="w-16 h-16 bg-white/50 rounded-2xl animate-pulse mx-auto mb-4" />
-            <div className="h-4 bg-white/50 rounded w-32 mx-auto animate-pulse" />
+          <div className="w-16 h-16 bg-white/50 rounded-2xl animate-pulse mx-auto mb-4" />
+          <div className="h-4 bg-white/50 rounded w-32 mx-auto animate-pulse" />
         </div>
       </div>
-  </Layout>
-);
+    </Layout>
+  );
+};
 
 // Error Component
-const ErrorState = ({ error, retry }) => (
+const ErrorState = ({ error, retry }) => {
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '');
+    if (cleaned.length !== 6) return '#b0164e';
+    const num = parseInt(cleaned, 16);
+    const r = Math.max(0, ((num >> 16) & 255) - 24);
+    const g = Math.max(0, ((num >> 8) & 255) - 24);
+    const b = Math.max(0, (num & 255) - 24);
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  })();
+
+  return (
     <Layout>
-        <div className="min-h-screen grid place-items-center bg-gradient-to-br from-pink-50 to-rose-50 p-4">
-             <div className="text-center p-8 bg-white rounded-3xl shadow-xl max-w-sm w-full border border-pink-100">
-                <AlertCircle className="w-12 h-12 text-pink-500 mx-auto mb-4" />
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
-                    Failed to load profile
-                </h2>
-                <p className="text-gray-500 mb-6 text-sm">
-                    {error?.message || "Something went wrong"}
-                </p>
-                <button
-                    onClick={retry}
-                    className="w-full py-3 bg-pink-500 text-white rounded-xl font-bold hover:bg-pink-600 transition-all"
-                >
-                    Try Again
-                </button>
-            </div>
+      <div
+        className="min-h-screen grid place-items-center bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white p-4"
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
+        <div className="text-center p-8 bg-white rounded-3xl shadow-xl max-w-sm w-full border border-gray-200/70">
+          <AlertCircle className="w-12 h-12 text-[color:var(--brand-primary)] mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Failed to load profile
+          </h2>
+          <p className="text-gray-500 mb-6 text-sm">
+            {error?.message || "Something went wrong"}
+          </p>
+          <button
+            onClick={retry}
+            className="w-full py-3 text-white rounded-xl font-bold hover:brightness-95 transition-all"
+            style={{
+              background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+            }}
+          >
+            Try Again
+          </button>
         </div>
+      </div>
     </Layout>
-);
+  );
+};
 
 // Main Profile Component
 const ProfilePage = () => {
   const queryClient = useQueryClient();
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '');
+    if (cleaned.length !== 6) return '#b0164e';
+    const num = parseInt(cleaned, 16);
+    const r = Math.max(0, ((num >> 16) & 255) - 24);
+    const g = Math.max(0, ((num >> 8) & 255) - 24);
+    const b = Math.max(0, (num & 255) - 24);
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  })();
+
+  const toastStyle = {
+    style: {
+      background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+      color: '#fff',
+      border: 'none',
+    },
+  };
+
+  const toastSuccess = (message, options = {}) =>
+    toast.success(message, { ...toastStyle, ...options });
+  const toastError = (message, options = {}) =>
+    toast.error(message, { ...toastStyle, ...options });
 
   // React Query hooks
   const {
@@ -404,21 +478,21 @@ const ProfilePage = () => {
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(["currentUser"], updatedUser);
       dispatch(updateProfile(updatedUser)); // Update Redux state
-      toast.success("Profile updated successfully");
+      toastSuccess("Profile updated successfully");
     },
     onError: (error) => {
         console.error("Update failed", error);
-        toast.error(error.response?.data?.message || "Failed to update profile");
+        toastError(error.response?.data?.message || "Failed to update profile");
     },
   });
 
   const changePasswordMutation = useMutation({
     mutationFn: profileAPI.changePassword,
     onSuccess: (data) => {
-        toast.success("Password changed successfully");
+        toastSuccess("Password changed successfully");
     },
     onError: (error) => {
-        toast.error(error.response?.data?.message || "Failed to change password");
+        toastError(error.response?.data?.message || "Failed to change password");
     },
   });
 
@@ -523,11 +597,17 @@ const ProfilePage = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 to-rose-50 pb-20 md:pb-12">
+      <div
+        className="min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white pb-20 md:pb-12"
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
         <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
             
             {/* Expanded Header Section */}
-            <div className="relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-r from-pink-600 via-rose-500 to-pink-700 text-white p-6 md:p-12 mb-8 shadow-xl shadow-pink-500/20">
+            <div className="relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-r from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-6 md:p-12 mb-8 shadow-xl shadow-[color:var(--brand-primary)/0.25]">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
                 
                 <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start justify-between gap-8">
@@ -537,7 +617,7 @@ const ProfilePage = () => {
                             {getMembershipDisplay(user)}
                         </div>
                         <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight mb-2">
-                           Hello, <span className="text-pink-100">{user.name.split(' ')[0]}</span>
+                           Hello, <span className="text-white/90">{user.name.split(' ')[0]}</span>
                         </h1>
                          <p className="text-white/80 font-medium text-sm md:text-base">
                             Welcome to your personal dashboard.
@@ -563,9 +643,9 @@ const ProfilePage = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              <div className="bg-white rounded-[2.5rem] p-6 md:p-10 shadow-lg shadow-gray-100 border border-pink-100/50">
+              <div className="bg-white rounded-[2.5rem] p-6 md:p-10 shadow-lg shadow-gray-100 border border-gray-200/70">
                 <div className="flex items-center gap-4 mb-8 border-b border-gray-50 pb-6">
-                  <div className="p-3 bg-pink-50 rounded-2xl text-pink-600">
+                  <div className="p-3 bg-[color:var(--brand-primary)/0.08] rounded-2xl text-[color:var(--brand-primary)]">
                     <Zap className="w-6 h-6" />
                   </div>
                   <div>

@@ -2,6 +2,7 @@
 import { brandingService } from '@/services/brandingService';
 import { getCurrentSubdomain } from '@/utils/subdomain';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 const BrandingContext = createContext(null);
 
@@ -14,10 +15,12 @@ export const useBranding = () => {
 };
 
 export const BrandingProvider = ({ children }) => {
+  const location = useLocation();
   const [branding, setBranding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [subdomain, setSubdomain] = useState(null);
+  const [locationId, setLocationId] = useState(null);
 
   useEffect(() => {
     const loadBranding = async () => {
@@ -25,25 +28,50 @@ export const BrandingProvider = ({ children }) => {
       setError(null);
 
       try {
+        const params = new URLSearchParams(location.search);
+        const paramLocationId = params.get('spa')?.trim() || null;
+        const storedLocationId = localStorage.getItem('brandingLocationId');
         const currentSubdomain = getCurrentSubdomain();
+
+        if (paramLocationId) {
+          localStorage.setItem('brandingLocationId', paramLocationId);
+          setLocationId(paramLocationId);
+        } else if (storedLocationId) {
+          setLocationId(storedLocationId);
+        } else {
+          setLocationId(null);
+        }
         setSubdomain(currentSubdomain);
 
-        if (!currentSubdomain) {
-          // No subdomain, use default branding
-          setBranding(null);
+        if (paramLocationId || storedLocationId) {
+          const response = await brandingService.getBrandingByLocationId(
+            paramLocationId || storedLocationId
+          );
+          if (response.success) {
+            setBranding(response.data);
+          } else {
+            console.warn('Failed to load branding for locationId:', paramLocationId || storedLocationId);
+            setBranding(null);
+          }
           setLoading(false);
           return;
         }
 
-        // Fetch branding for this subdomain
-        const response = await brandingService.getBrandingBySubdomain(currentSubdomain);
-        
-        if (response.success) {
-          setBranding(response.data);
-        } else {
-          console.warn('Failed to load branding for subdomain:', currentSubdomain);
-          setBranding(null);
+        if (currentSubdomain) {
+          const response = await brandingService.getBrandingBySubdomain(currentSubdomain);
+          if (response.success) {
+            setBranding(response.data);
+          } else {
+            console.warn('Failed to load branding for subdomain:', currentSubdomain);
+            setBranding(null);
+          }
+          setLoading(false);
+          return;
         }
+        
+        // No subdomain or locationId, use default branding
+        setBranding(null);
+        setLoading(false);
       } catch (err) {
         console.error('Error loading branding:', err);
         setError(err.response?.data?.message || 'Failed to load branding');
@@ -54,7 +82,7 @@ export const BrandingProvider = ({ children }) => {
     };
 
     loadBranding();
-  }, []);
+  }, [location.search]);
 
   // Update document title and favicon when branding changes
   useEffect(() => {
@@ -89,6 +117,7 @@ export const BrandingProvider = ({ children }) => {
     loading,
     error,
     subdomain,
+    locationId,
     hasBranding: !!branding,
     isSubdomain: !!subdomain,
   };
