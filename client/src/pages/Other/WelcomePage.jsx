@@ -1,5 +1,6 @@
 // File: client/src/pages/Other/WelcomePage.jsx - IMPROVED with Redux updates
 
+import { useBranding } from '@/context/BrandingContext'
 import { updateProfile } from '@/redux/userSlice'
 import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
@@ -244,6 +245,7 @@ const WelcomePage = () => {
 
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
+  const { branding, hasBranding } = useBranding()
 
   // Fetch active locations
   const {
@@ -313,6 +315,17 @@ const WelcomePage = () => {
       }))
   }, [locationsData])
 
+  // Auto-select SPA if on subdomain
+  useEffect(() => {
+    if (hasBranding && branding?.locationId && spas.length > 0 && !selectedSpa && !isComplete) {
+      const match = spas.find(s => s.locationId === branding.locationId);
+      if (match) {
+        console.log('Auto-selecting spa from subdomain:', match.name);
+        handleSpaSelect(match);
+      }
+    }
+  }, [hasBranding, branding, spas, selectedSpa, isComplete]);
+
   // Redirect if spa already selected (but don't block render)
   useEffect(() => {
     if (onboardingData?.data?.onboardingStatus?.hasSelectedSpa && !isComplete) {
@@ -372,25 +385,34 @@ const WelcomePage = () => {
       <div className='max-w-md mx-auto'>
         {/* Header */}
         <div className='text-center mb-8'>
-          <h1 className='text-3xl font-bold mb-3'>
-            Welcome to{' '}
-            <span className='bg-gradient-to-r from-pink-500 to-rose-600 bg-clip-text text-transparent'>
-              RadiantAI
-            </span>
-          </h1>
-          <p className='text-gray-600 mb-4'>
-            Intelligent automation for beauty clinics
-          </p>
-          <div className='flex items-center justify-center space-x-4 text-sm text-gray-500'>
-            <div className='flex items-center space-x-2'>
-              <div className='w-2 h-2 bg-pink-500 rounded-full' />
-              <span>AI-Powered</span>
+          {hasBranding && branding?.logo ? (
+            <div className="flex flex-col items-center">
+              <img 
+                src={branding.logo} 
+                alt={branding.name} 
+                className="h-24 w-auto mb-4 object-contain shadow-xl rounded-2xl p-2 bg-white"
+              />
+              <h1 className='text-3xl font-black text-gray-900 tracking-tighter uppercase text-center max-w-xs leading-none'>
+                {branding.name}
+              </h1>
+              <div className="h-1 w-12 bg-pink-500 rounded-full mt-4 mb-2" />
+              <p className='text-gray-500 font-medium tracking-wide uppercase text-[10px] opacity-75'>
+                Welcome to your beauty dashboard
+              </p>
             </div>
-            <div className='flex items-center space-x-2'>
-              <Heart className='w-4 h-4 text-pink-500' />
-              <span>Human Touch</span>
-            </div>
-          </div>
+          ) : (
+            <>
+              <h1 className='text-3xl font-bold mb-3'>
+                Welcome to{' '}
+                <span className='bg-gradient-to-r from-pink-500 to-rose-600 bg-clip-text text-transparent'>
+                  RadiantAI
+                </span>
+              </h1>
+              <p className='text-gray-600 mb-4'>
+                Intelligent automation for beauty clinics
+              </p>
+            </>
+          )}
         </div>
 
         {isComplete ? (

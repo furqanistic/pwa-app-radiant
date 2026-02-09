@@ -1,11 +1,13 @@
 // File: client/src/components/Management/LocationForm.jsx
 // client/src/components/Management/LocationForm.jsx
+import { brandingService } from '@/services/brandingService'
 import { locationService } from '@/services/locationService'
 import { uploadService } from '@/services/uploadService'
+import { buildSubdomainUrl, validateSubdomainFormat } from '@/utils/subdomain'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
-import { AlertCircle, Clock, ExternalLink, Image as ImageIcon, Loader2, LocateFixed, MapPin, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { AlertCircle, Clock, ExternalLink, Globe, Image as ImageIcon, Loader2, LocateFixed, MapPin, Palette, Plus, Search, Trash2, Upload } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import { toast } from 'sonner'
@@ -88,9 +90,14 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       isClosed: false,
     })),
     logo: '',
+    subdomain: '',
+    favicon: '',
+    themeColor: '#ec4899',
   })
 
   const [isUploading, setIsUploading] = useState(false)
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false)
+  const [subdomainValidation, setSubdomainValidation] = useState({ isValidating: false, error: null, available: null })
 
   const [position, setPosition] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -117,6 +124,9 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             })),
         coordinates: initialData.coordinates || { latitude: null, longitude: null },
         logo: initialData.logo || '',
+        subdomain: initialData.subdomain || '',
+        favicon: initialData.favicon || '',
+        themeColor: initialData.themeColor || '#ec4899',
       })
       if (initialData.coordinates?.latitude && initialData.coordinates?.longitude) {
         setPosition({ lat: initialData.coordinates.latitude, lng: initialData.coordinates.longitude });
@@ -171,6 +181,9 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       })),
       coordinates: { latitude: null, longitude: null },
       logo: '',
+      subdomain: '',
+      favicon: '',
+      themeColor: '#ec4899',
     })
     setPosition(null);
     setSearchTerm("");
@@ -225,6 +238,70 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     setFormData((prev) => ({ ...prev, logo: '' }))
   }
 
+  const handleFaviconUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Favicon image must be less than 2MB')
+      return
+    }
+
+    setIsUploadingFavicon(true)
+    try {
+      const resp = await uploadService.uploadImage(file)
+      if (resp.success) {
+        setFormData((prev) => ({ ...prev, favicon: resp.url }))
+        toast.success('Favicon uploaded successfully')
+      }
+    } catch (err) {
+      console.error('Favicon upload error:', err)
+      toast.error('Failed to upload favicon')
+    } finally {
+      setIsUploadingFavicon(false)
+    }
+  }
+
+  const handleRemoveFavicon = async () => {
+    if (!formData.favicon) return
+    setFormData((prev) => ({ ...prev, favicon: '' }))
+  }
+
+  const handleSubdomainChange = async (e) => {
+    const value = e.target.value.toLowerCase()
+    setFormData((prev) => ({ ...prev, subdomain: value }))
+
+    // Clear previous validation
+    setSubdomainValidation({ isValidating: false, error: null, available: null })
+
+    if (!value) return
+
+    // Client-side validation
+    const formatValidation = validateSubdomainFormat(value)
+    if (!formatValidation.valid) {
+      setSubdomainValidation({ isValidating: false, error: formatValidation.error, available: false })
+      return
+    }
+
+    // Server-side validation (debounced)
+    setSubdomainValidation({ isValidating: true, error: null, available: null })
+    
+    try {
+      const result = await brandingService.validateSubdomain(value, initialData?.locationId)
+      setSubdomainValidation({ 
+        isValidating: false, 
+        error: null, 
+        available: result.success 
+      })
+    } catch (err) {
+      setSubdomainValidation({ 
+        isValidating: false, 
+        error: err.response?.data?.message || 'Validation failed', 
+        available: false 
+      })
+    }
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
 
@@ -247,7 +324,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       phone: formData.phone.trim(),
       hours: formData.hours,
       coordinates: position ? { latitude: position.lat, longitude: position.lng } : formData.coordinates,
-      logo: formData.logo
+      logo: formData.logo,
+      subdomain: formData.subdomain || null,
+      favicon: formData.favicon || null,
+      themeColor: formData.themeColor || '#ec4899',
     }
 
     if (initialData?._id) {
@@ -387,6 +467,134 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Subdomain Field */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <Globe className='w-4 h-4 text-pink-500' />
+                Custom Subdomain (Optional)
+              </Label>
+              <div className='space-y-2'>
+                <div className='relative'>
+                  <Input
+                    id='subdomain'
+                    name='subdomain'
+                    value={formData.subdomain}
+                    onChange={handleSubdomainChange}
+                    placeholder='e.g., spark'
+                    className={`bg-white rounded-xl pr-10 ${
+                      subdomainValidation.error
+                        ? 'border-red-300'
+                        : subdomainValidation.available
+                        ? 'border-green-300'
+                        : ''
+                    }`}
+                  />
+                  {subdomainValidation.isValidating && (
+                    <Loader2 className='absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400' />
+                  )}
+                  {subdomainValidation.available && (
+                    <span className='absolute right-3 top-1/2 -translate-y-1/2 text-green-500 text-xl'>✓</span>
+                  )}
+                </div>
+                {subdomainValidation.error && (
+                  <p className='text-xs text-red-500 flex items-center gap-1'>
+                    <AlertCircle className='w-3 h-3' />
+                    {subdomainValidation.error}
+                  </p>
+                )}
+                {formData.subdomain && !subdomainValidation.error && (
+                  <p className='text-xs text-blue-600 flex items-center gap-1'>
+                    <ExternalLink className='w-3 h-3' />
+                    Preview: {buildSubdomainUrl(formData.subdomain)}
+                  </p>
+                )}
+                <p className='text-xs text-gray-400 font-medium'>
+                  Create a custom subdomain for this spa (e.g., spark.cxrsystems.com). Leave blank to skip.
+                </p>
+              </div>
+            </div>
+
+            {/* Favicon Upload */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <ImageIcon className='w-4 h-4 text-pink-500' />
+                Custom Favicon (Optional)
+              </Label>
+              <div className='flex items-center gap-4'>
+                <div className='relative w-16 h-16 bg-white border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shadow-sm group'>
+                  {formData.favicon ? (
+                    <>
+                      <img src={formData.favicon} alt='Favicon' className='w-full h-full object-cover' />
+                      <button
+                        type='button'
+                        onClick={handleRemoveFavicon}
+                        className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white'
+                      >
+                        <Trash2 className='w-4 h-4' />
+                      </button>
+                    </>
+                  ) : (
+                    <ImageIcon className='w-6 h-6 text-gray-300' />
+                  )}
+                  {isUploadingFavicon && (
+                    <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
+                      <Loader2 className='w-4 h-4 animate-spin text-pink-500' />
+                    </div>
+                  )}
+                </div>
+                <div className='flex-1'>
+                  <p className='text-xs text-gray-500 mb-2'>
+                    Upload a favicon (square, 192x192px recommended). Falls back to logo if not provided.
+                  </p>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => document.getElementById('favicon-upload').click()}
+                    disabled={isUploadingFavicon}
+                    className='rounded-xl border-pink-100 text-pink-600 hover:bg-pink-50'
+                  >
+                    <Upload className='w-4 h-4 mr-2' />
+                    {formData.favicon ? 'Change' : 'Upload'}
+                  </Button>
+                  <input
+                    id='favicon-upload'
+                    type='file'
+                    accept='image/*'
+                    className='hidden'
+                    onChange={handleFaviconUpload}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Theme Color */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <Palette className='w-4 h-4 text-pink-500' />
+                Theme Color
+              </Label>
+              <div className='flex items-center gap-3'>
+                <input
+                  type='color'
+                  value={formData.themeColor}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, themeColor: e.target.value }))}
+                  className='w-16 h-10 rounded-lg border border-gray-200 cursor-pointer'
+                />
+                <Input
+                  type='text'
+                  value={formData.themeColor}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, themeColor: e.target.value }))}
+                  placeholder='#ec4899'
+                  className='flex-1 bg-white rounded-xl'
+                  pattern='^#[0-9A-Fa-f]{6}$'
+                />
+              </div>
+              <p className='text-xs text-gray-400 font-medium'>
+                Custom theme color for PWA manifest (hex color code).
+              </p>
             </div>
           </div>
 

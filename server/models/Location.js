@@ -186,6 +186,45 @@ const LocationSchema = new mongoose.Schema(
       default: "",
     },
 
+    // ==================== BRANDING FIELDS ====================
+    // Subdomain for multi-tenant access (e.g., "spark" for spark.cxrsystems.com)
+    subdomain: {
+      type: String,
+      unique: true,
+      sparse: true, // Allow null values, but enforce uniqueness when set
+      lowercase: true,
+      trim: true,
+      validate: {
+        validator: function(v) {
+          if (!v) return true; // Allow empty/null
+          // Must be 3-20 characters, lowercase alphanumeric with hyphens, cannot start/end with hyphen
+          return /^[a-z0-9][a-z0-9-]{1,18}[a-z0-9]$/.test(v);
+        },
+        message: props => `${props.value} is not a valid subdomain! Must be 3-20 characters, lowercase alphanumeric with hyphens, cannot start/end with hyphen.`
+      }
+    },
+
+    // Custom favicon URL (optional, falls back to logo)
+    favicon: {
+      type: String,
+      default: "",
+    },
+
+    // Custom theme color for PWA manifest
+    themeColor: {
+      type: String,
+      default: "#ec4899", // Default pink color
+      validate: {
+        validator: function(v) {
+          if (!v) return true;
+          // Must be a valid hex color
+          return /^#[0-9A-Fa-f]{6}$/.test(v);
+        },
+        message: props => `${props.value} is not a valid hex color!`
+      }
+    },
+    // ==================== END BRANDING FIELDS ====================
+
     // NEW: Coordinates for map precision
     coordinates: {
       latitude: {
@@ -211,5 +250,8 @@ LocationSchema.index({ isActive: 1, locationId: 1 });
 
 LocationSchema.index({ "qrCode.isEnabled": 1 });
 LocationSchema.index({ "qrCode.isEnabled": 1, "qrCode.qrId": 1 });
+
+// NEW: Index for subdomain queries
+LocationSchema.index({ subdomain: 1 });
 
 export default mongoose.model("Location", LocationSchema);

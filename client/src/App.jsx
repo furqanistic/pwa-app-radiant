@@ -16,6 +16,7 @@ import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
 import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 
+import { BrandingProvider } from './context/BrandingContext'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
 import CartPage from './pages/Cart/CartPage'
@@ -251,27 +252,28 @@ const App = () => {
   }, [])
 
   return (
-    <BrowserRouter>
-      <Toaster 
-        richColors 
-        position="top-center" 
-        toastOptions={{
-          style: { background: '#fc2a73', color: 'white', border: 'none' },
-          classNames: {
-            toast: 'bg-[#fc2a73]',
-            title: 'text-white',
-            description: 'text-white',
-            actionButton: 'bg-white text-[#fc2a73]',
-            cancelButton: 'bg-white text-[#fc2a73]',
-            success: 'bg-[#fc2a73] text-white border-none',
-            error: 'bg-red-500 text-white border-none', 
-          }
-        }}
-      />
-      <InstallPrompt />
-      <AppIconManager />
+    <BrandingProvider>
+      <BrowserRouter>
+        <Toaster 
+          richColors 
+          position="top-center" 
+          toastOptions={{
+            style: { background: '#fc2a73', color: 'white', border: 'none' },
+            classNames: {
+              toast: 'bg-[#fc2a73]',
+              title: 'text-white',
+              description: 'text-white',
+              actionButton: 'bg-white text-[#fc2a73]',
+              cancelButton: 'bg-white text-[#fc2a73]',
+              success: 'bg-[#fc2a73] text-white border-none',
+              error: 'bg-red-500 text-white border-none', 
+            }
+          }}
+        />
+        <InstallPrompt />
+        <AppIconManager />
 
-      <Routes>
+        <Routes>
         {/* Public routes */}
         <Route
           path="/"
@@ -491,6 +493,7 @@ const App = () => {
         <Route path="*" element={<Navigate to="/auth" replace />} />
       </Routes>
     </BrowserRouter>
+    </BrandingProvider>
   );
 }
 

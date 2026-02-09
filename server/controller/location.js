@@ -21,7 +21,7 @@ const transformHoursFromModel = (hoursArray) => {
 // Create a new location
 export const createLocation = async (req, res, next) => {
   try {
-    const { locationId, name, description, address, phone, hours, coordinates, logo } = req.body
+    const { locationId, name, description, address, phone, hours, coordinates, logo, subdomain, favicon, themeColor } = req.body
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -42,6 +42,9 @@ export const createLocation = async (req, res, next) => {
       hours: hours || [],
       coordinates: coordinates || { latitude: null, longitude: null },
       logo: logo || '',
+      subdomain: subdomain?.trim()?.toLowerCase() || null,
+      favicon: favicon || '',
+      themeColor: themeColor || '#ec4899',
       automatedGifts: req.body.automatedGifts || [
         { name: "New Years", content: "20% Off", isActive: false, type: "fixed-date", month: 1, day: 1 },
         { name: "St. Valentine's Day", content: "$30 Off", isActive: false, type: "fixed-date", month: 2, day: 14 },
@@ -71,7 +74,7 @@ export const createLocation = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { locationId, name, description, address, phone, hours, isActive, coordinates, automatedGifts, logo } = req.body
+    const { locationId, name, description, address, phone, hours, isActive, coordinates, automatedGifts, logo, subdomain, favicon, themeColor } = req.body
 
     const location = await Location.findById(id)
     if (!location) {
@@ -111,6 +114,9 @@ export const updateLocation = async (req, res, next) => {
     if (coordinates !== undefined) updateData.coordinates = coordinates
     if (automatedGifts !== undefined) updateData.automatedGifts = automatedGifts
     if (logo !== undefined) updateData.logo = logo
+    if (subdomain !== undefined) updateData.subdomain = subdomain ? subdomain.trim().toLowerCase() : null
+    if (favicon !== undefined) updateData.favicon = favicon
+    if (themeColor !== undefined) updateData.themeColor = themeColor
 
     const updatedLocation = await Location.findByIdAndUpdate(id, updateData, {
       new: true,
@@ -130,6 +136,9 @@ export const updateLocation = async (req, res, next) => {
                 locationPhone: updatedLocation.phone,
                 coordinates: updatedLocation.coordinates,
                 logo: updatedLocation.logo,
+                subdomain: updatedLocation.subdomain,
+                favicon: updatedLocation.favicon,
+                themeColor: updatedLocation.themeColor,
                 businessHours: transformHoursFromModel(updatedLocation.hours)
             };
 
@@ -156,7 +165,10 @@ export const updateLocation = async (req, res, next) => {
                         'selectedLocation.locationName': updatedLocation.name,
                         'selectedLocation.locationAddress': updatedLocation.address,
                         'selectedLocation.locationPhone': updatedLocation.phone,
-                        'selectedLocation.logo': updatedLocation.logo
+                        'selectedLocation.logo': updatedLocation.logo,
+                        'selectedLocation.subdomain': updatedLocation.subdomain,
+                        'selectedLocation.favicon': updatedLocation.favicon,
+                        'selectedLocation.themeColor': updatedLocation.themeColor
                     } 
                 }
             );
@@ -226,7 +238,7 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
       isActive: true,
       name: { $ne: '', $exists: true, $ne: null },
     })
-      .select('locationId name address phone hours coordinates logo')
+      .select('locationId name address phone hours coordinates logo subdomain favicon themeColor')
       .sort({ name: 1 })
 
     const validLocations = locations.filter(

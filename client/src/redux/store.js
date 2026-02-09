@@ -1,21 +1,21 @@
 // File: client/src/redux/store.js
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import {
-  FLUSH,
-  PAUSE,
-  PERSIST,
-  persistReducer,
-  persistStore,
-  PURGE,
-  REGISTER,
-  REHYDRATE,
+    FLUSH,
+    PAUSE,
+    PERSIST,
+    persistReducer,
+    persistStore,
+    PURGE,
+    REGISTER,
+    REHYDRATE,
 } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
-import userReducer from './userSlice'
 import cartReducer from './cartSlice'
+import userReducer from './userSlice'
 
 const persistConfig = {
-  key: 'root',
+  key: 'radiant-root',
   version: 1,
   storage,
 }

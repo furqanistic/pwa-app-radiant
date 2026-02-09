@@ -1,30 +1,31 @@
 // File: client/src/pages/Auth/AuthPage.jsx
 import { axiosInstance } from '@/config'
+import { useBranding } from '@/context/BrandingContext'
 import {
-  loginFailure,
-  loginStart,
-  loginSuccess,
-  selectIsLoading,
+    loginFailure,
+    loginStart,
+    loginSuccess,
+    selectIsLoading,
 } from '@/redux/userSlice'
 import { useMutation } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertCircle,
-  ArrowLeft,
-  ArrowRight,
-  Bot,
-  Calendar,
-  ChevronRight,
-  Eye,
-  EyeOff,
-  Heart,
-  Loader2,
-  Lock,
-  Mail,
-  Phone,
-  Sparkles,
-  User,
-  Zap,
+    AlertCircle,
+    ArrowLeft,
+    ArrowRight,
+    Bot,
+    Calendar,
+    ChevronRight,
+    Eye,
+    EyeOff,
+    Heart,
+    Loader2,
+    Lock,
+    Mail,
+    Phone,
+    Sparkles,
+    User,
+    Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -135,6 +136,9 @@ const AuthPage = () => {
   const dispatch = useDispatch()
   const isLoading = useSelector(selectIsLoading)
   const reduxError = useSelector((state) => state.user.error)
+  
+  // Get branding context
+  const { branding, loading: brandingLoading, hasBranding } = useBranding()
 
   const [view, setView] = useState('signup') // 'signup' or 'login'
   const [signupStep, setSignupStep] = useState(1)
@@ -297,9 +301,22 @@ const AuthPage = () => {
               transition={{ duration: 0.8 }}
             >
               <div className='flex flex-col items-center justify-center mb-12 w-full'>
-                <h1 className='text-6xl font-black text-white tracking-tighter'>
-                  Radiant<span className='text-pink-200'>AI</span>
-                </h1>
+                {hasBranding && branding?.logo ? (
+                  <div className="flex flex-col items-center">
+                    <img 
+                      src={branding.logo} 
+                      alt={branding.name} 
+                      className="h-24 w-auto mb-4 object-contain shadow-2xl rounded-2xl p-2 bg-white/10 backdrop-blur-md"
+                    />
+                    <h1 className='text-4xl font-black text-white tracking-tighter uppercase text-center'>
+                      {branding.name}
+                    </h1>
+                  </div>
+                ) : (
+                  <h1 className='text-6xl font-black text-white tracking-tighter'>
+                    Radiant<span className='text-pink-200'>AI</span>
+                  </h1>
+                )}
               </div>
 
               <h2 className='text-6xl font-black text-white leading-[1.1] mb-8'>
@@ -352,9 +369,22 @@ const AuthPage = () => {
           <header className='mb-2'>
             {isMobile && (
               <div className='flex flex-col items-center justify-center mb-8'>
-                <h1 className='text-4xl font-black text-gray-900 tracking-tighter'>
-                  Radiant<span className='text-pink-600'>AI</span>
-                </h1>
+                {hasBranding && branding?.logo ? (
+                  <div className="flex flex-col items-center">
+                    <img 
+                      src={branding.logo} 
+                      alt={branding.name} 
+                      className="h-16 w-auto mb-2 object-contain"
+                    />
+                    <span className="text-xl font-black text-gray-900 tracking-tighter uppercase">
+                      {branding.name}
+                    </span>
+                  </div>
+                ) : (
+                  <h1 className='text-4xl font-black text-gray-900 tracking-tighter'>
+                    Radiant<span className='text-pink-600'>AI</span>
+                  </h1>
+                )}
               </div>
             )}
             <h3 className='text-3xl font-bold text-gray-900 mb-1'>

@@ -8,8 +8,10 @@ import passport from 'passport'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import './config/passport.js'
+import { extractSubdomain } from './middleware/subdomainMiddleware.js'; // SUBDOMAIN MIDDLEWARE
 import authRoute from './routes/auth.js'
 import bookingsRouter from './routes/bookings.js'; // NEW
+import brandingRoutes from './routes/branding.js'; // BRANDING/SUBDOMAIN
 import dashboardRouter from './routes/dashboard.js'; // NEW
 import gameWheelRoutes from './routes/gameWheel.js'
 import ghlRoutes from './routes/ghl.js'
@@ -58,6 +60,12 @@ const isOriginAllowed = (origin) => {
     return true
   }
 
+  // Check if origin is a subdomain of cxrsystems.com (NEW)
+  const cxrSubdomainPattern = /^https:\/\/[\w-]+\.cxrsystems\.com$/
+  if (cxrSubdomainPattern.test(origin)) {
+    return true
+  }
+
   return false
 }
 
@@ -83,6 +91,9 @@ app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }))
 
 app.use(express.json())
 
+// Apply subdomain middleware globally
+app.use(extractSubdomain)
+
 // Initialize Passport middleware
 app.use(passport.initialize())
 
@@ -104,6 +115,7 @@ app.use('/api/user-rewards', userRewardsRouter)
 app.use('/api/stripe', stripeRoutes) // STRIPE INTEGRATION
 app.use("/api/qr-codes", qrCodeRoutes);
 app.use("/api/upload", uploadRouter); // NEW: Upload route for voice notes
+app.use("/api/branding", brandingRoutes); // BRANDING/SUBDOMAIN ROUTES
 
 const connect = () => {
   mongoose

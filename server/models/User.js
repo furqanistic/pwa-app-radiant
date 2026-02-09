@@ -84,6 +84,18 @@ const UserSchema = new mongoose.Schema(
         type: String,
         default: null,
       },
+      subdomain: {
+        type: String,
+        default: null,
+      },
+      favicon: {
+        type: String,
+        default: null,
+      },
+      themeColor: {
+        type: String,
+        default: '#ec4899',
+      },
     },
 
     // For spa users (spa owners) - Their Spa Location
@@ -170,6 +182,18 @@ const UserSchema = new mongoose.Schema(
       logo: {
         type: String,
         default: null,
+      },
+      subdomain: {
+        type: String,
+        default: null,
+      },
+      favicon: {
+        type: String,
+        default: null,
+      },
+      themeColor: {
+        type: String,
+        default: '#ec4899',
       },
     },
 
