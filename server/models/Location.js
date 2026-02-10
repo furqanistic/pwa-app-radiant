@@ -180,6 +180,45 @@ const LocationSchema = new mongoose.Schema(
       },
     },
     // ==================== END QR CODE FIELDS ====================
+
+    // ==================== MEMBERSHIP FIELDS ====================
+    // Membership configuration for this location
+    membership: {
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      price: {
+        type: Number,
+        default: 99,
+        min: 0,
+      },
+      benefits: {
+        type: [String],
+        default: [
+          'Priority Booking',
+          'Free Premium Facial',
+          '15% Product Discount'
+        ],
+        validate: {
+          validator: function(v) {
+            return v.length === 3;
+          },
+          message: 'Membership must have exactly 3 benefits'
+        }
+      },
+      name: {
+        type: String,
+        default: 'Gold Glow Membership',
+        trim: true,
+      },
+      description: {
+        type: String,
+        default: 'Unlock exclusive perks and premium benefits',
+        trim: true,
+      }
+    },
+    // ==================== END MEMBERSHIP FIELDS ====================
     
     logo: {
       type: String,

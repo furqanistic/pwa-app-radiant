@@ -8,6 +8,7 @@ import {
     Building,
     Calendar,
     Clock,
+    Crown,
     Edit2,
     Gift,
     MapPin,
@@ -32,6 +33,7 @@ import AvailabilitySettings from "@/components/Management/AvailabilitySettings";
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
 import LocationForm from "@/components/Management/LocationForm";
+import MembershipManagementModal from "@/components/Management/MembershipManagementModal";
 import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import StripeConnect from "@/components/Stripe/StripeConnect";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,7 @@ const ManagementPage = () => {
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
+  const [isMembershipOpen, setIsMembershipOpen] = useState(false);
   const [selectedQRLocation, setSelectedQRLocation] = useState(null);
 
   // Permission checks
@@ -241,6 +244,14 @@ const ManagementPage = () => {
                 <Gift className="w-4 h-4 mr-2" />
                 Automated Gifts
               </Button>
+
+               <Button
+                onClick={() => setIsMembershipOpen(true)}
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
+              >
+                <Crown className="w-4 h-4 mr-2" />
+                Manage Membership
+              </Button>
               </>
             )}
 
@@ -407,6 +418,12 @@ const ManagementPage = () => {
         />
 
         {/* Automated Gift Modal */}
+        {/* Membership Management Modal */}
+        <MembershipManagementModal
+          isOpen={isMembershipOpen}
+          onClose={() => setIsMembershipOpen(false)}
+        />
+
         <AutomatedGiftSettings
           isOpen={isAutomatedGiftOpen}
           onClose={() => setIsAutomatedGiftOpen(false)}

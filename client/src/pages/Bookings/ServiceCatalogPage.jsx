@@ -2,24 +2,27 @@
 import MembershipCard from '@/components/Bookings/MembershipCard'
 import { useBranding } from '@/context/BrandingContext'
 import {
-    useActiveServices,
-    useCategories,
+  useActiveServices,
+  useCategories,
 } from '@/hooks/useServices'
+import { locationService } from '@/services/locationService'
+import { useQuery } from '@tanstack/react-query'
 import {
-    Clock,
-    Crown,
-    Droplets,
-    Gem,
-    Heart,
-    Palette,
-    Scissors,
-    Search,
-    Smile,
-    Sparkles,
-    Sun,
-    Zap,
+  Clock,
+  Crown,
+  Droplets,
+  Gem,
+  Heart,
+  Palette,
+  Scissors,
+  Search,
+  Smile,
+  Sparkles,
+  Sun,
+  Zap,
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
+import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 
@@ -211,6 +214,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const [activeTab, setActiveTab] = useState('browse')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const { currentUser } = useSelector((state) => state.user)
   const { branding } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
@@ -230,7 +234,18 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const { data: categories = [] } = useCategories(true) // Enable counts
   const { services, isLoading } = useActiveServices({
     search: debouncedSearchTerm,
+    locationId
   })
+
+  // Fetch location data if needed (primarily for manager/admin to get latest edits)
+  const { data: locationData } = useQuery({
+    queryKey: ['my-location'],
+    queryFn: () => locationService.getMyLocation(),
+    enabled: !!(currentUser?.role === 'spa' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin'),
+  })
+
+  // Use branding membership as primary source for customers, or locationData for owners
+  const locationMembership = branding?.membership || locationData?.data?.location?.membership
 
   // ---- FILTERING LOGIC ----
   const browseServices = useMemo(() => {
@@ -452,22 +467,29 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                         </div>
                     ) : (
                         <div className='grid grid-cols-1 gap-6 md:px-8'>
-                             {/* Demo Membership for visual verification */}
-                             <MembershipCard 
-                                service={{
-                                    _id: 'demo-vip',
-                                    name: 'Gold Glow Membership',
-                                    description: 'Unlock the ultimate glow up with our exclusive VIP tier.',
-                                    basePrice: 99,
-                                    duration: 0,
-                                    image: 'https://images.unsplash.com/photo-1596178065248-7241d9a05fec?auto=format&fit=crop&q=80&w=800', 
-                                    categoryId: { name: 'Membership' }
-                                }} 
-                                onSelect={onServiceSelect} 
-                             />
-                             {/* Real Memberships */}
+                             {/* Location Membership - Show if it exists */}
+                             {locationMembership && (
+                                 <MembershipCard 
+                                    service={{
+                                        _id: 'location-membership',
+                                        name: locationMembership.name,
+                                        description: locationMembership.description,
+                                        basePrice: locationMembership.price,
+                                        duration: 0,
+                                        categoryId: { name: 'Membership' }
+                                    }} 
+                                    membership={locationMembership}
+                                    onSelect={onServiceSelect} 
+                                 />
+                             )}
+                             {/* Real Memberships from Services */}
                              {membershipServices.map(service => (
-                                <MembershipCard key={service._id} service={service} onSelect={onServiceSelect} />
+                                <MembershipCard 
+                                    key={service._id} 
+                                    service={service} 
+                                    membership={locationMembership}
+                                    onSelect={onServiceSelect} 
+                                />
                             ))}
                         </div>
                     )}

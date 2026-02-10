@@ -1,13 +1,17 @@
 import MembershipCard from '@/components/Bookings/MembershipCard'
 import { useBranding } from '@/context/BrandingContext'
 import { useActiveServices } from '@/hooks/useServices'
+import { locationService } from '@/services/locationService'
+import { useQuery } from '@tanstack/react-query'
 import { Crown } from 'lucide-react'
 import React, { useMemo } from 'react'
+import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 
 const MembershipPage = () => {
     const navigate = useNavigate()
+    const { currentUser } = useSelector((state) => state.user)
     const { branding, locationId } = useBranding()
     const brandColor = branding?.themeColor || '#ec4899'
     const brandColorDark = (() => {
@@ -22,7 +26,17 @@ const MembershipPage = () => {
             .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
     })()
 
-    const { services, isLoading } = useActiveServices()
+    const { services, isLoading } = useActiveServices({ locationId })
+
+    // Fetch location data if needed (primarily for manager/admin to get latest edits)
+    const { data: locationData, isLoading: isLoadingLocation } = useQuery({
+        queryKey: ['my-location'],
+        queryFn: () => locationService.getMyLocation(),
+        enabled: !!(currentUser?.role === 'spa' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin'),
+    })
+
+    // Use branding membership as primary source for customers, or locationData for owners
+    const locationMembership = branding?.membership || locationData?.data?.location?.membership
 
     const membershipServices = useMemo(() => {
         return (services || []).filter(
@@ -50,55 +64,50 @@ const MembershipPage = () => {
                 }}
             >
                 <div className='max-w-[1600px] mx-auto px-4 py-8 flex flex-col items-center justify-start min-h-[80vh]'>
-
-                    <div className="relative w-full max-w-2xl text-center mb-12 mt-8">
-                        {/* Decorative Background for Header */}
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[color:var(--brand-primary)/0.1] rounded-full blur-3xl pointer-events-none" />
-
-                        <div className="relative z-10 bg-white rounded-[2.5rem] border border-gray-200/70 p-8 shadow-xl shadow-gray-200/50">
-                            
-                            <div className="w-16 h-16 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-4 text-gray-400">
-                                <Crown size={32} strokeWidth={1.5} />
-                            </div>
-
-                            <h1 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">
-                                Not a Member
-                            </h1>
-                            
-                            <p className="text-gray-500 font-medium leading-relaxed max-w-md mx-auto">
-                                You are currently not subscribed to any premium plan. Unlock exclusive perks and discounts today!
-                            </p>
+                    <div className="text-center mb-10 mt-4 animate-fadeIn">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gray-100 border border-gray-200 mb-4">
+                            <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Tier Status</span>
                         </div>
+                        
+                        <h2 className="text-4xl font-black text-gray-900 mb-3 tracking-tight italic">
+                            You are a <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-700 to-gray-900">Free Member</span>
+                        </h2>
+                        
+                        <p className="text-gray-500 font-bold uppercase text-[11px] tracking-[0.15em]">
+                            Join a premium plan below to unlock everything
+                        </p>
                     </div>
 
                     <div className="w-full relative z-10 animate-fadeIn">
-                        {isLoading ? (
+                        {isLoading || isLoadingLocation ? (
                             <div className="w-full h-80 bg-gray-200 rounded-[2.5rem] animate-pulse max-w-md mx-auto" />
-                        ) : membershipServices.length > 0 ? (
+                        ) : (
                             <div className="grid grid-cols-1 gap-6 px-2 w-full max-w-7xl mx-auto">
+                                {/* Show location membership if it exists */}
+                                {locationMembership && (
+                                    <MembershipCard 
+                                        service={{
+                                            _id: 'location-membership',
+                                            name: locationMembership.name,
+                                            description: locationMembership.description,
+                                            basePrice: locationMembership.price,
+                                            duration: 0,
+                                            categoryId: { name: 'Membership' }
+                                        }} 
+                                        membership={locationMembership}
+                                        onSelect={onServiceSelect} 
+                                    />
+                                )}
+                                {/* Show membership services from catalog */}
                                 {membershipServices.map(service => (
                                     <MembershipCard 
                                         key={service._id} 
                                         service={service} 
+                                        membership={locationMembership}
                                         onSelect={onServiceSelect} 
                                     />
                                 ))}
-                            </div>
-                        ) : (
-                            // Demo Card if no real memberships found
-                            <div className="w-full max-w-7xl mx-auto">
-                                <MembershipCard 
-                                    service={{
-                                        _id: 'demo-vip',
-                                        name: 'Gold Glow Membership',
-                                        description: 'Unlock the ultimate glow up with our exclusive VIP tier.',
-                                        basePrice: 99,
-                                        duration: 0,
-                                        image: 'https://images.unsplash.com/photo-1596178065248-7241d9a05fec?auto=format&fit=crop&q=80&w=800', 
-                                        categoryId: { name: 'Membership' }
-                                    }} 
-                                    onSelect={onServiceSelect} 
-                                />
                             </div>
                         )}
                     </div>
@@ -110,3 +119,4 @@ const MembershipPage = () => {
 }
 
 export default MembershipPage
+
