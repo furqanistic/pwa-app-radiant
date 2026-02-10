@@ -55,7 +55,13 @@ const RewardHeader = ({
   <div className='bg-white rounded-lg p-4 md:p-6 shadow-sm mb-6'>
     <div className='flex flex-col md:flex-row md:items-center justify-between mb-6'>
       <div className='flex items-center mb-4 md:mb-0'>
-        <div className='bg-gradient-to-br from-pink-500 to-rose-500 p-3 rounded-lg mr-4 shadow-lg'>
+        <div
+          className='p-3 rounded-lg mr-4 shadow-lg'
+          style={{
+            background:
+              'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+          }}
+        >
           <Gift className='w-6 h-6 text-white' />
         </div>
         <div>
@@ -81,7 +87,11 @@ const RewardHeader = ({
       {(userRole === 'admin' || userRole === 'spa') && (
         <button
           onClick={onAddReward}
-          className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-4 md:px-6 py-3 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-600 transition-all flex items-center justify-center gap-2 shadow-sm'
+          className='text-white px-4 md:px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-sm hover:brightness-105'
+          style={{
+            background:
+              'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+          }}
         >
           <Plus className='w-5 h-5' />
           <span className='hidden sm:inline'>Add New Reward</span>
@@ -92,13 +102,13 @@ const RewardHeader = ({
 
     <div className='flex flex-col md:flex-row gap-4'>
       <div className='flex-1 relative'>
-        <Search className='absolute left-4 top-1/2 transform -translate-y-1/2 text-pink-300 w-5 h-5' />
+        <Search className='absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[color:var(--brand-primary)] opacity-60' />
         <input
           type='text'
           placeholder='Search rewards...'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className='w-full pl-12 pr-4 py-3 md:py-4 border border-pink-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent'
+          className='w-full pl-12 pr-4 py-3 md:py-4 border border-[color:var(--brand-primary)/0.2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:border-transparent'
         />
       </div>
 
@@ -107,9 +117,17 @@ const RewardHeader = ({
           onClick={() => setView('grid')}
           className={`flex-1 md:flex-none px-4 py-3 md:py-4 rounded-lg font-semibold transition-all ${
             view === 'grid'
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg'
+              ? 'text-white shadow-lg'
               : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
           }`}
+          style={
+            view === 'grid'
+              ? {
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                }
+              : undefined
+          }
         >
           Grid
         </button>
@@ -117,9 +135,17 @@ const RewardHeader = ({
           onClick={() => setView('list')}
           className={`flex-1 md:flex-none px-4 py-3 md:py-4 rounded-lg font-semibold transition-all ${
             view === 'list'
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg'
+              ? 'text-white shadow-lg'
               : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
           }`}
+          style={
+            view === 'list'
+              ? {
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                }
+              : undefined
+          }
         >
           List
         </button>
@@ -156,7 +182,13 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
           >
             {reward.status}
           </span>
-          <span className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
+          <span
+            className='text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'
+            style={{
+              background:
+                'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+            }}
+          >
             <IconComponent className='w-3 h-3' />
             {rewardType?.name || reward.type}
           </span>
@@ -171,7 +203,12 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
 
         {reward.voiceNoteUrl && (
           <div className='absolute bottom-3 left-3'>
-            <div className='bg-pink-500/80 backdrop-blur-sm text-white p-1.5 rounded-lg shadow-sm flex items-center gap-1.5'>
+            <div
+              className='backdrop-blur-sm text-white p-1.5 rounded-lg shadow-sm flex items-center gap-1.5'
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--brand-primary) 80%, transparent)',
+              }}
+            >
               <Mic className='w-3.5 h-3.5' />
               <span className='text-[10px] font-black uppercase tracking-widest'>Voice Note</span>
             </div>
@@ -210,14 +247,14 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
           {reward.description}
         </p>
         <div className='grid grid-cols-2 gap-3 mb-4'>
-          <div className='bg-pink-50 p-3 rounded-lg'>
+          <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-lg'>
             <div className='flex items-center gap-2 mb-1'>
-              <Zap className='w-4 h-4 text-pink-600' />
-              <span className='text-xs font-semibold text-pink-700'>
+              <Zap className='w-4 h-4 text-[color:var(--brand-primary)]' />
+              <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>
                 Points
               </span>
             </div>
-            <span className='text-lg font-bold text-pink-700'>
+            <span className='text-lg font-bold text-[color:var(--brand-primary)]'>
               {reward.pointCost}
             </span>
           </div>
@@ -340,7 +377,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className='bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-pink-50 max-w-4xl w-full max-h-[92vh] flex flex-col relative'
+            className='bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-[color:var(--brand-primary)/0.12] max-w-4xl w-full max-h-[92vh] flex flex-col relative'
           >
             {/* Mobile Drag Handle */}
             <div className='flex justify-center pt-3 pb-1 sm:hidden'>
@@ -350,8 +387,8 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
             {/* Modal Header - Ultra Compact */}
             <div className='px-5 py-3 md:py-4 border-b border-gray-50 flex items-center justify-between shrink-0'>
               <div className='flex items-center gap-3'>
-                <div className='bg-pink-50 p-2 rounded-lg'>
-                  <Gift className='w-4 h-4 text-pink-600' />
+                <div className='bg-[color:var(--brand-primary)/0.08] p-2 rounded-lg'>
+                  <Gift className='w-4 h-4 text-[color:var(--brand-primary)]' />
                 </div>
                 <h2 className='text-base md:text-lg font-bold text-gray-900'>
                   {isEditing ? 'Edit Reward' : 'New Reward'}
@@ -379,7 +416,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder='e.g., $50 Service Credit'
-                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 focus:bg-white outline-none transition-all text-sm font-medium'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:bg-white outline-none transition-all text-sm font-medium'
                       required
                     />
                   </div>
@@ -393,7 +430,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder='What does the user get?'
-                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 focus:bg-white outline-none transition-all text-sm font-medium'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:bg-white outline-none transition-all text-sm font-medium'
                       rows='2'
                       required
                     />
@@ -408,7 +445,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       <select
                         value={formData.type}
                         onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 appearance-none outline-none text-sm font-medium'
+                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none outline-none text-sm font-medium'
                       >
                         {rewardTypes.map((t) => (
                           <option key={t.id} value={t.id}>
@@ -429,7 +466,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       type='number'
                       value={formData.value === 0 ? "" : formData.value}
                       onChange={(e) => setFormData({ ...formData, value: e.target.value === "" ? 0 : parseFloat(e.target.value) })}
-                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
                       required
                     />
                   </div>
@@ -443,7 +480,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       type='number'
                       value={formData.pointCost === 0 ? "" : formData.pointCost}
                       onChange={(e) => setFormData({ ...formData, pointCost: e.target.value === "" ? 0 : parseInt(e.target.value) })}
-                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
                       required
                     />
                   </div>
@@ -457,7 +494,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       type='number'
                       value={formData.validDays === 0 ? "" : formData.validDays}
                       onChange={(e) => setFormData({ ...formData, validDays: e.target.value === "" ? 0 : parseInt(e.target.value) })}
-                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
                     />
                   </div>
 
@@ -470,7 +507,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       <select
                         value={formData.status}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 appearance-none outline-none text-sm font-medium'
+                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none outline-none text-sm font-medium'
                       >
                         <option value='active'>Active</option>
                         <option value='inactive'>Inactive</option>
@@ -487,7 +524,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       value={formData.image}
                       onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                       placeholder='https://...'
-                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none text-sm font-medium'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
                     />
                   </div>
 
@@ -534,7 +571,13 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                   form='reward-form'
                   type='submit'
                   disabled={isLoading}
-                  className='flex-[2] py-3.5 bg-gradient-to-r from-pink-500 to-rose-600 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-pink-100 active:scale-95'
+                  className='flex-[2] py-3.5 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg active:scale-95'
+                  style={{
+                    background:
+                      'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                    boxShadow:
+                      '0 10px 25px -10px color-mix(in srgb, var(--brand-primary) 45%, transparent)',
+                  }}
                 >
                   {isLoading ? (
                     <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
@@ -615,7 +658,7 @@ const RewardManagement = () => {
     return (
       <Layout>
         <div className='flex flex-col items-center justify-center min-h-[50vh]'>
-          <div className='animate-spin rounded-full h-12 w-12 border-4 border-pink-100 border-t-pink-500 mb-4'></div>
+          <div className='animate-spin rounded-full h-12 w-12 border-4 border-[color:var(--brand-primary)/0.2] border-t-[color:var(--brand-primary)] mb-4'></div>
           <span className='text-lg text-gray-500'>Loading...</span>
         </div>
       </Layout>
@@ -649,12 +692,12 @@ const RewardManagement = () => {
             ))}
           </div>
         ) : (
-          <div className='bg-white rounded-lg p-4 md:p-6 shadow-sm border border-pink-50'>
+          <div className='bg-white rounded-lg p-4 md:p-6 shadow-sm border border-[color:var(--brand-primary)/0.12]'>
             <div className='space-y-4'>
               {filteredRewards.map((reward) => (
                 <div
                   key={reward._id}
-                  className='flex items-center gap-4 p-4 border border-gray-100 rounded-lg hover:border-pink-200 hover:shadow-md transition-all group'
+                  className='flex items-center gap-4 p-4 border border-gray-100 rounded-lg hover:border-[color:var(--brand-primary)/0.35] hover:shadow-md transition-all group'
                 >
                   <img
                     src={reward.image || 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop'}
@@ -665,7 +708,7 @@ const RewardManagement = () => {
                     <h3 className='font-bold text-gray-900 truncate'>{reward.name}</h3>
                     <p className='text-sm text-gray-600 line-clamp-1'>{reward.description}</p>
                     <div className='flex gap-4 mt-1'>
-                      <span className='text-xs font-semibold text-pink-600'>{reward.pointCost} pts</span>
+                      <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>{reward.pointCost} pts</span>
                       <span className='text-xs font-semibold text-green-600'>{reward.displayValue || `$${reward.value}`}</span>
                     </div>
                   </div>
@@ -682,12 +725,21 @@ const RewardManagement = () => {
         )}
 
         {filteredRewards.length === 0 && (
-          <div className='text-center py-20 bg-white rounded-3xl shadow-sm border border-pink-50'>
+          <div className='text-center py-20 bg-white rounded-3xl shadow-sm border border-[color:var(--brand-primary)/0.12]'>
             <div className='text-6xl mb-6'>🎁</div>
             <h3 className='text-2xl font-bold text-gray-800 mb-2'>No rewards found</h3>
             <p className='text-gray-500 mb-8'>Check back later for new surprises!</p>
             {canManageRewards && (
-              <button onClick={handleAddReward} className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-pink-100'>
+              <button
+                onClick={handleAddReward}
+                className='text-white px-8 py-4 rounded-2xl font-bold shadow-lg hover:brightness-105'
+                style={{
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                  boxShadow:
+                    '0 10px 25px -10px color-mix(in srgb, var(--brand-primary) 45%, transparent)',
+                }}
+              >
                 Create Your First Reward
               </button>
             )}

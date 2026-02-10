@@ -4,6 +4,7 @@ import PushNotificationPrompt from '@/components/Notifications/PushNotificationP
 import { useBranding } from '@/context/BrandingContext'
 import {
     logout,
+    selectCurrentUser,
     selectIsElevatedUser,
     selectIsSuperAdmin,
 } from '@/redux/userSlice'
@@ -110,9 +111,11 @@ const Layout = ({
   })()
 
   // Add selectors to check user roles
+  const currentUser = useSelector(selectCurrentUser)
   const isSuperAdmin = useSelector(selectIsSuperAdmin)
   const isElevatedUser = useSelector(selectIsElevatedUser)
   const isRegularUser = !isSuperAdmin && !isElevatedUser
+  const isSpaUser = currentUser?.role === 'spa'
 
   useEffect(() => {
     const checkScreenSize = () => {

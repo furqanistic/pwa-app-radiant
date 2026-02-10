@@ -133,6 +133,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
   const [isPlaying, setIsPlaying] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const audioRef = useRef(null)
+  const brandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
 
   const toggleVoiceNote = (e) => {
     e.stopPropagation()
@@ -355,11 +356,12 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
         <button
           onClick={handleClaim}
           disabled={!canAfford || isClaiming}
+          style={canAfford && !isClaiming ? { background: brandGradient } : undefined}
           className={`w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
             isClaiming
               ? 'bg-pink-400 text-white cursor-wait'
               : canAfford
-              ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 hover:scale-105 transform'
+              ? 'text-white hover:brightness-105 hover:scale-105 transform'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
           } ${isClaiming ? 'animate-pulse' : ''}`}
         >

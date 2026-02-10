@@ -31,6 +31,7 @@ export const BrandingProvider = ({ children }) => {
       setError(null);
 
       try {
+        const spaLocationId = currentUser?.spaLocation?.locationId?.trim();
         const params = new URLSearchParams(location.search);
         const paramLocationId = params.get('spa')?.trim() || null;
         const storedLocationId = localStorage.getItem('brandingLocationId');
@@ -49,6 +50,8 @@ export const BrandingProvider = ({ children }) => {
           activeLocationId = storedLocationId;
         } else if (currentUser?.selectedLocation?.locationId) {
           activeLocationId = currentUser.selectedLocation.locationId;
+        } else if (spaLocationId) {
+          activeLocationId = spaLocationId;
         }
 
         setLocationId(activeLocationId);
@@ -58,6 +61,9 @@ export const BrandingProvider = ({ children }) => {
           const response = await brandingService.getBrandingByLocationId(activeLocationId);
           if (response.success) {
             setBranding(response.data);
+            if (response.data.locationId) {
+              setLocationId(response.data.locationId);
+            }
           } else {
             console.warn('Failed to load branding for locationId:', activeLocationId);
             setBranding(null);
@@ -70,6 +76,9 @@ export const BrandingProvider = ({ children }) => {
           const response = await brandingService.getBrandingBySubdomain(currentSubdomain);
           if (response.success) {
             setBranding(response.data);
+            if (!activeLocationId && response.data.locationId) {
+              setLocationId(response.data.locationId);
+            }
           } else {
             console.warn('Failed to load branding for subdomain:', currentSubdomain);
             setBranding(null);
@@ -91,7 +100,11 @@ export const BrandingProvider = ({ children }) => {
     };
 
     loadBranding();
-  }, [location.search, currentUser?.selectedLocation?.locationId]);
+  }, [
+    location.search,
+    currentUser?.selectedLocation?.locationId,
+    currentUser?.spaLocation?.locationId,
+  ]);
 
   // Update document title and favicon when branding changes
   useEffect(() => {

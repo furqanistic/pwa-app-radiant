@@ -3,6 +3,7 @@ import QRCodeScanner from "@/components/QRCode/QRCodeScanner";
 import { useBranding } from '@/context/BrandingContext';
 import {
     logout,
+    selectCurrentUser,
     selectIsElevatedUser,
     selectIsSuperAdmin,
 } from '@/redux/userSlice';
@@ -67,8 +68,10 @@ const BottomNav = () => {
   }, [brandColor])
 
   // Selector for role-based access
+  const currentUser = useSelector(selectCurrentUser);
   const isSuperAdmin = useSelector(selectIsSuperAdmin)
   const isElevatedUser = useSelector(selectIsElevatedUser)
+  const isSpaUser = currentUser?.role === 'spa';
 
   // Navigation logic mirrored from Layout.jsx
   const baseNavigationItems = [
@@ -148,7 +151,6 @@ const BottomNav = () => {
     if (isSuperAdmin) {
       return ['contacts', 'clients', 'scanner'].includes(item.id)
     }
-
     // 2. Admin/SPA: Specialized redirects for services, rewards, membership
     if (isElevatedUser) {
       const restrictedForAdmin = [

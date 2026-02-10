@@ -89,9 +89,9 @@ const VoiceRecorder = ({ onUploadSuccess, onReset, initialUrl = "" }) => {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-pink-50/30 rounded-2xl border border-pink-100/50">
+    <div className="flex flex-col gap-4 p-4 bg-[color:var(--brand-primary)/0.06] rounded-2xl border border-[color:var(--brand-primary)/0.2]">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] font-bold text-pink-500/70 uppercase tracking-[0.15em]">
+        <label className="text-[10px] font-bold text-[color:var(--brand-primary)] uppercase tracking-[0.15em] opacity-70">
           Voice Presentation
         </label>
         {isRecording && (
@@ -110,7 +110,11 @@ const VoiceRecorder = ({ onUploadSuccess, onReset, initialUrl = "" }) => {
             <Button
               type="button"
               onClick={startRecording}
-              className="flex-1 bg-gradient-to-r from-pink-500 to-rose-600 h-12 rounded-xl font-bold flex items-center justify-center gap-2"
+              className="flex-1 h-12 rounded-xl font-bold flex items-center justify-center gap-2 text-white hover:brightness-105"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))",
+              }}
             >
               <Mic className="w-5 h-5" />
               Start Recording
@@ -131,17 +135,21 @@ const VoiceRecorder = ({ onUploadSuccess, onReset, initialUrl = "" }) => {
               type="button"
               onClick={togglePlayback}
               variant="outline"
-              className="w-12 h-12 rounded-xl flex items-center justify-center p-0 border-gray-200"
+              className="w-12 h-12 rounded-xl flex items-center justify-center p-0 border-[color:var(--brand-primary)/0.2] text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)/0.06]"
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </Button>
             
             <div className="flex-1 h-12 bg-white rounded-xl border border-gray-100 flex items-center px-4 gap-3">
-              <Volume2 className="w-4 h-4 text-gray-400" />
+              <Volume2 className="w-4 h-4 text-[color:var(--brand-primary)] opacity-60" />
               <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-pink-400 to-rose-500 transition-all duration-300"
-                  style={{ width: isPlaying ? "100%" : "0%" }}
+                <div
+                  className="h-full transition-all duration-300"
+                  style={{
+                    width: isPlaying ? "100%" : "0%",
+                    background:
+                      "linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))",
+                  }}
                 />
               </div>
               <span className="text-[10px] font-bold text-gray-400">
@@ -153,7 +161,7 @@ const VoiceRecorder = ({ onUploadSuccess, onReset, initialUrl = "" }) => {
               type="button"
               onClick={resetRecording}
               variant="outline"
-              className="w-12 h-12 rounded-xl flex items-center justify-center p-0 border-rose-100 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+              className="w-12 h-12 rounded-xl flex items-center justify-center p-0 border-[color:var(--brand-primary)/0.2] text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)/0.08]"
             >
               <RotateCcw className="w-5 h-5" />
             </Button>
@@ -168,7 +176,7 @@ const VoiceRecorder = ({ onUploadSuccess, onReset, initialUrl = "" }) => {
         )}
       </div>
       
-      <p className="text-[10px] text-pink-400 font-medium">
+      <p className="text-[10px] text-[color:var(--brand-primary)] font-medium opacity-70">
         {audioURL 
           ? "Recording captured. You can preview it or re-record." 
           : "Add a personal touch with a short voice note."}
