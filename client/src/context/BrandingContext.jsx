@@ -1,7 +1,9 @@
 // File: client/src/context/BrandingContext.jsx
+import { selectCurrentUser } from '@/redux/userSlice';
 import { brandingService } from '@/services/brandingService';
 import { getCurrentSubdomain } from '@/utils/subdomain';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 
 const BrandingContext = createContext(null);
@@ -16,6 +18,7 @@ export const useBranding = () => {
 
 export const BrandingProvider = ({ children }) => {
   const location = useLocation();
+  const currentUser = useSelector(selectCurrentUser);
   const [branding, setBranding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -38,6 +41,8 @@ export const BrandingProvider = ({ children }) => {
           setLocationId(paramLocationId);
         } else if (storedLocationId) {
           setLocationId(storedLocationId);
+        } else if (currentUser?.selectedLocation?.locationId) {
+          setLocationId(currentUser.selectedLocation.locationId);
         } else {
           setLocationId(null);
         }
@@ -82,7 +87,7 @@ export const BrandingProvider = ({ children }) => {
     };
 
     loadBranding();
-  }, [location.search]);
+  }, [location.search, currentUser?.selectedLocation?.locationId]);
 
   // Update document title and favicon when branding changes
   useEffect(() => {

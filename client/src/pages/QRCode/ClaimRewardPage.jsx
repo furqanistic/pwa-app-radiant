@@ -1,3 +1,4 @@
+import { useBranding } from "@/context/BrandingContext";
 import { setPoints } from "@/redux/userSlice";
 import { qrCodeService } from "@/services/qrCodeService";
 import { motion } from "framer-motion";
@@ -13,6 +14,8 @@ const ClaimRewardPage = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const { currentUser } = useSelector((state) => state.user);
+    const { branding, hasBranding } = useBranding();
+    const brandColor = branding?.themeColor || "#ec4899";
 
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
@@ -82,7 +85,8 @@ const ClaimRewardPage = () => {
                     <p className="text-gray-600 mb-6">This QR code link is invalid or has expired.</p>
                     <button
                         onClick={() => navigate("/dashboard")}
-                        className="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-bold shadow-lg"
+                        className="w-full py-3 text-white rounded-xl font-bold shadow-lg"
+                        style={{ background: brandColor }}
                     >
                         Go to Dashboard
                     </button>
@@ -99,11 +103,17 @@ const ClaimRewardPage = () => {
                 className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
             >
                 {/* Header */}
-                <div className="bg-gradient-to-r from-pink-500 to-purple-500 p-8 text-white text-center">
-                    <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <QrCode className="w-8 h-8" />
+                <div className="p-8 text-white text-center" style={{ 
+                    background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColor}dd 100%)` 
+                }}>
+                    <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm overflow-hidden p-2">
+                        {hasBranding && branding.logo ? (
+                            <img src={branding.logo} alt={branding.name} className="w-10 h-10 object-contain rounded-lg" />
+                        ) : (
+                            <QrCode className="w-8 h-8" />
+                        )}
                     </div>
-                    <h2 className="text-2xl font-bold">Claim Your Reward</h2>
+                    <h2 className="text-2xl font-bold">{branding?.name || "Claim Your Reward"}</h2>
                     <p className="opacity-90">Enter your email to get 50 points!</p>
                 </div>
 
@@ -131,7 +141,8 @@ const ClaimRewardPage = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-bold shadow-lg hover:shadow-pink-500/25 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="w-full py-4 text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                style={{ background: brandColor }}
                             >
                                 {loading ? (
                                     <>
@@ -157,9 +168,9 @@ const ClaimRewardPage = () => {
                                         <h3 className="text-2xl font-bold text-gray-900 mb-2">Success!</h3>
                                         <p className="text-gray-600">{result.message}</p>
                                     </div>
-                                    <div className="bg-pink-50 rounded-xl p-4">
+                                    <div className="bg-pink-50 rounded-xl p-4" style={{ backgroundColor: `${brandColor}15` }}>
                                         <p className="text-sm text-gray-600 mb-1">Total Points</p>
-                                        <p className="text-3xl font-bold text-pink-600">{result.data?.user?.totalPoints || "50"}</p>
+                                        <p className="text-3xl font-bold" style={{ color: brandColor }}>{result.data?.user?.totalPoints || "50"}</p>
                                     </div>
                                 </>
                             ) : (
@@ -178,7 +189,8 @@ const ClaimRewardPage = () => {
 
                             <button
                                 onClick={() => navigate(currentUser ? "/dashboard" : "/auth")}
-                                className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold shadow-lg"
+                                className="w-full py-4 text-white rounded-xl font-bold shadow-lg"
+                                style={{ background: brandColor }}
                             >
                                 {currentUser ? "Go to Dashboard" : "Sign In / Sign Up"}
                             </button>

@@ -19,9 +19,9 @@ import {
 
 const router = express.Router()
 
-// PUBLIC route for authenticated users to get active locations
+// PUBLIC route to get active locations (no auth required for selection)
 // This MUST come BEFORE the middleware that requires admin access
-router.get('/active', verifyToken, getActiveLocationsForUsers)
+router.get('/active', getActiveLocationsForUsers)
 router.get('/my-location', verifyToken, getMyLocation)
 
 // ALL OTHER routes require management access

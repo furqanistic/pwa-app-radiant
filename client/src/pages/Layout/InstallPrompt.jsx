@@ -1,5 +1,6 @@
 // File: client/src/pages/Layout/InstallPrompt.jsx
 // ENHANCED: Automatic app installation across all browsers with premium UI
+import { useBranding } from '@/context/BrandingContext'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     ArrowUp,
@@ -15,7 +16,6 @@ import {
     Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { useBranding } from '@/context/BrandingContext'
 
 const STORAGE_KEYS = {
   DISMISSED: 'radiant-install-dismissed',
@@ -132,8 +132,16 @@ const InstallPrompt = () => {
     showInstallSuccess()
   }, [showInstallSuccess])
 
+  const { locationId } = useBranding()
+
   // Main installation effect
   useEffect(() => {
+    // ONLY show install prompt if user has selected a location
+    if (!locationId) {
+      setShowInstallPrompt(false)
+      return
+    }
+
     if (checkIfInstalled()) {
       setIsInstalled(true)
       const hasShownSuccess = localStorage.getItem(STORAGE_KEYS.SUCCESS_SHOWN)
@@ -191,6 +199,7 @@ const InstallPrompt = () => {
     checkIfInstalled,
     handleInstallSuccess,
     showInstallSuccess,
+    locationId,
   ])
 
   // Monitor installation status

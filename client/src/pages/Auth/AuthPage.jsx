@@ -7,7 +7,8 @@ import {
     loginSuccess,
     selectIsLoading,
 } from '@/redux/userSlice'
-import { useMutation } from '@tanstack/react-query'
+import { locationService } from '@/services/locationService'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     AlertCircle,
@@ -22,14 +23,20 @@ import {
     Loader2,
     Lock,
     Mail,
+    MapPin,
     Phone,
+    Search,
     Sparkles,
     User,
     Zap,
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import {
+    useLocation,
+    useNavigate,
+    useSearchParams,
+} from 'react-router-dom'
 
 const signupUser = async (userData) => {
   const response = await axiosInstance.post('/auth/signup', userData)
@@ -178,11 +185,15 @@ const SuccessAlert = ({ message }) => (
 const AuthPage = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const { branding, locationId: contextLocationId, hasBranding } = useBranding()
+  const [searchParams] = useSearchParams()
+  const urlLocationId = searchParams.get('spa')
+  const locationId = urlLocationId || null // Prioritize URL over context for UI state
   const isLoading = useSelector(selectIsLoading)
   const reduxError = useSelector((state) => state.user.error)
   
   // Get branding context
-  const { branding, loading: brandingLoading, hasBranding, locationId } = useBranding()
+  // const { branding, loading: brandingLoading, hasBranding, locationId } = useBranding()
 
   const [view, setView] = useState('signup') // 'signup' or 'login'
   const [signupStep, setSignupStep] = useState(1)
@@ -202,6 +213,40 @@ const AuthPage = () => {
     password: '',
     confirmPassword: '',
   })
+
+  const [searchTerm, setSearchTerm] = useState('')
+
+  // Fetch active locations for the selector
+  const {
+    data: locationsData,
+    isLoading: locationsLoading,
+  } = useQuery({
+    queryKey: ['active-locations'],
+    queryFn: locationService.getActiveLocations,
+    staleTime: 5 * 60 * 1000,
+    enabled: !locationId, // Only fetch if we don't have a location selected
+  })
+
+  const spas = useMemo(() => {
+    if (!locationsData?.data?.locations) return []
+    return locationsData.data.locations
+      .filter((location) => location.name?.trim())
+      .map((location) => ({
+        locationId: location.locationId,
+        name: location.name,
+        address: location.address || 'Address not available',
+      }))
+  }, [locationsData])
+
+  const filteredSpas = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return spas
+    return spas.filter(
+      (spa) =>
+        spa.name.toLowerCase().includes(term) ||
+        spa.address.toLowerCase().includes(term)
+    )
+  }, [spas, searchTerm])
 
   const isMobile = windowWidth < 1024
 
@@ -312,6 +357,8 @@ const AuthPage = () => {
         email: formData.email,
         password: formData.password,
         phone: formData.phone,
+        assignedLocation: locationId,
+        dateOfBirth: formData.birthdate,
       }
       signupMutation.mutate(signupData)
     } else {
@@ -418,6 +465,18 @@ const AuthPage = () => {
         </div>
       )}
 
+      {/* Decorative background for mobile/pwa feel */}
+      <div className='absolute inset-0 z-0 opacity-[0.03] pointer-events-none overflow-hidden'>
+        <div 
+          className='absolute -top-[20%] -right-[20%] w-[80%] h-[80%] rounded-full blur-[120px]'
+          style={{ background: 'var(--brand-primary)' }}
+        />
+        <div 
+          className='absolute -bottom-[20%] -left-[20%] w-[80%] h-[80%] rounded-full blur-[120px]'
+          style={{ background: 'var(--brand-primary)' }}
+        />
+      </div>
+
       <div
         className={`${
           isMobile ? 'w-full px-6' : 'w-1/2'
@@ -427,60 +486,87 @@ const AuthPage = () => {
           {/* Header */}
           <header className='mb-2'>
             {isMobile && (
-              <div className='flex flex-col items-center justify-center mb-8'>
+              <div className='flex flex-col items-center justify-center mb-10'>
                 {hasBranding && branding?.logo ? (
-                  <div className="flex flex-col items-center">
-                    <img 
-                      src={branding.logo} 
-                      alt={branding.name} 
-                      className="h-16 w-auto mb-2 object-contain"
-                    />
-                    <span className="text-xl font-black text-gray-900 tracking-tighter uppercase">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className='p-1 bg-white rounded-3xl shadow-xl shadow-[color:var(--brand-primary)]/5 border border-gray-50'>
+                      <img 
+                        src={branding.logo} 
+                        alt={branding.name} 
+                        className="h-20 w-20 object-contain rounded-2xl"
+                      />
+                    </div>
+                    <span className="text-2xl font-black text-gray-900 tracking-tight uppercase">
                       {branding.name}
                     </span>
                   </div>
                 ) : (
-                  <h1 className='text-4xl font-black text-gray-900 tracking-tighter'>
-                    Radiant<span style={{ color: 'var(--brand-primary)' }}>AI</span>
-                  </h1>
+                  <div className='flex flex-col items-center'>
+                    <div className='w-16 h-16 rounded-[24px] bg-[color:var(--brand-primary)] flex items-center justify-center mb-3 shadow-lg shadow-[color:var(--brand-primary)]/20 rotate-12'>
+                      <Sparkles className='w-8 h-8 text-white' />
+                    </div>
+                    <h1 className='text-3xl font-black text-gray-900 tracking-tighter'>
+                      Radiant<span style={{ color: 'var(--brand-primary)' }}>AI</span>
+                    </h1>
+                  </div>
                 )}
               </div>
             )}
             <h3 className='text-3xl font-bold text-gray-900 mb-1'>
-              {view === 'signup' ? 'Create Account' : 'Welcome back'}
+              {!locationId ? 'Choose your spa' : view === 'signup' ? 'Create Account' : 'Welcome back'}
             </h3>
             <p className='text-gray-500'>
-              {view === 'signup'
-                ? 'Join our community of beauty enthusiasts.'
-                : 'Sign in to access your dashboard.'}
+              {!locationId 
+                ? 'Select a location to continue to login.' 
+                : view === 'signup'
+                  ? 'Join our community of beauty enthusiasts.'
+                  : 'Sign in to access your dashboard.'}
             </p>
           </header>
 
-          {/* View Toggle */}
-          <div className='bg-gray-50 p-1.5 rounded-2xl mb-6 flex gap-1 border border-gray-100'>
-            <button
-              onClick={() => setView('signup')}
-              className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-sm ${
-                view === 'signup'
-                  ? 'bg-white shadow-sm border border-gray-100'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-              style={view === 'signup' ? { color: 'var(--brand-primary)' } : undefined}
-            >
-              Join Us
-            </button>
-            <button
-              onClick={() => setView('login')}
-              className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-sm ${
-                view === 'login'
-                  ? 'bg-white shadow-sm border border-gray-100'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-              style={view === 'login' ? { color: 'var(--brand-primary)' } : undefined}
-            >
-              Sign In
-            </button>
-          </div>
+          {/* View Toggle - Only show if locationId is present */}
+          {locationId ? (
+            <div className='bg-gray-50 p-1.5 rounded-2xl mb-6 flex gap-1 border border-gray-100'>
+              <button
+                onClick={() => setView('signup')}
+                className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-sm ${
+                  view === 'signup'
+                    ? 'bg-white shadow-sm border border-gray-100'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+                style={view === 'signup' ? { color: 'var(--brand-primary)' } : undefined}
+              >
+                Join Us
+              </button>
+              <button
+                onClick={() => setView('login')}
+                className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 text-sm ${
+                  view === 'login'
+                    ? 'bg-white shadow-sm border border-gray-100'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+                style={view === 'login' ? { color: 'var(--brand-primary)' } : undefined}
+              >
+                Sign In
+              </button>
+            </div>
+          ) : (
+            <div className='mb-8 px-2'>
+              <div className='relative group'>
+                <div className='absolute inset-0 bg-[color:var(--brand-primary)]/5 blur-xl group-focus-within:bg-[color:var(--brand-primary)]/10 transition-all rounded-full' />
+                <div className='relative'>
+                  <Search className='absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                  <input
+                    type='text'
+                    placeholder='Find your favorite spa...'
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className='w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-full shadow-lg shadow-gray-100/50 focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all placeholder:text-gray-400 text-base font-medium'
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {displayError && (
             <ErrorAlert
@@ -493,403 +579,450 @@ const AuthPage = () => {
           )}
           {success && <SuccessAlert message={success} />}
 
-          {/* Form Content */}
+          {/* Form Content or Location Selector */}
           <div className='relative overflow-hidden'>
-            {view === 'signup' && (
-              <div className='mb-8 flex items-center gap-2'>
-                {[1, 2, 3].map((step) => (
-                  <div
-                    key={step}
-                    className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
-                      step <= signupStep ? 'w-full' : 'bg-gray-100 w-full'
-                    }`}
-                    style={step <= signupStep ? { background: 'var(--brand-primary)' } : undefined}
-                  />
-                ))}
+            {!locationId ? (
+              <div className='space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar'>
+                {locationsLoading ? (
+                  [1, 2, 3, 4].map((i) => (
+                    <div key={i} className='h-20 bg-gray-50 rounded-2xl animate-pulse' />
+                  ))
+                ) : filteredSpas.length === 0 ? (
+                  <div className='text-center py-10 text-sm text-gray-500'>
+                    No locations match your search.
+                  </div>
+                ) : (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className='grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 px-1'
+                  >
+                    {filteredSpas.map((spa, idx) => (
+                      <motion.button
+                        key={spa.locationId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        onClick={() => navigate(`/auth?spa=${encodeURIComponent(spa.locationId)}`)}
+                        className='text-left p-5 rounded-3xl border border-gray-50 bg-white hover:border-[color:var(--brand-primary)]/30 hover:bg-gray-50/50 transition-all group shadow-sm hover:shadow-xl hover:-translate-y-1 relative overflow-hidden'
+                      >
+                        <div className='absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <div className='w-8 h-8 rounded-full bg-[color:var(--brand-primary)]/10 flex items-center justify-center'>
+                            <ArrowRight className='w-4 h-4 text-[color:var(--brand-primary)]' />
+                          </div>
+                        </div>
+                        <div className='font-bold text-gray-900 text-base mb-2 group-hover:text-[color:var(--brand-primary)] transition-colors'>
+                          {spa.name}
+                        </div>
+                        <div className='flex items-start gap-2 text-xs text-gray-400 font-medium leading-relaxed'>
+                          <MapPin className='w-3.5 h-3.5 mt-0.5 flex-shrink-0' />
+                          <span className='line-clamp-2'>{spa.address}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                )}
               </div>
-            )}
+            ) : (
+              <form onSubmit={handleSubmit} className='space-y-6'>
+                {view === 'signup' && (
+                  <div className='mb-8 flex items-center gap-2'>
+                    {[1, 2, 3].map((step) => (
+                      <div
+                        key={step}
+                        className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
+                          step <= signupStep ? 'w-full' : 'bg-gray-100 w-full'
+                        }`}
+                        style={step <= signupStep ? { background: 'var(--brand-primary)' } : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
 
-            <form onSubmit={handleSubmit} className='space-y-6'>
-              <AnimatePresence mode='wait'>
-                {view === 'signup' ? (
-                  <>
-                    {signupStep === 1 && (
-                      <motion.div
-                        key='signup-step-1'
-                        variants={stepVariants}
-                        initial='initial'
-                        animate='animate'
-                        exit='exit'
-                        transition={{ duration: 0.3 }}
-                        className='space-y-5'
-                      >
-                        <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                            What's your name?
-                          </label>
-                          <div className='relative'>
-                            <User className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                            <input
-                              type='text'
-                              placeholder='Full Name'
-                              value={formData.fullName}
-                              onChange={(e) =>
-                                updateFormData('fullName', e.target.value)
-                              }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all placeholder:text-gray-400'
-                              required
-                              disabled={isLoading}
-                            />
-                          </div>
-                        </div>
-
-                        <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                            Phone Number
-                          </label>
-                          <div className='relative'>
-                            <Phone className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                            <input
-                              type='tel'
-                              placeholder='+1 (555) 000-0000'
-                              value={formData.phone}
-                              onChange={(e) =>
-                                updateFormData('phone', e.target.value)
-                              }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all placeholder:text-gray-400'
-                              disabled={isLoading}
-                              required
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          type='button'
-                          onClick={handleNextStep}
-                          className='w-full py-4 px-6 text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] mt-10 shadow-lg shadow-gray-200'
-                          style={{ background: 'var(--brand-primary)' }}
+                <AnimatePresence mode='wait'>
+                  {view === 'signup' ? (
+                    <>
+                      {/* ... existing signup steps ... */}
+                      {signupStep === 1 && (
+                        <motion.div
+                          key='signup-step-1'
+                          variants={stepVariants}
+                          initial='initial'
+                          animate='animate'
+                          exit='exit'
+                          transition={{ duration: 0.3 }}
+                          className='space-y-5'
                         >
-                          Continue
-                          <ChevronRight className='w-5 h-5 group-hover:translate-x-1 transition-transform' />
-                        </button>
-                      </motion.div>
-                    )}
-
-                    {signupStep === 2 && (
-                      <motion.div
-                        key='signup-step-2'
-                        variants={stepVariants}
-                        initial='initial'
-                        animate='animate'
-                        exit='exit'
-                        transition={{ duration: 0.3 }}
-                        className='space-y-5'
-                      >
-                        <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                            When's your birthday?
-                          </label>
-                          <p className='text-xs text-gray-400 mb-4'>
-                            We'll send you something special on your big day!
-                          </p>
-                          <div className='relative'>
-                            <Calendar className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                            <input
-                              type='date'
-                              value={formData.birthdate}
-                              onChange={(e) =>
-                                updateFormData('birthdate', e.target.value)
-                              }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
-                              disabled={isLoading}
-                              required
-                            />
+                          <div className='group'>
+                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                              What's your name?
+                            </label>
+                            <div className='relative'>
+                              <User className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                              <input
+                                type='text'
+                                placeholder='Full Name'
+                                value={formData.fullName}
+                                onChange={(e) =>
+                                  updateFormData('fullName', e.target.value)
+                                }
+                                className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all placeholder:text-gray-400 text-base'
+                                required
+                                disabled={isLoading}
+                              />
+                            </div>
                           </div>
-                        </div>
 
-                        <div className='flex gap-3 mt-10'>
-                          <button
-                            type='button'
-                            onClick={handleBackStep}
-                            className='flex-1 py-4 px-6 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all'
-                          >
-                            <ArrowLeft className='w-5 h-5' />
-                            Back
-                          </button>
+                          <div className='group'>
+                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                              Phone Number
+                            </label>
+                            <div className='relative'>
+                              <Phone className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                              <input
+                                type='tel'
+                                placeholder='+1 (555) 000-0000'
+                                value={formData.phone}
+                                onChange={(e) =>
+                                  updateFormData('phone', e.target.value)
+                                }
+                                className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all placeholder:text-gray-400 text-base'
+                                disabled={isLoading}
+                                required
+                              />
+                            </div>
+                          </div>
+
                           <button
                             type='button'
                             onClick={handleNextStep}
-                            className='flex-[2] py-4 px-6 text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-gray-200'
+                            className='w-full py-4 px-6 text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] mt-10 shadow-lg shadow-gray-200'
                             style={{ background: 'var(--brand-primary)' }}
                           >
-                            Next Step
+                            Continue
                             <ChevronRight className='w-5 h-5 group-hover:translate-x-1 transition-transform' />
                           </button>
-                        </div>
-                      </motion.div>
-                    )}
+                        </motion.div>
+                      )}
 
-                    {signupStep === 3 && (
-                      <motion.div
-                        key='signup-step-3'
-                        variants={stepVariants}
-                        initial='initial'
-                        animate='animate'
-                        exit='exit'
-                        transition={{ duration: 0.3 }}
-                        className='space-y-5'
-                      >
-                        <div className='group'>
-                          <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                            Email Address
-                          </label>
-                          <div className='relative'>
-                            <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                      {signupStep === 2 && (
+                        <motion.div
+                          key='signup-step-2'
+                          variants={stepVariants}
+                          initial='initial'
+                          animate='animate'
+                          exit='exit'
+                          transition={{ duration: 0.3 }}
+                          className='space-y-5'
+                        >
+                          {/* ... step 2 content ... */}
+                          <div className='group'>
+                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                              When's your birthday?
+                            </label>
+                            <p className='text-xs text-gray-400 mb-4'>
+                              We'll send you something special on your big day!
+                            </p>
+                            <div className='relative'>
+                              <Calendar className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                              <input
+                                type='date'
+                                value={formData.birthdate}
+                                onChange={(e) =>
+                                  updateFormData('birthdate', e.target.value)
+                                }
+                                className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                                disabled={isLoading}
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div className='flex gap-3 mt-10'>
+                            <button
+                              type='button'
+                              onClick={handleBackStep}
+                              className='flex-1 py-4 px-6 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all'
+                            >
+                              <ArrowLeft className='w-5 h-5' />
+                              Back
+                            </button>
+                            <button
+                              type='button'
+                              onClick={handleNextStep}
+                              className='flex-[2] py-4 px-6 text-white rounded-2xl font-bold flex items-center justify-center gap-2 group transition-all transform hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-gray-200'
+                              style={{ background: 'var(--brand-primary)' }}
+                            >
+                              Next Step
+                              <ChevronRight className='w-5 h-5 group-hover:translate-x-1 transition-transform' />
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {signupStep === 3 && (
+                        <motion.div
+                          key='signup-step-3'
+                          variants={stepVariants}
+                          initial='initial'
+                          animate='animate'
+                          exit='exit'
+                          transition={{ duration: 0.3 }}
+                          className='space-y-5'
+                        >
+                          {/* ... step 3 content ... */}
+                          <div className='group'>
+                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                              Email Address
+                            </label>
+                            <div className='relative'>
+                              <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                              <input
+                                type='email'
+                                placeholder='hello@example.com'
+                                value={formData.email}
+                                onChange={(e) =>
+                                  updateFormData('email', e.target.value)
+                                }
+                                className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                                required
+                                disabled={isLoading}
+                              />
+                            </div>
+                          </div>
+
+                          <div className='grid grid-cols-1 gap-5'>
+                            <div className='group'>
+                              <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                                Password
+                              </label>
+                              <div className='relative'>
+                                <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                                <input
+                                  type={showPassword ? 'text' : 'password'}
+                                  placeholder='••••••••'
+                                  value={formData.password}
+                                  onChange={(e) =>
+                                    updateFormData('password', e.target.value)
+                                  }
+                                  className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                                  required
+                                  minLength={8}
+                                  disabled={isLoading}
+                                />
+                                <button
+                                  type='button'
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
+                                >
+                                  {showPassword ? (
+                                    <EyeOff className='h-5 w-5' />
+                                  ) : (
+                                    <Eye className='h-5 w-5' />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className='group'>
+                              <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                                Confirm Password
+                              </label>
+                              <div className='relative'>
+                                <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                                <input
+                                  type={showConfirmPassword ? 'text' : 'password'}
+                                  placeholder='••••••••'
+                                  value={formData.confirmPassword}
+                                  onChange={(e) =>
+                                    updateFormData(
+                                      'confirmPassword',
+                                      e.target.value
+                                    )
+                                  }
+                                  className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                                  required
+                                  disabled={isLoading}
+                                />
+                                <button
+                                  type='button'
+                                  onClick={() =>
+                                    setShowConfirmPassword(!showConfirmPassword)
+                                  }
+                                  className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
+                                >
+                                  {showConfirmPassword ? (
+                                    <EyeOff className='h-5 w-5' />
+                                  ) : (
+                                    <Eye className='h-5 w-5' />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className='flex items-start gap-3 py-2'>
                             <input
-                              type='email'
-                              placeholder='hello@example.com'
-                              value={formData.email}
-                              onChange={(e) =>
-                                updateFormData('email', e.target.value)
-                              }
-                              className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
+                              type='checkbox'
                               required
+                              className='mt-1 w-5 h-5 rounded-lg border-gray-200 focus:ring-[color:var(--brand-primary)/0.25] transition-all'
+                              style={{ color: 'var(--brand-primary)' }}
                               disabled={isLoading}
                             />
-                          </div>
-                        </div>
-
-                        <div className='grid grid-cols-1 gap-5'>
-                          <div className='group'>
-                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                              Password
-                            </label>
-                            <div className='relative'>
-                              <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                              <input
-                                type={showPassword ? 'text' : 'password'}
-                                placeholder='••••••••'
-                                value={formData.password}
-                                onChange={(e) =>
-                                  updateFormData('password', e.target.value)
-                                }
-                                className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
-                                required
-                                minLength={8}
-                                disabled={isLoading}
-                              />
+                            <label className='text-sm text-gray-500 leading-snug'>
+                              I agree to the{' '}
                               <button
                                 type='button'
-                                onClick={() => setShowPassword(!showPassword)}
-                                className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
+                                className='text-gray-900 border-b border-gray-900 hover:text-[color:var(--brand-primary)] hover:border-[color:var(--brand-primary)]'
                               >
-                                {showPassword ? (
-                                  <EyeOff className='h-5 w-5' />
-                                ) : (
-                                  <Eye className='h-5 w-5' />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className='group'>
-                            <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                              Confirm Password
-                            </label>
-                            <div className='relative'>
-                              <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                              <input
-                                type={showConfirmPassword ? 'text' : 'password'}
-                                placeholder='••••••••'
-                                value={formData.confirmPassword}
-                                onChange={(e) =>
-                                  updateFormData(
-                                    'confirmPassword',
-                                    e.target.value
-                                  )
-                                }
-                                className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
-                                required
-                                disabled={isLoading}
-                              />
+                                Terms Service
+                              </button>{' '}
+                              and{' '}
                               <button
                                 type='button'
-                                onClick={() =>
-                                  setShowConfirmPassword(!showConfirmPassword)
-                                }
-                                className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
+                                className='text-gray-900 border-b border-gray-900 hover:text-[color:var(--brand-primary)] hover:border-[color:var(--brand-primary)]'
                               >
-                                {showConfirmPassword ? (
-                                  <EyeOff className='h-5 w-5' />
-                                ) : (
-                                  <Eye className='h-5 w-5' />
-                                )}
+                                Privacy Policy
                               </button>
-                            </div>
+                            </label>
                           </div>
-                        </div>
 
-                        <div className='flex items-start gap-3 py-2'>
+                          <div className='flex gap-3 mt-8'>
+                            <button
+                              type='button'
+                              onClick={handleBackStep}
+                              className='flex-1 py-4 px-6 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all'
+                            >
+                              <ArrowLeft className='w-5 h-5' />
+                            </button>
+                            <button
+                              type='submit'
+                              disabled={isLoading}
+                              className={`flex-[4] py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] ${
+                                isLoading ? 'bg-gray-300' : ''
+                              }`}
+                              style={
+                                isLoading
+                                  ? undefined
+                                  : {
+                                      background: 'var(--brand-primary)',
+                                      boxShadow:
+                                        '0 20px 45px rgba(0,0,0,0.12)',
+                                    }
+                              }
+                            >
+                              {isLoading ? (
+                                <Loader2 className='w-6 h-6 animate-spin' />
+                              ) : (
+                                <>
+                                  Finish & Join
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </>
+                  ) : (
+                    <motion.div
+                      key='login-form'
+                      variants={stepVariants}
+                      initial='initial'
+                      animate='animate'
+                      exit='exit'
+                      transition={{ duration: 0.3 }}
+                      className='space-y-6'
+                    >
+                      <div className='group'>
+                        <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                          Email Address
+                        </label>
+                        <div className='relative'>
+                          <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                           <input
-                            type='checkbox'
+                            type='email'
+                            placeholder='hello@example.com'
+                            value={formData.email}
+                            onChange={(e) =>
+                              updateFormData('email', e.target.value)
+                            }
+                            className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
                             required
-                            className='mt-1 w-5 h-5 rounded-lg border-gray-200 focus:ring-[color:var(--brand-primary)/0.25] transition-all'
-                            style={{ color: 'var(--brand-primary)' }}
                             disabled={isLoading}
                           />
-                          <label className='text-sm text-gray-500 leading-snug'>
-                            I agree to the{' '}
-                            <button
-                              type='button'
-                              className='text-gray-900 border-b border-gray-900 hover:text-[color:var(--brand-primary)] hover:border-[color:var(--brand-primary)]'
-                            >
-                              Terms Service
-                            </button>{' '}
-                            and{' '}
-                            <button
-                              type='button'
-                              className='text-gray-900 border-b border-gray-900 hover:text-[color:var(--brand-primary)] hover:border-[color:var(--brand-primary)]'
-                            >
-                              Privacy Policy
-                            </button>
-                          </label>
                         </div>
+                      </div>
 
-                        <div className='flex gap-3 mt-8'>
+                      <div className='group'>
+                        <div className='flex items-center justify-between mb-2'>
+                          <label className='text-sm font-semibold text-gray-700 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                            Password
+                          </label>
                           <button
                             type='button'
-                            onClick={handleBackStep}
-                            className='flex-1 py-4 px-6 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all'
+                            className='text-xs font-bold hover:text-[color:var(--brand-primary)]'
+                            style={{ color: 'var(--brand-primary)' }}
                           >
-                            <ArrowLeft className='w-5 h-5' />
+                            Forgot?
                           </button>
-                          <button
-                            type='submit'
-                            disabled={isLoading}
-                            className={`flex-[4] py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] ${
-                              isLoading ? 'bg-gray-300' : ''
-                            }`}
-                            style={
-                              isLoading
-                                ? undefined
-                                : {
-                                    background: 'var(--brand-primary)',
-                                    boxShadow:
-                                      '0 20px 45px rgba(0,0,0,0.12)',
-                                  }
+                        </div>
+                        <div className='relative'>
+                          <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder='••••••••'
+                            value={formData.password}
+                            onChange={(e) =>
+                              updateFormData('password', e.target.value)
                             }
+                            className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                            required
+                            disabled={isLoading}
+                          />
+                          <button
+                            type='button'
+                            onClick={() => setShowPassword(!showPassword)}
+                            className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
                           >
-                            {isLoading ? (
-                              <Loader2 className='w-6 h-6 animate-spin' />
+                            {showPassword ? (
+                              <EyeOff className='h-5 w-5' />
                             ) : (
-                              <>
-                                Finish & Join
-                              </>
+                              <Eye className='h-5 w-5' />
                             )}
                           </button>
                         </div>
-                      </motion.div>
-                    )}
-                  </>
-                ) : (
-                  <motion.div
-                    key='login-form'
-                    variants={stepVariants}
-                    initial='initial'
-                    animate='animate'
-                    exit='exit'
-                    transition={{ duration: 0.3 }}
-                    className='space-y-6'
-                  >
-                    <div className='group'>
-                      <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                        Email Address
-                      </label>
-                      <div className='relative'>
-                        <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                        <input
-                          type='email'
-                          placeholder='hello@example.com'
-                          value={formData.email}
-                          onChange={(e) =>
-                            updateFormData('email', e.target.value)
-                          }
-                          className='w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
-                          required
-                          disabled={isLoading}
-                        />
                       </div>
-                    </div>
 
-                    <div className='group'>
-                      <div className='flex items-center justify-between mb-2'>
-                        <label className='text-sm font-semibold text-gray-700 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
-                          Password
-                        </label>
-                        <button
-                          type='button'
-                          className='text-xs font-bold hover:text-[color:var(--brand-primary)]'
-                          style={{ color: 'var(--brand-primary)' }}
-                        >
-                          Forgot?
-                        </button>
-                      </div>
-                      <div className='relative'>
-                        <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder='••••••••'
-                          value={formData.password}
-                          onChange={(e) =>
-                            updateFormData('password', e.target.value)
-                          }
-                          className='w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] outline-none transition-all'
-                          required
-                          disabled={isLoading}
-                        />
-                        <button
-                          type='button'
-                          onClick={() => setShowPassword(!showPassword)}
-                          className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
-                        >
-                          {showPassword ? (
-                            <EyeOff className='h-5 w-5' />
-                          ) : (
-                            <Eye className='h-5 w-5' />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <button
-                      type='submit'
-                      disabled={isLoading}
-                      className={`w-full py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] mt-4 ${
-                        isLoading ? 'bg-gray-300' : ''
-                      }`}
-                      style={
-                        isLoading
-                          ? undefined
-                          : {
-                              background: 'var(--brand-primary)',
-                              boxShadow:
-                                '0 20px 45px rgba(0,0,0,0.12)',
-                            }
-                      }
-                    >
-                      {isLoading ? (
-                        <Loader2 className='w-6 h-6 animate-spin' />
-                      ) : (
-                        <>
-                          Sign In
-                          <ArrowRight className='h-5 w-5' />
-                        </>
-                      )}
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </form>
+                      <button
+                        type='submit'
+                        disabled={isLoading}
+                        className={`w-full py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] mt-4 ${
+                          isLoading ? 'bg-gray-300' : ''
+                        }`}
+                        style={
+                          isLoading
+                            ? undefined
+                            : {
+                                background: 'var(--brand-primary)',
+                                boxShadow:
+                                  '0 20px 45px rgba(0,0,0,0.12)',
+                              }
+                        }
+                      >
+                        {isLoading ? (
+                          <Loader2 className='w-6 h-6 animate-spin' />
+                        ) : (
+                          <>
+                            Sign In
+                            <ArrowRight className='h-5 w-5' />
+                          </>
+                        )}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </form>
+            )}
           </div>
 
           <footer className='mt-12 text-center'>

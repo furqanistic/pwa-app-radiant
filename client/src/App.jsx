@@ -5,18 +5,18 @@ import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
-    BrowserRouter,
-    Navigate,
-    Route,
-    Routes,
-    useLocation,
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
 } from 'react-router-dom'
 import AppIconManager from './components/Common/AppIconManager'
 import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
 import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 
-import { BrandingProvider } from './context/BrandingContext'
+import { BrandingProvider, useBranding } from './context/BrandingContext'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
 import CartPage from './pages/Cart/CartPage'
@@ -40,7 +40,6 @@ import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
 import { updateProfile } from './redux/userSlice'
 import { authService } from './services/authService'
-import { useBranding } from './context/BrandingContext'
 
 // IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
@@ -143,15 +142,8 @@ const SpaSelectionGuard = ({ children }) => {
     setHasInitialCheck(true)
   }
 
-  // Redirect logic remains the same
-  if (!hasSelectedSpa && !isOnWelcomePage) {
-    return <Navigate to={buildSpaPath('/welcome')} replace />
-  }
-
-  if (hasSelectedSpa && isOnWelcomePage) {
-    return <Navigate to={buildSpaPath('/dashboard')} replace />
-  }
-
+  // No longer need to redirect based on SPA selection since it happens before login
+  // Just pass through - location selection is now handled at /auth
   return children
 }
 
@@ -183,10 +175,11 @@ const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
 const PublicRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
   const { locationId } = useBranding()
+  const token = localStorage.getItem('token')
   const buildSpaPath = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
-  if (currentUser) {
+  if (currentUser && token) {
     return <Navigate to={buildSpaPath('/dashboard')} replace />
   }
 
@@ -196,10 +189,11 @@ const PublicRoute = ({ children }) => {
 const WelcomeRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
   const { locationId } = useBranding()
+  const token = localStorage.getItem('token')
   const buildSpaPath = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
-  if (!currentUser) {
+  if (!currentUser || !token) {
     return <Navigate to={buildSpaPath('/auth')} replace />
   }
 

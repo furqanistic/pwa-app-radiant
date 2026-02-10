@@ -1,6 +1,7 @@
 // File: server/controller/auth.js - COMPLETE VERSION WITH ALL FUNCTIONS
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
+import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Location from '../models/Location.js'
 import Referral from '../models/Referral.js'
@@ -603,7 +604,12 @@ export const signup = async (req, res, next) => {
     let locationData = null
     if (assignedLocation) {
       const location = await Location.findOne({
-        _id: assignedLocation,
+        $or: [
+          { locationId: assignedLocation },
+          ...(mongoose.Types.ObjectId.isValid(assignedLocation)
+            ? [{ _id: assignedLocation }]
+            : []),
+        ],
         isActive: true,
       })
 
@@ -701,7 +707,12 @@ export const createSpaMember = async (req, res, next) => {
 
     if (assignedLocation) {
       const location = await Location.findOne({
-        _id: assignedLocation,
+        $or: [
+          { locationId: assignedLocation },
+          ...(mongoose.Types.ObjectId.isValid(assignedLocation)
+            ? [{ _id: assignedLocation }]
+            : []),
+        ],
         isActive: true,
       })
 

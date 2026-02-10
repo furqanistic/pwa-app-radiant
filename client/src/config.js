@@ -32,12 +32,6 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     console.error('API Error:', error.response?.data || error.message)
-    // Handle auth errors, but skip for signin endpoint
-    if (error.response?.status === 401 && error.config.url !== '/auth/signin') {
-      localStorage.removeItem('token')
-      sessionStorage.removeItem('token')
-      window.location.href = '/auth'
-    }
     return Promise.reject(error)
   }
 )
