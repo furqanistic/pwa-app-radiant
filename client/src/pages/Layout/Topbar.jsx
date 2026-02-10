@@ -1,4 +1,4 @@
-// File: client/src/pages/Layout/Topbar.jsx
+import { useBranding } from "@/context/BrandingContext";
 import { motion } from "framer-motion";
 import { ShoppingCart } from "lucide-react";
 import React from "react";
@@ -15,6 +15,8 @@ const Topbar = ({
 }) => {
   const { currentUser } = useSelector((state) => state.user);
   const { totalItems } = useSelector((state) => state.cart);
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
   const navigate = useNavigate();
 
   return (
@@ -65,7 +67,10 @@ const Topbar = ({
               >
                 <ShoppingCart className="h-5 w-5" />
                 {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-pink-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  <span 
+                    className="absolute -top-1 -right-1 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm"
+                    style={{ backgroundColor: brandColor }}
+                  >
                     {totalItems}
                   </span>
                 )}

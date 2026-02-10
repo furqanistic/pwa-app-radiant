@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -12,8 +13,18 @@ import {
     Navigation,
     Phone
 } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
+
+const hexToRgba = (hex, alpha) => {
+  if (!hex) return `rgba(236, 72, 153, ${alpha})`
+  const cleaned = hex.replace('#', '')
+  const num = parseInt(cleaned, 16)
+  const r = (num >> 16) & 255
+  const g = (num >> 8) & 255
+  const b = num & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 
 const ClinicCard = ({ clinic }) => {
   const [showAllHours, setShowAllHours] = useState(false)
@@ -54,14 +65,25 @@ const ClinicCard = ({ clinic }) => {
 
   const mapUrl = `https://maps.google.com/maps?q=${searchParam}&t=&z=15&ie=UTF8&iwloc=&output=embed`
 
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  
+  const brandStyles = useMemo(() => {
+    return {
+      primary: brandColor,
+      rgba10: hexToRgba(brandColor, 0.1),
+      rgba05: hexToRgba(brandColor, 0.05),
+      rgba20: hexToRgba(brandColor, 0.2),
+    }
+  }, [brandColor])
+
   return (
     <motion.div 
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="relative bg-white rounded-[2rem] p-5 sm:p-6 shadow-xl shadow-gray-100/50 border-2 border-pink-50 hover:border-pink-200 hover:shadow-pink-100/30 transition-all overflow-hidden group"
+      className="relative bg-white rounded-[2rem] p-5 sm:p-6 shadow-xl shadow-gray-100/50 border border-gray-100 hover:border-gray-200 transition-all overflow-hidden group"
     >
-      <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-[0.03] mix-blend-overlay pointer-events-none' />
       <div className="relative z-10 flex flex-col gap-4">
         {/* Header */}
         <div className="flex items-start justify-between">
@@ -77,8 +99,11 @@ const ClinicCard = ({ clinic }) => {
               </span>
             </div>
           </div>
-          <div className="bg-pink-50 p-2 rounded-xl">
-            <Globe className="w-4 h-4 text-pink-500" />
+          <div 
+            className="p-2 rounded-xl"
+            style={{ backgroundColor: brandStyles.rgba10 }}
+          >
+            <Globe className="w-4 h-4" style={{ color: brandColor }} />
           </div>
         </div>
 
@@ -116,7 +141,8 @@ const ClinicCard = ({ clinic }) => {
             </div>
             <a 
               href={`tel:${clinic.phone}`} 
-              className="text-xs font-bold text-pink-600 hover:text-pink-700 transition-colors"
+              className="text-xs font-bold hover:opacity-80 transition-opacity"
+              style={{ color: brandColor }}
             >
               {clinic.phone || 'Phone not listed'}
             </a>
@@ -148,7 +174,11 @@ const ClinicCard = ({ clinic }) => {
                       const dayHours = clinic.hours?.find(h => h.day === day) || { isClosed: true }
                       const isToday = day === todayName
                       return (
-                        <div key={day} className={`flex justify-between text-xs py-1 ${isToday ? 'font-bold text-pink-600' : 'text-gray-600'}`}>
+                        <div 
+                          key={day} 
+                          className={`flex justify-between text-xs py-1 ${isToday ? 'font-bold' : 'text-gray-600'}`}
+                          style={isToday ? { color: brandColor } : {}}
+                        >
                           <span>{day}</span>
                           <span>{dayHours.isClosed ? 'Closed' : `${dayHours.open} - ${dayHours.close}`}</span>
                         </div>
@@ -165,18 +195,19 @@ const ClinicCard = ({ clinic }) => {
         <div className="flex gap-2">
           <Button 
             onClick={handleDirections}
-            className="flex-1 bg-rose-950 hover:bg-black text-white rounded-xl h-10 text-xs font-bold gap-1.5"
+            className="flex-1 text-white rounded-full h-12 text-xs font-black gap-2 uppercase tracking-wider"
+            style={{ backgroundColor: brandColor }}
           >
-            <Navigation className="w-3.5 h-3.5" />
+            <Navigation className="w-4 h-4" />
             Directions
           </Button>
           <Button 
             asChild
             variant="outline"
-            className="flex-1 border-pink-200 text-pink-600 hover:bg-pink-50 rounded-xl h-10 text-xs font-bold gap-1.5"
+            className="flex-1 bg-gray-100 border-transparent text-gray-700 hover:bg-gray-200 rounded-full h-12 text-xs font-black gap-2 uppercase tracking-wider"
           >
             <a href={`tel:${clinic.phone}`}>
-              <Phone className="w-3.5 h-3.5" />
+              <Phone className="w-4 h-4" />
               Call
             </a>
           </Button>

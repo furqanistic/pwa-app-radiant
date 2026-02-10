@@ -1,14 +1,14 @@
-// File: pwa-app-radiant/client/src/components/QRCode/QRCodeScanner.jsx
-// File: client/src/components/QRCode/QRCodeScanner.jsx
+import { useBranding } from '@/context/BrandingContext'
 import { addPoints, setPoints } from '@/redux/userSlice'
 import { qrCodeService } from '@/services/qrCodeService'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  AlertCircle,
-  Camera,
-  Check,
-  Loader2,
-  X,
+    AlertCircle,
+    Camera,
+    Check,
+    Loader2,
+    MapPin,
+    X,
 } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -29,6 +29,8 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
   const streamRef = useRef(null)
   const { currentUser } = useSelector((state) => state.user)
   const dispatch = useDispatch()
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
   // Start camera
   const startCamera = async () => {
     try {
@@ -246,18 +248,14 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-pink-500 to-rose-500 p-6 text-white flex items-center justify-between relative overflow-hidden">
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
-              <div className="relative z-10">
-                <h2 className="text-xl font-black tracking-tight">Scan QR Code</h2>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-                  <p className="text-[11px] font-bold uppercase tracking-wider opacity-90">Earn points per scan!</p>
-                </div>
+            <div className="bg-white px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 tracking-tight">Scan QR Code</h2>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mt-0.5">Earn points per scan</p>
               </div>
               <button
                 onClick={handleClose}
-                className="relative z-10 p-2 hover:bg-white/20 backdrop-blur-md rounded-xl transition-all border border-white/20"
+                className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -269,7 +267,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
               {step === "scanner" && !result && (
                 <div className="space-y-4">
                   {/* Original Camera UI */}
-                  <div className="relative aspect-square bg-black rounded-xl overflow-hidden shadow-inner ring-4 ring-gray-100">
+                  <div className="relative aspect-square bg-black rounded-3xl overflow-hidden shadow-inner ring-1 ring-gray-100">
                     <video
                       ref={videoRef}
                       autoPlay
@@ -278,26 +276,28 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                     />
                     <canvas ref={canvasRef} className="hidden" />
 
-                    {/* Scanner Overlay */}
-                    <div className="absolute inset-0 border-2 border-pink-500/30 m-16 rounded-3xl">
-                      <div className="absolute inset-0 animate-pulse bg-pink-500/5" />
-                      {/* Corner Accents - Minimal and Elegant */}
-                      <div className="absolute -top-1 -left-1 w-10 h-10 border-t-4 border-l-4 border-pink-500 rounded-tl-2xl" />
-                      <div className="absolute -top-1 -right-1 w-10 h-10 border-t-4 border-r-4 border-pink-500 rounded-tr-2xl" />
-                      <div className="absolute -bottom-1 -left-1 w-10 h-10 border-b-4 border-l-4 border-pink-500 rounded-bl-2xl" />
-                      <div className="absolute -bottom-1 -right-1 w-10 h-10 border-b-4 border-r-4 border-pink-500 rounded-br-2xl" />
+                    {/* Scanner Overlay - Material 3 Style */}
+                    <div className="absolute inset-0 border-2 border-white/20 m-12 rounded-3xl">
+                      <div className="absolute inset-0 bg-black/5" />
+                      
+                      {/* Corner Accents - Solid Brand Color */}
+                      <div className="absolute -top-1 -left-1 w-10 h-10 border-t-4 border-l-4 rounded-tl-2xl" style={{ borderColor: brandColor }} />
+                      <div className="absolute -top-1 -right-1 w-10 h-10 border-t-4 border-r-4 rounded-tr-2xl" style={{ borderColor: brandColor }} />
+                      <div className="absolute -bottom-1 -left-1 w-10 h-10 border-b-4 border-l-4 rounded-bl-2xl" style={{ borderColor: brandColor }} />
+                      <div className="absolute -bottom-1 -right-1 w-10 h-10 border-b-4 border-r-4 rounded-br-2xl" style={{ borderColor: brandColor }} />
                       
                       {/* Scanning Line */}
                       <motion.div 
                         animate={{ top: ['10%', '90%', '10%'] }}
                         transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                        className="absolute left-4 right-4 h-0.5 bg-gradient-to-r from-transparent via-pink-400 to-transparent shadow-[0_0_8px_rgba(244,114,182,0.8)]"
+                        className="absolute left-6 right-6 h-0.5 shadow-lg"
+                        style={{ backgroundColor: brandColor }}
                       />
                     </div>
 
                     {!scanning && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm">
-                        <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm">
+                        <Loader2 className="w-8 h-8 animate-spin" style={{ color: brandColor }} />
                       </div>
                     )}
                   </div>
@@ -313,8 +313,8 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
               {/* Email Step */}
               {step === "email" && !result && (
                 <form onSubmit={handleScanSubmit} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="block text-xs font-black text-pink-500 uppercase tracking-widest ml-1">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest px-1">
                       Verify Account
                     </label>
                     <input
@@ -322,7 +322,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="your@email.com"
-                      className="w-full px-5 py-3.5 bg-pink-50/50 border-2 border-pink-100 rounded-2xl focus:ring-4 focus:ring-pink-100 focus:border-pink-500 outline-none transition-all font-bold text-gray-800 placeholder-pink-300"
+                      className="w-full px-5 py-4 bg-gray-100 border border-transparent rounded-2xl focus:bg-white focus:border-gray-200 outline-none transition-all font-medium text-gray-800"
                       disabled={loading}
                       required
                     />
@@ -330,35 +330,24 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
 
                   {/* Scanned Location Info */}
                   {scannedData?.locationName && (
-                    <div className="bg-gradient-to-r from-pink-50 to-rose-50 border-2 border-pink-100 rounded-2xl p-4 flex items-center gap-3">
-                      <div className="bg-pink-100 p-2 rounded-xl text-pink-600">
-                        <MapPin className="w-5 h-5" />
+                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center gap-3">
+                      <div className="bg-white p-2.5 rounded-xl shadow-sm border border-gray-50">
+                        <MapPin className="w-5 h-5 text-gray-400" />
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-pink-400 uppercase tracking-wider">Scanned Location</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Scanned Location</p>
                         <p className="font-bold text-gray-900">{scannedData.locationName}</p>
                       </div>
                     </div>
                   )}
 
                   {/* Action Buttons */}
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStep("scanner");
-                        setScannedData(null);
-                        startCamera();
-                      }}
-                      disabled={loading}
-                      className="flex-1 px-4 py-3.5 border-2 border-gray-100 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-all disabled:opacity-50"
-                    >
-                      Rescan
-                    </button>
+                  <div className="flex flex-col gap-3 pt-4">
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-2 px-8 py-3.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white font-black rounded-2xl shadow-lg shadow-pink-200 hover:shadow-pink-300 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 uppercase text-xs tracking-wider"
+                      style={{ backgroundColor: brandColor }}
+                      className="w-full h-14 text-white font-bold rounded-full shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2 uppercase text-xs tracking-[0.2em]"
                     >
                       {loading ? (
                         <>
@@ -368,9 +357,21 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                       ) : (
                         <>
                           <Check className="w-4 h-4" />
-                          CONFIRM
+                          CONFIRM & EARN
                         </>
                       )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep("scanner");
+                        setScannedData(null);
+                        startCamera();
+                      }}
+                      disabled={loading}
+                      className="w-full h-14 bg-gray-100 text-gray-600 font-bold rounded-full hover:bg-gray-200 transition-all disabled:opacity-50 uppercase text-xs tracking-[0.2em]"
+                    >
+                      Rescan
                     </button>
                   </div>
                 </form>
@@ -381,42 +382,41 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                 <div className="space-y-4">
                   {result.success ? (
                     <>
-                      <div className="text-center py-4">
+                      <div className="text-center py-6">
                         <motion.div
-                          initial={{ scale: 0, rotate: -45 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          className="w-20 h-20 bg-gradient-to-br from-pink-400 to-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-pink-200 rotate-12"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-gray-100"
+                          style={{ backgroundColor: brandColor }}
                         >
-                          <Check className="w-10 h-10 text-white" strokeWidth={3} />
+                          <Check className="w-10 h-10 text-white" strokeWidth={4} />
                         </motion.div>
-                        <h3 className="text-2xl font-black text-gray-900 mb-1 tracking-tight">
+                        <h3 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">
                           Verification Success!
                         </h3>
-                        <p className="text-sm font-medium text-gray-500 mb-6">{result.message}</p>
+                        <p className="text-sm font-medium text-gray-500 mb-8">{result.message}</p>
                       </div>
 
                       {result.data?.user && (
-                        <div className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-100 rounded-[2.5rem] p-6 space-y-4 relative overflow-hidden">
-                          <div className="absolute -top-10 -right-10 w-32 h-32 bg-pink-200/20 blur-3xl rounded-full" />
-                          
-                          <div className="flex items-center justify-between relative z-10">
-                            <span className="text-xs font-black text-pink-400 uppercase tracking-widest">
+                        <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
                               Points Awarded
                             </span>
-                            <span className="text-2xl font-black text-rose-600">
+                            <span className="text-2xl font-bold" style={{ color: brandColor }}>
                               +{result.data.user.pointsEarned}
                             </span>
                           </div>
                           
-                          <div className="h-px bg-pink-200/50" />
+                          <div className="h-px bg-gray-200" />
                           
-                          <div className="flex items-center justify-between relative z-10">
-                            <span className="text-xs font-black text-gray-400 uppercase tracking-widest">New Balance</span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">New Balance</span>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-xl font-black text-gray-900">
+                                <span className="text-xl font-bold text-gray-900">
                                 {result.data.user.totalPoints}
                                 </span>
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Points</span>
+                                <span className="text-[10px] font-bold text-gray-400 uppercase">Points</span>
                             </div>
                           </div>
                         </div>
@@ -424,21 +424,23 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                     </>
                   ) : (
                     <>
-                      <div className="text-center">
-                        <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+                      <div className="text-center py-6">
+                        <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <AlertCircle className="w-10 h-10 text-amber-500" />
+                        </div>
                         <h3 className="text-xl font-bold text-gray-900 mb-2">
                           {result.message.includes("account")
                             ? "Account Setup Needed"
                             : "Processing..."}
                         </h3>
-                        <p className="text-gray-600 mb-4">{result.message}</p>
+                        <p className="text-gray-500 text-sm">{result.message}</p>
                       </div>
                     </>
                   )}
 
                   <button
                     onClick={handleClose}
-                    className="w-full px-4 py-4 bg-gray-900 text-white font-black rounded-2xl hover:bg-gray-800 active:scale-[0.98] transition-all uppercase text-xs tracking-[0.2em] mt-4"
+                    className="w-full h-14 bg-gray-900 text-white font-bold rounded-full hover:bg-gray-800 active:scale-[0.98] transition-all uppercase text-xs tracking-[0.2em] mt-6"
                   >
                     Close Scanner
                   </button>

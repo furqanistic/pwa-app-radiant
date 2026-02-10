@@ -35,27 +35,31 @@ export const BrandingProvider = ({ children }) => {
         const paramLocationId = params.get('spa')?.trim() || null;
         const storedLocationId = localStorage.getItem('brandingLocationId');
         const currentSubdomain = getCurrentSubdomain();
+        const isEntryPage = location.pathname === '/auth' || location.pathname === '/';
+
+        let activeLocationId = null;
 
         if (paramLocationId) {
           localStorage.setItem('brandingLocationId', paramLocationId);
-          setLocationId(paramLocationId);
+          activeLocationId = paramLocationId;
+        } else if (isEntryPage) {
+          // Explicitly clear branding on entry pages without a spa param
+          activeLocationId = null;
         } else if (storedLocationId) {
-          setLocationId(storedLocationId);
+          activeLocationId = storedLocationId;
         } else if (currentUser?.selectedLocation?.locationId) {
-          setLocationId(currentUser.selectedLocation.locationId);
-        } else {
-          setLocationId(null);
+          activeLocationId = currentUser.selectedLocation.locationId;
         }
+
+        setLocationId(activeLocationId);
         setSubdomain(currentSubdomain);
 
-        if (paramLocationId || storedLocationId) {
-          const response = await brandingService.getBrandingByLocationId(
-            paramLocationId || storedLocationId
-          );
+        if (activeLocationId) {
+          const response = await brandingService.getBrandingByLocationId(activeLocationId);
           if (response.success) {
             setBranding(response.data);
           } else {
-            console.warn('Failed to load branding for locationId:', paramLocationId || storedLocationId);
+            console.warn('Failed to load branding for locationId:', activeLocationId);
             setBranding(null);
           }
           setLoading(false);

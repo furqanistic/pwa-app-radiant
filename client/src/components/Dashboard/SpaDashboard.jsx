@@ -1,3 +1,4 @@
+import { useBranding } from '@/context/BrandingContext'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     Activity,
@@ -28,7 +29,6 @@ import {
     XAxis,
     YAxis
 } from 'recharts'
-import { useBranding } from '@/context/BrandingContext'
 
 const SpaDashboard = ({ data, refetch }) => {
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -111,10 +111,13 @@ const SpaDashboard = ({ data, refetch }) => {
 
     const AnalyticsSection = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-            <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-gray-200/70 transition-all hover:shadow-md">
+            <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-gray-100 transition-all hover:shadow-md">
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="p-2 rounded-xl bg-[color:var(--brand-primary)/0.12]">
-                        <BarChart3 className="w-5 h-5 text-[color:var(--brand-primary)]" />
+                    <div 
+                      className="p-2 rounded-xl"
+                      style={{ backgroundColor: `${brandColor}15` }}
+                    >
+                        <BarChart3 className="w-5 h-5" style={{ color: brandColor }} />
                     </div>
                     <h2 className="text-xl font-bold text-gray-900">Execution Trend</h2>
                 </div>
@@ -136,7 +139,7 @@ const SpaDashboard = ({ data, refetch }) => {
                     </ResponsiveContainer>
                 </div>
             </div>
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-200/70 flex flex-col items-center">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col items-center">
                 <h2 className="text-xl font-bold text-gray-900 self-start mb-6">Services</h2>
                 <div className="h-[200px] w-full relative">
                     <ResponsiveContainer width="100%" height="100%">
@@ -170,11 +173,14 @@ const SpaDashboard = ({ data, refetch }) => {
     )
 
     const ActivityFeed = () => (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-200/70 flex flex-col h-full">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 flex flex-col h-full">
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-[color:var(--brand-primary)/0.12]">
-                        <Activity className="w-5 h-5 text-[color:var(--brand-primary)]" />
+                    <div 
+                      className="p-2 rounded-xl"
+                      style={{ backgroundColor: `${brandColor}15` }}
+                    >
+                        <Activity className="w-5 h-5" style={{ color: brandColor }} />
                     </div>
                     <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
                 </div>
@@ -204,10 +210,13 @@ const SpaDashboard = ({ data, refetch }) => {
     )
 
     const ScheduleList = () => (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-200/70 flex flex-col h-full">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 flex flex-col h-full">
             <div className="flex items-center gap-3 mb-8">
-                <div className="p-2 rounded-xl bg-[color:var(--brand-primary)/0.12]">
-                    <Calendar className="w-5 h-5 text-[color:var(--brand-primary)]" />
+                <div 
+                  className="p-2 rounded-xl"
+                  style={{ backgroundColor: `${brandColor}15` }}
+                >
+                    <Calendar className="w-5 h-5" style={{ color: brandColor }} />
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">Daily Schedule</h2>
             </div>
@@ -222,7 +231,10 @@ const SpaDashboard = ({ data, refetch }) => {
                             <p className="font-black text-gray-900 truncate text-sm">{booking.serviceName}</p>
                             <p className="text-xs text-gray-500 font-bold">{booking.userId?.name}</p>
                         </div>
-                        <div className={`p-2 rounded-xl flex-shrink-0 ${booking.status === 'confirmed' ? 'bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] text-white shadow-sm' : 'bg-gray-100 text-gray-400'}`}>
+                        <div 
+                          className={`p-2 rounded-xl flex-shrink-0 ${booking.status === 'confirmed' ? 'text-white shadow-sm' : 'bg-gray-100 text-gray-400'}`}
+                          style={booking.status === 'confirmed' ? { background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` } : {}}
+                        >
                             <CheckCircle className="w-5 h-5" />
                         </div>
                     </div>
@@ -240,12 +252,15 @@ const SpaDashboard = ({ data, refetch }) => {
     )
 
     const StatCard = ({ title, value, icon: Icon, growth }) => (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-200/70 flex flex-col justify-between hover:shadow-md transition-shadow group">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow group">
             <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 sm:p-3 rounded-xl bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))]">
-                    <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <div 
+                  className="p-2 sm:p-3 rounded-xl text-white"
+                  style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
+                >
+                    <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <p className="text-xs sm:text-sm font-semibold text-gray-500 truncate">{title}</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-500 truncate">{title}</p>
             </div>
             <div className="flex items-end justify-between">
                 <h3 className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">{value}</h3>
@@ -260,10 +275,13 @@ const SpaDashboard = ({ data, refetch }) => {
     )
 
     const TabButton = ({ id, label, icon: Icon }) => (
-        <button onClick={() => setActiveTab(id)} className={`flex-1 flex flex-col items-center justify-center py-3 px-1 rounded-2xl transition-all relative ${activeTab === id ? 'text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08]' : 'text-gray-400'}`}>
-            <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'text-[color:var(--brand-primary)]' : 'text-gray-400'}`} />
-            <span className="text-[10px] font-black uppercase tracking-tighter">{label}</span>
-            {activeTab === id && <motion.div layoutId="activeTabUnderline" className="absolute bottom-1 w-8 h-1 bg-[color:var(--brand-primary)] rounded-full" />}
+        <button 
+          onClick={() => setActiveTab(id)} 
+          className={`flex-1 flex flex-col items-center justify-center py-3 px-1 transition-all relative ${activeTab === id ? 'text-gray-900 bg-gray-50' : 'text-gray-400'}`}
+          style={activeTab === id ? { borderBottom: `3px solid ${brandColor}` } : {}}
+        >
+            <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'text-gray-900' : 'text-gray-400'}`} style={activeTab === id ? { color: brandColor } : {}} />
+            <span className={`text-[10px] font-black uppercase tracking-tighter ${activeTab === id ? 'text-gray-900' : 'text-gray-400'}`}>{label}</span>
         </button>
     )
 

@@ -188,7 +188,7 @@ const AuthPage = () => {
   const { branding, locationId: contextLocationId, hasBranding } = useBranding()
   const [searchParams] = useSearchParams()
   const urlLocationId = searchParams.get('spa')
-  const locationId = urlLocationId || null // Prioritize URL over context for UI state
+  const locationId = urlLocationId || null 
   const isLoading = useSelector(selectIsLoading)
   const reduxError = useSelector((state) => state.user.error)
   
@@ -393,15 +393,12 @@ const AuthPage = () => {
       }}
     >
       {!isMobile && (
-        <div className='w-1/2 relative overflow-hidden flex items-center justify-center p-12'>
-          <AnimatedBackground brandColor={brandColor} />
-          <FloatingElements brandColor={brandColor} />
-
+        <div className='w-1/2 relative overflow-hidden flex items-center justify-center p-12 bg-gray-50'>
           <div className='relative z-20 w-full max-w-lg'>
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
+              transition={{ duration: 0.6 }}
             >
               <div className='flex flex-col items-center justify-center mb-12 w-full'>
                 {hasBranding && branding?.logo ? (
@@ -409,73 +406,34 @@ const AuthPage = () => {
                     <img 
                       src={branding.logo} 
                       alt={branding.name} 
-                      className="h-24 w-auto mb-4 object-contain shadow-2xl rounded-2xl p-2 bg-white/10 backdrop-blur-md"
+                      className="h-24 w-auto mb-6 object-contain"
                     />
-                  <h1
-                    className='text-4xl font-black text-white tracking-tighter uppercase text-center'
-                    style={{ textShadow: `0 8px 40px ${brandColor}66` }}
-                  >
-                    {branding.name}
-                  </h1>
-                </div>
-              ) : (
-                  <h1 className='text-6xl font-black text-white tracking-tighter'>
-                    Radiant<span style={{ color: 'var(--brand-primary)' }}>AI</span>
+                    <h1 className='text-4xl font-black text-gray-900 tracking-tight uppercase text-center'>
+                      {branding.name}
+                    </h1>
+                  </div>
+                ) : (
+                  <h1 className='text-6xl font-black text-gray-900 tracking-tighter'>
+                    Radiant<span style={{ color: '#000000' }}>AI</span>
                   </h1>
                 )}
               </div>
 
-              <h2 className='text-6xl font-black text-white leading-[1.1] mb-8'>
-                {view === 'signup' ? (
-                  <>
-                    REVEAL YOUR
-                    <br />
-                    <span className='text-white/95'>TRUE RADIANCE</span>
-                  </>
-                ) : (
-                  <>
-                    GLOWING
-                    <br />
-                    <span className='text-white/95'>RETURNS HERE</span>
-                  </>
-                )}
+              <h2 className='text-5xl font-extrabold text-gray-900 leading-tight mb-8 text-center'>
+                {view === 'signup' ? 'Join our community' : 'Welcome back'}
               </h2>
 
-              <p className='text-xl text-white/80 font-light leading-relaxed max-w-md'>
-                Experience the next generation of beauty management.
-                Intelligent, elegant, and uniquely yours.
+              <p className='text-lg text-gray-600 font-medium leading-relaxed text-center mx-auto max-w-sm'>
+                Manage your beauty experience with ease.
+                Elegant, simple, and intuitive.
               </p>
-
-              <div className='mt-12 flex gap-4'>
-                <div className='px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 flex items-center gap-2'>
-                  <Bot className='w-4 h-4 text-white/90' />
-                  <span className='text-white text-sm font-medium'>
-                    AI-Powered Insights
-                  </span>
-                </div>
-                <div className='px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 flex items-center gap-2'>
-                  <Zap className='w-4 h-4 text-white/90' />
-                  <span className='text-white text-sm font-medium'>
-                    Pro Features
-                  </span>
-                </div>
-              </div>
             </motion.div>
           </div>
         </div>
       )}
 
       {/* Decorative background for mobile/pwa feel */}
-      <div className='absolute inset-0 z-0 opacity-[0.03] pointer-events-none overflow-hidden'>
-        <div 
-          className='absolute -top-[20%] -right-[20%] w-[80%] h-[80%] rounded-full blur-[120px]'
-          style={{ background: 'var(--brand-primary)' }}
-        />
-        <div 
-          className='absolute -bottom-[20%] -left-[20%] w-[80%] h-[80%] rounded-full blur-[120px]'
-          style={{ background: 'var(--brand-primary)' }}
-        />
-      </div>
+      <div className='absolute inset-0 z-0 bg-gray-50/50 pointer-events-none' />
 
       <div
         className={`${
@@ -489,23 +447,18 @@ const AuthPage = () => {
               <div className='flex flex-col items-center justify-center mb-10'>
                 {hasBranding && branding?.logo ? (
                   <div className="flex flex-col items-center gap-3">
-                    <div className='p-1 bg-white rounded-3xl shadow-xl shadow-[color:var(--brand-primary)]/5 border border-gray-50'>
-                      <img 
-                        src={branding.logo} 
-                        alt={branding.name} 
-                        className="h-20 w-20 object-contain rounded-2xl"
-                      />
-                    </div>
+                    <img 
+                      src={branding.logo} 
+                      alt={branding.name} 
+                      className="h-20 w-20 object-contain"
+                    />
                     <span className="text-2xl font-black text-gray-900 tracking-tight uppercase">
                       {branding.name}
                     </span>
                   </div>
                 ) : (
                   <div className='flex flex-col items-center'>
-                    <div className='w-16 h-16 rounded-[24px] bg-[color:var(--brand-primary)] flex items-center justify-center mb-3 shadow-lg shadow-[color:var(--brand-primary)]/20 rotate-12'>
-                      <Sparkles className='w-8 h-8 text-white' />
-                    </div>
-                    <h1 className='text-3xl font-black text-gray-900 tracking-tighter'>
+                    <h1 className='text-4xl font-black text-gray-900 tracking-tighter mb-2'>
                       Radiant<span style={{ color: 'var(--brand-primary)' }}>AI</span>
                     </h1>
                   </div>
@@ -552,18 +505,17 @@ const AuthPage = () => {
             </div>
           ) : (
             <div className='mb-8 px-2'>
-              <div className='relative group'>
-                <div className='absolute inset-0 bg-[color:var(--brand-primary)]/5 blur-xl group-focus-within:bg-[color:var(--brand-primary)]/10 transition-all rounded-full' />
-                <div className='relative'>
-                  <Search className='absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
-                  <input
-                    type='text'
-                    placeholder='Find your favorite spa...'
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className='w-full pl-14 pr-6 py-4 bg-white border border-gray-100 rounded-full shadow-lg shadow-gray-100/50 focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all placeholder:text-gray-400 text-base font-medium'
-                  />
+              <div className='relative flex items-center bg-gray-100 rounded-full h-14 border border-transparent focus-within:bg-white focus-within:border-gray-200 focus-within:shadow-sm transition-all duration-200'>
+                <div className='pl-5'>
+                  <Search className='w-5 h-5 text-gray-500' />
                 </div>
+                <input
+                  type='text'
+                  placeholder='Search locations'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='w-full px-4 bg-transparent outline-none text-gray-700 text-lg'
+                />
               </div>
             </div>
           )}
@@ -592,35 +544,31 @@ const AuthPage = () => {
                     No locations match your search.
                   </div>
                 ) : (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className='grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 px-1'
-                  >
-                    {filteredSpas.map((spa, idx) => (
-                      <motion.button
-                        key={spa.locationId}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.05 }}
-                        onClick={() => navigate(`/auth?spa=${encodeURIComponent(spa.locationId)}`)}
-                        className='text-left p-5 rounded-3xl border border-gray-50 bg-white hover:border-[color:var(--brand-primary)]/30 hover:bg-gray-50/50 transition-all group shadow-sm hover:shadow-xl hover:-translate-y-1 relative overflow-hidden'
-                      >
-                        <div className='absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity'>
-                          <div className='w-8 h-8 rounded-full bg-[color:var(--brand-primary)]/10 flex items-center justify-center'>
-                            <ArrowRight className='w-4 h-4 text-[color:var(--brand-primary)]' />
+                    <div className='space-y-4 pb-8'>
+                      {filteredSpas.map((spa, idx) => (
+                        <motion.button
+                          key={spa.locationId}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          onClick={() => navigate(`/auth?spa=${encodeURIComponent(spa.locationId)}`)}
+                          className='w-full text-left bg-white border border-gray-200 rounded-2xl p-5 flex items-center gap-4 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-sm'
+                        >
+                          <div className='w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0'>
+                            <MapPin className='w-6 h-6 text-gray-600' />
                           </div>
-                        </div>
-                        <div className='font-bold text-gray-900 text-base mb-2 group-hover:text-[color:var(--brand-primary)] transition-colors'>
-                          {spa.name}
-                        </div>
-                        <div className='flex items-start gap-2 text-xs text-gray-400 font-medium leading-relaxed'>
-                          <MapPin className='w-3.5 h-3.5 mt-0.5 flex-shrink-0' />
-                          <span className='line-clamp-2'>{spa.address}</span>
-                        </div>
-                      </motion.button>
-                    ))}
-                  </motion.div>
+                          <div className='flex-1 min-w-0'>
+                            <div className='font-bold text-gray-900 text-lg truncate'>
+                              {spa.name}
+                            </div>
+                            <div className='text-sm text-gray-500 truncate'>
+                              {spa.address}
+                            </div>
+                          </div>
+                          <ChevronRight className='w-5 h-5 text-gray-400' />
+                        </motion.button>
+                      ))}
+                    </div>
                 )}
               </div>
             ) : (
