@@ -1,4 +1,5 @@
 // File: client/src/pages/Layout/Layout.jsx
+import MembershipManagementModal from '@/components/Management/MembershipManagementModal'
 import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
 import { useBranding } from '@/context/BrandingContext'
 import {
@@ -89,6 +90,7 @@ const Layout = ({
     return false
   })
   const [isNavigating, setIsNavigating] = useState(false)
+  const [isMembershipOpen, setIsMembershipOpen] = useState(false)
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -219,10 +221,40 @@ const Layout = ({
 
   // Filter navigation items based on user role
   const navigationItems = baseNavigationItems.filter((item) => {
-    if (item.superAdminOnly) return isSuperAdmin
-    if (item.elevatedAccessRequired) return isElevatedUser
-    if (item.hideForElevated && isElevatedUser) return false // 👈 hide for elevated
+    // 1. Super Admin: Only see Contacts, Client Management, and QR (handled via scanner item if it existed, but it's not in baseNavigationItems here, it's in BottomNav. Let's add it if needed or just handle the list)
+    if (isSuperAdmin) {
+      return ['contacts', 'clients'].includes(item.id)
+    }
+
+    // 2. Admin/SPA: Specialized redirects for services, rewards, membership
+    if (isElevatedUser) {
+      const restrictedForAdmin = [
+        'referrals',
+        'gamification',
+      ]
+      if (restrictedForAdmin.includes(item.id)) return false
+      return true
+    }
+
+    // 3. Normal User: Show everything (existing logic)
     return true
+  }).map(item => {
+    // Apply redirects for Admin/SPA
+    if (isElevatedUser) {
+      if (item.id === 'services') {
+        return { ...item, href: '/management/services' }
+      }
+      if (item.id === 'rewards') {
+        return { ...item, href: '/management/rewards' }
+      }
+      if (item.id === 'booking') {
+        return { ...item, href: '/management/bookings' }
+      }
+      if (item.id === 'membership') {
+        return { ...item, onClick: () => setIsMembershipOpen(true), href: '#' }
+      }
+    }
+    return item
   })
 
   const bottomItems = [
@@ -293,37 +325,21 @@ const Layout = ({
     const isActive = location.pathname === item.href
     const isLogout = item.isLogout
 
-    if (isLogout) {
-      return (
-        <motion.button
-          variants={navItemVariants}
-          whileHover='hover'
-          whileTap={{ scale: 0.98 }}
-          onClick={() => handleNavigation(item.href, true)}
-          disabled={isNavigating}
-          className={cn(
-            'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors duration-200 group relative overflow-hidden text-red-600 hover:bg-red-50 hover:text-red-700',
-            isNavigating && 'opacity-50 cursor-not-allowed'
-          )}
-        >
-          <div className='flex items-center space-x-2.5 flex-1 min-w-0'>
-            <Icon className='w-5 h-5 text-red-500 group-hover:text-red-600 transition-colors flex-shrink-0' />
-            <span className='font-medium text-sm truncate'>{item.label}</span>
-          </div>
-          {isNavigating && (
-            <div className='w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin flex-shrink-0' />
-          )}
-        </motion.button>
-      )
-    }
-
     return (
       <motion.button
         variants={navItemVariants}
         whileHover='hover'
         whileTap={{ scale: 0.98 }}
-        onClick={() => handleNavigation(item.href)}
-        disabled={isNavigating || isActive}
+        onClick={() => {
+          if (isLogout) {
+            handleNavigation(item.href, true)
+          } else if (item.onClick) {
+            item.onClick()
+          } else {
+            handleNavigation(item.href)
+          }
+        }}
+        disabled={isNavigating || (isActive && !item.onClick)}
         className={cn(
           'w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors duration-200 group relative overflow-hidden',
           isActive
@@ -338,10 +354,10 @@ const Layout = ({
               'w-5 h-5 transition-colors flex-shrink-0',
               isActive
                 ? 'text-[color:var(--brand-primary)]'
-                : 'text-gray-400 group-hover:text-gray-600'
+                : isLogout ? 'text-red-500 group-hover:text-red-600' : 'text-gray-400 group-hover:text-gray-600'
             )}
           />
-          <span className='font-medium text-sm truncate'>{item.label}</span>
+          <span className={cn('font-medium text-sm truncate', isLogout && 'text-red-600 group-hover:text-red-700')}>{item.label}</span>
         </div>
         <div className='flex items-center space-x-2'>
           {item.badge && (
@@ -368,6 +384,7 @@ const Layout = ({
   }
 
   return (
+    <>
     <div
       className='min-h-screen bg-gray-50'
       style={{
@@ -476,7 +493,13 @@ const Layout = ({
 
       {/* Push Notification prompt for PWA user engagement */}
       <PushNotificationPrompt />
+
+      <MembershipManagementModal 
+        isOpen={isMembershipOpen} 
+        onClose={() => setIsMembershipOpen(false)} 
+      />
     </div>
+    </>
   )
 }
 

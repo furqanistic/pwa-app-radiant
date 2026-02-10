@@ -4,22 +4,22 @@ import { authService } from "@/services/authService";
 import { locationService } from "@/services/locationService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    Award,
-    Building,
-    Calendar,
-    Clock,
-    Crown,
-    Edit2,
-    Gift,
-    MapPin,
-    QrCode,
-    RefreshCw,
-    Settings,
-    TrendingUp,
-    UserCheck,
-    UserPlus,
-    XIcon,
-    Zap,
+  Award,
+  Building,
+  Calendar,
+  Clock,
+  Crown,
+  Edit2,
+  Gift,
+  MapPin,
+  QrCode,
+  RefreshCw,
+  Settings,
+  TrendingUp,
+  UserCheck,
+  UserPlus,
+  XIcon,
+  Zap,
 } from "lucide-react";
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
@@ -38,10 +38,10 @@ import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import StripeConnect from "@/components/Stripe/StripeConnect";
 import { Button } from "@/components/ui/button";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import Layout from "@/pages/Layout/Layout";
 
@@ -219,7 +219,7 @@ const ManagementPage = () => {
               </Button>
             )}
 
-            {isTeamOrAbove && (
+            {(isTeamOrAbove && !isSuperAdmin) && (
               <>
                <Button
                 onClick={() => setIsAvailabilityOpen(true)}
@@ -287,8 +287,8 @@ const ManagementPage = () => {
             </div>
           )}
 
-          {/* Location Management Section */}
-          {isTeamOrAbove && (
+          {/* Location Management Section - Super Admin Only */}
+          {isSuperAdmin && (
             <div className="mt-8 bg-white rounded-lg border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">

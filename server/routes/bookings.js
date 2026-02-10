@@ -6,6 +6,7 @@ import {
 } from '../controller/availability.js'
 import {
     createBooking,
+    getAdminBookings,
     getBookedTimes,
     getUserBookingStats,
     getUserPastVisits,
@@ -30,4 +31,8 @@ router.get('/stats', getUserBookingStats)
 router.post('/create', createBooking)
 router.post('/rate/:bookingId', rateVisit)
 router.get("/booked-times", getBookedTimes);
+
+// Admin routes
+router.get('/admin/all', getAdminBookings)
+
 export default router

@@ -1,3 +1,4 @@
+import MembershipManagementModal from "@/components/Management/MembershipManagementModal";
 import QRCodeScanner from "@/components/QRCode/QRCodeScanner";
 import { useBranding } from '@/context/BrandingContext';
 import {
@@ -45,6 +46,7 @@ const BottomNav = () => {
   const { branding, locationId } = useBranding()
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isMembershipOpen, setIsMembershipOpen] = useState(false);
   const brandColor = branding?.themeColor || '#ec4899'
   
   const brandStyles = useMemo(() => {
@@ -142,15 +144,58 @@ const BottomNav = () => {
 
   // Filter items based on user role
   const allowedItems = baseNavigationItems.filter((item) => {
-    if (item.superAdminOnly) return isSuperAdmin
-    if (item.elevatedAccessRequired) return isElevatedUser
-    if (item.hideForElevated && isElevatedUser) return false
+    // 1. Super Admin: Only see Contacts, Client Management, and QR Scanner
+    if (isSuperAdmin) {
+      return ['contacts', 'clients', 'scanner'].includes(item.id)
+    }
+
+    // 2. Admin/SPA: Specialized redirects for services, rewards, membership
+    if (isElevatedUser) {
+      const restrictedForAdmin = [
+        'referrals',
+        'gamification',
+      ]
+      if (restrictedForAdmin.includes(item.id)) return false
+      return true
+    }
+
+    // 3. Normal User: Show everything (existing logic)
+    return true
+  }).map(item => {
+    // Apply redirects for Admin/SPA
+    if (isElevatedUser) {
+      if (item.id === 'services') {
+        return { ...item, href: '/management/services', onClick: undefined }
+      }
+      if (item.id === 'rewards') {
+        return { ...item, href: '/management/rewards', onClick: undefined }
+      }
+      if (item.id === 'booking') {
+        return { ...item, href: '/management/bookings', onClick: undefined }
+      }
+      if (item.id === 'membership') {
+        return { ...item, onClick: () => setIsMembershipOpen(true), href: undefined }
+      }
+    }
+    return item
+  })
+
+  // Refined filter for Super Admin (redundant now but keeping it safe)
+  const finalAllowedItems = allowedItems.filter(item => {
+    if (isSuperAdmin) {
+      return ['contacts', 'clients', 'scanner'].includes(item.id)
+    }
     return true
   })
 
   // Split into bottom bar and "More" menu
   const bottomNavItems = [
-    ...allowedItems.filter(item => item.inBottomBar),
+    ...finalAllowedItems.filter(item => {
+      if (isSuperAdmin) {
+        return ['contacts', 'clients'].includes(item.id)
+      }
+      return item.inBottomBar
+    }),
     {
         id: 'more',
         label: 'More',
@@ -160,7 +205,10 @@ const BottomNav = () => {
   ]
 
   const moreItems = [
-    ...allowedItems.filter(item => !item.inBottomBar),
+    ...finalAllowedItems.filter(item => {
+      if (isSuperAdmin) return false // Already in bottom bar
+      return !item.inBottomBar
+    }),
     {
       id: 'profile',
       label: 'My Profile',
@@ -171,6 +219,7 @@ const BottomNav = () => {
       id: 'logout',
       label: 'Logout',
       icon: LogOut,
+      onClick: () => dispatch(logout()),
       className: `text-red-500 hover:bg-red-50`,
     },
   ]
@@ -333,6 +382,11 @@ const BottomNav = () => {
       <QRCodeScanner
         isOpen={qrScannerOpen}
         onClose={() => setQrScannerOpen(false)}
+      />
+
+      <MembershipManagementModal
+        isOpen={isMembershipOpen}
+        onClose={() => setIsMembershipOpen(false)}
       />
     </>
   )

@@ -1,4 +1,5 @@
 import { useBranding } from "@/context/BrandingContext";
+import { selectIsElevatedUser, selectIsSuperAdmin } from "@/redux/userSlice";
 import { motion } from "framer-motion";
 import { ShoppingCart } from "lucide-react";
 import React from "react";
@@ -16,8 +17,13 @@ const Topbar = ({
   const { currentUser } = useSelector((state) => state.user);
   const { totalItems } = useSelector((state) => state.cart);
   const { branding } = useBranding();
+  const isSuperAdmin = useSelector(selectIsSuperAdmin);
+  const isElevatedUser = useSelector(selectIsElevatedUser);
   const brandColor = branding?.themeColor || '#ec4899';
   const navigate = useNavigate();
+
+  // Hide cart for super-admin and admin/spa
+  const showCart = !isSuperAdmin && !isElevatedUser;
 
   return (
     <>
@@ -61,20 +67,22 @@ const Topbar = ({
             {/* Right side - Cart, Notifications and User Profile */}
             <div className="flex items-center space-x-2 lg:space-x-4">
               {/* Shopping Cart */}
-              <button
-                onClick={() => navigate("/cart")}
-                className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-              >
-                <ShoppingCart className="h-5 w-5" />
-                {totalItems > 0 && (
-                  <span 
-                    className="absolute -top-1 -right-1 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm"
-                    style={{ backgroundColor: brandColor }}
-                  >
-                    {totalItems}
-                  </span>
-                )}
-              </button>
+              {showCart && (
+                <button
+                  onClick={() => navigate("/cart")}
+                  className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  {totalItems > 0 && (
+                    <span 
+                      className="absolute -top-1 -right-1 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-sm"
+                      style={{ backgroundColor: brandColor }}
+                    >
+                      {totalItems}
+                    </span>
+                  )}
+                </button>
+              )}
 
               {/* Notifications */}
               {showNotifications && <NotificationPanel />}

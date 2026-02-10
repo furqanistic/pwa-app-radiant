@@ -1,9 +1,11 @@
 // File: server/controller/bookings.js
+import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
+import { awardPoints } from '../utils/rewardHelpers.js'
 
 // Get user's upcoming appointments
 export const getUserUpcomingAppointments = async (req, res, next) => {
@@ -330,3 +332,76 @@ export const getBookedTimes = async (req, res, next) => {
     next(createError(500, "Failed to fetch booked times"));
   }
 };
+
+// Get all bookings for admin/spa
+export const getAdminBookings = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10, search = '', status } = req.query
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    // Build query
+    const query = {}
+
+    // Role-based filtering
+    if (req.user.role === 'spa' || req.user.role === 'admin') {
+      // SPA/Admin can only see bookings for their location
+      // Check both spaLocation (for spa owners) and selectedLocation (fallback/admin)
+      const locationId = req.user.spaLocation?.locationId || req.user.selectedLocation?.locationId
+      if (!locationId) {
+        return next(createError(403, 'Location ID not found for administrator'))
+      }
+      query.locationId = locationId
+    } else if (req.user.role !== 'super-admin') {
+      return next(createError(403, 'Unauthorized access to admin bookings'))
+    }
+
+    // Status filter
+    if (status) {
+      query.status = status
+    }
+
+    // Search filter (by client name, email, or service name)
+    if (search) {
+      query.$or = [
+        { clientName: { $regex: search, $options: 'i' } },
+        { clientEmail: { $regex: search, $options: 'i' } },
+        { serviceName: { $regex: search, $options: 'i' } }
+      ]
+    }
+
+    const [bookings, totalBookings] = await Promise.all([
+      Booking.find(query)
+        .sort({ date: -1, time: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .populate('userId', 'name email'),
+      Booking.countDocuments(query)
+    ])
+
+    // Format bookings for the frontend (Map userId name/email to clientName/Email if missing)
+    const formattedBookings = bookings.map(booking => {
+      const b = booking.toObject()
+      return {
+        ...b,
+        clientName: b.clientName || b.userId?.name || 'Unknown',
+        clientEmail: b.clientEmail || b.userId?.email || 'N/A'
+      }
+    })
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        bookings: formattedBookings,
+        pagination: {
+          totalBookings,
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalBookings / parseInt(limit)),
+          pageSize: parseInt(limit)
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching admin bookings:', error)
+    next(createError(500, 'Failed to fetch admin bookings'))
+  }
+}
