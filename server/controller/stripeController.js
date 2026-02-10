@@ -10,7 +10,7 @@ import User from '../models/User.js'
 // ==================== STRIPE CONNECT FUNCTIONS ====================
 
 /**
- * Create a Stripe Connect account for a team user (spa owner)
+ * Create a Stripe Connect account for a spa user (spa owner)
  */
 export const createConnectAccount = async (req, res, next) => {
   try {
@@ -21,12 +21,12 @@ export const createConnectAccount = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
-    // Only team role can connect Stripe accounts
-    if (user.role !== 'team') {
+    // Only spa role can connect Stripe accounts
+    if (user.role !== 'spa') {
       return next(
         createError(
           403,
-          'Only spa owners (team role) can connect Stripe accounts'
+          'Only spa owners (spa role) can connect Stripe accounts'
         )
       )
     }
@@ -386,7 +386,7 @@ export const createCheckoutSession = async (req, res, next) => {
         // Find the spa owner for this location
         const spaOwner = await User.findOne({ 
           'spaLocation.locationId': item.locationId || cartLocationId,
-          role: 'team' 
+          role: 'spa' 
         })
 
         if (!spaOwner) {
@@ -539,7 +539,7 @@ export const createCheckoutSession = async (req, res, next) => {
     // Get spa owner (owner of the location)
     const spaOwner = await User.findOne({
       'spaLocation.locationId': locationId,
-      role: 'team'
+      role: 'spa'
     })
 
     if (!spaOwner) {
@@ -706,7 +706,7 @@ export const createPaymentIntent = async (req, res, next) => {
     // Get spa owner (creator of the service)
     const spaOwner = service.createdBy
 
-    if (!spaOwner || spaOwner.role !== 'team') {
+    if (!spaOwner || spaOwner.role !== 'spa') {
       return next(createError(400, 'Service owner is not a valid spa account'))
     }
 
@@ -899,7 +899,7 @@ export const getPaymentHistory = async (req, res, next) => {
     const user = await User.findById(userId)
 
     let query = {}
-    if (user.role === 'team') {
+    if (user.role === 'spa') {
       // Spa owner - get payments they received
       query.spaOwner = userId
     } else {
@@ -933,7 +933,7 @@ export const getRevenueAnalytics = async (req, res, next) => {
 
     const user = await User.findById(userId)
 
-    if (user.role !== 'team') {
+    if (user.role !== 'spa') {
       return next(
         createError(403, 'Only spa owners can access revenue analytics')
       )
@@ -1335,7 +1335,7 @@ export const getClientRevenueAnalytics = async (req, res, next) => {
     const userId = req.user.id
     const user = await User.findById(userId)
 
-    if (user.role !== 'team' && user.role !== 'admin' && user.role !== 'super-admin') {
+    if (user.role !== 'spa' && user.role !== 'admin' && user.role !== 'super-admin') {
       return next(
         createError(403, 'Only spa owners and admins can access client revenue tracking')
       )

@@ -263,15 +263,15 @@ const App = () => {
           richColors 
           position="top-center" 
           toastOptions={{
-            style: { background: '#fc2a73', color: 'white', border: 'none' },
+            style: { background: 'var(--brand-primary)', color: 'white', border: 'none' },
             classNames: {
-              toast: 'bg-[#fc2a73]',
+              toast: 'bg-[color:var(--brand-primary)]',
               title: 'text-white',
               description: 'text-white',
-              actionButton: 'bg-white text-[#fc2a73]',
-              cancelButton: 'bg-white text-[#fc2a73]',
-              success: 'bg-[#fc2a73] text-white border-none',
-              error: 'bg-red-500 text-white border-none', 
+              actionButton: 'bg-white text-[color:var(--brand-primary)]',
+              cancelButton: 'bg-white text-[color:var(--brand-primary)]',
+              success: 'bg-[color:var(--brand-primary)] text-white border-none',
+              error: 'bg-[color:var(--brand-primary)] text-white border-none', 
             }
           }}
         />

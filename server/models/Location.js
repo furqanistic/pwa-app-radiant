@@ -216,7 +216,26 @@ const LocationSchema = new mongoose.Schema(
         type: String,
         default: 'Unlock exclusive perks and premium benefits',
         trim: true,
-      }
+      },
+      stripeProductId: {
+        type: String,
+        default: null,
+        sparse: true,
+      },
+      stripePriceId: {
+        type: String,
+        default: null,
+        sparse: true,
+      },
+      currency: {
+        type: String,
+        default: 'usd',
+        trim: true,
+      },
+      syncedAt: {
+        type: Date,
+        default: null,
+      },
     },
     // ==================== END MEMBERSHIP FIELDS ====================
     

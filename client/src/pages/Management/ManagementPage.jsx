@@ -44,6 +44,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import Layout from "@/pages/Layout/Layout";
+import stripeService from "@/services/stripeService";
 
 const ManagementPage = () => {
   const navigate = useNavigate();
@@ -87,6 +88,26 @@ const ManagementPage = () => {
     queryFn: () => locationService.getAllLocations(),
     enabled: isTeamOrAbove,
   });
+
+  const { data: stripeStatusData } = useQuery({
+    queryKey: ["stripe-account-status"],
+    queryFn: () => stripeService.getAccountStatus(),
+    enabled: currentUser?.role === "spa",
+  });
+
+  const stripeReadyForMembership =
+    currentUser?.role === "spa"
+      ? !!stripeStatusData?.connected &&
+        !!stripeStatusData?.account?.chargesEnabled
+      : isAdminOrAbove;
+
+  const handleOpenMembership = () => {
+    if (!stripeReadyForMembership) {
+      toast.error("Please connect and finish Stripe onboarding first.");
+      return;
+    }
+    setIsMembershipOpen(true);
+  };
 
   // Create user mutation
   const createUserMutation = useMutation({
@@ -245,8 +266,8 @@ const ManagementPage = () => {
                 Automated Gifts
               </Button>
 
-               <Button
-                onClick={() => setIsMembershipOpen(true)}
+              <Button
+                onClick={handleOpenMembership}
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
               >
                 <Crown className="w-4 h-4 mr-2" />

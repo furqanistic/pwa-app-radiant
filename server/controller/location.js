@@ -1,3 +1,4 @@
+import stripe from '../config/stripe.js';
 import { createError } from '../error.js';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
@@ -17,6 +18,95 @@ const transformHoursFromModel = (hoursArray) => {
     });
     return hoursObj;
 }
+
+const resolveSpaOwnerForLocation = async (location, currentUser) => {
+  if (currentUser?.role === 'spa') {
+    return currentUser;
+  }
+
+  return User.findOne({
+    role: 'spa',
+    'spaLocation.locationId': location.locationId,
+  });
+};
+
+const syncMembershipWithStripe = async ({ membership, location, currentUser }) => {
+  if (!membership) return membership;
+
+  const spaOwner = await resolveSpaOwnerForLocation(location, currentUser);
+  if (!spaOwner) {
+    throw createError(400, 'No spa owner found for this location to link membership');
+  }
+
+  if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
+    throw createError(
+      403,
+      'You must connect and complete your Stripe account before creating memberships.'
+    );
+  }
+
+  const stripeAccount = spaOwner.stripe.accountId;
+  const resolvedName = membership.name || location.membership?.name || 'Membership';
+  const resolvedDescription =
+    membership.description || location.membership?.description || '';
+  const resolvedPrice =
+    typeof membership.price === 'number' ? membership.price : location.membership?.price || 0;
+  const currency =
+    membership.currency || location.membership?.currency || 'usd';
+
+  let stripeProductId = membership.stripeProductId || location.membership?.stripeProductId || null;
+  let stripePriceId = membership.stripePriceId || location.membership?.stripePriceId || null;
+
+  const nameChanged = resolvedName !== location.membership?.name;
+  const descriptionChanged = resolvedDescription !== location.membership?.description;
+  const priceChanged =
+    typeof membership.price === 'number' && membership.price !== location.membership?.price;
+
+  if (!stripeProductId) {
+    const product = await stripe.products.create(
+      {
+        name: resolvedName,
+        description: resolvedDescription,
+        metadata: {
+          type: 'membership',
+          locationId: location.locationId,
+        },
+      },
+      { stripeAccount }
+    );
+    stripeProductId = product.id;
+  } else if (nameChanged || descriptionChanged) {
+    await stripe.products.update(
+      stripeProductId,
+      {
+        name: resolvedName,
+        description: resolvedDescription,
+      },
+      { stripeAccount }
+    );
+  }
+
+  if (!stripePriceId || priceChanged) {
+    const price = await stripe.prices.create(
+      {
+        product: stripeProductId,
+        unit_amount: Math.round(resolvedPrice * 100),
+        currency,
+        recurring: { interval: 'month' },
+      },
+      { stripeAccount }
+    );
+    stripePriceId = price.id;
+  }
+
+  return {
+    ...membership,
+    stripeProductId,
+    stripePriceId,
+    currency,
+    syncedAt: new Date(),
+  };
+};
 
 // Create a new location
 export const createLocation = async (req, res, next) => {
@@ -124,7 +214,13 @@ export const updateLocation = async (req, res, next) => {
     if (subdomain !== undefined) updateData.subdomain = subdomain ? subdomain.trim().toLowerCase() : null
     if (favicon !== undefined) updateData.favicon = favicon
     if (themeColor !== undefined) updateData.themeColor = themeColor
-    if (membership !== undefined) updateData.membership = membership
+    if (membership !== undefined) {
+      updateData.membership = await syncMembershipWithStripe({
+        membership,
+        location,
+        currentUser: req.user,
+      })
+    }
 
     const updatedLocation = await Location.findByIdAndUpdate(id, updateData, {
       new: true,

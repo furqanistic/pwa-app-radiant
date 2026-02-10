@@ -1,7 +1,8 @@
 // File: client/src/components/Stripe/StripeConnect.jsx - Stripe Connect Integration
 import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, Loader2, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import stripeService from '../../services/stripeService';
 import { Badge } from '../ui/badge';
@@ -10,22 +11,79 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 
 const StripeConnect = () => {
   const { currentUser } = useSelector((state) => state.user);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [accountStatus, setAccountStatus] = useState(null);
   const [checking, setChecking] = useState(true);
+  const [handledStripeParams, setHandledStripeParams] = useState(false);
+
+  const steps = useMemo(
+    () => [
+      {
+        title: 'Connect Stripe account',
+        description: 'Create an express account so we can send payouts.',
+        done: accountStatus?.connected ?? false,
+      },
+      {
+        title: 'Complete onboarding',
+        description: 'Share business details and bank info with Stripe.',
+        done: accountStatus?.account?.onboardingCompleted ?? false,
+      },
+      {
+        title: 'Enable payments',
+        description: 'Once charges and payouts are enabled you can accept clients.',
+        done: accountStatus?.account?.chargesEnabled && accountStatus?.account?.payoutsEnabled,
+      },
+    ],
+    [accountStatus]
+  );
 
   useEffect(() => {
     fetchAccountStatus();
   }, []);
+
+  useEffect(() => {
+    if (handledStripeParams) return;
+
+    const stripeParam = searchParams.get('stripe');
+    if (!stripeParam) return;
+
+    setHandledStripeParams(true);
+
+    const handleStripeReturn = async () => {
+      const refreshedStatus = await fetchAccountStatus();
+
+      if (stripeParam === 'success') {
+        const isReady =
+          refreshedStatus?.account?.chargesEnabled ||
+          refreshedStatus?.chargesEnabled;
+        if (isReady) {
+          toast.success('Stripe connected and ready to accept payments.');
+        } else {
+          toast.message('Stripe connected. Complete onboarding to enable payments.');
+        }
+      } else if (stripeParam === 'refresh') {
+        toast.message('Stripe onboarding was refreshed. Please complete the setup.');
+      }
+
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('stripe');
+      setSearchParams(nextParams, { replace: true });
+    };
+
+    handleStripeReturn();
+  }, [handledStripeParams, searchParams, setSearchParams]);
 
   const fetchAccountStatus = async () => {
     try {
       setChecking(true);
       const data = await stripeService.getAccountStatus();
       setAccountStatus(data);
+      return data;
     } catch (error) {
       console.error('Error fetching account status:', error);
       toast.error('Failed to load Stripe account status');
+      return null;
     } finally {
       setChecking(false);
     }
@@ -141,161 +199,97 @@ const StripeConnect = () => {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
+    <Card className="shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-              <CreditCard className="h-6 w-6 text-primary" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[color:var(--brand-primary)/10]">
+              <CreditCard className="h-5 w-5 text-[color:var(--brand-primary)]" />
             </div>
             <div>
-              <CardTitle>Payment Account</CardTitle>
-              <CardDescription>
-                Connect your Stripe account to receive payments from clients
+              <CardTitle className="text-lg">Payment Account</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Stripe Express lets your spa receive client payments. Finish the steps below to enable bookings.
               </CardDescription>
             </div>
           </div>
           {renderStatusBadge()}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {!accountStatus?.connected ? (
-          <div className="space-y-4">
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <h4 className="font-semibold mb-2">Why connect Stripe?</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <span>Accept credit card payments from your clients</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <span>Secure and PCI-compliant payment processing</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <span>Automatic payouts to your bank account</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
-                  <span>Detailed transaction reports and analytics</span>
-                </li>
-              </ul>
+      <CardContent className="space-y-4 pt-0">
+        <div className="text-xs text-muted-foreground">
+          Status applies to the currently signed-in spa. We never store card numbers—Stripe handles all sensitive info.
+        </div>
+        <div className="space-y-2">
+          {steps.map((step, index) => (
+            <div
+              key={step.title}
+              className="flex items-start gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--popover)] px-3 py-2"
+            >
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-[0.7rem] font-semibold uppercase ${
+                  step.done ? 'bg-green-500 text-white' : 'border border-[color:var(--border)] text-muted-foreground'
+                }`}
+              >
+                {step.done ? (
+                  <CheckCircle2 className="h-3 w-3" />
+                ) : (
+                  index + 1
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900">{step.title}</p>
+                <p className="text-[0.65rem] text-gray-500">{step.description}</p>
+              </div>
             </div>
-
+          ))}
+        </div>
+        <div className="space-y-2">
+          {!accountStatus?.connected && (
             <Button
               onClick={handleCreateAccount}
               disabled={loading}
+              size="sm"
               className="w-full"
-              size="lg"
             >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Connect Stripe Account
+              {loading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              Start Stripe onboarding
             </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {accountStatus.account && (
-              <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Account Status</span>
-                  {renderStatusBadge()}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    {accountStatus.account.chargesEnabled ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className="text-muted-foreground">Charges Enabled</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {accountStatus.account.payoutsEnabled ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className="text-muted-foreground">Payouts Enabled</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {accountStatus.account.detailsSubmitted ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className="text-muted-foreground">Details Submitted</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {accountStatus.account.onboardingCompleted ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className="text-muted-foreground">Onboarding Complete</span>
-                  </div>
-                </div>
-
-                {accountStatus.account.email && (
-                  <div className="pt-2 border-t">
-                    <span className="text-xs text-muted-foreground">Email: </span>
-                    <span className="text-xs font-medium">{accountStatus.account.email}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              {!accountStatus.account?.onboardingCompleted && (
-                <Button
-                  onClick={handleStartOnboarding}
-                  disabled={loading}
-                  variant="default"
-                  className="flex-1"
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Complete Setup
-                </Button>
-              )}
-
+          )}
+          {accountStatus?.connected && (
+            <div className="flex flex-wrap gap-2">
               <Button
+                onClick={handleStartOnboarding}
+                disabled={loading}
+                size="sm"
+                className="flex-1 min-w-[140px]"
+              >
+                {loading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                Continue onboarding
+              </Button>
+              <Button
+                variant="outline"
                 onClick={handleOpenDashboard}
-                disabled={loading || !accountStatus.account?.chargesEnabled}
-                variant="outline"
-                className="flex-1"
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Stripe Dashboard
-              </Button>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                onClick={fetchAccountStatus}
-                disabled={loading}
-                variant="outline"
-                className="flex-1"
+                className="flex-1 min-w-[140px]"
                 size="sm"
               >
-                Refresh Status
+                <ExternalLink className="mr-2 h-3 w-3" />
+                Dashboard
               </Button>
-
               <Button
+                variant="ghost"
                 onClick={handleDisconnect}
-                disabled={loading}
-                variant="destructive"
-                className="flex-1"
+                className="flex-1 min-w-[140px] text-red-500"
                 size="sm"
               >
-                Disconnect Account
+                Disconnect
               </Button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        <div className="text-[0.65rem] text-gray-500">
+          Once charges & payouts show as active, membership controls will unlock on the Management page. Refresh status if you need to re-check Stripe.
+        </div>
       </CardContent>
     </Card>
   );
