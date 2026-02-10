@@ -10,6 +10,7 @@ import {
     Calendar,
     CompassIcon,
     Contact2,
+    Crown,
     Gamepad2,
     Gift,
     LayoutDashboard,
@@ -82,6 +83,12 @@ const BottomNav = () => {
       icon: CompassIcon,
       href: '/services',
       inBottomBar: true,
+    },
+    {
+      id: 'membership',
+      label: 'Member',
+      icon: Crown,
+      href: '/membership',
     },
     {
       id: 'scanner',

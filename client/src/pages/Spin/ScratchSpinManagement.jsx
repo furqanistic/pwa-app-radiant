@@ -4,8 +4,8 @@ import {
     useCreateGame,
     useDeleteGame,
     useUpdateGame,
-} from '@/hooks/useGameWheel'
-import { AnimatePresence, motion } from 'framer-motion'
+} from '@/hooks/useGameWheel';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
     AlertTriangle,
     Calendar,
@@ -25,10 +25,10 @@ import {
     Trash2,
     Users,
     X,
-} from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner'; // Add this import for notifications
-import Layout from '../Layout/Layout'
+import Layout from '../Layout/Layout';
 
 const ScratchSpinManagement = () => {
   const [activeTab, setActiveTab] = useState('spin')

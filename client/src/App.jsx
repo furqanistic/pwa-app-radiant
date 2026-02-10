@@ -5,11 +5,11 @@ import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
-  BrowserRouter,
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
+    BrowserRouter,
+    Navigate,
+    Route,
+    Routes,
+    useLocation,
 } from 'react-router-dom'
 import AppIconManager from './components/Common/AppIconManager'
 import AuthPage from './pages/Auth/AuthPage'
@@ -28,6 +28,7 @@ import ClientRevenuePage from './pages/Management/ClientRevenuePage'
 import ManagementPage from './pages/Management/ManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
+import MembershipPage from './pages/Membership/MembershipPage'
 import WelcomePage from './pages/Other/WelcomePage'
 import ClientProfile from './pages/Profile/ClientProfile'
 import ProfilePage from './pages/Profile/ProfilePage'
@@ -337,6 +338,15 @@ const App = () => {
           element={
             <ProtectedRoute>
               <ServiceCatalogPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/membership"
+          element={
+            <ProtectedRoute>
+              <MembershipPage />
             </ProtectedRoute>
           }
         />

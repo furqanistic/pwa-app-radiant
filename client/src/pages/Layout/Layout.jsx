@@ -11,6 +11,7 @@ import {
     Calendar,
     CompassIcon,
     Contact2,
+    Crown,
     Gamepad2,
     Gift,
     LayoutDashboard,
@@ -160,6 +161,12 @@ const Layout = ({
       label: 'Services',
       icon: CompassIcon,
       href: '/services',
+    },
+    {
+      id: 'membership',
+      label: 'Membership',
+      icon: Crown,
+      href: '/membership',
     },
     {
       id: 'booking',
