@@ -42,6 +42,17 @@ import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
 import { updateProfile } from './redux/userSlice'
 import { authService } from './services/authService'
 
+// Scroll to top whenever the route changes
+const ScrollToTop = () => {
+  const location = useLocation()
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [location.pathname])
+
+  return null
+}
+
 // IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
@@ -258,6 +269,7 @@ const App = () => {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <BrandingProvider>
         <Toaster 
           richColors 

@@ -115,6 +115,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     description: '',
     address: '',
     phone: '',
+    reviewLink: '',
     coordinates: {
       latitude: null,
       longitude: null,
@@ -150,6 +151,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
         description: initialData.description || '',
         address: initialData.address || '',
         phone: initialData.phone || '',
+        reviewLink: initialData.reviewLink || '',
         hours: initialData.hours?.length
           ? initialData.hours
           : DAYS_OF_WEEK.map((day) => ({
@@ -209,6 +211,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       description: '',
       address: '',
       phone: '',
+      reviewLink: '',
       hours: DAYS_OF_WEEK.map((day) => ({
         day,
         open: '09:00',
@@ -358,6 +361,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       description: formData.description.trim(),
       address: formData.address.trim(),
       phone: formData.phone.trim(),
+      reviewLink: formData.reviewLink.trim(),
       hours: formData.hours,
       coordinates: position ? { latitude: position.lat, longitude: position.lng } : formData.coordinates,
       logo: formData.logo,
@@ -720,6 +724,25 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
               placeholder='e.g., 10501 6 Mile Cypress Parkway Suite 110'
               className='rounded-xl'
             />
+          </div>
+
+          {/* Review Link */}
+          <div className='space-y-2'>
+            <Label htmlFor='reviewLink' className='text-sm font-semibold text-gray-700'>
+              Review Link (Google, Yelp, etc.)
+            </Label>
+            <Input
+              id='reviewLink'
+              name='reviewLink'
+              type='url'
+              value={formData.reviewLink}
+              onChange={handleInputChange}
+              placeholder='https://g.page/your-spa/review'
+              className='rounded-xl'
+            />
+            <p className='text-xs text-gray-400 font-medium'>
+              This link is used for the "Leave Review" action on the user dashboard.
+            </p>
           </div>
 
           {/* Map Section */}

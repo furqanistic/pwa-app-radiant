@@ -3,6 +3,7 @@
 import express from 'express'
 import {
   adjustUserPoints,
+  awardGoogleReviewPoints,
   bulkGiveRewards,
   claimReward,
   createReward,
@@ -65,6 +66,9 @@ router.get('/my-rewards/manual', validatePagination, getUserManualRewards)
 
 // Get user's point transaction history
 router.get('/my-points/history', validatePagination, getPointHistory)
+
+// One-time Google review reward
+router.post('/google-review', restrictTo('user'), awardGoogleReviewPoints)
 
 // SERVICE-INTEGRATION ROUTES
 router.get('/services/:serviceId/rewards', getServiceRewards)

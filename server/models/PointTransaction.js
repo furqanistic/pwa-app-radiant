@@ -22,6 +22,10 @@ const PointTransactionSchema = new mongoose.Schema(
         "adjustment",
         "spent", // For spending points on rewards/games
         "earned", // For earning points from activities
+        "booking",
+        "review",
+        "signup_bonus",
+        "manual",
         "game_play", // For game-related transactions
         "qr_scan", // For user scanning QR code
         "qr_scan_reward", // For spa owner reward

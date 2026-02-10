@@ -5,6 +5,7 @@ import PointTransaction from '../models/PointTransaction.js'
 import Reward from '../models/Reward.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
+import { awardPoints } from '../utils/rewardHelpers.js'
 
 // Get all rewards with filtering, sorting, and searching
 export const getRewards = async (req, res, next) => {
@@ -2116,5 +2117,64 @@ export const getUserManualRewards = async (req, res, next) => {
   } catch (error) {
     console.error('Error fetching manual rewards:', error)
     next(createError(500, 'Failed to fetch manual rewards'))
+  }
+}
+
+// Award one-time Google review points (lifetime)
+export const awardGoogleReviewPoints = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const user = await User.findById(userId)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (user.reviewRewards?.googleReview?.awarded) {
+      return next(createError(409, 'Google review reward already claimed'))
+    }
+
+    const locationId =
+      user.selectedLocation?.locationId || user.spaLocation?.locationId || null
+
+    if (!locationId) {
+      return next(createError(400, 'No location selected for review reward'))
+    }
+
+    const reviewPoints = 10
+
+    const awardResult = await awardPoints(
+      userId,
+      reviewPoints,
+      'Google review reward',
+      'bonus',
+      null,
+      locationId
+    )
+
+    if (!awardResult?.success) {
+      return next(createError(500, 'Failed to award review points'))
+    }
+
+    user.reviewRewards = user.reviewRewards || {}
+    user.reviewRewards.googleReview = {
+      awarded: true,
+      awardedAt: new Date(),
+      locationId,
+    }
+    user.markModified('reviewRewards')
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Google review points awarded',
+      data: {
+        pointsAwarded: reviewPoints,
+        totalPoints: awardResult.totalPoints,
+      },
+    })
+  } catch (error) {
+    console.error('Error awarding Google review points:', error)
+    next(createError(500, 'Failed to award Google review points'))
   }
 }

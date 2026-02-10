@@ -178,7 +178,7 @@ export const getAvailability = async (req, res, next) => {
 
 export const updateAvailability = async (req, res, next) => {
   try {
-    const { businessHours, birthdayGift, address, phone, latitude, longitude } = req.body
+    const { businessHours, birthdayGift, address, phone, reviewLink, latitude, longitude } = req.body
     
     // Permitted roles for managing their own location
     if (!['spa', 'team'].includes(req.user.role)) {
@@ -200,6 +200,7 @@ export const updateAvailability = async (req, res, next) => {
     
     if (address !== undefined) user.spaLocation.locationAddress = address;
     if (phone !== undefined) user.spaLocation.locationPhone = phone;
+    if (reviewLink !== undefined) user.spaLocation.reviewLink = reviewLink;
     
     // CRITICAL: Save coordinates to User model too
     if (latitude !== undefined || longitude !== undefined) {
@@ -218,6 +219,7 @@ export const updateAvailability = async (req, res, next) => {
              if (businessHours) location.hours = transformHoursForModel(businessHours);
              if (address !== undefined) location.address = address;
              if (phone !== undefined) location.phone = phone;
+             if (reviewLink !== undefined) location.reviewLink = reviewLink;
              
              if (latitude !== undefined || longitude !== undefined) {
                  if (!location.coordinates) location.coordinates = {};

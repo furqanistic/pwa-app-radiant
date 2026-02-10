@@ -5,7 +5,7 @@ import CancelBookingModal from "@/components/Bookings/CancelBookingModal";
 import RescheduleModal from "@/components/Bookings/RescheduleModal";
 import BNPLBanner from "@/components/Common/BNPLBanner";
 import { useBranding } from '@/context/BrandingContext';
-import { useBookingStats, usePastBookings, useUpcomingBookings } from "@/hooks/useBookings";
+import { useBookingStats, usePastBookings, useUpcomingBookings, useRateBooking } from "@/hooks/useBookings";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import Layout from "@/pages/Layout/Layout";
 import { clearCart, removeFromCart } from "@/redux/cartSlice";
@@ -23,6 +23,7 @@ import {
   Gift,
   MapPin,
   ShoppingBag,
+  Star,
   Trash2,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
@@ -59,11 +60,13 @@ const BookingCard = ({
   onCancel,
   onReschedule,
   onRemoveFromCart,
+  onReview,
 }) => {
   const bookingDate = new Date(booking.date);
   const today = new Date();
   const canCancel = (bookingDate - today) / (1000 * 60 * 60) > 24;
   const isPast = bookingDate < today;
+  const canReview = isPast && booking.status === "completed" && !booking.rating;
 
     // Derived Status for Label
     let statusLabel = booking.status || "Confirmed";
@@ -211,12 +214,29 @@ const BookingCard = ({
         </div>
       ) : (
          // Completed/Cancelled Actions (Book Again?)
-         <button 
-           onClick={() => window.location.href = `/services`}
-           className="w-full py-2.5 rounded-xl text-xs font-semibold text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] hover:bg-[color:var(--brand-primary)/0.12] transition-colors"
-         >
-            Book Again
-         </button>
+         canReview ? (
+           <div className="grid grid-cols-2 gap-3">
+             <button
+               onClick={() => onReview?.(booking)}
+               className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors"
+             >
+               Leave Review
+             </button>
+             <button 
+               onClick={() => window.location.href = `/services`}
+               className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] hover:bg-[color:var(--brand-primary)/0.12] transition-colors"
+             >
+               Book Again
+             </button>
+           </div>
+         ) : (
+           <button 
+             onClick={() => window.location.href = `/services`}
+             className="w-full py-2.5 rounded-xl text-xs font-semibold text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] hover:bg-[color:var(--brand-primary)/0.12] transition-colors"
+           >
+              Book Again
+           </button>
+         )
       )}
     </div>
   );
@@ -272,8 +292,13 @@ const BookingsPage = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showReschedule, setShowReschedule] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
+  const [showReview, setShowReview] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
 
   const sessionId = searchParams.get("session_id");
+  const tabParam = searchParams.get("tab");
 
   // ✅ Fetch upcoming bookings
   const {
@@ -314,6 +339,12 @@ const BookingsPage = () => {
     }
   }, [sessionId, dispatch, navigate]);
 
+  useEffect(() => {
+    if (tabParam === "upcoming" || tabParam === "history") {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
   // ✅ Modal handlers
   const handleCancel = (booking) => {
     setSelectedBooking(booking);
@@ -323,6 +354,13 @@ const BookingsPage = () => {
   const handleReschedule = (booking) => {
     setSelectedBooking(booking);
     setShowReschedule(true);
+  };
+
+  const handleOpenReview = (booking) => {
+    setReviewTarget(booking);
+    setReviewRating(0);
+    setReviewText("");
+    setShowReview(true);
   };
 
   const handleRemoveFromCart = (itemId) => {
@@ -394,6 +432,30 @@ const BookingsPage = () => {
   // ✅ Fetch booking stats for total points
   const { data: statsData } = useBookingStats(currentUser?._id);
   const totalPointsEarned = statsData?.data?.stats?.totalPointsEarned || 0;
+
+  const rateBookingMutation = useRateBooking({
+    onSuccess: () => {
+      toastSuccess("Thanks for your review! Points added.");
+      setShowReview(false);
+      setReviewTarget(null);
+    },
+    onError: () => {
+      toast.error("Failed to submit review");
+    },
+  });
+
+  const handleSubmitReview = async () => {
+    if (!reviewTarget?._id) return;
+    if (reviewRating < 1) {
+      toast.error("Please select a rating");
+      return;
+    }
+    await rateBookingMutation.mutateAsync({
+      bookingId: reviewTarget._id,
+      rating: reviewRating,
+      review: reviewText,
+    });
+  };
 
   return (
     <Layout>
@@ -509,6 +571,7 @@ const BookingsPage = () => {
                   onCancel={handleCancel}
                   onReschedule={handleReschedule}
                   onRemoveFromCart={handleRemoveFromCart}
+                  onReview={handleOpenReview}
                 />
               ))}
             </div>
@@ -561,6 +624,66 @@ const BookingsPage = () => {
             booking={selectedBooking}
           />
         </>
+      )}
+
+      {showReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Leave a Review</h3>
+              <button
+                onClick={() => setShowReview(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              How was your experience with {reviewTarget?.serviceName}?
+            </p>
+
+            <div className="flex items-center gap-2 mb-4">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setReviewRating(star)}
+                  className={`p-2 rounded-full transition ${
+                    reviewRating >= star
+                      ? "text-yellow-500 bg-yellow-50"
+                      : "text-gray-300 bg-gray-50"
+                  }`}
+                >
+                  <Star className="w-5 h-5" />
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              placeholder="Share more details (optional)"
+              rows={4}
+              className="w-full rounded-2xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]"
+            />
+
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setShowReview(false)}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitReview}
+                disabled={rateBookingMutation.isLoading}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-60"
+              >
+                {rateBookingMutation.isLoading ? "Submitting..." : "Submit Review"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

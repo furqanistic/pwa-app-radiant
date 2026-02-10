@@ -32,6 +32,12 @@ export const rewardsService = {
     })
     return response.data
   },
+
+  // One-time Google review reward
+  awardGoogleReview: async () => {
+    const response = await axiosInstance.post('/rewards/google-review')
+    return response.data
+  },
   // Search users for reward giving
   searchUsersForReward: async (params = {}) => {
     const response = await axiosInstance.get('/rewards/users/search', {

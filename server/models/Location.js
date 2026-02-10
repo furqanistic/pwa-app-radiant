@@ -29,6 +29,11 @@ const LocationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    reviewLink: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     isActive: {
       type: Boolean,
       default: true,

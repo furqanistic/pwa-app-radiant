@@ -215,7 +215,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const { currentUser } = useSelector((state) => state.user)
-  const { branding } = useBranding()
+  const { branding, locationId } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')

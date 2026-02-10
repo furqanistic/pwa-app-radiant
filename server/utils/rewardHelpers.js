@@ -205,36 +205,37 @@ export const awardPoints = async (
   locationId = null
 ) => {
   try {
+    const user = await User.findById(userId)
+    if (!user) {
+      return { success: false, error: 'User not found' }
+    }
+
+    const currentBalance = user.points || 0
+    const newBalance = currentBalance + points
+
     // Create point transaction
     const transaction = await PointTransaction.create({
       user: userId,
-      amount: points,
+      points,
       type,
       description,
       reference,
       locationId,
-      balanceAfter: 0, // Will be calculated below
+      balance: newBalance,
+      metadata: {
+        previousBalance: currentBalance,
+        amountEarned: points,
+        transactionType: points >= 0 ? 'credit' : 'debit',
+      },
     })
 
-    // Update user's total points by aggregating all transactions
-    const result = await PointTransaction.aggregate([
-      { $match: { user: userId } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ])
-
-    const totalPoints = result[0]?.total || 0
-
-    // Update the transaction with the correct balance
-    transaction.balanceAfter = totalPoints
-    await transaction.save()
-
     // Update user's points field
-    await User.findByIdAndUpdate(userId, { points: totalPoints })
+    await User.findByIdAndUpdate(userId, { points: newBalance })
 
     return {
       success: true,
       pointsAwarded: points,
-      totalPoints,
+      totalPoints: newBalance,
       transaction,
     }
   } catch (error) {

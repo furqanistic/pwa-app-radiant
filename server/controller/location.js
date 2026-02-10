@@ -111,7 +111,7 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
 // Create a new location
 export const createLocation = async (req, res, next) => {
   try {
-    const { locationId, name, description, address, phone, hours, coordinates, logo, subdomain, favicon, themeColor, membership } = req.body
+    const { locationId, name, description, address, phone, reviewLink, hours, coordinates, logo, subdomain, favicon, themeColor, membership } = req.body
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -129,6 +129,7 @@ export const createLocation = async (req, res, next) => {
       description: description?.trim() || '',
       address: address?.trim() || '',
       phone: phone?.trim() || '',
+      reviewLink: reviewLink?.trim() || '',
       hours: hours || [],
       coordinates: coordinates || { latitude: null, longitude: null },
       logo: logo || '',
@@ -171,7 +172,7 @@ export const createLocation = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { locationId, name, description, address, phone, hours, isActive, coordinates, automatedGifts, logo, subdomain, favicon, themeColor, membership } = req.body
+    const { locationId, name, description, address, phone, reviewLink, hours, isActive, coordinates, automatedGifts, logo, subdomain, favicon, themeColor, membership } = req.body
 
     const location = await Location.findById(id)
     if (!location) {
@@ -206,6 +207,7 @@ export const updateLocation = async (req, res, next) => {
     if (description !== undefined) updateData.description = description.trim()
     if (address !== undefined) updateData.address = address.trim()
     if (phone !== undefined) updateData.phone = phone.trim()
+    if (reviewLink !== undefined) updateData.reviewLink = reviewLink.trim()
     if (hours !== undefined) updateData.hours = hours
     if (isActive !== undefined) updateData.isActive = isActive
     if (coordinates !== undefined) updateData.coordinates = coordinates
@@ -238,6 +240,7 @@ export const updateLocation = async (req, res, next) => {
             const syncData = {
                 locationAddress: updatedLocation.address,
                 locationPhone: updatedLocation.phone,
+                reviewLink: updatedLocation.reviewLink,
                 coordinates: updatedLocation.coordinates,
                 logo: updatedLocation.logo,
                 subdomain: updatedLocation.subdomain,
@@ -269,6 +272,7 @@ export const updateLocation = async (req, res, next) => {
                         'selectedLocation.locationName': updatedLocation.name,
                         'selectedLocation.locationAddress': updatedLocation.address,
                         'selectedLocation.locationPhone': updatedLocation.phone,
+                        'selectedLocation.reviewLink': updatedLocation.reviewLink,
                         'selectedLocation.logo': updatedLocation.logo,
                         'selectedLocation.subdomain': updatedLocation.subdomain,
                         'selectedLocation.favicon': updatedLocation.favicon,
@@ -342,7 +346,7 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
       isActive: true,
       name: { $ne: '', $exists: true, $ne: null },
     })
-      .select('locationId name address phone hours coordinates logo subdomain favicon themeColor membership')
+      .select('locationId name address phone reviewLink hours coordinates logo subdomain favicon themeColor membership')
       .sort({ name: 1 })
 
     const validLocations = locations.filter(

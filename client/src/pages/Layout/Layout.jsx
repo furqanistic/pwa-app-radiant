@@ -112,6 +112,7 @@ const Layout = ({
   // Add selectors to check user roles
   const isSuperAdmin = useSelector(selectIsSuperAdmin)
   const isElevatedUser = useSelector(selectIsElevatedUser)
+  const isRegularUser = !isSuperAdmin && !isElevatedUser
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -221,6 +222,9 @@ const Layout = ({
 
   // Filter navigation items based on user role
   const navigationItems = baseNavigationItems.filter((item) => {
+    if (isRegularUser && item.elevatedAccessRequired) {
+      return false
+    }
     // 1. Super Admin: Only see Contacts, Client Management, and QR (handled via scanner item if it existed, but it's not in baseNavigationItems here, it's in BottomNav. Let's add it if needed or just handle the list)
     if (isSuperAdmin) {
       return ['contacts', 'clients'].includes(item.id)

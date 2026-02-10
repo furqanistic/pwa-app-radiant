@@ -76,6 +76,10 @@ const UserSchema = new mongoose.Schema(
         type: String,
         default: null,
       },
+      reviewLink: {
+        type: String,
+        default: null,
+      },
       selectedAt: {
         type: Date,
         default: null,
@@ -95,6 +99,24 @@ const UserSchema = new mongoose.Schema(
       themeColor: {
         type: String,
         default: '#ec4899',
+      },
+    },
+
+    // Review reward tracking (once-per-lifetime rewards)
+    reviewRewards: {
+      googleReview: {
+        awarded: {
+          type: Boolean,
+          default: false,
+        },
+        awardedAt: {
+          type: Date,
+          default: null,
+        },
+        locationId: {
+          type: String,
+          default: null,
+        },
       },
     },
 
@@ -119,6 +141,10 @@ const UserSchema = new mongoose.Schema(
         default: null,
       },
       locationPhone: {
+        type: String,
+        default: null,
+      },
+      reviewLink: {
         type: String,
         default: null,
       },

@@ -77,6 +77,7 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
   const [schedule, setSchedule] = useState({});
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
+  const [reviewLink, setReviewLink] = useState("");
   const [position, setPosition] = useState(null); // { lat, lng }
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -96,6 +97,7 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
       if (spaLoc.businessHours) setSchedule(spaLoc.businessHours);
       setAddress(spaLoc.locationAddress || "");
       setPhone(spaLoc.locationPhone || "");
+      setReviewLink(spaLoc.reviewLink || "");
       if (spaLoc.coordinates?.latitude && spaLoc.coordinates?.longitude) {
         setPosition({ lat: spaLoc.coordinates.latitude, lng: spaLoc.coordinates.longitude });
       } else {
@@ -167,6 +169,7 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
         businessHours: schedule,
         address,
         phone,
+        reviewLink,
         latitude: position?.lat,
         longitude: position?.lng
       });
@@ -300,6 +303,19 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
                             />
                         </div>
                     </div>
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Review Link</label>
+                    <input
+                        type="url"
+                        value={reviewLink}
+                        onChange={(e) => setReviewLink(e.target.value)}
+                        placeholder="https://g.page/your-spa/review"
+                        className="w-full px-5 py-4 bg-gray-50 border-none rounded-2xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-pink-500 outline-none transition-all"
+                    />
+                    <p className="text-[10px] font-medium text-gray-400 ml-1">
+                        This link is used for the “Leave Review” action on the user dashboard.
+                    </p>
                  </div>
 
                  {/* Interactive Map Picker */}
@@ -482,4 +498,3 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
 };
 
 export default AvailabilitySettings;
-
