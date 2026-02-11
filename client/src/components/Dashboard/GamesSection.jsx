@@ -224,6 +224,7 @@ const GamePlayModal = ({
   gameResult,
   showResult,
   setShowResult,
+  brandColor,
   brandColorDark,
   onAnimationComplete,
 }) => {
@@ -529,6 +530,7 @@ const GamesSection = () => {
             gameResult={gameResult}
             showResult={showResult}
             setShowResult={setShowResult}
+            brandColor={brandColor}
             brandColorDark={brandColorDark}
             onAnimationComplete={() => {
               setIsAnimationComplete(true)

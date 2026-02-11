@@ -53,13 +53,26 @@ const ScrollToTop = () => {
   return null
 }
 
+const adjustHex = (hex, amount) => {
+  const sanitized = hex.replace('#', '')
+  const num = parseInt(sanitized, 16)
+  const clamp = (value) => Math.max(0, Math.min(255, value))
+  const r = clamp((num >> 16) + amount)
+  const g = clamp(((num >> 8) & 0x00ff) + amount)
+  const b = clamp((num & 0x0000ff) + amount)
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+}
+
 // IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
-  const { locationId } = useBranding()
+  const { locationId, branding, hasBranding } = useBranding()
   const location = useLocation()
   const dispatch = useDispatch()
   const [hasInitialCheck, setHasInitialCheck] = useState(false)
+  const [showLoader, setShowLoader] = useState(false)
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = adjustHex(brandColor, -24)
 
   // Check if user already has spa data in Redux
   const userHasSpaInRedux = !!(
@@ -109,18 +122,34 @@ const SpaSelectionGuard = ({ children }) => {
     hasSelectedSpa = onboardingData.data.onboardingStatus.hasSelectedSpa
   }
 
+  useEffect(() => {
+    if (shouldCheckOnboarding && isLoading && !hasInitialCheck) {
+      const timer = setTimeout(() => setShowLoader(true), 350)
+      return () => clearTimeout(timer)
+    }
+    setShowLoader(false)
+  }, [shouldCheckOnboarding, isLoading, hasInitialCheck])
+
   const isOnWelcomePage = location.pathname === '/welcome'
   const buildSpaPath = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   // IMPROVED: Only show loader when actually needed
-  if (shouldCheckOnboarding && isLoading && !hasInitialCheck) {
+  if (shouldCheckOnboarding && isLoading && !hasInitialCheck && showLoader) {
     return (
-      <div className='min-h-screen bg-gradient-to-br from-pink-500 via-rose-500 to-pink-600 flex items-center justify-center relative overflow-hidden'>
+      <div
+        className='min-h-screen flex items-center justify-center relative overflow-hidden'
+        style={{
+          background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColorDark} 100%)`,
+        }}
+      >
         {/* Animated background pattern */}
         <div className='absolute inset-0 opacity-20'>
           <div className='absolute top-0 left-0 w-96 h-96 bg-white rounded-full -translate-x-32 -translate-y-32 blur-3xl animate-pulse'></div>
-          <div className='absolute bottom-0 right-0 w-96 h-96 bg-rose-300 rounded-full translate-x-32 translate-y-32 blur-3xl animate-pulse'></div>
+          <div
+            className='absolute bottom-0 right-0 w-96 h-96 rounded-full translate-x-32 translate-y-32 blur-3xl animate-pulse'
+            style={{ backgroundColor: `${brandColor}66` }}
+          ></div>
         </div>
 
         <div className='relative z-10 text-center'>
@@ -130,13 +159,23 @@ const SpaSelectionGuard = ({ children }) => {
             transition={{ duration: 0.5 }}
             className='bg-white/10 backdrop-blur-xl p-8 rounded-3xl border border-white/20 shadow-2xl'
           >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-              className='w-16 h-16 border-4 border-white/30 border-t-white rounded-full mx-auto mb-6 shadow-lg'
-            />
+            {hasBranding && branding?.logo ? (
+              <div className='w-16 h-16 mx-auto mb-6 rounded-2xl bg-white/15 border border-white/25 shadow-lg flex items-center justify-center'>
+                <img
+                  src={branding.logo}
+                  alt={branding.name}
+                  className='w-10 h-10 object-contain'
+                />
+              </div>
+            ) : (
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                className='w-16 h-16 border-4 border-white/30 border-t-white rounded-full mx-auto mb-6 shadow-lg'
+              />
+            )}
             <h2 className='text-2xl font-bold text-white mb-2 tracking-wide'>
-              RadiantAI
+              {branding?.name || 'RadiantAI'}
             </h2>
             <p className='text-white/80 text-sm font-medium animate-pulse'>
               Loading your experience...
