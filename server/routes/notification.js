@@ -49,7 +49,7 @@ router.delete('/:notificationId', deleteNotification)
 // Delete all read notifications
 router.delete('/read/all', deleteAllReadNotifications)
 
-// UPDATED: Send notifications (elevated users: admin, team, enterprise, super-admin)
+// UPDATED: Send notifications (elevated users: admin, spa, enterprise, super-admin)
 router.post('/send', checkManagementAccess, sendNotifications)
 
 export default router

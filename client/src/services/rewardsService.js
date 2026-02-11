@@ -94,7 +94,7 @@ export const rewardsService = {
   },
 
   // ===============================================
-  // REWARD MANAGEMENT (Admin/Team) - Enhanced
+  // REWARD MANAGEMENT (Admin/spa) - Enhanced
   // ===============================================
 
   // Get all rewards for management

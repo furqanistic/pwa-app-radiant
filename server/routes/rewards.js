@@ -82,7 +82,7 @@ router.get('/:id', getReward)
 // ===============================================
 
 // Apply permission checking for spa management
-router.use(restrictTo('admin', 'team'))
+router.use(restrictTo('admin', 'spa'))
 
 // NEW: Search users for reward giving
 router.get('/users/search', searchUsersForReward)
@@ -128,7 +128,7 @@ router.get(
 )
 
 // ===============================================
-// ADMIN/TEAM MANAGEMENT ROUTES
+// ADMIN/spa MANAGEMENT ROUTES
 // ===============================================
 
 // Get all rewards for management

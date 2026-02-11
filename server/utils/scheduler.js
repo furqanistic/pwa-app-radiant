@@ -46,11 +46,11 @@ const checkBirthdays = async () => {
 
         // 2. Process each user
         for (const user of birthdayUsers) {
-            // Determine user's location (spaLocation for team, selectedLocation for user)
+            // Determine user's location (spaLocation for spa, selectedLocation for user)
             // Logic adapted from User.js getRelevantLocation method
             let locationId = null;
 
-            if (user.role === 'team') {
+            if (user.role === 'spa') {
                 locationId = user.spaLocation?.locationId;
             } else if (user.role === 'user') {
                 locationId = user.selectedLocation?.locationId;

@@ -21,7 +21,7 @@ const router = express.Router();
 
 // ==================== STRIPE CONNECT ROUTES ====================
 
-// Create Stripe Connect account (Team role only)
+// Create Stripe Connect account (spa role only)
 router.post('/connect/create', verifyToken, checkManagementAccess, createConnectAccount);
 
 // Create account link for onboarding
@@ -50,13 +50,13 @@ router.post('/payment/confirm', verifyToken, confirmPayment);
 // Get payment history
 router.get('/payment/history', verifyToken, getPaymentHistory);
 
-// Get revenue analytics (Team role only)
+// Get revenue analytics (spa role only)
 router.get('/payment/analytics', verifyToken, checkManagementAccess, getRevenueAnalytics);
 
-// Get client revenue tracking (Team role only)
+// Get client revenue tracking (spa role only)
 router.get('/payment/clients-revenue', verifyToken, checkManagementAccess, getClientRevenueAnalytics);
 
-// Process refund (Team role only)
+// Process refund (spa role only)
 router.post('/payment/refund/:paymentId', verifyToken, checkManagementAccess, processRefund);
 
 // ==================== WEBHOOK ROUTE ====================

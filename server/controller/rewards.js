@@ -165,9 +165,9 @@ export const getReward = async (req, res, next) => {
 export const createReward = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -178,6 +178,7 @@ export const createReward = async (req, res, next) => {
       pointCost,
       value,
       image,
+      imagePublicId,
       status = 'active',
       limit = 1,
       validDays = 30,
@@ -220,6 +221,7 @@ export const createReward = async (req, res, next) => {
       pointCost: parseInt(pointCost),
       value: type === 'service' ? 0 : parseFloat(value),
       image: image || '',
+      imagePublicId: imagePublicId || '',
       status,
       limit: parseInt(limit),
       validDays: parseInt(validDays),
@@ -259,9 +261,9 @@ export const createReward = async (req, res, next) => {
 export const updateReward = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -282,6 +284,8 @@ export const updateReward = async (req, res, next) => {
       updateData.pointCost = parseInt(updateData.pointCost)
     if (updateData.value !== undefined)
       updateData.value = parseFloat(updateData.value)
+    if (updateData.imagePublicId !== undefined)
+      updateData.imagePublicId = updateData.imagePublicId || ''
     if (updateData.limit) updateData.limit = parseInt(updateData.limit)
     if (updateData.validDays)
       updateData.validDays = parseInt(updateData.validDays)
@@ -314,9 +318,9 @@ export const updateReward = async (req, res, next) => {
 export const deleteReward = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -498,9 +502,9 @@ export const getServiceRewards = async (req, res, next) => {
 export const createServiceReward = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -566,9 +570,9 @@ export const createServiceReward = async (req, res, next) => {
 export const linkRewardToServices = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -1245,8 +1249,8 @@ export const getSpaUserRewards = async (req, res, next) => {
       if (!spaLocationId) {
         return next(createError(400, 'Location ID required for admin'))
       }
-    } else if (req.user.role === 'team') {
-      // Team users see rewards from their spa only
+    } else if (req.user.role === 'spa') {
+      // spa users see rewards from their spa only
       if (!req.user.spaLocation?.locationId) {
         return next(createError(400, 'Your spa location is not configured'))
       }
@@ -1364,8 +1368,8 @@ export const markRewardAsUsed = async (req, res, next) => {
     // Check if user has permission to mark this reward as used
     if (req.user.role === 'admin') {
       // Admin can mark any reward as used
-    } else if (req.user.role === 'team') {
-      // Team members can only mark rewards used at their spa
+    } else if (req.user.role === 'spa') {
+      // spa members can only mark rewards used at their spa
       if (!req.user.spaLocation?.locationId) {
         return next(createError(400, 'Your spa location is not configured'))
       }
@@ -1445,7 +1449,7 @@ export const getSpaRewardAnalytics = async (req, res, next) => {
       if (!spaLocationId) {
         return next(createError(400, 'Location ID required for admin'))
       }
-    } else if (req.user.role === 'team') {
+    } else if (req.user.role === 'spa') {
       if (!req.user.spaLocation?.locationId) {
         return next(createError(400, 'Your spa location is not configured'))
       }
@@ -1579,9 +1583,9 @@ export const giveManulaRewardToUser = async (req, res, next) => {
     } = req.body
 
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -1591,7 +1595,7 @@ export const giveManulaRewardToUser = async (req, res, next) => {
     if (req.user.role === 'admin') {
       spaLocationId = req.body.locationId
       spaLocationName = req.body.locationName || 'Admin Given'
-    } else if (req.user.role === 'team') {
+    } else if (req.user.role === 'spa') {
       if (!req.user.spaLocation?.locationId) {
         return next(createError(400, 'Your spa location is not configured'))
       }
@@ -1671,7 +1675,7 @@ export const getPendingSpaRewards = async (req, res, next) => {
       if (!spaLocationId) {
         return next(createError(400, 'Location ID required for admin'))
       }
-    } else if (req.user.role === 'team') {
+    } else if (req.user.role === 'spa') {
       if (!req.user.spaLocation?.locationId) {
         return next(createError(400, 'Your spa location is not configured'))
       }
@@ -1738,7 +1742,7 @@ export const searchUsersForReward = async (req, res, next) => {
     const { search, locationId, limit = 10 } = req.query
 
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -1757,8 +1761,8 @@ export const searchUsersForReward = async (req, res, next) => {
       ]
     }
 
-    // Location filter for team members
-    if (req.user.role === 'team' && req.user.spaLocation?.locationId) {
+    // Location filter for spa members
+    if (req.user.role === 'spa' && req.user.spaLocation?.locationId) {
       searchQuery['selectedLocation.locationId'] =
         req.user.spaLocation.locationId
     } else if (locationId) {
@@ -1797,7 +1801,7 @@ export const giveManualRewardToUser = async (req, res, next) => {
     } = req.body
 
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -1813,8 +1817,8 @@ export const giveManualRewardToUser = async (req, res, next) => {
       spaLocationId = req.body.locationId || user.selectedLocation?.locationId
       spaLocationName =
         req.body.locationName || user.selectedLocation?.locationName || 'Admin'
-    } else if (req.user.role === 'team') {
-      // Team members can only give rewards to users in their spa
+    } else if (req.user.role === 'spa') {
+      // spa members can only give rewards to users in their spa
       if (
         user.selectedLocation?.locationId !== req.user.spaLocation?.locationId
       ) {
@@ -1955,7 +1959,7 @@ export const bulkGiveRewards = async (req, res, next) => {
       notifyUsers = true,
     } = req.body
 
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -1983,8 +1987,8 @@ export const bulkGiveRewards = async (req, res, next) => {
     // Process each user
     for (const user of users) {
       try {
-        // Check spa location for team members
-        if (req.user.role === 'team') {
+        // Check spa location for spa members
+        if (req.user.role === 'spa') {
           if (
             user.selectedLocation?.locationId !==
             req.user.spaLocation?.locationId

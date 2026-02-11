@@ -125,8 +125,8 @@ export const validateUserRewardAccess = async (req, res, next) => {
     // Check if user has permission to access this reward
     if (req.user.role === 'admin') {
       // Admin can access any reward
-    } else if (req.user.role === 'team') {
-      // Team members can only access rewards from their spa
+    } else if (req.user.role === 'spa') {
+      // spa members can only access rewards from their spa
       if (!req.user.spaLocation?.locationId) {
         return next(createError(400, 'Your spa location is not configured'))
       }
@@ -210,8 +210,8 @@ export const checkSpaLocationAccess = (req, res, next) => {
       return next()
     }
 
-    // Team users must have a configured spa location
-    if (userRole === 'team') {
+    // spa users must have a configured spa location
+    if (userRole === 'spa') {
       if (!req.user.spaLocation?.locationId) {
         return next(
           createError(
@@ -516,13 +516,13 @@ export const checkRewardLocationAccess = (req, res, next) => {
       return next()
     }
 
-    // Team members can only manage rewards in their assigned location
-    if (userRole === 'team') {
+    // spa members can only manage rewards in their assigned location
+    if (userRole === 'spa') {
       if (!userLocationId) {
         return next(
           createError(
             403,
-            'Team members must be assigned to a location to manage rewards'
+            'spa members must be assigned to a location to manage rewards'
           )
         )
       }
@@ -542,7 +542,7 @@ export const checkRewardLocationAccess = (req, res, next) => {
 
     // Regular users cannot manage rewards
     return next(
-      createError(403, 'Access denied. Admin or team rights required.')
+      createError(403, 'Access denied. Admin or spa rights required.')
     )
   } catch (error) {
     console.error('Location access check error:', error)

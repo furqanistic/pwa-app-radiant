@@ -369,7 +369,7 @@ const ScratchSpinManagement = () => {
     )
   }
 
-  // Handle error - like when team user doesn't have location configured
+  // Handle error - like when spa user doesn't have location configured
   if (error) {
     return (
       <Layout>

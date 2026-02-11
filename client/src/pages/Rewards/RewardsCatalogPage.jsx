@@ -25,6 +25,7 @@ import React, { useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
+import { resolveImageUrl } from '@/lib/imageHelpers'
 
 const rewardTypes = [
   { id: 'all', name: 'All Rewards' },
@@ -134,6 +135,8 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
   const [showConfetti, setShowConfetti] = useState(false)
   const audioRef = useRef(null)
   const brandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
+  const fallbackImage =
+    'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop'
 
   const toggleVoiceNote = (e) => {
     e.stopPropagation()
@@ -248,14 +251,13 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
       <div className='relative h-40 md:h-48 overflow-hidden'>
         <img
-          src={
-            reward.image ||
-            'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop'
-          }
+          src={resolveImageUrl(reward.image, fallbackImage, { width: 500, height: 300 })}
           alt={reward.name}
           className={`w-full h-full object-cover transition-transform duration-300 ${
             canAfford ? 'group-hover:scale-105' : ''
           }`}
+          loading='lazy'
+          decoding='async'
         />
 
         {/* Badges */}

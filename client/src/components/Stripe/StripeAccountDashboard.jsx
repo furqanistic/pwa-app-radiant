@@ -50,7 +50,7 @@ const StripeAccountDashboard = () => {
     }
   };
 
-  if (currentUser?.role !== 'team') {
+  if (currentUser?.role !== 'spa') {
     return null;
   }
 

@@ -265,10 +265,10 @@ export const usePointHistory = (filters = {}) => {
 }
 
 // ===============================================
-// MANAGEMENT HOOKS - For admin/team reward management
+// MANAGEMENT HOOKS - For admin/spa reward management
 // ===============================================
 
-// Get filtered rewards for management (admin/team view)
+// Get filtered rewards for management (admin/spa view)
 export const useFilteredRewards = (filters = {}) => {
   return useQuery({
     queryKey: rewardQueryKeys.list(filters),

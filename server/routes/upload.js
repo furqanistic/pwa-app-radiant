@@ -3,7 +3,7 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
-import { deleteAudio, deleteImage, uploadAudio, uploadImage } from "../controller/uploadController.js";
+import { deleteAudio, deleteCloudinaryImage, deleteImage, uploadAudio, uploadImage } from "../controller/uploadController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -70,5 +70,6 @@ router.delete("/audio", verifyToken, deleteAudio);
 // POST /api/upload/image - Secure with token
 router.post("/image", verifyToken, uploadImageMulter.single("image"), uploadImage);
 router.delete("/image", verifyToken, deleteImage);
+router.delete("/cloudinary", verifyToken, deleteCloudinaryImage);
 
 export default router;

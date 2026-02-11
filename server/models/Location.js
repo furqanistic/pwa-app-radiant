@@ -248,6 +248,10 @@ const LocationSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    logoPublicId: {
+      type: String,
+      default: "",
+    },
 
     // ==================== BRANDING FIELDS ====================
     // Subdomain for multi-tenant access (e.g., "spark" for spark.cxrsystems.com)
@@ -269,6 +273,10 @@ const LocationSchema = new mongoose.Schema(
 
     // Custom favicon URL (optional, falls back to logo)
     favicon: {
+      type: String,
+      default: "",
+    },
+    faviconPublicId: {
       type: String,
       default: "",
     },

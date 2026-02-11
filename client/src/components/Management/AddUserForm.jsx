@@ -116,7 +116,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
         bgColor: 'bg-gradient-to-r from-pink-50 to-rose-50',
         borderColor: 'border-pink-200',
         textColor: 'text-pink-800',
-        title: 'Team Member',
+        title: 'spa Member',
         description: 'You can create User accounts for your spa location.',
       }
     }

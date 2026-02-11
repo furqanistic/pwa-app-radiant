@@ -181,7 +181,7 @@ export const updateAvailability = async (req, res, next) => {
     const { businessHours, birthdayGift, address, phone, reviewLink, latitude, longitude } = req.body
     
     // Permitted roles for managing their own location
-    if (!['spa', 'team'].includes(req.user.role)) {
+    if (!['spa', 'spa'].includes(req.user.role)) {
         return next(createError(403, 'Only spa owners can update location details'))
     }
 

@@ -138,9 +138,9 @@ export const scanQRCode = async (req, res, next) => {
       return next(createError(400, "This QR code is disabled"));
     }
 
-    // Find spa owner (user with team role assigned to this location)
+    // Find spa owner (user with spa role assigned to this location)
     const spaOwner = await User.findOne({
-      role: "team",
+      role: "spa",
       "spaLocation.locationId": location.locationId,
     });
 

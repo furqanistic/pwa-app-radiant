@@ -171,7 +171,7 @@ export const markRewardAsUsed = async (req, res, next) => {
     const { notes } = req.body
 
     // Check permissions - only spa owners or admins can mark rewards as used
-    if (!['admin', 'team', 'super-admin'].includes(req.user.role)) {
+    if (!['admin', 'spa', 'super-admin'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -184,8 +184,8 @@ export const markRewardAsUsed = async (req, res, next) => {
       return next(createError(404, 'Reward not found'))
     }
 
-    // For team users, ensure the reward is from their spa
-    if (req.user.role === 'team') {
+    // For spa users, ensure the reward is from their spa
+    if (req.user.role === 'spa') {
       if (reward.locationId !== req.user.spaLocation?.locationId) {
         return next(
           createError(403, 'You can only manage rewards from your spa')
@@ -222,12 +222,12 @@ export const markRewardAsUsed = async (req, res, next) => {
 export const getSpaRedemptionQueue = async (req, res, next) => {
   try {
     // Only spa owners and admins can access this
-    if (!['admin', 'team', 'super-admin'].includes(req.user.role)) {
+    if (!['admin', 'spa', 'super-admin'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
     let locationId
-    if (req.user.role === 'team') {
+    if (req.user.role === 'spa') {
       locationId = req.user.spaLocation?.locationId
       if (!locationId) {
         return next(createError(400, 'Your spa location is not configured'))

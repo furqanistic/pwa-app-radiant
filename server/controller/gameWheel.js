@@ -25,10 +25,10 @@ const getUserLocationInfo = (user) => {
     return { type: 'admin', locationId: null, locationName: null }
   }
 
-  if (user.role === 'team') {
-    // Team users are spa owners - use their spa location
+  if (user.role === 'spa') {
+    // spa users are spa owners - use their spa location
     if (!user.spaLocation?.locationId) {
-      console.log('Team user missing spa location:', user.spaLocation)
+      console.log('spa user missing spa location:', user.spaLocation)
       throw new Error(
         'Your spa location is not configured. Please contact support to set up your spa location.'
       )
@@ -73,7 +73,7 @@ const buildLocationQuery = (userLocationInfo, requestLocationId = null) => {
   }
 
   if (userLocationInfo.type === 'spa_owner') {
-    // Team users can only see/manage games from their spa
+    // spa users can only see/manage games from their spa
     return { locationId: userLocationInfo.locationId }
   }
 
@@ -360,7 +360,7 @@ export const createGame = async (req, res, next) => {
         locationName: customLocationName,
       }
     } else {
-      // Team users create games for their spa
+      // spa users create games for their spa
       gameLocation = {
         locationId: userLocationInfo.locationId,
         locationName: userLocationInfo.locationName,
@@ -981,12 +981,12 @@ export const getAnyUserGameHistory = async (req, res, next) => {
     const { page = 1, limit = 20, gameType, status } = req.query
 
     // Check permissions
-    if (!['admin', 'super-admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'super-admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
-    // If team user, ensure they can only view users from their spa
-    if (req.user.role === 'team') {
+    // If spa user, ensure they can only view users from their spa
+    if (req.user.role === 'spa') {
       const targetUser = await User.findById(userId)
       if (!targetUser) {
         return next(createError(404, 'User not found'))
@@ -1073,7 +1073,7 @@ export const getAnyUserGameHistory = async (req, res, next) => {
 export const getGameRewardsForSpa = async (req, res, next) => {
   try {
     // Only spa owners and admins can access this
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -1083,7 +1083,7 @@ export const getGameRewardsForSpa = async (req, res, next) => {
       if (!spaLocationId) {
         return next(createError(400, 'Location ID required for admin'))
       }
-    } else if (req.user.role === 'team') {
+    } else if (req.user.role === 'spa') {
       if (!req.user.spaLocation?.locationId) {
         return next(createError(400, 'Your spa location is not configured'))
       }
@@ -1293,7 +1293,7 @@ export const deleteGame = async (req, res, next) => {
     if (userLocationInfo.type === 'admin') {
       // Admin can delete any game
     } else if (userLocationInfo.type === 'spa_owner') {
-      // Team users can only delete games from their spa
+      // spa users can only delete games from their spa
       if (game.locationId !== userLocationInfo.locationId) {
         return next(createError(403, 'You can only delete games from your spa'))
       }
@@ -1340,7 +1340,7 @@ export const getGame = async (req, res, next) => {
     if (userLocationInfo.type === 'admin') {
       // Admin can view any game
     } else if (userLocationInfo.type === 'spa_owner') {
-      // Team users can only view games from their spa
+      // spa users can only view games from their spa
       if (game.locationId !== userLocationInfo.locationId) {
         return next(createError(403, 'You can only view games from your spa'))
       }

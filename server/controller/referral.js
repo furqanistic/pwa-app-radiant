@@ -305,7 +305,7 @@ export const getUserReferralStats = async (req, res, next) => {
   }
 }
 
-// Get all referrals (admin/team)
+// Get all referrals (admin/spa)
 export const getAllReferrals = async (req, res, next) => {
   try {
     const {
@@ -319,7 +319,7 @@ export const getAllReferrals = async (req, res, next) => {
     const query = {}
 
     // Role-based filtering
-    if (req.user.role === 'team') {
+    if (req.user.role === 'spa') {
       const userLocation = req.user.spaLocation
       if (!userLocation?.locationId) {
         return next(createError(400, 'Spa location not configured'))
@@ -401,7 +401,7 @@ export const completeReferral = async (req, res, next) => {
     }
 
     // Permission check
-    if (req.user.role === 'team') {
+    if (req.user.role === 'spa') {
       const userLocation = req.user.spaLocation
       if (
         referral.referred.selectedLocation?.locationId !==
@@ -474,7 +474,7 @@ export const awardMilestoneReward = async (req, res, next) => {
   try {
     const { userId, milestone, purchaseAmount = 0 } = req.body
 
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -575,7 +575,7 @@ export const getReferralLeaderboard = async (req, res, next) => {
     }
 
     // Spa owner filtering
-    if (req.user.role === 'team' && req.user.spaLocation?.locationId) {
+    if (req.user.role === 'spa' && req.user.spaLocation?.locationId) {
       const spaUsers = await User.find({
         'selectedLocation.locationId': req.user.spaLocation.locationId,
       }).select('_id')
@@ -632,7 +632,7 @@ export const getReferralConfig = async (req, res, next) => {
   try {
     const config = await ReferralConfig.getActiveConfig()
 
-    if (req.user.role === 'team') {
+    if (req.user.role === 'spa') {
       const spaConfig = config.getSpaConfig(req.user.spaLocation?.locationId)
       res.status(200).json({
         status: 'success',
@@ -656,7 +656,7 @@ export const updateReferralConfig = async (req, res, next) => {
   try {
     const config = await ReferralConfig.getActiveConfig()
 
-    if (req.user.role === 'team') {
+    if (req.user.role === 'spa') {
       const userLocation = req.user.spaLocation
       if (!userLocation?.locationId) {
         return next(createError(400, 'Spa location not configured'))
@@ -701,10 +701,10 @@ export const updateReferralConfig = async (req, res, next) => {
   }
 }
 
-// Get spa-specific referral stats (team role)
+// Get spa-specific referral stats (spa role)
 export const getSpaReferralStats = async (req, res, next) => {
   try {
-    if (req.user.role !== 'team') {
+    if (req.user.role !== 'spa') {
       return next(createError(403, 'Spa owner access required'))
     }
 

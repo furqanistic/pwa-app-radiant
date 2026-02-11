@@ -21,7 +21,7 @@ router.use(verifyToken)
 router.get('/my-stats', getUserReferralStats)
 router.get('/leaderboard', getReferralLeaderboard)
 
-// Spa owner routes (team role)
+// Spa owner routes (spa role)
 router.get('/spa-stats', getSpaReferralStats) // NEW: Get spa-specific stats
 router.get('/config', getReferralConfig) // Modified: Now works for spa owners too
 router.put('/config', updateReferralConfig) // Modified: Now works for spa owners too

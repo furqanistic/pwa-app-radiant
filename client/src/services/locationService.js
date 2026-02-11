@@ -9,7 +9,7 @@ export const locationService = {
     return response.data
   },
 
-  // Get my location (Team/Manager)
+  // Get my location (spa/Manager)
   getMyLocation: async () => {
     const response = await axiosInstance.get("/locations/my-location");
     return response.data;

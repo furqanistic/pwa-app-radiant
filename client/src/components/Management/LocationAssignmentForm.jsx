@@ -97,17 +97,17 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
 
     const users = usersData.data.users
 
-    // Filter to only admin and team users
+    // Filter to only admin and spa users
     let filteredUsers = users.filter((user) =>
       ['admin', 'spa'].includes(user.role)
     )
 
     // Additional filtering based on current user role
     if (isAdmin) {
-      // Admin can only assign locations to team users
+      // Admin can only assign locations to spa users
       filteredUsers = filteredUsers.filter((user) => user.role === 'spa')
     }
-    // Super-admin can assign to both admin and team (no additional filtering needed)
+    // Super-admin can assign to both admin and spa (no additional filtering needed)
 
     return filteredUsers
   }

@@ -6,6 +6,8 @@ import {
     useUpdateReward,
 } from '@/hooks/useRewards'
 import { uploadService } from '@/services/uploadService'
+import { resolveImageUrl } from '@/lib/imageHelpers'
+import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     ArrowLeft,
@@ -159,17 +161,18 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
   const rewardType = rewardTypes.find((t) => t.id === reward.type)
   const IconComponent = rewardType?.icon || Award
   const canEdit = ['super-admin', 'admin', 'spa'].includes(userRole)
+  const fallbackImage =
+    'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop'
 
   return (
     <div className='bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all group'>
       <div className='relative h-40 md:h-48 overflow-hidden'>
         <img
-          src={
-            reward.image ||
-            'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop'
-          }
+          src={resolveImageUrl(reward.image, fallbackImage, { width: 500, height: 300 })}
           alt={reward.name}
           className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
+          loading='lazy'
+          decoding='async'
         />
 
         <div className='absolute top-3 left-3 flex flex-col gap-2'>
@@ -287,6 +290,7 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
 // Reward Form Modal Component
 const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
   const isEditing = !!reward
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -297,6 +301,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
     limit: 1,
     status: 'active',
     image: '',
+    imagePublicId: '',
     voiceNoteUrl: '',
   })
 
@@ -312,6 +317,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
         limit: reward.limit || 1,
         status: reward.status || 'active',
         image: reward.image || '',
+        imagePublicId: reward.imagePublicId || '',
         voiceNoteUrl: reward.voiceNoteUrl || '',
       })
     } else {
@@ -325,6 +331,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
         limit: 1,
         status: 'active',
         image: '',
+        imagePublicId: '',
         voiceNoteUrl: '',
       })
     }
@@ -516,16 +523,96 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                     </div>
                   </div>
 
-                  {/* Image URL */}
-                  <div className='space-y-1.5'>
-                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>Image URL</label>
-                    <input
-                      type='text'
-                      value={formData.image}
-                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                      placeholder='https://...'
-                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
-                    />
+                  {/* Image Upload */}
+                  <div className='space-y-2 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Image
+                    </label>
+                    <div className='flex flex-col sm:flex-row items-start sm:items-center gap-3'>
+                      <label className='inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold cursor-pointer transition-all'>
+                        <input
+                          type='file'
+                          accept='image/*'
+                          className='hidden'
+                          disabled={isUploadingImage}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            setIsUploadingImage(true)
+                            try {
+                              if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
+                                toast.info('Image is large, compressing...')
+                              }
+                              const compressed = await compressImage(file)
+                              if (!isUnderSizeLimit(compressed)) {
+                                toast.error('Image too large. Please use an image under 1MB.')
+                                return
+                              }
+                              if (formData.imagePublicId || formData.image) {
+                                await uploadService.deleteImage({
+                                  url: formData.image,
+                                  publicId: formData.imagePublicId,
+                                }).catch(console.error)
+                              }
+                              const res = await uploadService.uploadImage(compressed)
+                              setFormData((prev) => ({
+                                ...prev,
+                                image: res.url,
+                                imagePublicId: res.publicId || '',
+                              }))
+                              toast.success('Image uploaded!')
+                            } catch (error) {
+                              toast.error('Failed to upload image')
+                            } finally {
+                              setIsUploadingImage(false)
+                              e.target.value = ''
+                            }
+                          }}
+                        />
+                        {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+                      </label>
+
+                      {formData.image && (
+                        <button
+                          type='button'
+                          onClick={async () => {
+                            if (formData.imagePublicId || formData.image) {
+                              await uploadService.deleteImage({
+                                url: formData.image,
+                                publicId: formData.imagePublicId,
+                              }).catch(console.error)
+                            }
+                            setFormData((prev) => ({
+                              ...prev,
+                              image: '',
+                              imagePublicId: '',
+                            }))
+                          }}
+                          className='text-sm font-semibold text-red-500 hover:text-red-600'
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {formData.image && (
+                      <div className='mt-2'>
+                        <img
+                          src={resolveImageUrl(
+                            formData.image,
+                            'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop',
+                            { width: 192, height: 192 }
+                          )}
+                          alt='Reward'
+                          className='h-24 w-24 rounded-2xl object-cover border border-gray-100 shadow-sm'
+                          loading='lazy'
+                          decoding='async'
+                        />
+                      </div>
+                    )}
+                    <p className='text-[11px] text-gray-400'>
+                      Tip: Upload low-size images (max 1MB) for faster loading.
+                    </p>
                   </div>
 
                   {/* Voice Note Section */}
@@ -700,9 +787,15 @@ const RewardManagement = () => {
                   className='flex items-center gap-4 p-4 border border-gray-100 rounded-lg hover:border-[color:var(--brand-primary)/0.35] hover:shadow-md transition-all group'
                 >
                   <img
-                    src={reward.image || 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop'}
+                    src={resolveImageUrl(
+                      reward.image,
+                      'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop',
+                      { width: 160, height: 160 }
+                    )}
                     alt={reward.name}
                     className='w-16 h-16 rounded-lg object-cover'
+                    loading='lazy'
+                    decoding='async'
                   />
                   <div className='flex-1 min-w-0'>
                     <h3 className='font-bold text-gray-900 truncate'>{reward.name}</h3>

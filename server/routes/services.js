@@ -65,8 +65,8 @@ router.get('/categories/all', getCategories)
 // Get service statistics and analytics
 router.get('/stats/overview', getServiceStats)
 
-// Apply admin/team permission checking for management routes
-router.use(restrictTo('admin', 'team'))
+// Apply management permission checking for management routes
+router.use(restrictTo('super-admin', 'admin', 'spa', 'spa'))
 
 // Create new service
 router.post(

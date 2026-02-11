@@ -53,7 +53,7 @@ router.patch(
 // ADMIN ROUTES - view any user's data
 // ===============================================
 
-// Get any user's rewards (admin/team access)
+// Get any user's rewards (admin/spa access)
 router.get(
   '/user/:userId/rewards',
   checkManagementAccess,
@@ -71,7 +71,7 @@ router.get(
   }
 )
 
-// Get any user's transactions (admin/team access)
+// Get any user's transactions (admin/spa access)
 router.get(
   '/user/:userId/transactions',
   checkManagementAccess,
@@ -87,7 +87,7 @@ router.get(
   }
 )
 
-// Get any user's game stats (admin/team access)
+// Get any user's game stats (admin/spa access)
 router.get(
   '/user/:userId/game-stats',
   checkManagementAccess,

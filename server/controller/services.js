@@ -315,9 +315,9 @@ export const getServices = async (req, res, next) => {
 export const createService = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -328,6 +328,7 @@ export const createService = async (req, res, next) => {
       basePrice,
       duration,
       image,
+      imagePublicId,
       status = 'active',
       discount = { percentage: 0, active: false },
       limit = 1,
@@ -379,6 +380,7 @@ export const createService = async (req, res, next) => {
       basePrice: parseFloat(basePrice),
       duration: parseInt(duration),
       image: image || '',
+      imagePublicId: imagePublicId || '',
       status,
       discount: {
         percentage: discount.percentage || 0,
@@ -463,9 +465,9 @@ export const createService = async (req, res, next) => {
 export const updateService = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -528,6 +530,9 @@ export const updateService = async (req, res, next) => {
     // Handle numeric fields safely
     if (updateData.basePrice !== undefined) {
       updateData.basePrice = parseFloat(updateData.basePrice) || 0
+    }
+    if (updateData.imagePublicId !== undefined) {
+      updateData.imagePublicId = updateData.imagePublicId || ''
     }
     if (updateData.duration !== undefined) {
       updateData.duration = parseInt(updateData.duration) || 0
@@ -629,9 +634,9 @@ export const updateService = async (req, res, next) => {
 export const deleteService = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -832,9 +837,9 @@ export const getCategories = async (req, res, next) => {
 export const createCategory = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -898,9 +903,9 @@ export const createCategory = async (req, res, next) => {
 export const updateCategory = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -950,9 +955,9 @@ export const updateCategory = async (req, res, next) => {
 export const deleteCategory = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -1394,9 +1399,9 @@ export const getServiceRewards = async (req, res, next) => {
 export const linkServicesToService = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 
@@ -1478,9 +1483,9 @@ export const linkServicesToService = async (req, res, next) => {
 export const unlinkServiceFromService = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'team'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa', 'spa'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or team rights required.')
+        createError(403, 'Access denied. Admin or spa rights required.')
       )
     }
 

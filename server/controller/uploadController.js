@@ -1,5 +1,6 @@
 // File: server/controller/uploadController.js
 import { createError } from "../error.js";
+import cloudinary from "../utils/cloudinary.js";
 
 export const uploadAudio = async (req, res, next) => {
   try {
@@ -119,6 +120,26 @@ export const deleteImage = async (req, res, next) => {
       }
       throw err;
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteCloudinaryImage = async (req, res, next) => {
+  try {
+    const { publicId } = req.body;
+    if (!publicId) {
+      return next(createError(400, "publicId is required"));
+    }
+
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: "image",
+    });
+
+    res.status(200).json({
+      success: true,
+      result,
+    });
   } catch (error) {
     next(error);
   }

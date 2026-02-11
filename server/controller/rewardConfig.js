@@ -77,7 +77,7 @@ export const createOrUpdateRewardConfig = async (req, res, next) => {
     console.log(locationId)
     // Get spa information
     if (user.role !== 'admin') {
-      // For team members, use their selected location
+      // For spa members, use their selected location
       if (!user.selectedLocation?.locationId) {
         return next(createError(400, 'User has no selected spa'))
       }
@@ -269,7 +269,7 @@ export const createDefaultConfigs = async (req, res, next) => {
         return next(createError(400, 'Spa information is required for admin'))
       }
     } else {
-      // Team member - use their selected location
+      // spa member - use their selected location
       if (!user.selectedLocation?.locationId) {
         return next(createError(400, 'User has no selected spa'))
       }

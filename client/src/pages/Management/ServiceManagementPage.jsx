@@ -10,6 +10,7 @@ import {
     useUpdateCategory,
     useUpdateService,
 } from '@/hooks/useServices'
+import { uploadService } from '@/services/uploadService'
 import {
     ArrowLeft,
     CheckCircle,
@@ -35,6 +36,12 @@ import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
+import { resolveImageUrl } from '@/lib/imageHelpers'
+import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
+import { useBranding } from '@/context/BrandingContext'
+
+const fallbackServiceImage =
+  'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=500&h=300&fit=crop'
 
 // Enhanced Service Selection Modal for Add-ons with custom pricing
 const ServiceSelectionModal = ({
@@ -149,7 +156,7 @@ const ServiceSelectionModal = ({
               placeholder='Search services...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='w-full pl-10 pr-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+              className='w-full pl-10 pr-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
             />
           </div>
         </div>
@@ -201,12 +208,11 @@ const ServiceSelectionModal = ({
                         </div>
 
                         <img
-                          src={
-                            service.image ||
-                            'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=60&h=60&fit=crop'
-                          }
+                          src={resolveImageUrl(service.image, fallbackServiceImage, { width: 60, height: 60 })}
                           alt={service.name}
                           className='w-12 h-12 rounded-lg object-cover'
+                          loading='lazy'
+                          decoding='async'
                         />
 
                         <div className='flex-1'>
@@ -260,7 +266,7 @@ const ServiceSelectionModal = ({
                                     e.target.value
                                   )
                                 }
-                                className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm'
+                                className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] text-sm'
                                 placeholder={service.basePrice.toString()}
                                 onClick={(e) => e.stopPropagation()}
                               />
@@ -286,7 +292,7 @@ const ServiceSelectionModal = ({
                                     e.target.value
                                   )
                                 }
-                                className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm'
+                                className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] text-sm'
                                 placeholder={service.duration.toString()}
                                 onClick={(e) => e.stopPropagation()}
                               />
@@ -310,7 +316,11 @@ const ServiceSelectionModal = ({
             <button
               onClick={handleConfirm}
               disabled={selectedServices.length === 0}
-              className='flex-1 bg-gradient-to-r from-pink-500 to-rose-600 text-white h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center'
+              className='flex-1 text-white h-10 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
             >
               Link {selectedServices.length} Service
               {selectedServices.length !== 1 ? 's' : ''}
@@ -417,7 +427,7 @@ const CategoryModal = ({ isOpen, onClose }) => {
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
                 placeholder='Enter category name'
-                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                 onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
                 disabled={createCategoryMutation.isPending}
               />
@@ -427,7 +437,11 @@ const CategoryModal = ({ isOpen, onClose }) => {
                 disabled={
                   !newCategoryName.trim() || createCategoryMutation.isPending
                 }
-                className='w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white h-8 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center'
+                className='w-full text-white h-8 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center'
+                style={{
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                }}
               >
                 {createCategoryMutation.isPending
                   ? 'Creating...'
@@ -503,7 +517,13 @@ const ServiceHeader = ({
     
     <div className='relative flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-6 mb-4 md:mb-8'>
       <div className='flex items-start gap-3 md:gap-4'>
-        <div className='bg-gradient-to-br from-pink-500 to-rose-600 p-2 md:p-3 rounded-lg md:rounded-xl shadow-lg shadow-pink-200 shrink-0'>
+        <div
+          className='p-2 md:p-3 rounded-lg md:rounded-xl shadow-lg shrink-0'
+          style={{
+            background:
+              'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+          }}
+        >
           <Settings className='w-5 h-5 md:w-6 md:h-6 text-white' />
         </div>
         <div>
@@ -527,7 +547,11 @@ const ServiceHeader = ({
 
       <button
         onClick={onAddService}
-        className='group relative bg-gradient-to-r from-pink-500 to-rose-600 text-white px-5 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl font-bold hover:shadow-xl hover:shadow-pink-200 active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 overflow-hidden text-sm md:text-base'
+        className='group relative text-white px-5 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 overflow-hidden text-sm md:text-base'
+        style={{
+          background:
+            'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+        }}
       >
         <div className='absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300' />
         <Plus className='w-4 h-4 md:w-5 md:h-5 relative z-10' />
@@ -543,7 +567,7 @@ const ServiceHeader = ({
           placeholder='Search services...'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className='w-full pl-10 pr-4 py-2 bg-gray-50/50 border border-gray-200 rounded-lg md:rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 transition-all text-sm md:text-gray-700 placeholder-gray-400 font-medium'
+          className='w-full pl-10 pr-4 py-2 bg-gray-50/50 border border-gray-200 rounded-lg md:rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]/20 focus:border-pink-500 transition-all text-sm md:text-gray-700 placeholder-gray-400 font-medium'
         />
       </div>
 
@@ -586,12 +610,11 @@ const ServiceCard = ({ service, category, onEdit, onDelete, onView }) => {
     <div className='bg-white rounded-lg overflow-hidden hover:ring-2 hover:ring-pink-200 transition-all group'>
       <div className='relative h-48 overflow-hidden'>
         <img
-          src={
-            service.image ||
-            'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=500&h=300&fit=crop'
-          }
+          src={resolveImageUrl(service.image, fallbackServiceImage, { width: 500, height: 300 })}
           alt={service.name}
           className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
+          loading='lazy'
+          decoding='async'
         />
 
         <div className='absolute top-3 left-3 flex flex-col gap-2'>
@@ -607,7 +630,13 @@ const ServiceCard = ({ service, category, onEdit, onDelete, onView }) => {
           </span>
 
           {category && (
-            <span className='px-2 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r from-pink-500 to-rose-600'>
+            <span
+              className='px-2 py-1 rounded-full text-xs font-bold text-white'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
+            >
               {category.name}
             </span>
           )}
@@ -737,6 +766,19 @@ const ServiceCard = ({ service, category, onEdit, onDelete, onView }) => {
 
 // Complete Service Form with fixed linked services handling
 const ServiceForm = ({ service, onSave, onCancel }) => {
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
   const [formData, setFormData] = useState({
     name: service?.name || '',
     description: service?.description || '',
@@ -751,11 +793,13 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     },
     limit: service?.limit || 1,
     image: service?.image || '',
+    imagePublicId: service?.imagePublicId || '',
     status: service?.status || 'active',
     subTreatments: service?.subTreatments || [],
     linkedServices: service?.linkedServices || [],
   })
 
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [errors, setErrors] = useState({})
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [showServiceModal, setShowServiceModal] = useState(false)
@@ -763,7 +807,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
   // Get current user to check Stripe connection
   const { currentUser } = useSelector((state) => state.user)
 
-  // Check if team user has Stripe connected
+  // Check if spa user has Stripe connected
   const hasStripeConnected =
     currentUser?.role !== 'spa' || // Admins bypass this check
     (currentUser?.stripe?.accountId && currentUser?.stripe?.chargesEnabled)
@@ -837,6 +881,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
         },
         limit: service.limit || 1,
         image: service.image || '',
+        imagePublicId: service.imagePublicId || '',
         status: service.status || 'active',
         subTreatments: service.subTreatments || [],
         linkedServices: formattedLinkedServices,
@@ -898,7 +943,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
   // Fixed handleSubmit function
   const handleSubmit = () => {
-    // Check if team user has Stripe connected (only for creating new services)
+    // Check if spa user has Stripe connected (only for creating new services)
     if (!service && !hasStripeConnected) {
       toast.error(
         'Please connect your Stripe account before creating services. Go to Management > Stripe Connect to set up your payment account.',
@@ -1023,7 +1068,13 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
   return (
     <Layout>
-      <div className='px-4 py-6 space-y-6 max-w-6xl mx-auto'>
+      <div
+        className='px-4 py-6 space-y-6 max-w-6xl mx-auto'
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
         {/* Header */}
         <div className='bg-white rounded-lg p-6'>
           <div className='flex items-center mb-4'>
@@ -1081,7 +1132,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
                   errors.name ? 'border-red-300' : 'border-gray-300'
                 }`}
                 placeholder='e.g., Dermal Filler Treatment'
@@ -1103,7 +1154,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                   onChange={(e) =>
                     setFormData({ ...formData, categoryId: e.target.value })
                   }
-                  className={`flex-1 px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+                  className={`flex-1 px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
                     errors.categoryId ? 'border-red-300' : 'border-gray-300'
                   }`}
                   disabled={categoriesLoading || isSubmitting}
@@ -1145,7 +1196,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                     basePrice: parseFloat(e.target.value) || '',
                   })
                 }
-                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
                   errors.basePrice ? 'border-red-300' : 'border-gray-300'
                 }`}
                 placeholder='450'
@@ -1172,7 +1223,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                     duration: parseInt(e.target.value) || '',
                   })
                 }
-                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
                   errors.duration ? 'border-red-300' : 'border-gray-300'
                 }`}
                 placeholder='60'
@@ -1198,7 +1249,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                     limit: parseInt(e.target.value) || '',
                   })
                 }
-                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
                   errors.limit ? 'border-red-300' : 'border-gray-300'
                 }`}
                 placeholder='5'
@@ -1219,7 +1270,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, status: e.target.value })
                 }
-                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                 disabled={isSubmitting}
               >
                 <option value='active'>Active</option>
@@ -1238,7 +1289,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
               }
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
                 errors.description ? 'border-red-300' : 'border-gray-300'
               }`}
               rows='4'
@@ -1252,18 +1303,90 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
           <div className='mt-6'>
             <label className='block text-sm font-semibold text-gray-700 mb-2'>
-              Image URL
+              Image
             </label>
-            <input
-              type='url'
-              value={formData.image}
-              onChange={(e) =>
-                setFormData({ ...formData, image: e.target.value })
-              }
-              className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
-              placeholder='https://example.com/image.jpg'
-              disabled={isSubmitting}
-            />
+            <div className='flex flex-col sm:flex-row items-start sm:items-center gap-3'>
+              <label className='inline-flex items-center gap-2 px-4 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold cursor-pointer transition-all'>
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='hidden'
+                  disabled={isSubmitting || isUploadingImage}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setIsUploadingImage(true)
+                    try {
+                      if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
+                        toast.info('Image is large, compressing...')
+                      }
+                      const compressed = await compressImage(file)
+                      if (!isUnderSizeLimit(compressed)) {
+                        toast.error('Image too large. Please use an image under 1MB.')
+                        return
+                      }
+                      if (formData.imagePublicId || formData.image) {
+                        await uploadService.deleteImage({
+                          url: formData.image,
+                          publicId: formData.imagePublicId,
+                        }).catch(console.error)
+                      }
+                      const res = await uploadService.uploadImage(compressed)
+                      setFormData((prev) => ({
+                        ...prev,
+                        image: res.url,
+                        imagePublicId: res.publicId || '',
+                      }))
+                      toast.success('Image uploaded!')
+                    } catch (error) {
+                      toast.error('Failed to upload image')
+                    } finally {
+                      setIsUploadingImage(false)
+                      e.target.value = ''
+                    }
+                  }}
+                />
+                {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+              </label>
+
+              {formData.image && (
+                <button
+                  type='button'
+                  onClick={async () => {
+                    if (formData.imagePublicId || formData.image) {
+                      await uploadService.deleteImage({
+                        url: formData.image,
+                        publicId: formData.imagePublicId,
+                      }).catch(console.error)
+                    }
+                    setFormData((prev) => ({
+                      ...prev,
+                      image: '',
+                      imagePublicId: '',
+                    }))
+                  }}
+                  className='text-sm font-semibold text-red-500 hover:text-red-600'
+                  disabled={isSubmitting}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+
+            {formData.image && (
+              <div className='mt-3'>
+                <img
+                  src={resolveImageUrl(formData.image, formData.image, { width: 192, height: 192 })}
+                  alt='Service'
+                  className='h-24 w-24 rounded-lg object-cover border border-gray-100 shadow-sm'
+                  loading='lazy'
+                  decoding='async'
+                />
+              </div>
+            )}
+            <p className='text-[11px] text-gray-400'>
+              Tip: Upload low-size images (max 1MB) for faster loading.
+            </p>
           </div>
         </div>
 
@@ -1288,7 +1411,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                     },
                   })
                 }
-                className='w-5 h-5 text-pink-600 rounded focus:ring-pink-500'
+                className='w-5 h-5 text-pink-600 rounded focus:ring-[color:var(--brand-primary)]'
                 disabled={isSubmitting}
               />
               <label
@@ -1318,7 +1441,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                         },
                       })
                     }
-                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                     placeholder='15'
                     min='0'
                     max='100'
@@ -1342,7 +1465,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                         },
                       })
                     }
-                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                     disabled={isSubmitting}
                   />
                 </div>
@@ -1363,7 +1486,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                         },
                       })
                     }
-                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                     disabled={isSubmitting}
                   />
                 </div>
@@ -1380,7 +1503,11 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
             </h2>
             <button
               onClick={addSubTreatment}
-              className='bg-gradient-to-r from-pink-500 to-rose-600 text-white px-4 h-8 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 flex items-center justify-center gap-2'
+              className='text-white px-4 h-8 rounded-lg font-semibold flex items-center justify-center gap-2'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
               disabled={isSubmitting}
             >
               <Plus className='w-4 h-4' />
@@ -1435,7 +1562,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                         onChange={(e) =>
                           updateSubTreatment(index, 'name', e.target.value)
                         }
-                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                         disabled={isSubmitting}
                       />
                     </div>
@@ -1455,7 +1582,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                             parseFloat(e.target.value) || ''
                           )
                         }
-                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                         min='0'
                         step='0.01'
                         disabled={isSubmitting}
@@ -1477,7 +1604,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                             parseInt(e.target.value) || ''
                           )
                         }
-                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                         min='1'
                         disabled={isSubmitting}
                       />
@@ -1498,7 +1625,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                             e.target.value
                           )
                         }
-                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500'
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
                         disabled={isSubmitting}
                       />
                     </div>
@@ -1524,7 +1651,11 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
             </div>
             <button
               onClick={() => setShowServiceModal(true)}
-              className='bg-gradient-to-r from-pink-500 to-rose-600 text-white px-4 h-8 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 flex items-center justify-center gap-2'
+              className='text-white px-4 h-8 rounded-lg font-semibold flex items-center justify-center gap-2'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
               disabled={isSubmitting}
             >
               <Plus className='w-4 h-4' />
@@ -1564,12 +1695,15 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                       <div className='flex items-center justify-between mb-3'>
                         <div className='flex items-center gap-3'>
                           <img
-                            src={
-                              linkedService.image ||
-                              'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=100&h=100&fit=crop'
-                            }
+                            src={resolveImageUrl(
+                              linkedService.image,
+                              fallbackServiceImage,
+                              { width: 100, height: 100 }
+                            )}
                             alt={linkedService.name}
                             className='w-12 h-12 rounded-lg object-cover'
+                            loading='lazy'
+                            decoding='async'
                           />
                           <div>
                             <h3 className='font-semibold text-gray-900 text-sm'>
@@ -1651,7 +1785,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                                 linkedServices: updatedServices,
                               })
                             }}
-                            className='w-full px-2 h-7 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-pink-500'
+                            className='w-full px-2 h-7 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]'
                             disabled={isSubmitting}
                           />
                         </div>
@@ -1683,7 +1817,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                                 linkedServices: updatedServices,
                               })
                             }}
-                            className='w-full px-2 h-7 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-pink-500'
+                            className='w-full px-2 h-7 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]'
                             disabled={isSubmitting}
                           />
                         </div>
@@ -1730,7 +1864,11 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || (!service && !hasStripeConnected)}
-              className='flex-1 bg-gradient-to-r from-pink-500 to-rose-600 text-white h-10 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+              className='flex-1 text-white h-10 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
             >
               <Save className='w-5 h-5' />
               {isSubmitting
@@ -1933,9 +2071,11 @@ const ServiceManagementPage = () => {
                       <td className='px-6 py-4'>
                         <div className='flex items-center gap-3'>
                           <img
-                            src={service.image || 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=100&fit=crop'}
+                            src={resolveImageUrl(service.image, fallbackServiceImage, { width: 100, height: 100 })}
                             alt={service.name}
                             className='w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0'
+                            loading='lazy'
+                            decoding='async'
                           />
                           <div className='min-w-0'>
                             <div className='font-bold text-gray-900 truncate' title={service.name}>
@@ -2015,9 +2155,11 @@ const ServiceManagementPage = () => {
                 <div key={service._id} className='p-5 space-y-4 bg-white'>
                   <div className='flex items-center gap-4'>
                     <img
-                      src={service.image || 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=200&fit=crop'}
+                      src={resolveImageUrl(service.image, fallbackServiceImage, { width: 200, height: 200 })}
                       alt={service.name}
                       className='w-14 h-14 rounded-xl object-cover border border-gray-100 shadow-sm shrink-0'
+                      loading='lazy'
+                      decoding='async'
                     />
                     <div className='min-w-0 flex-1'>
                       <h3 className='font-bold text-gray-900 text-base leading-tight truncate'>{service.name}</h3>
@@ -2092,7 +2234,11 @@ const ServiceManagementPage = () => {
             </p>
             <button
               onClick={handleAddService}
-              className='bg-gradient-to-r from-pink-500 to-rose-600 text-white px-8 h-8 rounded-lg font-semibold hover:from-pink-600 hover:to-rose-700 flex items-center justify-center'
+              className='text-white px-8 h-8 rounded-lg font-semibold flex items-center justify-center'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
             >
               Create Service
             </button>

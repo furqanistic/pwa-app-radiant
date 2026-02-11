@@ -9,7 +9,7 @@ import {
   getGame,
   getGameAnalytics,
   getGameRewardsForSpa,
-  getUserGameHistory, // NEW: For admin/team to view user's game history
+  getUserGameHistory, // NEW: For admin/spa to view user's game history
   playGame,
   toggleGamePublication,
   toggleGameStatus,
@@ -41,19 +41,19 @@ router.get('/available', restrictTo('user'), getAvailableGames)
 router.post('/:gameId/play', restrictTo('user'), playGame)
 
 // ===============================================
-// ADMIN/TEAM ROUTES - View user game history
+// ADMIN/spa ROUTES - View user game history
 // ===============================================
 
-// Get any user's game history (admin/team can view)
+// Get any user's game history (admin/spa can view)
 router.get(
   '/user/:userId/history',
-  restrictTo('admin', 'super-admin', 'team'),
+  restrictTo('admin', 'super-admin', 'spa'),
   getAnyUserGameHistory
 )
 
 // ===============================================
 // GAME MANAGEMENT ROUTES
-// (admin, super-admin, team roles)
+// (admin, super-admin, spa roles)
 // ===============================================
 
 // Apply game management permission checking

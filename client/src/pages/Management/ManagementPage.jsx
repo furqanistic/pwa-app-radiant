@@ -301,7 +301,7 @@ const ManagementPage = () => {
             )}
           </div>
 
-          {/* Stripe Connect - Team Role Only */}
+          {/* Stripe Connect - spa Role Only */}
           {currentUser?.role === "spa" && (
             <div className="mb-8">
               <StripeConnect />

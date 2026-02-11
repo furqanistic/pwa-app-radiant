@@ -833,8 +833,8 @@ export const assignLocationToUser = async (req, res, next) => {
       logo: location.logo,
     }
 
-    if (user.role === 'spa' || user.role === 'team') {
-      // Team users get spaLocation
+    if (user.role === 'spa' || user.role === 'spa') {
+      // spa users get spaLocation
       user.spaLocation = {
         ...locationData,
         setupAt: new Date(),
@@ -1011,7 +1011,7 @@ export const getOnboardingStatus = async (req, res, next) => {
       profileCompleted,
       onboardingCompleted,
       selectedLocation: user.selectedLocation,
-      spaLocation: user.spaLocation, // For team users
+      spaLocation: user.spaLocation, // For spa users
       userRole: user.role,
     }
 

@@ -75,7 +75,7 @@ export const checkManagementAccess = (req, res, next) => {
 
 // NEW: Game management access - specifically for game operations
 export const checkGameManagementAccess = (req, res, next) => {
-  // Allow admin, super-admin, and team roles to manage games
+  // Allow admin, super-admin, and spa roles to manage games
   if (!['admin', 'spa', 'super-admin'].includes(req.user.role)) {
     return next(
       createError(

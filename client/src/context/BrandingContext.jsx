@@ -1,6 +1,7 @@
 // File: client/src/context/BrandingContext.jsx
 import { selectCurrentUser } from '@/redux/userSlice';
 import { brandingService } from '@/services/brandingService';
+import { resolveImageUrl } from '@/lib/imageHelpers';
 import { getCurrentSubdomain } from '@/utils/subdomain';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
@@ -120,7 +121,7 @@ export const BrandingProvider = ({ children }) => {
           link.rel = 'icon';
           document.getElementsByTagName('head')[0].appendChild(link);
         }
-        link.href = branding.favicon;
+        link.href = resolveImageUrl(branding.favicon, branding.favicon, { width: 64, height: 64 });
       }
       
       // Update theme color CSS variable

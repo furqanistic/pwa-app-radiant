@@ -25,6 +25,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
+import { resolveImageUrl } from '@/lib/imageHelpers'
 
 // ==========================================
 // 1. UTILITY HOOKS & HELPERS
@@ -122,12 +123,15 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
       {/* Image Container */}
       <div className='relative h-48 rounded-[1.5rem] overflow-hidden mb-4 shadow-sm bg-gray-100'>
         <img
-          src={
-            service.image ||
-            'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=800&auto=format&fit=crop&q=60'
-          }
+          src={resolveImageUrl(
+            service.image,
+            'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=800&auto=format&fit=crop&q=60',
+            { width: 800, height: 600 }
+          )}
           alt={service.name}
           className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-110'
+          loading='lazy'
+          decoding='async'
         />
         
         {/* Clean Top-Left Badge */}

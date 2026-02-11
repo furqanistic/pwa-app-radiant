@@ -79,6 +79,10 @@ const RewardSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    imagePublicId: {
+      type: String,
+      default: '',
+    },
     status: {
       type: String,
       enum: ['active', 'inactive'],

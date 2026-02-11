@@ -111,7 +111,7 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
 // Create a new location
 export const createLocation = async (req, res, next) => {
   try {
-    const { locationId, name, description, address, phone, reviewLink, hours, coordinates, logo, subdomain, favicon, themeColor, membership } = req.body
+    const { locationId, name, description, address, phone, reviewLink, hours, coordinates, logo, logoPublicId, subdomain, favicon, faviconPublicId, themeColor, membership } = req.body
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -133,8 +133,10 @@ export const createLocation = async (req, res, next) => {
       hours: hours || [],
       coordinates: coordinates || { latitude: null, longitude: null },
       logo: logo || '',
+      logoPublicId: logoPublicId || '',
       subdomain: subdomain?.trim()?.toLowerCase() || null,
       favicon: favicon || '',
+      faviconPublicId: faviconPublicId || '',
       themeColor: themeColor || '#ec4899',
       membership: membership || {
         isActive: false,
@@ -172,7 +174,7 @@ export const createLocation = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { locationId, name, description, address, phone, reviewLink, hours, isActive, coordinates, automatedGifts, logo, subdomain, favicon, themeColor, membership } = req.body
+    const { locationId, name, description, address, phone, reviewLink, hours, isActive, coordinates, automatedGifts, logo, logoPublicId, subdomain, favicon, faviconPublicId, themeColor, membership } = req.body
 
     const location = await Location.findById(id)
     if (!location) {
@@ -213,8 +215,10 @@ export const updateLocation = async (req, res, next) => {
     if (coordinates !== undefined) updateData.coordinates = coordinates
     if (automatedGifts !== undefined) updateData.automatedGifts = automatedGifts
     if (logo !== undefined) updateData.logo = logo
+    if (logoPublicId !== undefined) updateData.logoPublicId = logoPublicId
     if (subdomain !== undefined) updateData.subdomain = subdomain ? subdomain.trim().toLowerCase() : null
     if (favicon !== undefined) updateData.favicon = favicon
+    if (faviconPublicId !== undefined) updateData.faviconPublicId = faviconPublicId
     if (themeColor !== undefined) updateData.themeColor = themeColor
     if (membership !== undefined) {
       updateData.membership = await syncMembershipWithStripe({
@@ -364,7 +368,7 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
   }
 }
 
-// Get current user's location (Team/Manager only)
+// Get current user's location (spa/Manager only)
 export const getMyLocation = async (req, res, next) => {
   try {
     const userId = req.user.id;

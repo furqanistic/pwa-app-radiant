@@ -97,7 +97,7 @@ export const useReferralLeaderboard = ({ period = 'month', limit = 10 }) => {
   })
 }
 
-// Get all referrals (admin/team)
+// Get all referrals (admin/spa)
 export const useAllReferrals = (filters) => {
   return useQuery({
     queryKey: ['referral', 'all', filters],

@@ -384,13 +384,13 @@ export const checkLocationAccess = async (req, res, next) => {
       return next()
     }
 
-    // Team members can only manage services in their assigned location
-    if (userRole === 'team') {
+    // spa members can only manage services in their assigned location
+    if (userRole === 'spa') {
       if (!userLocationId) {
         return next(
           createError(
             403,
-            'Team members must be assigned to a location to manage services'
+            'spa members must be assigned to a location to manage services'
           )
         )
       }
@@ -410,7 +410,7 @@ export const checkLocationAccess = async (req, res, next) => {
 
     // Regular users cannot manage services
     return next(
-      createError(403, 'Access denied. Admin or team rights required.')
+      createError(403, 'Access denied. Admin or spa rights required.')
     )
   } catch (error) {
     console.error('Error checking location access:', error)

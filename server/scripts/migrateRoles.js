@@ -19,28 +19,28 @@ const migrateRoles = async () => {
     await mongoose.connect(process.env.MONGO)
     console.log('Connected to MongoDB')
 
-    // 1. Update users with role 'team' to 'spa'
-    console.log('Finding users with role "team"...')
+    // 1. Update users with role 'spa' to 'spa'
+    console.log('Finding users with role "spa"...')
     const updateResult = await User.updateMany(
-      { role: 'team' },
+      { role: 'spa' },
       { $set: { role: 'spa' } }
     )
 
-    console.log(`Migration complete. Updated ${updateResult.modifiedCount} users from "team" to "spa".`)
+    console.log(`Migration complete. Updated ${updateResult.modifiedCount} users from "spa" to "spa".`)
 
     // 2. Verify update
-    const remainingTeamUsers = await User.countDocuments({ role: 'team' })
+    const remainingTeamUsers = await User.countDocuments({ role: 'spa' })
     const newSpaUsers = await User.countDocuments({ role: 'spa' })
 
-    console.log(`Remaining "team" users: ${remainingTeamUsers}`)
+    console.log(`Remaining "spa" users: ${remainingTeamUsers}`)
     console.log(`Total "spa" users: ${newSpaUsers}`)
 
     if (remainingTeamUsers === 0 && updateResult.modifiedCount > 0) {
-      console.log('SUCCESS: All team roles migrated to spa.')
+      console.log('SUCCESS: All spa roles migrated to spa.')
     } else if (updateResult.modifiedCount === 0) {
-      console.log('NOTICE: No users found with role "team" to migrate.')
+      console.log('NOTICE: No users found with role "spa" to migrate.')
     } else {
-      console.warn('WARNING: Some team users might remain.')
+      console.warn('WARNING: Some spa users might remain.')
     }
 
   } catch (error) {

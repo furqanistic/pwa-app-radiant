@@ -120,7 +120,7 @@ router.post(
   assignLocationToUser
 )
 
-// Get users eligible for location assignment (admin/team only)
+// Get users eligible for location assignment (admin/spa only)
 router.get('/assignable-users', requireAdminOrAbove, getAssignableUsers)
 
 // Create admin user (super-admin only)

@@ -160,7 +160,7 @@ const Layout = ({
       label: 'Contacts',
       icon: Contact2,
       href: '/contacts',
-      elevatedAccessRequired: true, // Visible to super-admin, admin, team, enterprise
+      elevatedAccessRequired: true, // Visible to super-admin, admin, spa, enterprise
     },
     {
       id: 'services',
@@ -188,7 +188,7 @@ const Layout = ({
       icon: Users,
       href: '/management',
       badge: null,
-      elevatedAccessRequired: true, // Requires elevated access (super-admin, admin, team, enterprise)
+      elevatedAccessRequired: true, // Requires elevated access (super-admin, admin, spa, enterprise)
     },
     {
       id: 'rewards',

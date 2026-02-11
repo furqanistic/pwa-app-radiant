@@ -4,6 +4,8 @@ import { brandingService } from '@/services/brandingService'
 import { locationService } from '@/services/locationService'
 import { uploadService } from '@/services/uploadService'
 import { buildSubdomainUrl, validateSubdomainFormat } from '@/utils/subdomain'
+import { resolveImageUrl } from '@/lib/imageHelpers'
+import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
@@ -127,8 +129,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       isClosed: false,
     })),
     logo: '',
+    logoPublicId: '',
     subdomain: '',
     favicon: '',
+    faviconPublicId: '',
     themeColor: '#ec4899',
   })
 
@@ -162,8 +166,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             })),
         coordinates: initialData.coordinates || { latitude: null, longitude: null },
         logo: initialData.logo || '',
+        logoPublicId: initialData.logoPublicId || '',
         subdomain: initialData.subdomain || '',
         favicon: initialData.favicon || '',
+        faviconPublicId: initialData.faviconPublicId || '',
         themeColor: initialData.themeColor || '#ec4899',
       })
       if (initialData.coordinates?.latitude && initialData.coordinates?.longitude) {
@@ -220,8 +226,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       })),
       coordinates: { latitude: null, longitude: null },
       logo: '',
+      logoPublicId: '',
       subdomain: '',
       favicon: '',
+      faviconPublicId: '',
       themeColor: '#ec4899',
     })
     setPosition(null);
@@ -244,16 +252,29 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     const file = e.target.files[0]
     if (!file) return
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Logo image must be less than 2MB')
-      return
-    }
-
     setIsUploading(true)
     try {
-      const resp = await uploadService.uploadImage(file)
+      if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
+        toast.info('Image is large, compressing...')
+      }
+      const compressed = await compressImage(file)
+      if (!isUnderSizeLimit(compressed)) {
+        toast.error('Logo image must be less than 1MB')
+        return
+      }
+      if (formData.logoPublicId || formData.logo) {
+        await uploadService.deleteImage({
+          url: formData.logo,
+          publicId: formData.logoPublicId,
+        }).catch(console.error)
+      }
+      const resp = await uploadService.uploadImage(compressed)
       if (resp.success) {
-        setFormData((prev) => ({ ...prev, logo: resp.url }))
+        setFormData((prev) => ({
+          ...prev,
+          logo: resp.url,
+          logoPublicId: resp.publicId || '',
+        }))
         toast.success('Logo uploaded successfully')
       }
     } catch (err) {
@@ -266,31 +287,42 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
 
   const handleRemoveLogo = async () => {
     if (!formData.logo) return
-    
-    // Optional: delete from server
-    // try {
-    //   await uploadService.deleteImage(formData.logo)
-    // } catch (err) {
-    //   console.error('Delete logo error:', err)
-    // }
-
-    setFormData((prev) => ({ ...prev, logo: '' }))
+    if (formData.logoPublicId || formData.logo) {
+      await uploadService.deleteImage({
+        url: formData.logo,
+        publicId: formData.logoPublicId,
+      }).catch(console.error)
+    }
+    setFormData((prev) => ({ ...prev, logo: '', logoPublicId: '' }))
   }
 
   const handleFaviconUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Favicon image must be less than 2MB')
-      return
-    }
-
     setIsUploadingFavicon(true)
     try {
-      const resp = await uploadService.uploadImage(file)
+      if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
+        toast.info('Image is large, compressing...')
+      }
+      const compressed = await compressImage(file)
+      if (!isUnderSizeLimit(compressed)) {
+        toast.error('Favicon image must be less than 1MB')
+        return
+      }
+      if (formData.faviconPublicId || formData.favicon) {
+        await uploadService.deleteImage({
+          url: formData.favicon,
+          publicId: formData.faviconPublicId,
+        }).catch(console.error)
+      }
+      const resp = await uploadService.uploadImage(compressed)
       if (resp.success) {
-        setFormData((prev) => ({ ...prev, favicon: resp.url }))
+        setFormData((prev) => ({
+          ...prev,
+          favicon: resp.url,
+          faviconPublicId: resp.publicId || '',
+        }))
         toast.success('Favicon uploaded successfully')
       }
     } catch (err) {
@@ -303,7 +335,13 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
 
   const handleRemoveFavicon = async () => {
     if (!formData.favicon) return
-    setFormData((prev) => ({ ...prev, favicon: '' }))
+    if (formData.faviconPublicId || formData.favicon) {
+      await uploadService.deleteImage({
+        url: formData.favicon,
+        publicId: formData.faviconPublicId,
+      }).catch(console.error)
+    }
+    setFormData((prev) => ({ ...prev, favicon: '', faviconPublicId: '' }))
   }
 
   const handleSubdomainChange = async (e) => {
@@ -365,8 +403,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       hours: formData.hours,
       coordinates: position ? { latitude: position.lat, longitude: position.lng } : formData.coordinates,
       logo: formData.logo,
+      logoPublicId: formData.logoPublicId,
       subdomain: formData.subdomain || null,
       favicon: formData.favicon || null,
+      faviconPublicId: formData.faviconPublicId || null,
       themeColor: formData.themeColor || '#ec4899',
     }
 
@@ -463,7 +503,13 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 <div className='relative w-24 h-24 bg-white border border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center shadow-sm group'>
                   {formData.logo ? (
                     <>
-                      <img src={formData.logo} alt='Logo' className='w-full h-full object-cover' />
+                      <img
+                        src={resolveImageUrl(formData.logo, formData.logo, { width: 192, height: 192 })}
+                        alt='Logo'
+                        className='w-full h-full object-cover'
+                        loading='lazy'
+                        decoding='async'
+                      />
                       <button
                         type='button'
                         onClick={handleRemoveLogo}
@@ -483,7 +529,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 </div>
                 <div className='flex-1'>
                   <p className='text-xs text-gray-500 mb-2'>
-                    Upload a high-quality logo for this spa. It will be used as the PWA icon for users.
+                    Upload a high-quality logo for this spa. It will be used as the PWA icon for users. Keep it under 1MB for faster loading.
                   </p>
                   <div className='flex gap-2'>
                     <Button
@@ -566,7 +612,13 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 <div className='relative w-16 h-16 bg-white border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shadow-sm group'>
                   {formData.favicon ? (
                     <>
-                      <img src={formData.favicon} alt='Favicon' className='w-full h-full object-cover' />
+                      <img
+                        src={resolveImageUrl(formData.favicon, formData.favicon, { width: 128, height: 128 })}
+                        alt='Favicon'
+                        className='w-full h-full object-cover'
+                        loading='lazy'
+                        decoding='async'
+                      />
                       <button
                         type='button'
                         onClick={handleRemoveFavicon}
@@ -586,7 +638,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 </div>
                 <div className='flex-1'>
                   <p className='text-xs text-gray-500 mb-2'>
-                    Upload a favicon (square, 192x192px recommended). Falls back to logo if not provided.
+                    Upload a favicon (square, 192x192px recommended). Keep it under 1MB for faster loading. Falls back to logo if not provided.
                   </p>
                   <Button
                     type='button'
