@@ -8,6 +8,7 @@ import {
     selectIsLoading,
 } from '@/redux/userSlice'
 import { locationService } from '@/services/locationService'
+import { resolveImageUrl } from '@/lib/imageHelpers'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -401,12 +402,14 @@ const AuthPage = () => {
               transition={{ duration: 0.6 }}
             >
               <div className='flex flex-col items-center justify-center mb-12 w-full'>
-                {hasBranding && branding?.logo ? (
+                {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
                   <div className="flex flex-col items-center">
                     <img 
-                      src={branding.logo} 
+                      src={resolveImageUrl(branding.logo || branding.logoPublicId, branding.logo, { width: 256, height: 256 })}
                       alt={branding.name} 
                       className="h-24 w-auto mb-6 object-contain"
+                      loading='lazy'
+                      decoding='async'
                     />
                     <h1 className='text-4xl font-black text-gray-900 tracking-tight uppercase text-center'>
                       {branding.name}
@@ -445,12 +448,14 @@ const AuthPage = () => {
           <header className='mb-2'>
             {isMobile && (
               <div className='flex flex-col items-center justify-center mb-10'>
-                {hasBranding && branding?.logo ? (
+                {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
                   <div className="flex flex-col items-center gap-3">
                     <img 
-                      src={branding.logo} 
+                      src={resolveImageUrl(branding.logo || branding.logoPublicId, branding.logo, { width: 160, height: 160 })}
                       alt={branding.name} 
                       className="h-20 w-20 object-contain"
+                      loading='lazy'
+                      decoding='async'
                     />
                     <span className="text-2xl font-black text-gray-900 tracking-tight uppercase">
                       {branding.name}

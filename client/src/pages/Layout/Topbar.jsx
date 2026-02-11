@@ -1,6 +1,6 @@
 import { useBranding } from "@/context/BrandingContext";
+import { resolveImageUrl } from "@/lib/imageHelpers";
 import { selectIsElevatedUser, selectIsSuperAdmin } from "@/redux/userSlice";
-import { motion } from "framer-motion";
 import { ShoppingCart } from "lucide-react";
 import React from "react";
 import { useSelector } from "react-redux";
@@ -30,37 +30,24 @@ const Topbar = ({
       <div className={cn("bg-white border-b border-gray-200 sticky top-0 z-30", className)}>
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Left side - SPA Logo and Install Button */}
+            {/* Left side - Brand Logo + Separator + Install Button */}
             <div className="flex items-center space-x-3">
-              {/* SPA Logo */}
-              {(() => {
-                const activeLocation = currentUser?.role === 'spa' 
-                  ? currentUser?.spaLocation 
-                  : currentUser?.selectedLocation;
-                
-                if (activeLocation?.logo) {
-                  return (
-                    <motion.div
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="flex items-center space-x-2 pr-3 border-r border-gray-100"
-                    >
-                      <div className="w-8 h-8 rounded-lg overflow-hidden border border-gray-100 shadow-sm bg-white flex items-center justify-center">
-                        <img 
-                          src={activeLocation.logo} 
-                          alt={activeLocation.locationName || "SPA Logo"} 
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <span className="text-sm font-bold text-gray-800 hidden xs:block truncate max-w-[140px]">
-                        {activeLocation.locationName}
-                      </span>
-                    </motion.div>
-                  );
-                }
-                return null;
-              })()}
-              
+              {(branding?.logo || branding?.logoPublicId) && (
+                <div className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm bg-gradient-to-br from-gray-100 to-gray-200 p-1.5 flex items-center justify-center">
+                  <img
+                    src={resolveImageUrl(
+                      branding.logo || branding.logoPublicId,
+                      branding.logo,
+                      { width: 64, height: 64 }
+                    )}
+                    alt={branding?.name || "Brand Logo"}
+                    className="w-full h-full object-contain"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              )}
+              <div className="h-7 w-px bg-gray-200" />
               <InstallButton />
             </div>
 

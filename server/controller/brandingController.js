@@ -20,7 +20,7 @@ export const getBrandingBySubdomain = async (req, res, next) => {
     const location = await Location.findOne({ 
       subdomain: subdomain.toLowerCase(),
       isActive: true 
-    }).select('name logo favicon themeColor subdomain locationId address membership reviewLink');
+    }).select('name logo logoPublicId favicon faviconPublicId themeColor subdomain locationId address membership reviewLink');
 
     if (!location) {
       return res.status(404).json({
@@ -37,7 +37,9 @@ export const getBrandingBySubdomain = async (req, res, next) => {
         locationId: location.locationId,
         name: location.name,
         logo: location.logo,
+        logoPublicId: location.logoPublicId || '',
         favicon: location.favicon || location.logo, // Fallback to logo if no favicon
+        faviconPublicId: location.faviconPublicId || '',
         themeColor: location.themeColor || "#ec4899",
         address: location.address,
         membership: location.membership,
@@ -68,7 +70,7 @@ export const getBrandingByLocationId = async (req, res, next) => {
     const location = await Location.findOne({
       locationId,
       isActive: true,
-    }).select('name logo favicon themeColor subdomain locationId address membership reviewLink');
+    }).select('name logo logoPublicId favicon faviconPublicId themeColor subdomain locationId address membership reviewLink');
 
     if (!location) {
       return res.status(404).json({
@@ -84,7 +86,9 @@ export const getBrandingByLocationId = async (req, res, next) => {
         locationId: location.locationId,
         name: location.name,
         logo: location.logo,
+        logoPublicId: location.logoPublicId || '',
         favicon: location.favicon || location.logo,
+        faviconPublicId: location.faviconPublicId || '',
         themeColor: location.themeColor || "#ec4899",
         address: location.address,
         membership: location.membership,

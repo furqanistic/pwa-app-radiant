@@ -2,6 +2,7 @@
 import MembershipManagementModal from '@/components/Management/MembershipManagementModal'
 import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
 import { useBranding } from '@/context/BrandingContext'
+import { resolveImageUrl } from '@/lib/imageHelpers'
 import {
     logout,
     selectCurrentUser,

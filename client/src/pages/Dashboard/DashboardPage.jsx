@@ -7,6 +7,7 @@ import { useBranding } from '@/context/BrandingContext'
 import { useDashboardData } from '@/hooks/useDashboard'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { rewardsService } from '@/services/rewardsService'
+import { resolveImageUrl } from '@/lib/imageHelpers'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   AlertCircle,
@@ -232,14 +233,17 @@ const RewardCard = ({
 
       <div className='relative h-40 md:h-48 overflow-hidden'>
         <img
-          src={
-            reward.image ||
-            'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop'
-          }
+          src={resolveImageUrl(
+            reward.image,
+            'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop',
+            { width: 500, height: 300 }
+          )}
           alt={reward.name}
           className={`w-full h-full object-cover transition-transform duration-300 ${
             canAfford && !isOptimisticUpdate ? 'group-hover:scale-105' : ''
           }`}
+          loading='lazy'
+          decoding='async'
         />
 
         {/* Badges */}

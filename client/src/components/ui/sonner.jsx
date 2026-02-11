@@ -26,7 +26,8 @@ const Toaster = ({
           "--info-border": "transparent",
           "--warning-bg": "var(--brand-primary)",
           "--warning-text": "#ffffff",
-          "--warning-border": "transparent"
+          "--warning-border": "transparent",
+          zIndex: 10000
         }
       }
       {...props} />)

@@ -114,14 +114,18 @@ export const BrandingProvider = ({ children }) => {
       document.title = `${branding.name} - RadiantAI`;
       
       // Update favicon
-      if (branding.favicon) {
+      if (branding.favicon || branding.faviconPublicId) {
         let link = document.querySelector("link[rel~='icon']");
         if (!link) {
           link = document.createElement('link');
           link.rel = 'icon';
           document.getElementsByTagName('head')[0].appendChild(link);
         }
-        link.href = resolveImageUrl(branding.favicon, branding.favicon, { width: 64, height: 64 });
+        link.href = resolveImageUrl(
+          branding.favicon || branding.faviconPublicId,
+          branding.favicon,
+          { width: 64, height: 64 }
+        );
       }
       
       // Update theme color CSS variable
