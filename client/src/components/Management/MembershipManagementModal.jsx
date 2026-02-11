@@ -1,19 +1,33 @@
 // client/src/components/Management/MembershipManagementModal.jsx
+import { useBranding } from '@/context/BrandingContext';
 import { locationService } from '@/services/locationService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Crown, Sparkles } from 'lucide-react';
+import { Crown, Sparkles, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import {
     Dialog,
     DialogContent,
-    DialogHeader,
     DialogTitle,
 } from '../ui/dialog';
 
+const adjustHex = (hex, amount) => {
+    const cleaned = (hex || '').replace('#', '');
+    if (cleaned.length !== 6) return '#be185d';
+    const num = parseInt(cleaned, 16);
+    const clamp = (value) => Math.max(0, Math.min(255, value));
+    const r = clamp((num >> 16) + amount);
+    const g = clamp(((num >> 8) & 0xff) + amount);
+    const b = clamp((num & 0xff) + amount);
+    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+};
+
 const MembershipManagementModal = ({ isOpen, onClose }) => {
     const queryClient = useQueryClient();
+    const { branding } = useBranding();
+    const brandColor = branding?.themeColor || '#ec4899';
+    const brandColorDark = adjustHex(brandColor, -24);
 
     // Fetch current location data
     const { data: locationData, isLoading } = useQuery({
@@ -94,20 +108,35 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                        <Crown className="w-6 h-6 text-amber-500" />
-                        Manage Membership
-                    </DialogTitle>
-                </DialogHeader>
+            <DialogContent
+                showCloseButton={false}
+                className="p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-2xl rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2"
+            >
+                <div
+                    className="px-6 py-4 text-white flex items-center justify-between"
+                    style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+                >
+                    <div className="flex items-center gap-2">
+                        <Crown className="w-6 h-6 text-white" />
+                        <DialogTitle className="text-lg sm:text-2xl font-bold">
+                            Manage Membership
+                        </DialogTitle>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-lg hover:bg-white/15 transition-colors"
+                        type="button"
+                    >
+                        <X className="w-5 h-5 text-white" />
+                    </button>
+                </div>
 
                 {isLoading ? (
                     <div className="flex items-center justify-center py-12">
-                        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+                        <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div>
                     </div>
                 ) : (
-                    <form onSubmit={handleSubmit} className="space-y-6 py-4">
+                    <form onSubmit={handleSubmit} className="space-y-6 py-6 px-6">
                         {/* Active Toggle */}
                         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                             <div>
@@ -215,7 +244,8 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
                             <Button
                                 type="submit"
                                 disabled={updateMembership.isPending}
-                                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                                className="flex-1 text-white"
+                                style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
                             >
                                 {updateMembership.isPending ? 'Saving...' : 'Save Changes'}
                             </Button>

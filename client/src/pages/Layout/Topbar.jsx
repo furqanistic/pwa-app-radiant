@@ -30,7 +30,7 @@ const Topbar = ({
       <div className={cn("bg-white border-b border-gray-200 sticky top-0 z-30", className)}>
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* Left side - Brand Logo + Separator + Install Button */}
+            {/* Left side - Brand Logo + Install Button */}
             <div className="flex items-center space-x-3">
               {(branding?.logo || branding?.logoPublicId) && (
                 <div className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm bg-gradient-to-br from-gray-100 to-gray-200 p-1.5 flex items-center justify-center">

@@ -231,7 +231,9 @@ const PublicRoute = ({ children }) => {
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   if (currentUser && token) {
-    return <Navigate to={buildSpaPath('/dashboard')} replace />
+    const targetPath =
+      currentUser?.role === 'super-admin' ? '/management' : '/dashboard'
+    return <Navigate to={buildSpaPath(targetPath)} replace />
   }
 
   return children

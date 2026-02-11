@@ -1,6 +1,7 @@
 // File: client/src/components/Management/LocationForm.jsx
 // client/src/components/Management/LocationForm.jsx
 import { brandingService } from '@/services/brandingService'
+import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
 import { uploadService } from '@/services/uploadService'
 import { buildSubdomainUrl, validateSubdomainFormat } from '@/utils/subdomain'
@@ -9,7 +10,7 @@ import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/i
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
-import { AlertCircle, Clock, ExternalLink, Globe, Image as ImageIcon, Loader2, LocateFixed, MapPin, Palette, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { AlertCircle, Clock, ExternalLink, Globe, Image as ImageIcon, Loader2, LocateFixed, MapPin, Palette, Plus, Search, Trash2, Upload, X } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import { toast } from 'sonner'
@@ -18,8 +19,6 @@ import { Button } from '@/components/ui/button'
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -72,6 +71,9 @@ const adjustHex = (hex, amount) => {
     .padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`
 }
 
+const getDialogSheetClasses =
+  'p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-3xl rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2'
+
 // Fix Leaflet icon issue
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -111,6 +113,9 @@ const MapUpdater = ({ position }) => {
 };
 
 const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = adjustHex(brandColor, -24)
   const [formData, setFormData] = useState({
     locationId: '',
     name: '',
@@ -430,7 +435,8 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       } else {
         toast.error("Location not found.");
       }
-    } catch (e) {
+    } catch (error) {
+      console.error("Search failed:", error)
       toast.error("Search failed");
     } finally {
       setIsSearching(false);
@@ -460,20 +466,33 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className='sm:max-w-xl max-h-[90vh] overflow-y-auto'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2 text-2xl font-bold'>
-            <MapPin className='w-6 h-6 text-pink-500' />
-            {initialData ? 'Edit Location' : 'Create New Location'}
-          </DialogTitle>
-          <DialogDescription>
-            {initialData
-              ? 'Update details for this spa location'
-              : 'Add a new spa location to the system using the account detail URL'}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent showCloseButton={false} className={getDialogSheetClasses}>
+        <div
+          className='px-6 py-4 text-white flex items-center justify-between'
+          style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+        >
+          <div className='flex items-center gap-2'>
+            <MapPin className='w-6 h-6 text-white' />
+            <DialogTitle className='text-lg sm:text-2xl font-bold'>
+              {initialData ? 'Edit Location' : 'Create New Location'}
+            </DialogTitle>
+          </div>
+          <button
+            onClick={onClose}
+            className='p-2 rounded-lg hover:bg-white/15 transition-colors'
+            type='button'
+          >
+            <X className='w-5 h-5 text-white' />
+          </button>
+        </div>
 
-        <form onSubmit={handleSubmit} className='space-y-8'>
+        <div className='px-6 py-2 text-sm text-gray-600'>
+          {initialData
+            ? 'Update details for this spa location'
+            : 'Add a new spa location to the system using the account detail URL'}
+        </div>
+
+        <form onSubmit={handleSubmit} className='space-y-8 px-6 pb-6 overflow-y-auto'>
           <div className='bg-gray-50 p-4 rounded-2xl space-y-4'>
             <div className='space-y-2'>
               <Label htmlFor='locationId' className='text-sm font-semibold text-gray-700'>
@@ -938,7 +957,8 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             </Button>
             <Button
               type='submit'
-              className='flex-1 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 text-white rounded-xl h-12 font-bold shadow-lg shadow-pink-200'
+              className='flex-1 text-white rounded-xl h-12 font-bold'
+              style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
               disabled={isPending || !formData.locationId || !formData.name.trim()}
             >
               {isPending ? (

@@ -49,6 +49,9 @@ const signinUser = async (credentials) => {
   return response.data
 }
 
+const getRoleFromAuthPayload = (payload) =>
+  payload?.data?.user?.role || payload?.user?.role || payload?.role || null
+
 const clampChannel = (value) => Math.max(0, Math.min(255, value))
 
 const hexToRgb = (hex) => {
@@ -305,8 +308,11 @@ const AuthPage = () => {
       }
       dispatch(loginSuccess(data))
       setSuccess('Welcome back! Loading your dashboard...')
+      const role = getRoleFromAuthPayload(data)
+      const targetPath =
+        role === 'super-admin' ? '/management' : '/dashboard'
       setTimeout(() => {
-        navigate(buildSpaPath('/dashboard'))
+        navigate(buildSpaPath(targetPath))
       }, 1000)
     },
     onError: (error) => {

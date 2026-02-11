@@ -47,6 +47,51 @@ const sendPushNotification = async (subscription, payload) => {
   }
 }
 
+const getSenderRecipientScope = (sender) => {
+  if (sender.role === 'super-admin') return {}
+
+  if (sender.role === 'spa') {
+    const locationId =
+      sender.spaLocation?.locationId ||
+      sender.selectedLocation?.locationId
+    if (!locationId) return { _id: null }
+    return {
+      role: 'user',
+      'selectedLocation.locationId': locationId,
+    }
+  }
+
+  if (sender.role === 'admin') {
+    const locationId =
+      sender.selectedLocation?.locationId || sender.spaLocation?.locationId
+
+    if (locationId) {
+      return {
+        role: { $ne: 'super-admin' },
+        $or: [
+          { 'selectedLocation.locationId': locationId },
+          { 'spaLocation.locationId': locationId },
+        ],
+      }
+    }
+
+    return {
+      role: { $ne: 'super-admin' },
+    }
+  }
+
+  if (sender.role === 'enterprise') {
+    const locationId = sender.selectedLocation?.locationId
+    if (!locationId) return { _id: null }
+    return {
+      role: { $in: ['user', 'enterprise'] },
+      'selectedLocation.locationId': locationId,
+    }
+  }
+
+  return { _id: null }
+}
+
 // Subscribe to push notifications
 export const subscribeToPush = async (req, res, next) => {
   try {
@@ -142,11 +187,12 @@ export const sendNotifications = async (req, res, next) => {
 
     const { userIds, type, message, subject, channels, priority, category } =
       req.body
-    console.log(userIds, type, message, subject)
+
     if (!message || !subject) {
       return next(createError(400, 'Message and subject are required'))
     }
 
+    const scopeFilter = getSenderRecipientScope(req.user)
     let recipients = []
 
     // Determine recipients based on notification type
@@ -161,21 +207,33 @@ export const sendNotifications = async (req, res, next) => {
           )
         }
         recipients = await User.find({
+          ...scopeFilter,
           _id: { $in: userIds },
           isDeleted: false,
         })
         break
 
       case 'broadcast':
-        recipients = await User.find({ isDeleted: false })
+        recipients = await User.find({
+          ...scopeFilter,
+          isDeleted: false,
+        })
         break
 
       case 'admin':
-        recipients = await User.find({ role: 'admin', isDeleted: false })
+        recipients = await User.find({
+          ...scopeFilter,
+          role: 'admin',
+          isDeleted: false,
+        })
         break
 
       case 'enterprise':
-        recipients = await User.find({ role: 'enterprise', isDeleted: false })
+        recipients = await User.find({
+          ...scopeFilter,
+          role: 'enterprise',
+          isDeleted: false,
+        })
         break
 
       default:

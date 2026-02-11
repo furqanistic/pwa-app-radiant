@@ -374,7 +374,8 @@ const GamesSection = () => {
     },
   }
 
-  const { data: gamesData, isLoading, error, refetch } = useAvailableGames()
+  const { data: gamesData, isLoading, isFetching, error, refetch } =
+    useAvailableGames()
 
   const playGameMutation = usePlayGame({
     onSuccess: (data) => {
@@ -420,7 +421,9 @@ const GamesSection = () => {
   const spinGame = games.find((game) => game.type === 'spin')
   const scratchGame = games.find((game) => game.type === 'scratch')
 
-  if (isLoading) {
+  const isInitialLoading = (isLoading || isFetching) && !gamesData
+
+  if (isInitialLoading) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -479,9 +482,11 @@ const GamesSection = () => {
           <div className='flex items-center gap-2 self-end sm:self-auto'>
             <button
               onClick={() => refetch()}
-              className={`text-[color:var(--brand-primary)] p-2 rounded-xl bg-white/50 backdrop-blur-sm border border-gray-200/70 hover:bg-[color:var(--brand-primary)/0.08] transition-all ${isLoading ? 'opacity-50' : ''}`}
+              className={`text-[color:var(--brand-primary)] p-2 rounded-xl bg-white/50 backdrop-blur-sm border border-gray-200/70 hover:bg-[color:var(--brand-primary)/0.08] transition-all ${isFetching ? 'opacity-50' : ''}`}
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`}
+              />
             </button>
             <button
               onClick={() => (window.location.href = '/spin')}

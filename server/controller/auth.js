@@ -52,6 +52,54 @@ const createSendToken = (user, statusCode, res) => {
   }
 }
 
+const USERS_LIST_CACHE_TTL_MS = 60 * 1000
+const USERS_LIST_CACHE_MAX_KEYS = 500
+const usersListCache = new Map()
+
+const getUsersListCacheKey = ({
+  userId,
+  role,
+  page,
+  limit,
+  search,
+  roleFilter,
+  locationId,
+  sortBy,
+  sortOrder,
+}) =>
+  JSON.stringify({
+    userId,
+    role,
+    page,
+    limit,
+    search,
+    roleFilter,
+    locationId,
+    sortBy,
+    sortOrder,
+  })
+
+const getCachedUsersList = (key) => {
+  const cached = usersListCache.get(key)
+  if (!cached) return null
+  if (cached.expiresAt <= Date.now()) {
+    usersListCache.delete(key)
+    return null
+  }
+  return cached.payload
+}
+
+const setCachedUsersList = (key, payload) => {
+  if (usersListCache.size >= USERS_LIST_CACHE_MAX_KEYS) {
+    const oldestKey = usersListCache.keys().next().value
+    if (oldestKey) usersListCache.delete(oldestKey)
+  }
+  usersListCache.set(key, {
+    payload,
+    expiresAt: Date.now() + USERS_LIST_CACHE_TTL_MS,
+  })
+}
+
 // ENHANCED: Get all users with pagination and filtering
 export const getAllUsers = async (req, res, next) => {
   try {
@@ -66,57 +114,76 @@ export const getAllUsers = async (req, res, next) => {
     }
 
     // Get pagination parameters
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 10
-    const search = req.query.search || ''
-    const role = req.query.role || ''
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1)
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100)
+    const search = (req.query.search || '').trim()
+    const role = (req.query.role || '').trim()
     const locationId = req.query.locationId || '' // NEW: Location filtering
     const sortBy = req.query.sortBy || 'createdAt'
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1
 
-    // Build filters
-    const filters = { isDeleted: false }
+    const cacheKey = getUsersListCacheKey({
+      userId: req.user._id?.toString(),
+      role: req.user.role,
+      page,
+      limit,
+      search,
+      roleFilter: role,
+      locationId,
+      sortBy,
+      sortOrder: req.query.sortOrder === 'asc' ? 'asc' : 'desc',
+    })
+    const cachedPayload = getCachedUsersList(cacheKey)
+    if (cachedPayload) {
+      return res.status(200).json(cachedPayload)
+    }
+
+    // Build filters using AND conditions so search/location/role filters can all apply.
+    const andFilters = [{ isDeleted: false }]
 
     // Add filters from middleware if any
     if (req.userFilters) {
-      Object.assign(filters, req.userFilters)
+      andFilters.push(req.userFilters)
     }
 
     // Search filter (name or email)
     if (search) {
-      filters.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-      ]
+      andFilters.push({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ],
+      })
     }
 
     // Role filter
     if (role && role !== 'all') {
-      if (filters.role && typeof filters.role === 'object') {
-        // Combine with existing role filter
-        filters.role = { ...filters.role, $eq: role }
-      } else {
-        filters.role = role
-      }
+      andFilters.push({ role })
     }
 
-    // NEW: Location filter for users in same location
-    if (locationId) {
-      filters.$or = [
-        { 'selectedLocation.locationId': locationId },
-        { 'spaLocation.locationId': locationId },
-      ]
+    if (locationId && req.user.role !== 'super-admin') {
+      andFilters.push({
+        $or: [
+          { 'selectedLocation.locationId': locationId },
+          { 'spaLocation.locationId': locationId },
+        ],
+      })
     }
 
     // Role-based access control
     if (req.user.role === 'spa') {
       // Spa users can only see users in their spa location
-      if (req.user.spaLocation?.locationId) {
-        filters['selectedLocation.locationId'] = req.user.spaLocation.locationId
-        filters.role = 'user' // Spa users can only see regular users
+      const spaLocationId =
+        req.user.spaLocation?.locationId ||
+        req.user.selectedLocation?.locationId
+      if (spaLocationId) {
+        andFilters.push({
+          'selectedLocation.locationId': spaLocationId,
+        })
+        andFilters.push({ role: 'user' }) // Spa users can only see regular users
       } else {
         // If spa user doesn't have spa location, return empty result
-        return res.status(200).json({
+        const emptyPayload = {
           status: 'success',
           results: 0,
           data: {
@@ -136,15 +203,37 @@ export const getAllUsers = async (req, res, next) => {
               sortOrder: req.query.sortOrder || 'desc',
             },
           },
-        })
+        }
+        setCachedUsersList(cacheKey, emptyPayload)
+        return res.status(200).json(emptyPayload)
       }
     } else if (req.user.role === 'admin') {
-      // Admins cannot see super-admins (unless overridden by middleware)
-      if (!filters.role || typeof filters.role === 'string') {
-        filters.role = { $ne: 'super-admin' }
+      // Admins cannot see super-admins.
+      andFilters.push({ role: { $ne: 'super-admin' } })
+
+      // If admin has an assigned location, scope contacts to that spa's users.
+      const adminLocationId =
+        req.user.selectedLocation?.locationId || req.user.spaLocation?.locationId
+      if (adminLocationId) {
+        andFilters.push({
+          $or: [
+            { 'selectedLocation.locationId': adminLocationId },
+            { 'spaLocation.locationId': adminLocationId },
+          ],
+        })
       }
     }
-    // Super-admins can see all users (no additional filters)
+    // Super-admins can see all users unless they explicitly pass locationId.
+    if (locationId && req.user.role === 'super-admin') {
+      andFilters.push({
+        $or: [
+          { 'selectedLocation.locationId': locationId },
+          { 'spaLocation.locationId': locationId },
+        ],
+      })
+    }
+
+    const filters = andFilters.length === 1 ? andFilters[0] : { $and: andFilters }
 
     // Get total count for pagination info
     const total = await User.countDocuments(filters)
@@ -162,6 +251,7 @@ export const getAllUsers = async (req, res, next) => {
       .skip(skip)
       .limit(limit)
       .select('-password')
+      .lean()
 
     const pagination = {
       currentPage: page,
@@ -172,7 +262,7 @@ export const getAllUsers = async (req, res, next) => {
       limit,
     }
 
-    res.status(200).json({
+    const payload = {
       status: 'success',
       results: users.length,
       data: {
@@ -186,7 +276,10 @@ export const getAllUsers = async (req, res, next) => {
           sortOrder: req.query.sortOrder || 'desc',
         },
       },
-    })
+    }
+    setCachedUsersList(cacheKey, payload)
+
+    res.status(200).json(payload)
   } catch (error) {
     console.error('Error in getAllUsers:', error)
     next(error)

@@ -5,6 +5,7 @@ import PointsCard from '@/components/Dashboard/PointsCard'
 import SpaDashboard from '@/components/Dashboard/SpaDashboard'
 import { useBranding } from '@/context/BrandingContext'
 import { useDashboardData } from '@/hooks/useDashboard'
+import { useAvailableGames } from '@/hooks/useGameWheel'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { rewardsService } from '@/services/rewardsService'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -424,6 +425,8 @@ const SpaRewardsSection = () => {
   const { locationId } = useBranding()
   const { currentUser } = useSelector((state) => state.user)
   const [optimisticRewards, setOptimisticRewards] = useState(new Set())
+  const withSpaParam = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   const {
     rewards = [],
@@ -856,6 +859,8 @@ const DashboardPage = () => {
 
   // Fetch dashboard data
   const { data: dashboardData, isLoading, error, refetch } = useDashboardData()
+  // Prefetch games in parallel so GamesSection appears faster.
+  useAvailableGames({}, { enabled: currentUser?.role === 'user' })
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -916,7 +921,7 @@ const DashboardPage = () => {
     <Layout>
       <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
         <div className='max-w-7xl mx-auto'>
-          {data.role === 'spa' ? (
+          {['spa', 'admin'].includes(currentUser?.role || data.role) ? (
             <SpaDashboard data={data} refetch={refetch} />
           ) : (
             <>
@@ -1197,5 +1202,3 @@ const DashboardPage = () => {
 }
 
 export default DashboardPage
-  const withSpaParam = (path) =>
-    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path

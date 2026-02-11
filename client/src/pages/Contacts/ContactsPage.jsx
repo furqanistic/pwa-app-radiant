@@ -1,4 +1,5 @@
 import { authService } from "@/services/authService";
+import { locationService } from "@/services/locationService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Bell,
@@ -16,7 +17,7 @@ import {
     UserPlus,
     Users,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from 'sonner';
@@ -49,6 +50,9 @@ const ContactsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("");
 
   // Permission checks
   const isElevatedUser = [
@@ -63,6 +67,30 @@ const ContactsPage = () => {
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId;
+  const scopedLocationId = isSuperAdmin ? "" : currentUserLocationId;
+  const effectiveLocationFilter = isSuperAdmin ? locationFilter : scopedLocationId;
+
+  const roleFilterOptions = isSuperAdmin
+    ? ["all", "super-admin", "admin", "spa", "enterprise", "user"]
+    : isAdminOrAbove
+    ? ["all", "admin", "spa", "enterprise", "user"]
+    : ["all", "user"];
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const { data: locationsData } = useQuery({
+    queryKey: ["contacts-filter-locations"],
+    queryFn: () => locationService.getAllLocations({ limit: 200 }),
+    enabled: isSuperAdmin,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
   // Fetch users (Reusing the same query logic from ManagementPage)
   const {
@@ -74,29 +102,72 @@ const ContactsPage = () => {
       "all-users",
       currentPage,
       pageSize,
-      searchTerm,
-      currentUserLocationId,
+      debouncedSearchTerm,
+      roleFilter,
+      effectiveLocationFilter,
+      currentUser?.role,
     ],
     queryFn: () =>
       authService.getAllUsers({
         page: currentPage,
         limit: pageSize,
-        search: searchTerm,
+        search: debouncedSearchTerm,
+        role: roleFilter,
         sortBy: "createdAt",
         sortOrder: "desc",
-        ...(currentUserLocationId && {
-          locationId: currentUserLocationId,
+        ...(effectiveLocationFilter && {
+          locationId: effectiveLocationFilter,
         }),
       }),
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (!usersData?.data?.pagination?.hasNextPage) return;
+    const nextPage = currentPage + 1;
+    queryClient.prefetchQuery({
+      queryKey: [
+        "all-users",
+        nextPage,
+        pageSize,
+        debouncedSearchTerm,
+        roleFilter,
+        effectiveLocationFilter,
+        currentUser?.role,
+      ],
+      queryFn: () =>
+        authService.getAllUsers({
+          page: nextPage,
+          limit: pageSize,
+          search: debouncedSearchTerm,
+          role: roleFilter,
+          sortBy: "createdAt",
+          sortOrder: "desc",
+          ...(effectiveLocationFilter && {
+            locationId: effectiveLocationFilter,
+          }),
+        }),
+      staleTime: 2 * 60 * 1000,
+    });
+  }, [
+    usersData,
+    currentPage,
+    pageSize,
+    debouncedSearchTerm,
+    roleFilter,
+    effectiveLocationFilter,
+    currentUser?.role,
+    queryClient,
+  ]);
 
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: authService.createSpaMember,
     onSuccess: () => {
       toast.success("User created successfully!");
-      queryClient.invalidateQueries(["all-users"]);
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || "Failed to create user");
@@ -255,11 +326,16 @@ const ContactsPage = () => {
             </h1>
             <p className="text-gray-600">
               Manage your spa members, clients, and notifications
-              {currentUserLocationId && (
+              {!isSuperAdmin && currentUserLocationId && (
                 <span className="block text-sm text-blue-600 mt-1">
                   Showing contacts from:{" "}
                   {currentUser?.selectedLocation?.locationName ||
                     currentUser?.spaLocation?.locationName}
+                </span>
+              )}
+              {isSuperAdmin && (
+                <span className="block text-sm text-blue-600 mt-1">
+                  Showing contacts from all locations
                 </span>
               )}
             </p>
@@ -289,7 +365,9 @@ const ContactsPage = () => {
 
             <Button
               variant="outline"
-              onClick={() => queryClient.invalidateQueries(["all-users"])}
+              onClick={() =>
+                queryClient.invalidateQueries({ queryKey: ["all-users"] })
+              }
             >
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
@@ -307,11 +385,53 @@ const ContactsPage = () => {
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
-                    setCurrentPage(1);
                   }}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              <select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {roleFilterOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {role === "all" ? "All roles" : role}
+                  </option>
+                ))}
+              </select>
+              {isSuperAdmin && (
+                <select
+                  value={locationFilter}
+                  onChange={(e) => {
+                    setLocationFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All locations</option>
+                  {(locationsData?.data?.locations || []).map((location) => (
+                    <option key={location._id || location.locationId} value={location.locationId}>
+                      {location.name || location.locationId}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchTerm("");
+                  setDebouncedSearchTerm("");
+                  setRoleFilter("all");
+                  setLocationFilter("");
+                  setCurrentPage(1);
+                }}
+              >
+                Clear Filters
+              </Button>
             </div>
           </div>
 
@@ -319,7 +439,7 @@ const ContactsPage = () => {
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="text-lg font-medium text-gray-900">
-                spa Members ({totalUsers})
+                {isSuperAdmin ? "All Users" : "Spa Members"} ({totalUsers})
               </h3>
             </div>
 
@@ -337,6 +457,8 @@ const ContactsPage = () => {
                 <p className="text-gray-500">
                   {searchTerm
                     ? "No users found matching your search"
+                    : isSuperAdmin
+                    ? "No users found in the app"
                     : "No users found in your location"}
                 </p>
               </div>
@@ -504,9 +626,10 @@ const ContactsPage = () => {
             <NotificationSender
               isOpen={isNotificationSenderOpen}
               onClose={handleCloseNotificationSender}
-              users={users}
               currentUser={currentUser}
               preSelectedUser={selectedUserForNotification}
+              scopeRole={roleFilter}
+              scopeLocationId={effectiveLocationFilter}
             />
           )}
 

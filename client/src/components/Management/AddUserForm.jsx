@@ -1,5 +1,6 @@
 // File: client/src/components/Management/AddUserForm.jsx - UPDATED WITH FIXES
 
+import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -18,6 +19,7 @@ import {
     Shield,
     User,
     Users,
+    X,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -35,7 +37,6 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -53,8 +54,22 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 
+const adjustHex = (hex, amount) => {
+  const cleaned = (hex || '').replace('#', '')
+  if (cleaned.length !== 6) return '#be185d'
+  const num = parseInt(cleaned, 16)
+  const clamp = (value) => Math.max(0, Math.min(255, value))
+  const r = clamp((num >> 16) + amount)
+  const g = clamp(((num >> 8) & 0xff) + amount)
+  const b = clamp((num & 0xff) + amount)
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+}
+
 const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = adjustHex(brandColor, -24)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -292,20 +307,35 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='sm:max-w-lg max-h-[90vh] overflow-y-auto'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2 text-xl'>
-            <div className='w-8 h-8 bg-gradient-to-r from-pink-500 to-rose-600 rounded-lg flex items-center justify-center'>
+      <DialogContent
+        showCloseButton={false}
+        className='p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2'
+      >
+        <div
+          className='px-6 py-4 text-white flex items-center justify-between'
+          style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+        >
+          <div className='flex items-center gap-2'>
+            <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
               <Plus className='w-4 h-4 text-white' />
             </div>
-            Add New User
-          </DialogTitle>
-          <DialogDescription>
-            Create a new user account with specified role and permissions
-          </DialogDescription>
-        </DialogHeader>
+            <DialogTitle className='text-lg font-semibold'>
+              Add New User
+            </DialogTitle>
+          </div>
+          <button
+            onClick={handleClose}
+            className='p-2 rounded-lg hover:bg-white/15 transition-colors'
+            type='button'
+          >
+            <X className='w-5 h-5 text-white' />
+          </button>
+        </div>
+        <DialogDescription className='px-6 pt-2 text-sm text-gray-600'>
+          Create a new user account with specified role and permissions
+        </DialogDescription>
 
-        <div className='space-y-6 py-4'>
+        <div className='space-y-6 py-4 px-6 overflow-y-auto'>
           {/* Permission Notice */}
           <div
             className={`p-4 ${permissionNotice.bgColor} border ${permissionNotice.borderColor} rounded-xl`}
@@ -655,7 +685,8 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
               type='submit'
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className='flex-1 bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 disabled:opacity-50 transition-all'
+              className='flex-1 text-white disabled:opacity-50 transition-all'
+              style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
             >
               {isSubmitting ? (
                 <div className='flex items-center gap-2'>

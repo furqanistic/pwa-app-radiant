@@ -1,6 +1,7 @@
 // File: client/src/components/Management/LocationAssignmentForm.jsx
 
 import { authService } from '@/services/authService'
+import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -10,6 +11,7 @@ import {
     MapPin,
     UserCheck,
     Users,
+    X,
 } from 'lucide-react'
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
@@ -28,7 +30,6 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -38,8 +39,22 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover'
 
+const adjustHex = (hex, amount) => {
+  const cleaned = (hex || '').replace('#', '')
+  if (cleaned.length !== 6) return '#be185d'
+  const num = parseInt(cleaned, 16)
+  const clamp = (value) => Math.max(0, Math.min(255, value))
+  const r = clamp((num >> 16) + amount)
+  const g = clamp(((num >> 8) & 0xff) + amount)
+  const b = clamp((num & 0xff) + amount)
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+}
+
 const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = adjustHex(brandColor, -24)
   const [selectedUser, setSelectedUser] = useState('')
   const [selectedLocation, setSelectedLocation] = useState('')
   const [userOpen, setUserOpen] = useState(false)
@@ -146,18 +161,33 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className='sm:max-w-lg'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <UserCheck className='w-5 h-5 text-blue-500' />
-            Assign Location to User
-          </DialogTitle>
-          <DialogDescription>
-            Assign a spa location to an existing admin or spa member
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        showCloseButton={false}
+        className='p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2'
+      >
+        <div
+          className='px-6 py-4 text-white flex items-center justify-between'
+          style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+        >
+          <div className='flex items-center gap-2'>
+            <UserCheck className='w-5 h-5 text-white' />
+            <DialogTitle className='text-lg font-semibold'>
+              Assign Location to User
+            </DialogTitle>
+          </div>
+          <button
+            onClick={handleClose}
+            className='p-2 rounded-lg hover:bg-white/15 transition-colors'
+            type='button'
+          >
+            <X className='w-5 h-5 text-white' />
+          </button>
+        </div>
+        <DialogDescription className='px-6 pt-2 text-sm text-gray-600'>
+          Assign a spa location to an existing admin or spa member
+        </DialogDescription>
 
-        <div className='space-y-6 py-4'>
+        <div className='space-y-6 py-4 px-6 overflow-y-auto'>
           {/* General Error */}
           {errors.general && (
             <div className='p-3 bg-red-50 border border-red-200 rounded-lg'>
