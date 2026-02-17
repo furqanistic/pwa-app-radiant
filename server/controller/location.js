@@ -2,6 +2,10 @@ import stripe from '../config/stripe.js';
 import { createError } from '../error.js';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
+import {
+  ensureLocationPointsSettings,
+  mergePointsMethodsWithDefaults,
+} from '../utils/pointsSettings.js';
 
 // Helper to transform businessHours array from Location model to object for User model
 const transformHoursFromModel = (hoursArray) => {
@@ -111,7 +115,24 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
 // Create a new location
 export const createLocation = async (req, res, next) => {
   try {
-    const { locationId, name, description, address, phone, reviewLink, hours, coordinates, logo, logoPublicId, subdomain, favicon, faviconPublicId, themeColor, membership } = req.body
+    const {
+      locationId,
+      name,
+      description,
+      address,
+      phone,
+      reviewLink,
+      hours,
+      coordinates,
+      logo,
+      logoPublicId,
+      subdomain,
+      favicon,
+      faviconPublicId,
+      themeColor,
+      membership,
+      pointsSettings,
+    } = req.body
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -156,6 +177,10 @@ export const createLocation = async (req, res, next) => {
         { name: "Birthday Special", content: "15% Off", isActive: false, type: "birthday" },
         { name: "Client Anniversary", content: "$50 Off", isActive: false, type: "anniversary" },
       ],
+      pointsSettings: {
+        allMethodsBootstrapped: true,
+        methods: mergePointsMethodsWithDefaults(pointsSettings?.methods || []),
+      },
       addedBy: req.user.id,
     })
 
@@ -174,7 +199,26 @@ export const createLocation = async (req, res, next) => {
 export const updateLocation = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { locationId, name, description, address, phone, reviewLink, hours, isActive, coordinates, automatedGifts, logo, logoPublicId, subdomain, favicon, faviconPublicId, themeColor, membership } = req.body
+    const {
+      locationId,
+      name,
+      description,
+      address,
+      phone,
+      reviewLink,
+      hours,
+      isActive,
+      coordinates,
+      automatedGifts,
+      pointsSettings,
+      logo,
+      logoPublicId,
+      subdomain,
+      favicon,
+      faviconPublicId,
+      themeColor,
+      membership,
+    } = req.body
 
     const location = await Location.findById(id)
     if (!location) {
@@ -214,6 +258,16 @@ export const updateLocation = async (req, res, next) => {
     if (isActive !== undefined) updateData.isActive = isActive
     if (coordinates !== undefined) updateData.coordinates = coordinates
     if (automatedGifts !== undefined) updateData.automatedGifts = automatedGifts
+    if (pointsSettings !== undefined) {
+      const mergedMethods = mergePointsMethodsWithDefaults(
+        pointsSettings?.methods || location.pointsSettings?.methods || []
+      )
+      updateData.pointsSettings = {
+        ...location.pointsSettings,
+        ...pointsSettings,
+        methods: mergedMethods,
+      }
+    }
     if (logo !== undefined) updateData.logo = logo
     if (logoPublicId !== undefined) updateData.logoPublicId = logoPublicId
     if (subdomain !== undefined) updateData.subdomain = subdomain ? subdomain.trim().toLowerCase() : null
@@ -386,6 +440,8 @@ export const getMyLocation = async (req, res, next) => {
         console.log(`[getMyLocation] No location found for user ${userId}. SPA Location ID: ${user.spaLocation?.locationId}`);
         return next(createError(404, 'No location found for this user'));
     }
+
+    await ensureLocationPointsSettings(location)
 
     // List of pre-defined template gifts
     const templateGifts = [

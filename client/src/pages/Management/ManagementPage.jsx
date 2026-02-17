@@ -34,6 +34,7 @@ import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
 import LocationForm from "@/components/Management/LocationForm";
 import MembershipManagementModal from "@/components/Management/MembershipManagementModal";
+import PointsSettings from "@/components/Management/PointsSettings";
 import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import StripeConnect from "@/components/Stripe/StripeConnect";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ const ManagementPage = () => {
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
+  const [isPointsSettingsOpen, setIsPointsSettingsOpen] = useState(false);
   const [isMembershipOpen, setIsMembershipOpen] = useState(false);
   const [selectedQRLocation, setSelectedQRLocation] = useState(null);
 
@@ -267,6 +269,14 @@ const ManagementPage = () => {
               </Button>
 
               <Button
+                onClick={() => setIsPointsSettingsOpen(true)}
+                className="bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700"
+              >
+                <Award className="w-4 h-4 mr-2" />
+                Points Rules
+              </Button>
+
+              <Button
                 onClick={handleOpenMembership}
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
               >
@@ -439,15 +449,21 @@ const ManagementPage = () => {
         />
 
         {/* Automated Gift Modal */}
+        <AutomatedGiftSettings
+          isOpen={isAutomatedGiftOpen}
+          onClose={() => setIsAutomatedGiftOpen(false)}
+        />
+
+        {/* Points Settings Modal */}
         {/* Membership Management Modal */}
         <MembershipManagementModal
           isOpen={isMembershipOpen}
           onClose={() => setIsMembershipOpen(false)}
         />
 
-        <AutomatedGiftSettings
-          isOpen={isAutomatedGiftOpen}
-          onClose={() => setIsAutomatedGiftOpen(false)}
+        <PointsSettings
+          isOpen={isPointsSettingsOpen}
+          onClose={() => setIsPointsSettingsOpen(false)}
         />
 
         {/* QR Code Modal */}

@@ -54,6 +54,20 @@ const iconMap = {
   ShoppingBag: ShoppingBag,
   Star: Star,
   Share2: Share2,
+  Clock: Clock,
+  TrendingUp: TrendingUp,
+  UserCheck: Users,
+  Gift: Gift,
+  Bell: AlertCircle,
+  ClipboardList: Award,
+  CheckCircle: CheckCircle,
+  Plus: Plus,
+  Package: Gift,
+  Target: Target,
+  Users: Users,
+  RotateCcw: RefreshCw,
+  Image: Sparkles,
+  HeartPulse: Heart,
 }
 
 // Enhanced Reward Card Component with better UX
@@ -796,7 +810,11 @@ const NeedMorePointsSection = ({ methods = [] }) => {
       <div className='grid grid-cols-2 gap-3'>
         {methods.slice(0, 4).map((method) => {
           const IconComponent = iconMap[method.icon] || Zap
-          const isReview = method.action === 'Review'
+          const isReview =
+            method.actionType === 'review' || method.action === 'Review'
+          const hasNavigateAction =
+            method.actionType === 'navigate' &&
+            Boolean(actionMap[method.action] || method.path)
           return (
             <div
               key={method.id}
@@ -830,12 +848,18 @@ const NeedMorePointsSection = ({ methods = [] }) => {
                 </div>
               ) : (
                 <>
-                  <button
-                    onClick={() => handleAction(method)}
-                    className='mt-auto w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2'
-                  >
-                    {method.action}
-                  </button>
+                  {hasNavigateAction ? (
+                    <button
+                      onClick={() => handleAction(method)}
+                      className='mt-auto w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2'
+                    >
+                      {method.action}
+                    </button>
+                  ) : (
+                    <span className='mt-auto inline-flex rounded-lg bg-gray-100 px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-gray-600'>
+                      Automatic when eligible
+                    </span>
+                  )}
                   <span className='text-xs font-black text-[color:var(--brand-primary)]'>
                     {method.points} pts
                   </span>
@@ -943,7 +967,7 @@ const DashboardPage = () => {
                 <ClinicLocations />
               </div>
               {/* Need More Points Section - Full Width */}
-              {data.pointsEarningMethods && (
+              {data.pointsEarningMethods?.length > 0 && (
                 <div className='mb-4 sm:mb-6 lg:mb-8'>
                   <NeedMorePointsSection methods={data.pointsEarningMethods} />
                 </div>

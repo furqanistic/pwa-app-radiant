@@ -5,6 +5,7 @@ import PointTransaction from '../models/PointTransaction.js'
 import Reward from '../models/Reward.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
+import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { awardPoints } from '../utils/rewardHelpers.js'
 
 // Get all rewards with filtering, sorting, and searching
@@ -2145,7 +2146,15 @@ export const awardGoogleReviewPoints = async (req, res, next) => {
       return next(createError(400, 'No location selected for review reward'))
     }
 
-    const reviewPoints = 10
+    const reviewMethod = await getPointsMethodForLocation(locationId, 'review')
+    const reviewPoints =
+      reviewMethod?.isActive && (reviewMethod?.pointsValue || 0) > 0
+        ? reviewMethod.pointsValue
+        : 0
+
+    if (reviewPoints <= 0) {
+      return next(createError(403, 'Review points are disabled for this spa'))
+    }
 
     const awardResult = await awardPoints(
       userId,

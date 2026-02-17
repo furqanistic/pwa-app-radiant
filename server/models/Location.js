@@ -143,6 +143,82 @@ const LocationSchema = new mongoose.Schema(
       },
     ],
 
+    // ==================== POINTS SETTINGS ====================
+    pointsSettings: {
+      allMethodsBootstrapped: {
+        type: Boolean,
+        default: false,
+      },
+      methods: [
+        {
+          key: {
+            type: String,
+            required: true,
+            trim: true,
+          },
+          title: {
+            type: String,
+            required: true,
+            trim: true,
+          },
+          description: {
+            type: String,
+            default: "",
+            trim: true,
+          },
+          pointsValue: {
+            type: Number,
+            default: 0,
+          },
+          pointsLabel: {
+            type: String,
+            default: "",
+          },
+          icon: {
+            type: String,
+            default: "Zap",
+          },
+          action: {
+            type: String,
+            default: "",
+          },
+          actionType: {
+            type: String,
+            default: "passive",
+          },
+          path: {
+            type: String,
+            default: "",
+          },
+          frequency: {
+            type: String,
+            default: "",
+          },
+          verification: {
+            type: String,
+            default: "",
+          },
+          notes: {
+            type: String,
+            default: "",
+          },
+          perDollar: {
+            type: Boolean,
+            default: false,
+          },
+          windowMinutes: {
+            type: Number,
+            default: 0,
+            min: 0,
+          },
+          isActive: {
+            type: Boolean,
+            default: false,
+          },
+        },
+      ],
+    },
+
     // ==================== QR CODE FIELDS ====================
     // NEW: QR Code data for this location
     qrCode: {

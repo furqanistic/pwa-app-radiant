@@ -5,6 +5,7 @@ import Booking from '../models/Booking.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
+import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { awardPoints } from '../utils/rewardHelpers.js'
 
 // Get user's upcoming appointments
@@ -262,20 +263,33 @@ export const rateVisit = async (req, res, next) => {
     booking.review = review
     await booking.save()
 
-    // Award points for leaving a review
-    const reviewPoints = 10
-    await awardPoints(
-      req.user.id,
-      reviewPoints,
-      'Review reward',
-      'review',
-      booking._id,
-      booking.locationId
+    // Award points for leaving a review only when the method is active
+    const reviewMethod = await getPointsMethodForLocation(
+      booking.locationId,
+      'review'
     )
+    const reviewPoints =
+      reviewMethod?.isActive && (reviewMethod?.pointsValue || 0) > 0
+        ? reviewMethod.pointsValue
+        : 0
+
+    if (reviewPoints > 0) {
+      await awardPoints(
+        req.user.id,
+        reviewPoints,
+        'Review reward',
+        'review',
+        booking._id,
+        booking.locationId
+      )
+    }
 
     res.status(200).json({
       status: 'success',
-      message: 'Thank you for your review!',
+      message:
+        reviewPoints > 0
+          ? 'Thank you for your review!'
+          : 'Review submitted successfully',
       data: {
         booking,
         pointsEarned: reviewPoints,

@@ -7,6 +7,7 @@ import Location from '../models/Location.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
+import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { createSystemNotification } from './notification.js'
 import { updateUserTier } from './referral.js'
 
@@ -1585,9 +1586,19 @@ export const selectSpa = async (req, res, next) => {
 
     console.log('User updated with location:', user.selectedLocation)
 
+    const profileCompletionMethod = await getPointsMethodForLocation(
+      location.locationId,
+      'profile_completion'
+    )
+    const profileCompletionPoints =
+      profileCompletionMethod?.isActive &&
+      (profileCompletionMethod?.pointsValue || 0) > 0
+        ? profileCompletionMethod.pointsValue
+        : 0
+
     // Initialize rewards response
     let rewardResponse = {
-      profileCompletion: 50, // Base points for completing profile
+      profileCompletion: profileCompletionPoints,
       referral: { success: false },
     }
 
@@ -1607,8 +1618,10 @@ export const selectSpa = async (req, res, next) => {
     }
 
     // Award profile completion points
-    user.points = (user.points || 0) + rewardResponse.profileCompletion
-    await user.save()
+    if (rewardResponse.profileCompletion > 0) {
+      user.points = (user.points || 0) + rewardResponse.profileCompletion
+      await user.save()
+    }
 
     res.status(200).json({
       status: 'success',
@@ -1675,6 +1688,21 @@ const processReferralOnSpaSelection = async (referredUserId, referralCode) => {
     const referralRewards = {
       referrerPoints: Math.round(config.signupReward.referrerPoints * tierMultiplier),
       referredPoints: Math.round(config.signupReward.referredPoints * tierMultiplier),
+    }
+
+    const locationIdForReferral =
+      referredUser.selectedLocation?.locationId ||
+      referrer.selectedLocation?.locationId ||
+      null
+    if (locationIdForReferral) {
+      const referralMethod = await getPointsMethodForLocation(
+        locationIdForReferral,
+        'referral'
+      )
+      if (!referralMethod?.isActive) {
+        referralRewards.referrerPoints = 0
+        referralRewards.referredPoints = 0
+      }
     }
 
     // Create or update referral record

@@ -7,6 +7,7 @@ import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
+import { mergePointsMethodsWithDefaults } from '../utils/pointsSettings.js'
 
 // Get all dashboard data in one request
 export const getDashboardData = async (req, res, next) => {
@@ -28,6 +29,7 @@ export const getDashboardData = async (req, res, next) => {
 
     // Get automated gifts from user's relevant location
     let automatedGifts = []
+    let pointsMethods = mergePointsMethodsWithDefaults([])
     const targetLocationId = user.role === 'spa' 
       ? user.spaLocation?.locationId 
       : user.selectedLocation?.locationId
@@ -37,6 +39,10 @@ export const getDashboardData = async (req, res, next) => {
         locationId: targetLocationId,
       })
       if (location) {
+        pointsMethods = mergePointsMethodsWithDefaults(
+          location.pointsSettings?.methods || []
+        )
+
         const now = new Date()
         const currentMonth = now.getUTCMonth() + 1
         const currentDay = now.getUTCDate()
@@ -279,43 +285,49 @@ export const getDashboardData = async (req, res, next) => {
       'rewardSnapshot.type': { $in: ['gift', 'referral', 'bonus'] },
     })
 
-    // Get point earning methods based on current configuration
-    const pointsEarningMethods = [
-      {
-        id: 1,
-        title: 'Invite Friends',
-        description: `Earn ${
-          Math.round(config.signupReward.referrerPoints * (config.tierMultipliers[user.referralStats?.currentTier || 'bronze'] || 1.0))
-        } points per referral`,
-        icon: 'UserPlus',
-        points: `+${Math.round(config.signupReward.referrerPoints * (config.tierMultipliers[user.referralStats?.currentTier || 'bronze'] || 1.0))}`,
-        action: 'Share Now',
-      },
-      {
-        id: 2,
-        title: 'Book Appointments',
-        description: 'Get 50 points per booking',
-        icon: 'Calendar',
-        points: '+50',
-        action: 'Book Now',
-      },
-      {
-        id: 3,
-        title: 'Purchase Products',
-        description: 'Earn 1 point per $1 spent',
-        icon: 'ShoppingBag',
-        points: '+1/$1',
-        action: 'Shop Now',
-      },
-      {
-        id: 4,
-        title: 'Leave Reviews',
-        description: 'Get 10 points for each review',
-        icon: 'Star',
-        points: '+10',
-        action: 'Review',
-      },
-    ]
+    // Get point earning methods based on location configuration
+    const referralTier = user.referralStats?.currentTier || 'bronze'
+    const referralPoints = Math.round(
+      config.signupReward.referrerPoints * (config.tierMultipliers[referralTier] || 1.0)
+    )
+
+    const pointsEarningMethods = pointsMethods
+      .filter(
+        (method) =>
+          method.isActive &&
+          (typeof method.pointsValue !== 'number' || method.pointsValue > 0)
+      )
+      .map((method, index) => {
+        const resolvedPointsValue =
+          method.key === 'referral' ? referralPoints : method.pointsValue
+
+        const pointsLabel =
+          method.key === 'referral'
+            ? `+${referralPoints}`
+            : method.pointsLabel ||
+              (method.perDollar
+                ? `+${resolvedPointsValue}/$1`
+                : resolvedPointsValue > 0
+                ? `+${resolvedPointsValue}`
+                : `${resolvedPointsValue}`)
+
+        const description =
+          method.key === 'referral'
+            ? `Earn ${referralPoints} points per referral`
+            : method.description
+
+        return {
+          id: index + 1,
+          key: method.key,
+          title: method.title,
+          description,
+          icon: method.icon || 'Zap',
+          points: pointsLabel,
+          action: method.action || 'Learn More',
+          actionType: method.actionType || 'passive',
+          path: method.path || null,
+        }
+      })
 
 
     res.status(200).json({

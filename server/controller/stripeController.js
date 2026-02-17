@@ -6,6 +6,33 @@ import Location from '../models/Location.js'
 import Payment from '../models/Payment.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
+import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
+
+const resolvePurchasePoints = async (locationId, amount, cache = null) => {
+  const normalizedAmount = Number(amount) || 0
+  if (!locationId || normalizedAmount <= 0) return 0
+
+  let purchaseMethod = cache?.get(locationId)
+  if (purchaseMethod === undefined) {
+    purchaseMethod = await getPointsMethodForLocation(locationId, 'purchase')
+    if (cache) cache.set(locationId, purchaseMethod || null)
+  }
+
+  if (!purchaseMethod?.isActive) {
+    return 0
+  }
+
+  const pointsValue =
+    typeof purchaseMethod.pointsValue === 'number'
+      ? purchaseMethod.pointsValue
+      : 1
+
+  if (purchaseMethod.perDollar !== false) {
+    return Math.max(0, Math.floor(normalizedAmount * pointsValue))
+  }
+
+  return Math.max(0, Math.floor(pointsValue))
+}
 
 // ==================== STRIPE CONNECT FUNCTIONS ====================
 
@@ -772,6 +799,9 @@ export const createPaymentIntent = async (req, res, next) => {
       description: `Payment for ${service.name}`,
     })
 
+    const locationId = service.locationId || req.user.selectedLocation?.locationId
+    const pointsEarned = await resolvePurchasePoints(locationId, discountedAmount)
+
     // Create payment record
     const payment = await Payment.create({
       stripePaymentIntentId: paymentIntent.id,
@@ -788,7 +818,7 @@ export const createPaymentIntent = async (req, res, next) => {
       tax: { amount: tax, rate: 0 },
       platformFee: { amount: 0, percentage: 0 },
       status: 'pending',
-      pointsEarned: Math.floor(discountedAmount), // 1 point per dollar
+      pointsEarned,
     })
 
     res.status(201).json({
@@ -1109,6 +1139,7 @@ async function handleCheckoutSessionCompleted(session) {
   // Get payment intent details
   const paymentIntentId = session.payment_intent
   const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+  const purchaseMethodCache = new Map()
 
   if (isCartCheckout && bookingIds) {
     // === HANDLE MULTIPLE BOOKINGS (CART CHECKOUT) ===
@@ -1131,7 +1162,11 @@ async function handleCheckoutSessionCompleted(session) {
 
     // Create payment records and update each booking
     for (const booking of bookings) {
-      const pointsEarned = Math.floor(booking.finalPrice)
+      const pointsEarned = await resolvePurchasePoints(
+        booking.locationId,
+        booking.finalPrice,
+        purchaseMethodCache
+      )
       totalPointsEarned += pointsEarned
 
       // Create payment record for this booking
@@ -1216,6 +1251,11 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   // Create payment record
+  const singleBookingPoints = await resolvePurchasePoints(
+    booking.locationId,
+    booking.finalPrice,
+    purchaseMethodCache
+  )
   const payment = await Payment.create({
     stripePaymentIntentId: paymentIntentId,
     customer: customerId,
@@ -1240,7 +1280,7 @@ async function handleCheckoutSessionCompleted(session) {
     },
     status: 'succeeded',
     processedAt: new Date(),
-    pointsEarned: Math.floor(booking.finalPrice), // 1 point per dollar
+    pointsEarned: singleBookingPoints,
     paymentMethod: {
       type: paymentIntent.payment_method_types[0] || 'card',
       brand:

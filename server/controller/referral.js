@@ -3,6 +3,7 @@ import { createError } from '../error.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
+import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { createSystemNotification } from './notification.js'
 
 // Helper: Auto-update user tier based on total referrals
@@ -152,12 +153,15 @@ export const processReferralRewards = async (referredUser, locationId) => {
       1.0
     const spaConfig = config.getSpaConfig(locationId)
 
-    const referrerPoints = Math.round(
-      spaConfig.signupReward.referrerPoints * tierMultiplier
-    )
-    const referredPoints = Math.round(
-      spaConfig.signupReward.referredPoints * tierMultiplier
-    )
+    const referralMethod = await getPointsMethodForLocation(locationId, 'referral')
+    const referralEnabled = referralMethod ? referralMethod.isActive : true
+
+    const referrerPoints = referralEnabled
+      ? Math.round(spaConfig.signupReward.referrerPoints * tierMultiplier)
+      : 0
+    const referredPoints = referralEnabled
+      ? Math.round(spaConfig.signupReward.referredPoints * tierMultiplier)
+      : 0
 
     // Update referral with calculated points
     pendingReferral.referrerReward.points = referrerPoints
@@ -430,12 +434,18 @@ export const completeReferral = async (req, res, next) => {
           referral.referrer.referralStats?.currentTier || 'bronze'
         ] || 1.0
 
-      referral.referrerReward.points = Math.round(
-        spaConfig.signupReward.referrerPoints * tierMultiplier
+      const referralMethod = await getPointsMethodForLocation(
+        locationId,
+        'referral'
       )
-      referral.referredReward.points = Math.round(
-        spaConfig.signupReward.referredPoints * tierMultiplier
-      )
+      const referralEnabled = referralMethod ? referralMethod.isActive : true
+
+      referral.referrerReward.points = referralEnabled
+        ? Math.round(spaConfig.signupReward.referrerPoints * tierMultiplier)
+        : 0
+      referral.referredReward.points = referralEnabled
+        ? Math.round(spaConfig.signupReward.referredPoints * tierMultiplier)
+        : 0
     }
 
     if (notes) referral.metadata.notes = notes
@@ -514,12 +524,14 @@ export const awardMilestoneReward = async (req, res, next) => {
     const tierMultiplier =
       config.tierMultipliers[referrer.referralStats?.currentTier || 'bronze'] ||
       1.0
-    const referrerPoints = Math.round(
-      milestoneConfig.referrerPoints * tierMultiplier
-    )
-    const referredPoints = Math.round(
-      milestoneConfig.referredPoints * tierMultiplier
-    )
+    const referralMethod = await getPointsMethodForLocation(locationId, 'referral')
+    const referralEnabled = referralMethod ? referralMethod.isActive : true
+    const referrerPoints = referralEnabled
+      ? Math.round(milestoneConfig.referrerPoints * tierMultiplier)
+      : 0
+    const referredPoints = referralEnabled
+      ? Math.round(milestoneConfig.referredPoints * tierMultiplier)
+      : 0
 
     // Create milestone referral
     const milestoneReferral = await Referral.create({
