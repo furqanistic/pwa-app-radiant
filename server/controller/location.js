@@ -24,9 +24,94 @@ const transformHoursFromModel = (hoursArray) => {
     return hoursObj;
 }
 
+const DEFAULT_MEMBERSHIP_PLAN = {
+  name: 'Gold Glow Membership',
+  description: 'Unlock exclusive perks and premium benefits',
+  price: 99,
+  benefits: ['Priority Booking', 'Free Premium Facial', '15% Product Discount'],
+  currency: 'usd',
+};
+
+const toPlainObject = (value) =>
+  value && typeof value.toObject === 'function' ? value.toObject() : value;
+
+const normalizePlan = (planInput = {}, fallbackPlan = DEFAULT_MEMBERSHIP_PLAN) => {
+  const base = toPlainObject(planInput) || {};
+  const fallback = toPlainObject(fallbackPlan) || DEFAULT_MEMBERSHIP_PLAN;
+  const normalizedBenefits = Array.isArray(base.benefits)
+    ? base.benefits
+        .map((item) => `${item || ''}`.trim())
+        .filter(Boolean)
+    : [];
+
+  return {
+    name: `${base.name || fallback.name || DEFAULT_MEMBERSHIP_PLAN.name}`.trim(),
+    description: `${base.description || fallback.description || DEFAULT_MEMBERSHIP_PLAN.description}`.trim(),
+    price: Math.max(
+      0,
+      Number.isFinite(Number(base.price)) ? Number(base.price) : Number(fallback.price || DEFAULT_MEMBERSHIP_PLAN.price)
+    ),
+    benefits: normalizedBenefits.length
+      ? normalizedBenefits
+      : [...(fallback.benefits || DEFAULT_MEMBERSHIP_PLAN.benefits)],
+    currency: `${base.currency || fallback.currency || 'usd'}`.trim().toLowerCase(),
+    stripeProductId: base.stripeProductId || fallback.stripeProductId || null,
+    stripePriceId: base.stripePriceId || fallback.stripePriceId || null,
+    syncedAt: base.syncedAt || fallback.syncedAt || null,
+  };
+};
+
+const normalizeMembershipInput = (membershipInput, existingMembershipInput = {}) => {
+  const incoming = toPlainObject(membershipInput) || {};
+  const existing = toPlainObject(existingMembershipInput) || {};
+
+  let plans = Array.isArray(incoming.plans) && incoming.plans.length > 0
+    ? incoming.plans
+    : null;
+
+  if (!plans && (incoming.name || incoming.description || incoming.price !== undefined)) {
+    plans = [incoming];
+  }
+
+  if (!plans && Array.isArray(existing.plans) && existing.plans.length > 0) {
+    plans = existing.plans;
+  }
+
+  if (!plans && (existing.name || existing.description || existing.price !== undefined)) {
+    plans = [existing];
+  }
+
+  if (!plans || plans.length === 0) {
+    plans = [DEFAULT_MEMBERSHIP_PLAN];
+  }
+
+  const existingPlans = Array.isArray(existing.plans) ? existing.plans : [];
+  const normalizedPlans = plans
+    .slice(0, 3)
+    .map((plan, index) => normalizePlan(plan, existingPlans[index] || existing || DEFAULT_MEMBERSHIP_PLAN));
+
+  const firstPlan = normalizedPlans[0] || normalizePlan(DEFAULT_MEMBERSHIP_PLAN);
+
+  return {
+    isActive:
+      incoming.isActive !== undefined
+        ? Boolean(incoming.isActive)
+        : Boolean(existing.isActive),
+    plans: normalizedPlans,
+    name: firstPlan.name,
+    description: firstPlan.description,
+    price: firstPlan.price,
+    benefits: firstPlan.benefits,
+    currency: firstPlan.currency || 'usd',
+    stripeProductId: firstPlan.stripeProductId || null,
+    stripePriceId: firstPlan.stripePriceId || null,
+    syncedAt: firstPlan.syncedAt || null,
+  };
+};
+
 const resolveSpaOwnerForLocation = async (location, currentUser) => {
   if (currentUser?.role === 'spa') {
-    return currentUser;
+    return (await User.findById(currentUser.id)) || currentUser;
   }
 
   return User.findOne({
@@ -38,78 +123,97 @@ const resolveSpaOwnerForLocation = async (location, currentUser) => {
 const syncMembershipWithStripe = async ({ membership, location, currentUser }) => {
   if (!membership) return membership;
 
-  const spaOwner = await resolveSpaOwnerForLocation(location, currentUser);
-  if (!spaOwner) {
-    throw createError(400, 'No spa owner found for this location to link membership');
-  }
+  const normalizedMembership = normalizeMembershipInput(membership, location.membership);
 
-  if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
-    throw createError(
-      403,
-      'You must connect and complete your Stripe account before creating memberships.'
-    );
+  const spaOwner = await resolveSpaOwnerForLocation(location, currentUser);
+  if (!spaOwner || !spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
+    return normalizedMembership;
   }
 
   const stripeAccount = spaOwner.stripe.accountId;
-  const resolvedName = membership.name || location.membership?.name || 'Membership';
-  const resolvedDescription =
-    membership.description || location.membership?.description || '';
-  const resolvedPrice =
-    typeof membership.price === 'number' ? membership.price : location.membership?.price || 0;
-  const currency =
-    membership.currency || location.membership?.currency || 'usd';
 
-  let stripeProductId = membership.stripeProductId || location.membership?.stripeProductId || null;
-  let stripePriceId = membership.stripePriceId || location.membership?.stripePriceId || null;
+  const existingPlans = Array.isArray(location.membership?.plans)
+    ? location.membership.plans.map((plan) => toPlainObject(plan))
+    : [];
 
-  const nameChanged = resolvedName !== location.membership?.name;
-  const descriptionChanged = resolvedDescription !== location.membership?.description;
-  const priceChanged =
-    typeof membership.price === 'number' && membership.price !== location.membership?.price;
+  const syncedPlans = [];
+  for (let index = 0; index < normalizedMembership.plans.length; index += 1) {
+    const plan = normalizePlan(normalizedMembership.plans[index], normalizedMembership.plans[index]);
+    const existingPlan = normalizePlan(
+      existingPlans[index] || location.membership || DEFAULT_MEMBERSHIP_PLAN,
+      DEFAULT_MEMBERSHIP_PLAN
+    );
+    const resolvedName = plan.name;
+    const resolvedDescription = plan.description || '';
+    const resolvedPrice = plan.price;
+    const currency = plan.currency || 'usd';
+    const nameChanged = resolvedName !== existingPlan.name;
+    const descriptionChanged = resolvedDescription !== existingPlan.description;
+    const priceChanged = resolvedPrice !== existingPlan.price;
 
-  if (!stripeProductId) {
-    const product = await stripe.products.create(
-      {
-        name: resolvedName,
-        description: resolvedDescription,
-        metadata: {
-          type: 'membership',
-          locationId: location.locationId,
+    let stripeProductId = plan.stripeProductId || existingPlan.stripeProductId || null;
+    let stripePriceId = plan.stripePriceId || existingPlan.stripePriceId || null;
+
+    if (!stripeProductId) {
+      const product = await stripe.products.create(
+        {
+          name: resolvedName,
+          description: resolvedDescription,
+          metadata: {
+            type: 'membership',
+            locationId: location.locationId,
+            planIndex: `${index}`,
+          },
         },
-      },
-      { stripeAccount }
-    );
-    stripeProductId = product.id;
-  } else if (nameChanged || descriptionChanged) {
-    await stripe.products.update(
+        { stripeAccount }
+      );
+      stripeProductId = product.id;
+    } else if (nameChanged || descriptionChanged) {
+      await stripe.products.update(
+        stripeProductId,
+        {
+          name: resolvedName,
+          description: resolvedDescription,
+        },
+        { stripeAccount }
+      );
+    }
+
+    if (!stripePriceId || priceChanged) {
+      const price = await stripe.prices.create(
+        {
+          product: stripeProductId,
+          unit_amount: Math.round(resolvedPrice * 100),
+          currency,
+          recurring: { interval: 'month' },
+        },
+        { stripeAccount }
+      );
+      stripePriceId = price.id;
+    }
+
+    syncedPlans.push({
+      ...plan,
       stripeProductId,
-      {
-        name: resolvedName,
-        description: resolvedDescription,
-      },
-      { stripeAccount }
-    );
+      stripePriceId,
+      currency,
+      syncedAt: new Date(),
+    });
   }
 
-  if (!stripePriceId || priceChanged) {
-    const price = await stripe.prices.create(
-      {
-        product: stripeProductId,
-        unit_amount: Math.round(resolvedPrice * 100),
-        currency,
-        recurring: { interval: 'month' },
-      },
-      { stripeAccount }
-    );
-    stripePriceId = price.id;
-  }
+  const firstPlan = syncedPlans[0] || normalizePlan(DEFAULT_MEMBERSHIP_PLAN);
 
   return {
-    ...membership,
-    stripeProductId,
-    stripePriceId,
-    currency,
-    syncedAt: new Date(),
+    ...normalizedMembership,
+    plans: syncedPlans,
+    name: firstPlan.name,
+    description: firstPlan.description,
+    price: firstPlan.price,
+    benefits: firstPlan.benefits,
+    currency: firstPlan.currency || 'usd',
+    stripeProductId: firstPlan.stripeProductId || null,
+    stripePriceId: firstPlan.stripePriceId || null,
+    syncedAt: firstPlan.syncedAt || null,
   };
 };
 
@@ -160,13 +264,7 @@ export const createLocation = async (req, res, next) => {
       favicon: favicon || '',
       faviconPublicId: faviconPublicId || '',
       themeColor: themeColor || '#ec4899',
-      membership: membership || {
-        isActive: false,
-        price: 99,
-        benefits: ['Priority Booking', 'Free Premium Facial', '15% Product Discount'],
-        name: 'Gold Glow Membership',
-        description: 'Unlock exclusive perks and premium benefits'
-      },
+      membership: normalizeMembershipInput(membership, {}),
       automatedGifts: req.body.automatedGifts || [
         { name: "New Years", content: "20% Off", isActive: false, type: "fixed-date", month: 1, day: 1 },
         { name: "St. Valentine's Day", content: "$30 Off", isActive: false, type: "fixed-date", month: 2, day: 14 },
@@ -415,13 +513,52 @@ export const getAllLocations = async (req, res, next) => {
       Location.countDocuments(query),
     ])
 
+    const locationIds = locations.map((location) => location.locationId).filter(Boolean)
+    const spaOwners = await User.find({
+      role: 'spa',
+      'spaLocation.locationId': { $in: locationIds },
+    }).select('spaLocation.locationId stripe.accountId stripe.chargesEnabled stripe.detailsSubmitted')
+
+    const spaOwnerByLocationId = new Map()
+    spaOwners.forEach((owner) => {
+      const locId = owner?.spaLocation?.locationId
+      if (locId && !spaOwnerByLocationId.has(locId)) {
+        spaOwnerByLocationId.set(locId, owner)
+      }
+    })
+
+    const locationsWithStripeStatus = locations.map((locationDoc) => {
+      const location = typeof locationDoc.toObject === 'function'
+        ? locationDoc.toObject()
+        : locationDoc
+      const spaOwner = spaOwnerByLocationId.get(location.locationId)
+      const stripeConnected = Boolean(
+        spaOwner?.stripe?.accountId && spaOwner?.stripe?.chargesEnabled
+      )
+
+      let membershipStripeMessage = 'Stripe connected.'
+      if (!spaOwner) {
+        membershipStripeMessage = 'No spa account is linked to this location.'
+      } else if (!spaOwner?.stripe?.accountId) {
+        membershipStripeMessage = 'Spa user has not connected Stripe.'
+      } else if (!spaOwner?.stripe?.chargesEnabled) {
+        membershipStripeMessage = 'Stripe is connected but charges are not enabled yet.'
+      }
+
+      return {
+        ...location,
+        membershipStripeConnected: stripeConnected,
+        membershipStripeMessage,
+      }
+    })
+
     res.status(200).json({
       status: 'success',
-      results: locations.length,
+      results: locationsWithStripeStatus.length,
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
-      data: { locations },
+      data: { locations: locationsWithStripeStatus },
     })
   } catch (error) {
     console.error('Error fetching locations:', error)

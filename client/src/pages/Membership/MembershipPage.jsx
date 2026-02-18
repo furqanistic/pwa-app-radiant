@@ -9,6 +9,17 @@ import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 
+const normalizeMembershipPlans = (membership) => {
+    if (!membership) return []
+    if (Array.isArray(membership.plans) && membership.plans.length > 0) {
+        return membership.plans
+    }
+    if (membership.name || membership.description || membership.price !== undefined) {
+        return [membership]
+    }
+    return []
+}
+
 const MembershipPage = () => {
     const navigate = useNavigate()
     const { currentUser } = useSelector((state) => state.user)
@@ -37,6 +48,10 @@ const MembershipPage = () => {
 
     // Use branding membership as primary source for customers, or locationData for owners
     const locationMembership = branding?.membership || locationData?.data?.location?.membership
+    const locationMembershipPlans = useMemo(
+        () => normalizeMembershipPlans(locationMembership),
+        [locationMembership]
+    )
 
     const membershipServices = useMemo(() => {
         return (services || []).filter(
@@ -84,27 +99,26 @@ const MembershipPage = () => {
                             <div className="w-full h-80 bg-gray-200 rounded-[2.5rem] animate-pulse max-w-md mx-auto" />
                         ) : (
                             <div className="grid grid-cols-1 gap-6 px-2 w-full max-w-7xl mx-auto">
-                                {/* Show location membership if it exists */}
-                                {locationMembership && (
+                                {/* Show location membership plans if they exist */}
+                                {locationMembershipPlans.map((plan, index) => (
                                     <MembershipCard 
                                         service={{
-                                            _id: 'location-membership',
-                                            name: locationMembership.name,
-                                            description: locationMembership.description,
-                                            basePrice: locationMembership.price,
+                                            _id: `location-membership-${index}`,
+                                            name: plan.name,
+                                            description: plan.description,
+                                            basePrice: plan.price,
                                             duration: 0,
                                             categoryId: { name: 'Membership' }
                                         }} 
-                                        membership={locationMembership}
-                                        onSelect={onServiceSelect} 
+                                        membership={plan}
+                                        key={`location-membership-plan-${index}`}
                                     />
-                                )}
+                                ))}
                                 {/* Show membership services from catalog */}
                                 {membershipServices.map(service => (
                                     <MembershipCard 
                                         key={service._id} 
                                         service={service} 
-                                        membership={locationMembership}
                                         onSelect={onServiceSelect} 
                                     />
                                 ))}
@@ -119,4 +133,3 @@ const MembershipPage = () => {
 }
 
 export default MembershipPage
-

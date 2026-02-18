@@ -56,6 +56,17 @@ const getCategoryIcon = (name) => {
   return Gem // Default premium fallback
 }
 
+const normalizeMembershipPlans = (membership) => {
+  if (!membership) return []
+  if (Array.isArray(membership.plans) && membership.plans.length > 0) {
+    return membership.plans
+  }
+  if (membership.name || membership.description || membership.price !== undefined) {
+    return [membership]
+  }
+  return []
+}
+
 // ==========================================
 // 2. COMPONENTS
 // ==========================================
@@ -250,6 +261,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
   // Use branding membership as primary source for customers, or locationData for owners
   const locationMembership = branding?.membership || locationData?.data?.location?.membership
+  const locationMembershipPlans = useMemo(
+    () => normalizeMembershipPlans(locationMembership),
+    [locationMembership]
+  )
 
   // ---- FILTERING LOGIC ----
   const browseServices = useMemo(() => {
@@ -471,27 +486,26 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                         </div>
                     ) : (
                         <div className='grid grid-cols-1 gap-6 md:px-8'>
-                             {/* Location Membership - Show if it exists */}
-                             {locationMembership && (
+                             {/* Location Membership Plans */}
+                             {locationMembershipPlans.map((plan, index) => (
                                  <MembershipCard 
                                     service={{
-                                        _id: 'location-membership',
-                                        name: locationMembership.name,
-                                        description: locationMembership.description,
-                                        basePrice: locationMembership.price,
+                                        _id: `location-membership-${index}`,
+                                        name: plan.name,
+                                        description: plan.description,
+                                        basePrice: plan.price,
                                         duration: 0,
                                         categoryId: { name: 'Membership' }
                                     }} 
-                                    membership={locationMembership}
-                                    onSelect={onServiceSelect} 
+                                    membership={plan}
+                                    key={`location-membership-plan-${index}`}
                                  />
-                             )}
+                             ))}
                              {/* Real Memberships from Services */}
                              {membershipServices.map(service => (
                                 <MembershipCard 
                                     key={service._id} 
                                     service={service} 
-                                    membership={locationMembership}
                                     onSelect={onServiceSelect} 
                                 />
                             ))}

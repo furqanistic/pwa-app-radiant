@@ -269,6 +269,78 @@ const LocationSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      plans: {
+        type: [
+          {
+            name: {
+              type: String,
+              default: "Gold Glow Membership",
+              trim: true,
+            },
+            description: {
+              type: String,
+              default: "Unlock exclusive perks and premium benefits",
+              trim: true,
+            },
+            price: {
+              type: Number,
+              default: 99,
+              min: 0,
+            },
+            benefits: {
+              type: [String],
+              default: [
+                "Priority Booking",
+                "Free Premium Facial",
+                "15% Product Discount",
+              ],
+              validate: {
+                validator: function (v) {
+                  return Array.isArray(v) && v.length >= 1;
+                },
+                message: "Each membership plan must have at least 1 benefit",
+              },
+            },
+            stripeProductId: {
+              type: String,
+              default: null,
+              sparse: true,
+            },
+            stripePriceId: {
+              type: String,
+              default: null,
+              sparse: true,
+            },
+            currency: {
+              type: String,
+              default: "usd",
+              trim: true,
+            },
+            syncedAt: {
+              type: Date,
+              default: null,
+            },
+          },
+        ],
+        default: [
+          {
+            name: "Gold Glow Membership",
+            description: "Unlock exclusive perks and premium benefits",
+            price: 99,
+            benefits: [
+              "Priority Booking",
+              "Free Premium Facial",
+              "15% Product Discount",
+            ],
+          },
+        ],
+        validate: {
+          validator: function (v) {
+            return Array.isArray(v) && v.length >= 1 && v.length <= 3;
+          },
+          message: "Membership must have between 1 and 3 plans",
+        },
+      },
       price: {
         type: Number,
         default: 99,
@@ -283,9 +355,9 @@ const LocationSchema = new mongoose.Schema(
         ],
         validate: {
           validator: function(v) {
-            return v.length === 3;
+            return Array.isArray(v) && v.length >= 1;
           },
-          message: 'Membership must have exactly 3 benefits'
+          message: 'Membership must have at least 1 benefit'
         }
       },
       name: {

@@ -348,7 +348,7 @@ const StripeConnect = () => {
           )}
         </div>
         <div className="text-[0.65rem] text-gray-500">
-          Once charges & payouts show as active, membership controls will unlock on the Management page. Refresh status if you need to re-check Stripe.
+          Stripe status controls whether you can collect payments. You can still configure membership plans from the Management page before onboarding is complete.
         </div>
       </CardContent>
       <Dialog open={isOnboardingDialogOpen} onOpenChange={setIsOnboardingDialogOpen}>

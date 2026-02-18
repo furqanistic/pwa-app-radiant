@@ -13,14 +13,20 @@ const MembershipCard = ({ service, onSelect, membership }) => {
     ];
     const membershipName = membership?.name ?? service.name ?? 'Gold Glow Membership';
     const description = membership?.description ?? service.description ?? 'Unlock exclusive perks and premium benefits';
+    const isSelectable = typeof onSelect === 'function' && !!service?._id && !service._id.startsWith('location-membership');
+    const handleCardClick = () => {
+        if (isSelectable) {
+            onSelect(service);
+        }
+    };
 
     // Icons for benefits
     const benefitIcons = [Zap, Sparkles, Crown];
 
     return (
         <div 
-            onClick={() => onSelect(service)}
-            className="relative overflow-hidden rounded-[2.5rem] p-6 md:p-10 text-white cursor-pointer group transition-all duration-300 hover:scale-[1.01] bg-gray-900 border border-gray-200/70 shadow-2xl h-full flex flex-col justify-center"
+            onClick={handleCardClick}
+            className={`relative overflow-hidden rounded-[2.5rem] p-6 md:p-10 text-white group transition-all duration-300 bg-gray-900 border border-gray-200/70 shadow-2xl h-full flex flex-col justify-center ${isSelectable ? 'cursor-pointer hover:scale-[1.01]' : 'cursor-default'}`}
         >
             {/* Background - Dark Premium Gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-[#1A1A1A] to-black" />
@@ -90,7 +96,7 @@ const MembershipCard = ({ service, onSelect, membership }) => {
                         onClick={(e) => e.stopPropagation()} 
                         className="w-full bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 text-amber-950 font-black py-3.5 rounded-xl shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-all active:scale-95 flex items-center justify-center gap-2 tracking-wide uppercase text-xs md:text-sm whitespace-nowrap"
                     >
-                        Join Exclusive Club
+                        {isSelectable ? 'Join Exclusive Club' : 'Membership Plan'}
                     </button>
                 </div>
             </div>
@@ -99,4 +105,3 @@ const MembershipCard = ({ service, onSelect, membership }) => {
 };
 
 export default MembershipCard
-
