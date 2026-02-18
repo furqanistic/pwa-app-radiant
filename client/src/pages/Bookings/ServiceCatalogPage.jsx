@@ -5,6 +5,7 @@ import {
   useActiveServices,
   useCategories,
 } from '@/hooks/useServices'
+import { resolveImageUrl } from '@/lib/imageHelpers'
 import ghlService from '@/services/ghlService'
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
@@ -26,7 +27,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
-import { resolveImageUrl } from '@/lib/imageHelpers'
 
 // ==========================================
 // 1. UTILITY HOOKS & HELPERS
@@ -470,34 +470,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             
             {renderHeader()}
 
-            <div className='mb-6 bg-white border border-gray-200/70 rounded-2xl p-4 md:p-5 shadow-sm'>
-              <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
-                <div>
-                  <p className='text-sm font-semibold text-gray-500'>GHL Bookings</p>
-                  <p className='text-xl font-black text-gray-900'>
-                    {!activeLocationId
-                      ? 'No location selected'
-                      : isLoadingGhlBookings
-                      ? 'Loading...'
-                      : `${ghlBookings.length} booked`}
-                  </p>
-                  {activeLocationId && (
-                    <p className='text-xs text-gray-500 mt-1'>Location: {activeLocationId}</p>
-                  )}
-                </div>
-
-                <div className='flex items-center gap-2'>
-                  <label className='text-sm font-medium text-gray-600'>Date</label>
-                  <input
-                    type='date'
-                    value={selectedBookingsDate}
-                    min={new Date().toISOString().split('T')[0]}
-                    onChange={(e) => setSelectedBookingsDate(e.target.value)}
-                    className='h-10 px-3 bg-gray-50 border border-gray-200/70 rounded-lg text-sm'
-                  />
-                </div>
-              </div>
-            </div>
+          
             
             <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
             
