@@ -343,7 +343,9 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
           <div className='text-center bg-gray-50 rounded-xl p-3'>
             <div className='text-xs text-gray-500 mb-1'>Valid For</div>
             <div className='font-semibold text-sm text-gray-900'>
-              {reward.validDays} days
+              {reward.validDays && reward.validDays > 0
+                ? `${reward.validDays} days`
+                : 'No expiry'}
             </div>
           </div>
           <div className='text-center bg-gray-50 rounded-xl p-3'>

@@ -1,4 +1,5 @@
 // File: server/controller/userRewards.js - NEW: For managing user rewards in profile
+import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import PointTransaction from '../models/PointTransaction.js'
 import User from '../models/User.js'
@@ -127,20 +128,45 @@ export const getUserPointTransactions = async (req, res, next) => {
       PointTransaction.countDocuments(filter),
     ])
 
-    // Calculate stats
+    const [summaryResult, gameTransactionsCount] = await Promise.all([
+      PointTransaction.aggregate([
+        { $match: { user: new mongoose.Types.ObjectId(userId) } },
+        {
+          $group: {
+            _id: null,
+            totalEarned: {
+              $sum: {
+                $cond: [{ $gt: ['$points', 0] }, '$points', 0],
+              },
+            },
+            totalSpent: {
+              $sum: {
+                $cond: [{ $lt: ['$points', 0] }, { $abs: '$points' }, 0],
+              },
+            },
+          },
+        },
+      ]),
+      PointTransaction.countDocuments({
+        user: userId,
+        type: { $in: ['spent', 'earned', 'game_play'] },
+      }),
+    ])
+
+    const summary = {
+      totalEarned: summaryResult[0]?.totalEarned || 0,
+      totalSpent: summaryResult[0]?.totalSpent || 0,
+      netBalance:
+        (summaryResult[0]?.totalEarned || 0) -
+        (summaryResult[0]?.totalSpent || 0),
+    }
+
     const stats = {
       total: totalTransactions,
-      totalEarned: transactions
-        .filter((t) => t.points > 0)
-        .reduce((sum, t) => sum + t.points, 0),
-      totalSpent: Math.abs(
-        transactions
-          .filter((t) => t.points < 0)
-          .reduce((sum, t) => sum + t.points, 0)
-      ),
-      gameTransactions: transactions.filter((t) =>
-        ['spent', 'earned', 'game_play'].includes(t.type)
-      ).length,
+      totalEarned: summary.totalEarned,
+      totalSpent: summary.totalSpent,
+      netBalance: summary.netBalance,
+      gameTransactions: gameTransactionsCount,
     }
 
     res.status(200).json({
@@ -148,6 +174,7 @@ export const getUserPointTransactions = async (req, res, next) => {
       data: {
         transactions,
         stats,
+        summary,
         pagination: {
           currentPage: pageNum,
           totalPages: Math.ceil(totalTransactions / limitNum),

@@ -40,6 +40,7 @@ const ContactsPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
+  const brandColor = "var(--brand-primary)";
 
   // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
@@ -295,7 +296,7 @@ const ContactsPage = () => {
                     typeof page === "number" && handlePageChange(page)
                   }
                   disabled={page === "..."}
-                  className={page === currentPage ? "bg-blue-600 text-white" : ""}
+                  className={page === currentPage ? "bg-[var(--brand-primary)] text-white" : ""}
                 >
                   {page}
                 </Button>
@@ -327,14 +328,14 @@ const ContactsPage = () => {
             <p className="text-gray-600">
               Manage your spa members, clients, and notifications
               {!isSuperAdmin && currentUserLocationId && (
-                <span className="block text-sm text-blue-600 mt-1">
+                <span className="block text-sm mt-1 text-[var(--brand-primary)]">
                   Showing contacts from:{" "}
                   {currentUser?.selectedLocation?.locationName ||
                     currentUser?.spaLocation?.locationName}
                 </span>
               )}
               {isSuperAdmin && (
-                <span className="block text-sm text-blue-600 mt-1">
+                <span className="block text-sm mt-1 text-[var(--brand-primary)]">
                   Showing contacts from all locations
                 </span>
               )}
@@ -346,7 +347,8 @@ const ContactsPage = () => {
             {isSuperAdmin && (
               <Button
                 onClick={() => setIsAddUserOpen(true)}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                className="hover:opacity-90"
+                style={{ backgroundColor: brandColor, color: "#fff" }}
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 Add User
@@ -356,7 +358,8 @@ const ContactsPage = () => {
             {isElevatedUser && (
               <Button
                 onClick={() => handleOpenNotificationSender()}
-                className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                className="hover:opacity-90"
+                style={{ backgroundColor: brandColor, color: "#fff" }}
               >
                 <Bell className="w-4 h-4 mr-2" />
                 Send Notification
@@ -386,7 +389,7 @@ const ContactsPage = () => {
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                   }}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
                 />
               </div>
               <select
@@ -395,7 +398,7 @@ const ContactsPage = () => {
                   setRoleFilter(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
               >
                 {roleFilterOptions.map((role) => (
                   <option key={role} value={role}>
@@ -410,7 +413,7 @@ const ContactsPage = () => {
                     setLocationFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
                 >
                   <option value="">All locations</option>
                   {(locationsData?.data?.locations || []).map((location) => (
@@ -445,7 +448,7 @@ const ContactsPage = () => {
 
             {isLoadingUsers ? (
               <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+                <div className="w-8 h-8 border-4 border-gray-200 border-t-[var(--brand-primary)] rounded-full animate-spin"></div>
               </div>
             ) : usersError ? (
               <div className="text-center py-12">
@@ -489,16 +492,27 @@ const ContactsPage = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {users.map((user) => (
+                      {users.map((user) => {
+                        const userId = user?._id || user?.userId || user?.id;
+                        return (
                         <tr
-                          key={user._id}
-                          className="hover:bg-gray-50 cursor-pointer"
-                          onClick={() => navigate(`/client/${user._id}`)}
+                          key={userId || user?.email || user?.name}
+                          className={`hover:bg-gray-50 ${userId ? "cursor-pointer" : "cursor-not-allowed"}`}
+                          onClick={() => {
+                            if (!userId) {
+                              toast.error("Unable to open profile for this user.");
+                              return;
+                            }
+                            navigate(`/client/${userId}`, { state: { user } });
+                          }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10">
-                                <div className="h-10 w-10 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 flex items-center justify-center">
+                                <div
+                                  className="h-10 w-10 rounded-full flex items-center justify-center"
+                                  style={{ backgroundColor: brandColor }}
+                                >
                                   <span className="text-white font-medium text-sm">
                                     {user.name?.charAt(0)?.toUpperCase()}
                                   </span>
@@ -606,7 +620,8 @@ const ContactsPage = () => {
                             </DropdownMenu>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

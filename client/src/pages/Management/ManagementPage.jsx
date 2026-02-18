@@ -25,6 +25,7 @@ import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from 'sonner';
+import { useBranding } from "@/context/BrandingContext";
 
 // Import components
 import AddUserForm from "@/components/Management/AddUserForm";
@@ -47,10 +48,28 @@ import {
 import Layout from "@/pages/Layout/Layout";
 import stripeService from "@/services/stripeService";
 
+const clampChannel = (value) => Math.max(0, Math.min(255, value));
+
+const adjustHex = (hex, amount) => {
+  if (!hex) return "#ec4899";
+  const cleaned = hex.replace("#", "");
+  if (cleaned.length !== 6) return "#ec4899";
+  const num = parseInt(cleaned, 16);
+  const r = clampChannel(((num >> 16) & 255) + amount);
+  const g = clampChannel(((num >> 8) & 255) + amount);
+  const b = clampChannel((num & 255) + amount);
+  return `#${r.toString(16).padStart(2, "0")}${g
+    .toString(16)
+    .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+};
+
 const ManagementPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || "#ec4899";
+  const brandColorDark = adjustHex(brandColor, -24);
 
   // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
@@ -270,7 +289,10 @@ const ManagementPage = () => {
 
               <Button
                 onClick={() => setIsPointsSettingsOpen(true)}
-                className="bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700"
+                className="text-white hover:opacity-90"
+                style={{
+                  backgroundImage: `linear-gradient(to right, ${brandColor}, ${brandColorDark})`,
+                }}
               >
                 <Award className="w-4 h-4 mr-2" />
                 Points Rules

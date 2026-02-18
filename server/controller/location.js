@@ -3,8 +3,9 @@ import { createError } from '../error.js';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
 import {
-  ensureLocationPointsSettings,
-  mergePointsMethodsWithDefaults,
+    DEFAULT_POINTS_METHODS,
+    ensureLocationPointsSettings,
+    mergePointsMethodsWithDefaults,
 } from '../utils/pointsSettings.js';
 
 // Helper to transform businessHours array from Location model to object for User model
@@ -259,14 +260,45 @@ export const updateLocation = async (req, res, next) => {
     if (coordinates !== undefined) updateData.coordinates = coordinates
     if (automatedGifts !== undefined) updateData.automatedGifts = automatedGifts
     if (pointsSettings !== undefined) {
-      const mergedMethods = mergePointsMethodsWithDefaults(
-        pointsSettings?.methods || location.pointsSettings?.methods || []
-      )
-      updateData.pointsSettings = {
-        ...location.pointsSettings,
-        ...pointsSettings,
-        methods: mergedMethods,
+      const incomingMethods = Array.isArray(pointsSettings?.methods)
+        ? pointsSettings.methods.filter(Boolean)
+        : null
+
+      let finalMethods
+
+      if (incomingMethods) {
+        // The frontend always sends the full list of methods it rendered.
+        // Trust it as the source of truth for isActive and pointsValue.
+        const incomingByKey = new Map(
+          incomingMethods
+            .filter((m) => m?.key)
+            .map((m) => [m.key, m])
+        )
+
+        // Append any brand-new default methods not in the payload as disabled.
+        DEFAULT_POINTS_METHODS.forEach((def) => {
+          if (!incomingByKey.has(def.key)) {
+            incomingByKey.set(def.key, { ...def, isActive: false })
+          }
+        })
+
+        finalMethods = Array.from(incomingByKey.values())
+      } else {
+        // No methods in payload — preserve existing
+        finalMethods = Array.isArray(location.pointsSettings?.methods)
+          ? location.pointsSettings.methods.map((m) =>
+              typeof m?.toObject === 'function' ? m.toObject() : m
+            )
+          : []
       }
+
+      console.log('[pointsSettings] Saving methods. Sample isActive values:',
+        finalMethods.slice(0, 3).map(m => ({ key: m.key, isActive: m.isActive }))
+      )
+
+      // Use direct nested paths to avoid subdocument spread edge-cases.
+      updateData['pointsSettings.methods'] = finalMethods
+      updateData['pointsSettings.allMethodsBootstrapped'] = true
     }
     if (logo !== undefined) updateData.logo = logo
     if (logoPublicId !== undefined) updateData.logoPublicId = logoPublicId
@@ -427,14 +459,23 @@ export const getMyLocation = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const user = req.user;
-    
-    // Find location either by addedBy OR by the locationId in user's profile
-    const location = await Location.findOne({ 
-      $or: [
-        { addedBy: userId },
-        { locationId: user.spaLocation?.locationId }
-      ]
-    });
+
+    let location = null
+
+    // Prefer the spa's configured location for spa users to avoid ambiguous matches.
+    if (user.role === 'spa' && user.spaLocation?.locationId) {
+      location = await Location.findOne({ locationId: user.spaLocation.locationId })
+    }
+
+    // For users/admin flows, prefer explicitly selected location when available.
+    if (!location && user.selectedLocation?.locationId) {
+      location = await Location.findOne({ locationId: user.selectedLocation.locationId })
+    }
+
+    // Fallback for management accounts with created locations.
+    if (!location) {
+      location = await Location.findOne({ addedBy: userId }).sort({ createdAt: -1 })
+    }
     
     if (!location) {
         console.log(`[getMyLocation] No location found for user ${userId}. SPA Location ID: ${user.spaLocation?.locationId}`);
@@ -478,6 +519,12 @@ export const getMyLocation = async (req, res, next) => {
       location.markModified('automatedGifts');
       await location.save();
     }
+
+    // Prevent stale reads from browser/proxy caches for this settings-heavy payload.
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.set('Surrogate-Control', 'no-store')
 
     res.status(200).json({
       status: 'success',

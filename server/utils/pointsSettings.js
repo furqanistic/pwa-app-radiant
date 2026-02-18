@@ -483,18 +483,48 @@ export const mergePointsMethodsWithDefaults = (methods = []) => {
 export const ensureLocationPointsSettings = async (location) => {
   if (!location) return { updated: false, methods: [] }
 
-  const existingMethods = location.pointsSettings?.methods || []
-  let mergedMethods = mergePointsMethodsWithDefaults(existingMethods)
-
-  // One-time migration: enable the full standard ruleset for legacy locations.
   const needsBootstrap = !location.pointsSettings?.allMethodsBootstrapped
-  if (needsBootstrap) {
-    mergedMethods = mergedMethods.map((method) => ({
-      ...method,
-      // Keep optional stronger no-show rule off by default.
-      isActive: method.key === 'no_show_penalty_stronger' ? false : true,
-    }))
+
+  // Convert Mongoose subdocuments to plain objects to avoid internal field pollution.
+  const rawMethods = location.pointsSettings?.methods || []
+  const existingMethods = Array.isArray(rawMethods)
+    ? rawMethods.map((m) => (typeof m?.toObject === 'function' ? m.toObject() : { ...m }))
+    : []
+
+  const existingByKey = new Map(
+    existingMethods.filter((m) => m?.key).map((m) => [m.key, m])
+  )
+
+  // If already bootstrapped and every default key is already in the DB, skip entirely.
+  if (!needsBootstrap && DEFAULT_POINTS_METHODS.every((d) => existingByKey.has(d.key))) {
+    return { updated: false, methods: existingMethods }
   }
+
+  // Build merged list: existing DB values always win (including isActive).
+  const mergedMethods = DEFAULT_POINTS_METHODS.map((fallback) => {
+    const existing = existingByKey.get(fallback.key)
+    if (existing) {
+      return normalizePointsMethod(existing, fallback)
+    }
+    if (needsBootstrap) {
+      return {
+        ...fallback,
+        isActive: fallback.key === 'no_show_penalty_stronger' ? false : true,
+      }
+    }
+    // New default added after bootstrap — start disabled so user settings aren't overridden.
+    return { ...fallback, isActive: false }
+  })
+
+  // Preserve any custom methods not in the defaults list.
+  existingMethods.forEach((method) => {
+    if (!method?.key) return
+    if (!DEFAULT_POINTS_METHODS.some((d) => d.key === method.key)) {
+      mergedMethods.push(method)
+    }
+  })
+
+  console.log(`[ensureLocationPointsSettings] Migrating location ${location.locationId}: needsBootstrap=${needsBootstrap}, existingCount=${existingMethods.length}, mergedCount=${mergedMethods.length}`)
 
   const updated =
     !location.pointsSettings ||

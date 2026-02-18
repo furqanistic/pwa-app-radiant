@@ -46,6 +46,7 @@ const ScratchSpinManagement = () => {
     probability: 10,
     color: '#6366F1',
     valueType: 'points',
+    validDays: 30,
   })
 
   useEffect(() => {
@@ -148,6 +149,10 @@ const ScratchSpinManagement = () => {
           title: item.title.trim(),
           value: item.value.trim(),
           valueType: item.valueType || 'points',
+          validDays:
+            (item.valueType || 'points') === 'points'
+              ? 0
+              : Math.max(0, parseInt(item.validDays, 10) || 30),
           color: item.color || '#6366F1',
           isActive: item.isActive !== false,
           ...(gameType === 'scratch' && {
@@ -257,6 +262,10 @@ const ScratchSpinManagement = () => {
         title: newItem.title.trim(),
         value: newItem.value.trim(),
         valueType: newItem.valueType || 'points',
+        validDays:
+          (newItem.valueType || 'points') === 'points'
+            ? 0
+            : Math.max(0, parseInt(newItem.validDays, 10) || 30),
         color: newItem.color || '#6366F1',
         isActive: true,
         ...(activeTab === 'scratch' && {
@@ -273,6 +282,7 @@ const ScratchSpinManagement = () => {
         probability: 10,
         color: '#6366F1',
         valueType: 'points',
+        validDays: 30,
       })
       setShowAddForm(false)
     }
@@ -1106,6 +1116,11 @@ const ItemDisplay = ({ item, onEdit, onDelete, showProbability }) => {
           <span className='text-sm text-gray-600'>
             {item.value} {item.valueType || 'points'}
           </span>
+          {item.valueType !== 'points' && (
+            <span className='text-xs text-gray-500'>
+              Valid {item.validDays || 30}d
+            </span>
+          )}
           {showProbability && (
             <span className='px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md text-xs font-medium'>
               {item.probability || 0}%
@@ -1151,7 +1166,16 @@ const EditItemForm = ({ item, setItem, onSave, onCancel, showProbability }) => {
         />
         <select
           value={item.valueType || 'points'}
-          onChange={(e) => setItem({ ...item, valueType: e.target.value })}
+          onChange={(e) =>
+            setItem({
+              ...item,
+              valueType: e.target.value,
+              validDays:
+                e.target.value === 'points'
+                  ? 0
+                  : item.validDays ?? 30,
+            })
+          }
           className='px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white'
         >
           <option value='points'>Points</option>
@@ -1173,6 +1197,27 @@ const EditItemForm = ({ item, setItem, onSave, onCancel, showProbability }) => {
           placeholder='Probability %'
         />
       )}
+      <div className='grid grid-cols-3 gap-3'>
+        <input
+          type='number'
+          min='0'
+          value={item.validDays ?? 30}
+          onChange={(e) =>
+            setItem({
+              ...item,
+              validDays: parseInt(e.target.value, 10) || 0,
+            })
+          }
+          className='col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none disabled:bg-gray-100'
+          placeholder='Validity (days)'
+          disabled={(item.valueType || 'points') === 'points'}
+        />
+        <div className='flex items-center text-xs text-gray-500'>
+          {(item.valueType || 'points') === 'points'
+            ? 'No expiry'
+            : 'Days'}
+        </div>
+      </div>
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-3'>
           <Palette className='w-4 h-4 text-gray-500' />
@@ -1246,7 +1291,16 @@ const AddItemForm = ({
         />
         <select
           value={item.valueType || 'points'}
-          onChange={(e) => setItem({ ...item, valueType: e.target.value })}
+          onChange={(e) =>
+            setItem({
+              ...item,
+              valueType: e.target.value,
+              validDays:
+                e.target.value === 'points'
+                  ? 0
+                  : item.validDays ?? 30,
+            })
+          }
           className='px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white'
         >
           <option value='points'>Points</option>
@@ -1274,6 +1328,31 @@ const AddItemForm = ({
           />
         </div>
       )}
+
+      <div>
+        <label className='block text-xs font-medium text-gray-700 mb-2'>
+          Validity (days)
+        </label>
+        <input
+          type='number'
+          min='0'
+          value={item.validDays ?? 30}
+          onChange={(e) =>
+            setItem({
+              ...item,
+              validDays: parseInt(e.target.value, 10) || 0,
+            })
+          }
+          className='w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none disabled:bg-gray-100'
+          disabled={(item.valueType || 'points') === 'points'}
+          placeholder='e.g., 5'
+        />
+        <p className='text-[11px] text-gray-500 mt-1'>
+          {(item.valueType || 'points') === 'points'
+            ? 'Points never expire.'
+            : 'Set 0 for no expiry.'}
+        </p>
+      </div>
 
       <div className='flex items-center gap-4'>
         <div className='flex items-center gap-3'>

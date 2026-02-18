@@ -6,41 +6,55 @@ import { RefreshCw, Save, X } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+const cloneMethods = (methods = []) =>
+  Array.isArray(methods) ? methods.map((method) => ({ ...method })) : []
+
 const PointsSettings = ({ isOpen, onClose }) => {
   const queryClient = useQueryClient()
   const [methods, setMethods] = useState([])
   const [isDirty, setIsDirty] = useState(false)
   const [saveProgress, setSaveProgress] = useState(0)
+  // Tracks whether the user has unsaved local changes so we don't
+  // overwrite them when the query re-renders with stale data.
+  const hasLocalChanges = React.useRef(false)
 
   const { data: locationData, isLoading } = useQuery({
     queryKey: ['myLocation'],
     queryFn: () => locationService.getMyLocation(),
     enabled: isOpen,
+    refetchOnWindowFocus: false,
   })
 
   const locationId = locationData?.data?.location?._id
 
   useEffect(() => {
-    if (locationData?.data?.location?.pointsSettings?.methods) {
-      setMethods(locationData.data.location.pointsSettings.methods)
-      setIsDirty(false)
-    }
+    const incomingMethods = locationData?.data?.location?.pointsSettings?.methods
+    if (!incomingMethods) return
+    // Only skip if the user has unsaved local edits
+    if (hasLocalChanges.current) return
+    setMethods(cloneMethods(incomingMethods))
+    setIsDirty(false)
   }, [locationData])
 
   const updateLocationMutation = useMutation({
     mutationFn: (data) => locationService.updateLocation(locationId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['myLocation'])
-      toast.success('Points settings updated!')
+      // Clear the local-changes guard BEFORE invalidating so the
+      // incoming fresh data is allowed to update the methods list.
+      hasLocalChanges.current = false
       setIsDirty(false)
+      queryClient.invalidateQueries({ queryKey: ['myLocation'] })
+      toast.success('Points settings updated!')
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to update settings')
     },
   })
 
+  const isSaving = updateLocationMutation.isPending
+
   useEffect(() => {
-    if (!updateLocationMutation.isLoading) {
+    if (!isSaving) {
       setSaveProgress(0)
       return
     }
@@ -55,9 +69,11 @@ const PointsSettings = ({ isOpen, onClose }) => {
     }, 180)
 
     return () => clearInterval(interval)
-  }, [updateLocationMutation.isLoading])
+  }, [isSaving])
 
   const handleToggle = (index) => {
+    if (isSaving) return
+    hasLocalChanges.current = true
     setMethods((prev) => {
       const updated = [...prev]
       updated[index] = { ...updated[index], isActive: !updated[index].isActive }
@@ -67,6 +83,8 @@ const PointsSettings = ({ isOpen, onClose }) => {
   }
 
   const handleValueChange = (index, field, value) => {
+    if (isSaving) return
+    hasLocalChanges.current = true
     setMethods((prev) => {
       const updated = [...prev]
       updated[index] = { ...updated[index], [field]: value }
@@ -76,7 +94,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
   }
 
   const handleSave = async () => {
-    if (!locationId) return
+    if (!locationId || isSaving) return
     await updateLocationMutation.mutateAsync({
       pointsSettings: { methods },
     })
@@ -85,6 +103,8 @@ const PointsSettings = ({ isOpen, onClose }) => {
   }
 
   const handleSetAllEnabled = (enabled) => {
+    if (isSaving) return
+    hasLocalChanges.current = true
     setMethods((prev) =>
       prev.map((method) => ({
         ...method,
@@ -132,12 +152,21 @@ const PointsSettings = ({ isOpen, onClose }) => {
               <div className='flex items-center gap-3'>
                 <button
                   onClick={() => handleSetAllEnabled(true)}
+                  disabled={isSaving || methods.length === 0}
                   className='px-3 py-2 bg-green-50 text-green-700 text-[10px] font-black uppercase rounded-xl border border-green-100 hover:bg-green-100 transition-colors'
                 >
                   Enable All
                 </button>
                 <button
-                  onClick={() => queryClient.invalidateQueries(['myLocation'])}
+                  onClick={() => handleSetAllEnabled(false)}
+                  disabled={isSaving || methods.length === 0}
+                  className='px-3 py-2 bg-red-50 text-red-700 text-[10px] font-black uppercase rounded-xl border border-red-100 hover:bg-red-100 transition-colors'
+                >
+                  Disable All
+                </button>
+                <button
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['myLocation'] })}
+                  disabled={isSaving}
                   title='Reload'
                   className='p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-blue-50 hover:text-blue-500 transition-all group'
                 >
@@ -221,9 +250,10 @@ const PointsSettings = ({ isOpen, onClose }) => {
                         </div>
                         <button
                           onClick={() => handleToggle(index)}
+                          disabled={isSaving}
                           className={`w-12 h-6 rounded-full relative transition-colors ${
                             method.isActive ? 'bg-green-500' : 'bg-gray-300'
-                          }`}
+                          } ${isSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <div
                             className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -243,6 +273,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
                               type='number'
                               min='-1000'
                               value={method.pointsValue}
+                              disabled={isSaving}
                               onChange={(e) =>
                                 handleValueChange(
                                   index,
@@ -264,6 +295,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
                               type='number'
                               min='0'
                               value={method.windowMinutes || 0}
+                              disabled={isSaving}
                               onChange={(e) =>
                                 handleValueChange(
                                   index,
@@ -283,7 +315,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
             </div>
 
             <div className='px-6 md:px-8 pb-6'>
-              {updateLocationMutation.isLoading && (
+              {isSaving && (
                 <div className='mb-3'>
                   <div className='flex items-center justify-between mb-1'>
                     <span className='text-[10px] font-black uppercase tracking-wider text-pink-600'>
@@ -303,11 +335,11 @@ const PointsSettings = ({ isOpen, onClose }) => {
               )}
               <Button
                 onClick={handleSave}
-                disabled={!isDirty || updateLocationMutation.isLoading}
+                disabled={!isDirty || isSaving || !locationId}
                 className='w-full rounded-2xl h-12 bg-pink-500 text-white font-black uppercase tracking-widest text-xs'
               >
                 <Save className='w-4 h-4 mr-2' />
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
           </motion.div>

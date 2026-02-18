@@ -20,6 +20,12 @@ const GameWheelItemSchema = new mongoose.Schema({
     enum: ['points', 'discount', 'prize', 'service', 'other'],
     default: 'points',
   },
+  validDays: {
+    type: Number,
+    default: 30,
+    min: 0,
+    max: 3650,
+  },
   probability: {
     type: Number,
     min: 0,

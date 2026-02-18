@@ -355,6 +355,14 @@ const GameModal = ({ game, onClose, onPlay, isPlaying }) => (
 
 const ResultModal = ({ result, onClose }) => {
   const winningItem = result.result.winningItem
+  const expiresAt = result.result.expiresAt
+  const expiryLabel = expiresAt
+    ? new Date(expiresAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -409,6 +417,14 @@ const ResultModal = ({ result, onClose }) => {
             <Sparkles className='absolute bottom-6 right-6 w-8 h-8 text-[color:var(--brand-primary)/0.35] opacity-50' />
             <h3 className='text-xs md:text-sm font-black text-[color:var(--brand-primary)] uppercase tracking-widest mb-3'>{winningItem.title}</h3>
             <div className='text-4xl md:text-6xl font-black text-slate-900 tracking-tighter'>{winningItem.value}</div>
+            <div className='mt-4 text-xs md:text-sm font-semibold text-slate-500 uppercase tracking-[0.2em]'>
+              {winningItem.valueType}
+            </div>
+            {expiryLabel && (
+              <div className='mt-3 text-xs md:text-sm text-slate-500 font-semibold'>
+                Expires on {expiryLabel}
+              </div>
+            )}
           </div>
 
           <button

@@ -674,9 +674,13 @@ export const playGame = async (req, res, next) => {
 
         // FIXED: Properly handle expiresAt based on reward type
         const isPointReward = winningItem.valueType === 'points'
-        const expiresAt = isPointReward
-          ? null // Point rewards don't expire
-          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days for other rewards
+        const rewardValidDays = isPointReward
+          ? 0
+          : Math.max(0, parseInt(winningItem.validDays || 30, 10) || 30)
+        const expiresAt =
+          isPointReward || rewardValidDays <= 0
+            ? null // Point rewards or zero days don't expire
+            : new Date(Date.now() + rewardValidDays * 24 * 60 * 60 * 1000)
 
         // Create UserReward entry with proper schema structure
         const gameRewardData = {
@@ -695,13 +699,14 @@ export const playGame = async (req, res, next) => {
             value: isPointReward
               ? pointsWon
               : parseFloat(winningItem.value) || 0,
-            validDays: isPointReward ? 0 : 30,
+            validDays: rewardValidDays,
             winningItem: {
               id: winningItem._id,
               title: winningItem.title,
               description: winningItem.description || '',
               value: winningItem.value,
               valueType: winningItem.valueType,
+              validDays: rewardValidDays,
               color: winningItem.color,
               icon: winningItem.icon || '',
             },
@@ -820,7 +825,9 @@ export const playGame = async (req, res, next) => {
         pointsWon > 0
           ? `You earned ${pointsWon} points.`
           : winningItem.valueType !== 'points'
-          ? `Redeem this at your spa within 30 days.`
+          ? rewardValidDays > 0
+            ? `Redeem this at your spa within ${rewardValidDays} days.`
+            : 'Redeem this at your spa anytime.'
           : ''
       }`,
       {
@@ -870,8 +877,8 @@ export const playGame = async (req, res, next) => {
           prizeType: winningItem.valueType,
           isInstantReward: winningItem.valueType === 'points',
           expiresAt:
-            winningItem.valueType !== 'points'
-              ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            winningItem.valueType !== 'points' && rewardValidDays > 0
+              ? new Date(Date.now() + rewardValidDays * 24 * 60 * 60 * 1000)
               : null,
           eligibilityAfterPlay: {
             playsRemaining: Math.max(0, eligibilityAfterPlay.playsRemaining),
