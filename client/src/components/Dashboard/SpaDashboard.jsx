@@ -33,7 +33,14 @@ import {
 const SpaDashboard = ({ data, refetch }) => {
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [activeTab, setActiveTab] = useState('overview') 
-    const { stats, analytics, liveActivity, currentBookings, spaLocation } = data
+    const {
+        stats = {},
+        analytics = {},
+        liveActivity = [],
+        currentBookings = [],
+    } = data || {}
+    const trendData = Array.isArray(analytics?.trendData) ? analytics.trendData : []
+    const topServices = Array.isArray(analytics?.topServices) ? analytics.topServices : []
 
     const { branding } = useBranding()
     const brandColor = branding?.themeColor || '#ec4899'
@@ -72,7 +79,9 @@ const SpaDashboard = ({ data, refetch }) => {
     const handleRefresh = async () => {
         setIsRefreshing(true)
         try {
-            await refetch()
+            if (typeof refetch === 'function') {
+                await refetch()
+            }
         } finally {
             setIsRefreshing(false)
         }
@@ -87,15 +96,15 @@ const SpaDashboard = ({ data, refetch }) => {
         })
     }
 
-    const chartData = analytics.trendData.map(item => ({
-        name: item._id.split('-').slice(1).join('/'), // Simpler date format
-        bookings: item.bookings,
-        revenue: item.revenue
+    const chartData = trendData.map(item => ({
+        name: typeof item?._id === 'string' ? item._id.split('-').slice(1).join('/') : 'N/A', // Simpler date format
+        bookings: item?.bookings || 0,
+        revenue: item?.revenue || 0
     }))
 
-    const serviceData = analytics.topServices.map((item, index) => ({
-        name: item._id,
-        value: item.count,
+    const serviceData = topServices.map((item, index) => ({
+        name: item?._id || 'Unknown',
+        value: item?.count || 0,
         color: COLORS[index % COLORS.length]
     }))
 
@@ -105,7 +114,7 @@ const SpaDashboard = ({ data, refetch }) => {
             <StatCard title="Total Clients" value={stats.totalClients} icon={Users} growth={stats.clientGrowth} />
             <StatCard title="Visits" value={stats.totalVisits} icon={UserCheck} growth={stats.visitGrowth} />
             <StatCard title="Members" value={stats.activeMemberships} icon={TrendingUp} growth={stats.membershipGrowth} />
-            <StatCard title="Revenue" value={`$${analytics.trendData.reduce((acc, curr) => acc + curr.revenue, 0)}`} icon={DollarSign} growth={stats.revenueGrowth} />
+            <StatCard title="Revenue" value={`$${trendData.reduce((acc, curr) => acc + (curr.revenue || 0), 0)}`} icon={DollarSign} growth={stats.revenueGrowth} />
         </div>
     )
 

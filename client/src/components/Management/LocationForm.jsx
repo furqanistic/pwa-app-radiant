@@ -72,7 +72,7 @@ const adjustHex = (hex, amount) => {
 }
 
 const getDialogSheetClasses =
-  'p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-3xl rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2'
+  'p-0 overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] w-full sm:max-w-4xl rounded-t-[2.5rem] sm:rounded-[2rem] fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 border-0 shadow-2xl bg-white'
 
 // Fix Leaflet icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -467,8 +467,9 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent showCloseButton={false} className={getDialogSheetClasses}>
+        <div className='w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 sm:hidden shrink-0' />
         <div
-          className='px-6 py-4 text-white flex items-center justify-between'
+          className='px-6 py-5 sm:px-8 sm:py-6 text-white flex items-center justify-between shrink-0'
           style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
         >
           <div className='flex items-center gap-2'>
@@ -486,13 +487,14 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
           </button>
         </div>
 
-        <div className='px-6 py-2 text-sm text-gray-600'>
+        <div className='px-6 sm:px-8 py-3 text-sm text-gray-600 border-b border-gray-100 shrink-0'>
           {initialData
             ? 'Update details for this spa location'
             : 'Add a new spa location to the system using the account detail URL'}
         </div>
 
-        <form onSubmit={handleSubmit} className='space-y-8 px-6 pb-6 overflow-y-auto'>
+        <form onSubmit={handleSubmit} className='flex flex-1 min-h-0 flex-col'>
+          <div className='space-y-8 px-6 sm:px-8 pt-6 overflow-y-auto overflow-x-hidden flex-1 min-h-0'>
           <div className='bg-gray-50 p-4 rounded-2xl space-y-4'>
             <div className='space-y-2'>
               <Label htmlFor='locationId' className='text-sm font-semibold text-gray-700'>
@@ -943,9 +945,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
               className='rounded-2xl resize-none'
             />
           </div>
+          </div>
 
           {/* Action Buttons */}
-          <div className='flex gap-4 pt-4'>
+          <div className='flex gap-4 px-6 sm:px-8 py-5 border-t border-gray-100 bg-white shrink-0'>
             <Button
               type='button'
               variant='outline'
