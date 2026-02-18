@@ -14,6 +14,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
   const [methods, setMethods] = useState([])
   const [isDirty, setIsDirty] = useState(false)
   const [saveProgress, setSaveProgress] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
   // Tracks whether the user has unsaved local changes so we don't
   // overwrite them when the query re-renders with stale data.
   const hasLocalChanges = React.useRef(false)
@@ -119,6 +120,26 @@ const PointsSettings = ({ isOpen, onClose }) => {
     [methods]
   )
 
+  const filteredMethods = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return methods
+    return methods.filter((method) => {
+      const haystack = [
+        method.title,
+        method.description,
+        method.key,
+        method.pointsLabel,
+        method.frequency,
+        method.verification,
+        method.notes,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [methods, searchQuery])
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -182,18 +203,44 @@ const PointsSettings = ({ isOpen, onClose }) => {
             </div>
 
             <div className='flex-1 overflow-y-auto p-6 md:p-8'>
+              <div className='mb-5'>
+                <div className='relative'>
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder='Search rules...'
+                    className='w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-200'
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className='absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600'
+                      aria-label='Clear search'
+                    >
+                      <X className='w-4 h-4' />
+                    </button>
+                  )}
+                </div>
+                {!!searchQuery && (
+                  <p className='mt-2 text-[11px] font-bold uppercase tracking-widest text-gray-400'>
+                    {filteredMethods.length} result{filteredMethods.length === 1 ? '' : 's'}
+                  </p>
+                )}
+              </div>
               {isLoading ? (
                 <div className='flex flex-col items-center justify-center py-20'>
                   <RefreshCw className='w-10 h-10 text-pink-500 animate-spin mb-4' />
                   <p className='text-sm font-bold text-gray-500 uppercase tracking-widest'>Loading settings...</p>
                 </div>
-              ) : methods.length === 0 ? (
+              ) : filteredMethods.length === 0 ? (
                 <div className='text-center py-12 bg-gray-50 rounded-[2rem]'>
                   <p className='text-sm font-bold text-gray-500'>No points settings found.</p>
                 </div>
               ) : (
                 <div className='space-y-4'>
-                  {methods.map((method, index) => (
+                  {filteredMethods.map((method) => {
+                    const index = methods.findIndex((item) => item === method)
+                    return (
                     <div
                       key={method.key || index}
                       className='flex flex-col gap-3 p-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm'
@@ -256,9 +303,9 @@ const PointsSettings = ({ isOpen, onClose }) => {
                           } ${isSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <div
-                            className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                              method.isActive ? 'translate-x-6' : ''
-                            }`}
+                              className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                                method.isActive ? 'translate-x-6' : ''
+                              }`}
                           />
                         </button>
                       </div>
@@ -309,7 +356,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
                         )}
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               )}
             </div>

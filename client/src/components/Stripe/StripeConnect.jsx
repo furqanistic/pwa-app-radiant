@@ -1,10 +1,11 @@
 // File: client/src/components/Stripe/StripeConnect.jsx - Stripe Connect Integration
-import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import stripeService from '../../services/stripeService';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -16,6 +17,10 @@ const StripeConnect = () => {
   const [accountStatus, setAccountStatus] = useState(null);
   const [checking, setChecking] = useState(true);
   const [handledStripeParams, setHandledStripeParams] = useState(false);
+  const [isOnboardingDialogOpen, setIsOnboardingDialogOpen] = useState(false);
+  const [preparingOnboarding, setPreparingOnboarding] = useState(false);
+  const [onboardingUrl, setOnboardingUrl] = useState('');
+  const isFullyActive = !!(accountStatus?.account?.chargesEnabled && accountStatus?.account?.payoutsEnabled);
 
   const steps = useMemo(
     () => [
@@ -95,8 +100,8 @@ const StripeConnect = () => {
       await stripeService.createConnectAccount();
       toast.success('Stripe account created successfully!');
 
-      // Now create the onboarding link
-      await handleStartOnboarding();
+      setIsOnboardingDialogOpen(true);
+      await prepareOnboardingLink();
     } catch (error) {
       console.error('Error creating account:', error);
       toast.error(error.response?.data?.message || 'Failed to create Stripe account');
@@ -105,19 +110,46 @@ const StripeConnect = () => {
     }
   };
 
-  const handleStartOnboarding = async () => {
+  const prepareOnboardingLink = async () => {
     try {
-      setLoading(true);
+      setPreparingOnboarding(true);
       const returnUrl = `${window.location.origin}/management?stripe=success`;
       const refreshUrl = `${window.location.origin}/management?stripe=refresh`;
-
       const data = await stripeService.createAccountLink(returnUrl, refreshUrl);
+      setOnboardingUrl(data.url);
+      return data.url;
+    } catch (error) {
+      console.error('Error preparing onboarding:', error);
+      toast.error(error.response?.data?.message || 'Failed to start onboarding');
+      return '';
+    } finally {
+      setPreparingOnboarding(false);
+    }
+  };
 
-      // Redirect to Stripe onboarding
-      window.location.href = data.url;
+  const handleStartOnboarding = async (target = 'same-tab') => {
+    try {
+      setLoading(true);
+      const url = onboardingUrl || (await prepareOnboardingLink());
+      if (!url) return;
+
+      if (target === 'new-tab') {
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          toast.error('Popup blocked. Opening Stripe in this tab instead.');
+          window.location.assign(url);
+          return;
+        }
+        toast.success('Stripe onboarding opened in a new tab.');
+        setIsOnboardingDialogOpen(false);
+        return;
+      }
+
+      window.location.assign(url);
     } catch (error) {
       console.error('Error starting onboarding:', error);
       toast.error(error.response?.data?.message || 'Failed to start onboarding');
+    } finally {
       setLoading(false);
     }
   };
@@ -147,7 +179,18 @@ const StripeConnect = () => {
       window.open(data.url, '_blank');
     } catch (error) {
       console.error('Error opening dashboard:', error);
-      toast.error(error.response?.data?.message || 'Failed to open dashboard');
+      const status = error?.response?.status;
+      const message = error?.response?.data?.message;
+
+      if (status === 409) {
+        toast.message(message || 'Finish Stripe onboarding before opening dashboard.');
+        setIsOnboardingDialogOpen(true);
+        if (!onboardingUrl) {
+          await prepareOnboardingLink();
+        }
+      } else {
+        toast.error(message || 'Failed to open dashboard');
+      }
     } finally {
       setLoading(false);
     }
@@ -258,15 +301,22 @@ const StripeConnect = () => {
           )}
           {accountStatus?.connected && (
             <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={handleStartOnboarding}
-                disabled={loading}
-                size="sm"
-                className="flex-1 min-w-[140px]"
-              >
-                {loading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                Continue onboarding
-              </Button>
+              {!isFullyActive && (
+                <Button
+                  onClick={async () => {
+                    setIsOnboardingDialogOpen(true);
+                    if (!onboardingUrl) {
+                      await prepareOnboardingLink();
+                    }
+                  }}
+                  disabled={loading}
+                  size="sm"
+                  className="flex-1 min-w-[140px]"
+                >
+                  {loading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                  Continue onboarding
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={handleOpenDashboard}
@@ -275,6 +325,16 @@ const StripeConnect = () => {
               >
                 <ExternalLink className="mr-2 h-3 w-3" />
                 Dashboard
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={fetchAccountStatus}
+                disabled={loading}
+                className="flex-1 min-w-[140px]"
+                size="sm"
+              >
+                <RefreshCw className="mr-2 h-3 w-3" />
+                Refresh status
               </Button>
               <Button
                 variant="ghost"
@@ -291,6 +351,40 @@ const StripeConnect = () => {
           Once charges & payouts show as active, membership controls will unlock on the Management page. Refresh status if you need to re-check Stripe.
         </div>
       </CardContent>
+      <Dialog open={isOnboardingDialogOpen} onOpenChange={setIsOnboardingDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[color:var(--brand-primary)]" />
+              Secure Stripe Setup
+            </DialogTitle>
+            <DialogDescription>
+              For security and compliance, Stripe onboarding is completed on Stripe-hosted pages, then returns to this screen automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-[color:var(--border)] bg-[color:var(--muted)]/30 p-3 text-xs text-gray-600">
+            Keep this page open. After completing onboarding, you will be redirected back to Management and status will update.
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              onClick={() => handleStartOnboarding('same-tab')}
+              disabled={loading || preparingOnboarding}
+              className="w-full"
+            >
+              {(loading || preparingOnboarding) && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              Continue in this tab
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleStartOnboarding('new-tab')}
+              disabled={loading || preparingOnboarding}
+              className="w-full"
+            >
+              Open in new tab
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

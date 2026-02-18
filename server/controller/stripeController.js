@@ -256,6 +256,18 @@ export const getAccountDashboard = async (req, res, next) => {
       return next(createError(400, 'No Stripe account connected'))
     }
 
+    const account = await stripe.accounts.retrieve(user.stripe.accountId)
+
+    // Stripe Express login links are only available after onboarding details are submitted.
+    if (!account.details_submitted) {
+      return next(
+        createError(
+          409,
+          'Complete Stripe onboarding before opening the Stripe dashboard.'
+        )
+      )
+    }
+
     // Create login link for Stripe Express Dashboard
     const loginLink = await stripe.accounts.createLoginLink(
       user.stripe.accountId
