@@ -33,13 +33,14 @@ const ServiceDetailPage = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const spaParamLocationId = new URLSearchParams(location.search).get("spa");
   const isBirthdayGift = location.state?.isBirthdayGift;
   const birthdayNotificationId = location.state?.notificationId;
   const giftType = location.state?.giftType || 'free';
   const giftValue = location.state?.giftValue || 0;
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
-  const { branding } = useBranding();
+  const { branding, locationId: brandedLocationId } = useBranding();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '');
@@ -84,17 +85,28 @@ const ServiceDetailPage = () => {
     includeRewards: "false",
   });
 
+  const activeLocationId =
+    spaParamLocationId ||
+    currentUser?.selectedLocation?.locationId ||
+    currentUser?.spaLocation?.locationId ||
+    brandedLocationId;
+
   // ✅ DYNAMIC AVAILABILITY
   const { 
     data: availabilityData, 
     isLoading: loadingAvailability 
   } = useAvailability(
-    currentUser?.selectedLocation?.locationId,
+    activeLocationId,
     selectedDate,
     serviceId
   );
 
   const availableSlots = availabilityData?.slots || [];
+  const availabilityMeta = availabilityData?.metadata || {};
+  const externalBookingsCount = availabilityMeta.externalBookingsCount || 0;
+  const externalSourceUnavailable = Boolean(
+    availabilityMeta.externalSourceUnavailable
+  );
 
   // ✅ GET CART TIMES FOR THIS SERVICE ON THIS DATE
   const getCartTimesForService = () => {
@@ -325,7 +337,7 @@ const ServiceDetailPage = () => {
       return;
     }
 
-    if (!currentUser?.selectedLocation?.locationId) {
+    if (!activeLocationId) {
       toastError("Please select a spa location first");
       return;
     }
@@ -341,7 +353,7 @@ const ServiceDetailPage = () => {
         date: selectedDate,
         time: selectedTime,
         duration: totalDuration,
-        locationId: currentUser.selectedLocation.locationId,
+        locationId: activeLocationId,
         notes: "",
         rewardUsed: null,
         pointsUsed: 0,
@@ -633,7 +645,16 @@ const ServiceDetailPage = () => {
                    <div>
                       <div className="flex items-center justify-between mb-3">
                          <label className="block text-sm font-medium text-gray-700">Available Slots</label>
-                         {loadingAvailability && <span className="text-xs text-[color:var(--brand-primary)] animate-pulse">Checking availability...</span>}
+                         <div className="flex items-center gap-3">
+                           {selectedDate && !loadingAvailability && (
+                             <span className="text-xs text-gray-500">
+                               {externalSourceUnavailable
+                                 ? "GHL sync unavailable (fallback)"
+                                 : `GHL conflicts: ${externalBookingsCount}`}
+                             </span>
+                           )}
+                           {loadingAvailability && <span className="text-xs text-[color:var(--brand-primary)] animate-pulse">Checking availability...</span>}
+                         </div>
                       </div>
                       
                       {selectedDate ? (

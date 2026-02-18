@@ -16,7 +16,11 @@ const queryClient = new QueryClient()
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !error.config.url?.includes('/auth/signin')) {
+    const requestUrl = error.config?.url || ''
+    const isAuthSignin = requestUrl.includes('/auth/signin')
+    const isIntegrationEndpoint = requestUrl.includes('/ghl/')
+
+    if (error.response?.status === 401 && !isAuthSignin && !isIntegrationEndpoint) {
       store.dispatch(logout())
     }
     return Promise.reject(error)

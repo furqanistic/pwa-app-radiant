@@ -5,6 +5,7 @@ import {
   useActiveServices,
   useCategories,
 } from '@/hooks/useServices'
+import ghlService from '@/services/ghlService'
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -231,6 +232,9 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const { currentUser } = useSelector((state) => state.user)
   const { branding, locationId } = useBranding()
+  const [selectedBookingsDate, setSelectedBookingsDate] = useState(
+    new Date().toISOString().split('T')[0]
+  )
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -245,6 +249,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   })()
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  const activeLocationId =
+    locationId ||
+    currentUser?.selectedLocation?.locationId ||
+    currentUser?.spaLocation?.locationId
 
   const { data: categories = [] } = useCategories(true) // Enable counts
   const { services, isLoading } = useActiveServices({
@@ -258,6 +266,15 @@ const ServiceCatalog = ({ onServiceSelect }) => {
     queryFn: () => locationService.getMyLocation(),
     enabled: !!(currentUser?.role === 'spa' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin'),
   })
+
+  const { data: ghlBookingsData, isLoading: isLoadingGhlBookings } = useQuery({
+    queryKey: ['ghl-bookings', activeLocationId, selectedBookingsDate],
+    queryFn: () =>
+      ghlService.getLocationBookingsByDate(activeLocationId, selectedBookingsDate),
+    enabled: !!activeLocationId && !!selectedBookingsDate,
+  })
+
+  const ghlBookings = ghlBookingsData?.data?.events || []
 
   // Use branding membership as primary source for customers, or locationData for owners
   const locationMembership = branding?.membership || locationData?.data?.location?.membership
@@ -452,6 +469,35 @@ const ServiceCatalog = ({ onServiceSelect }) => {
         <div className='max-w-7xl mx-auto px-3 py-4 md:px-6 md:py-8'>
             
             {renderHeader()}
+
+            <div className='mb-6 bg-white border border-gray-200/70 rounded-2xl p-4 md:p-5 shadow-sm'>
+              <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
+                <div>
+                  <p className='text-sm font-semibold text-gray-500'>GHL Bookings</p>
+                  <p className='text-xl font-black text-gray-900'>
+                    {!activeLocationId
+                      ? 'No location selected'
+                      : isLoadingGhlBookings
+                      ? 'Loading...'
+                      : `${ghlBookings.length} booked`}
+                  </p>
+                  {activeLocationId && (
+                    <p className='text-xs text-gray-500 mt-1'>Location: {activeLocationId}</p>
+                  )}
+                </div>
+
+                <div className='flex items-center gap-2'>
+                  <label className='text-sm font-medium text-gray-600'>Date</label>
+                  <input
+                    type='date'
+                    value={selectedBookingsDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setSelectedBookingsDate(e.target.value)}
+                    className='h-10 px-3 bg-gray-50 border border-gray-200/70 rounded-lg text-sm'
+                  />
+                </div>
+              </div>
+            </div>
             
             <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
             

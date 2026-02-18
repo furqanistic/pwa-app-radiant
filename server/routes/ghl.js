@@ -5,6 +5,7 @@ import {
   createContact,
   deleteContact,
   getAllContacts,
+  getLocationBookingsByDate,
   getCalendars,
   getContactById,
   getContacts,
@@ -32,6 +33,7 @@ router.delete('/contacts/:contactId', deleteContact)
 // Other resource routes
 router.get('/opportunities', getOpportunities)
 router.get('/calendars', getCalendars)
+router.get('/bookings', getLocationBookingsByDate)
 router.get('/custom-fields', getCustomFields)
 
 export default router

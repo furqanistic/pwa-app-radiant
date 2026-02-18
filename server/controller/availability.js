@@ -2,6 +2,7 @@ import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
+import { fetchLocationCalendarEventsByDate } from './ghl.js'
 
 // Helper to calculate slots
 const generateSlots = (openTime, closeTime, duration, date) => {
@@ -126,7 +127,23 @@ export const getAvailability = async (req, res, next) => {
       status: { $nin: ['cancelled', 'refused'] }, // Check status enum
     }).select('date time duration')
 
-    // 5. Filter Conflicts
+    // 5. Fetch GHL bookings for this location/date (optional fallback-safe integration)
+    let externalEvents = []
+    let externalSourceUnavailable = false
+    if (process.env.GHL_LOCATION_API) {
+      try {
+        const ghlData = await fetchLocationCalendarEventsByDate(locationId, date)
+        externalEvents = ghlData.events || []
+      } catch (ghlError) {
+        externalSourceUnavailable = true
+        console.warn(
+          `GHL availability fallback for location ${locationId}:`,
+          ghlError.response?.data || ghlError.message
+        )
+      }
+    }
+
+    // 6. Filter Conflicts
     const availableSlots = potentialSlots
       .filter((slot) => {
         const slotStart = slot.timestamp
@@ -158,7 +175,21 @@ export const getAvailability = async (req, res, next) => {
           return slotStart < bookingEnd && slotEnd > bookingStart
         })
 
-        return !hasConflict
+        const hasExternalConflict = externalEvents.some((event) => {
+          const externalStart = new Date(event.startTime)
+          const externalEnd = new Date(event.endTime)
+
+          if (
+            Number.isNaN(externalStart.getTime()) ||
+            Number.isNaN(externalEnd.getTime())
+          ) {
+            return false
+          }
+
+          return slotStart < externalEnd && slotEnd > externalStart
+        })
+
+        return !hasConflict && !hasExternalConflict
       })
       .map((s) => s.time)
 
@@ -168,6 +199,11 @@ export const getAvailability = async (req, res, next) => {
         slots: availableSlots,
         day: dayName,
         hours: { open: hours.open, close: hours.close },
+        metadata: {
+          localBookingsCount: existingBookings.length,
+          externalBookingsCount: externalEvents.length,
+          externalSourceUnavailable,
+        },
       },
     })
   } catch (error) {
