@@ -6,6 +6,7 @@ import {
   getAllReferrals,
   getReferralConfig,
   getReferralLeaderboard,
+  getReferralUsersAnalytics,
   getSpaReferralStats,
   getUserReferralStats,
   updateReferralConfig,
@@ -29,6 +30,7 @@ router.put('/config', updateReferralConfig) // Modified: Now works for spa owner
 // Admin and Spa owner routes
 router.get('/all', getAllReferrals) // Modified: Spa owners see only their spa's referrals
 router.post('/complete/:referralId', completeReferral) // Modified: Spa owners can complete referrals for their spa
+router.get('/users-analytics', getReferralUsersAnalytics)
 
 // Admin only routes
 router.use(checkPermission) // Admin only from here

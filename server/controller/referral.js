@@ -334,7 +334,7 @@ export const getAllReferrals = async (req, res, next) => {
       }).select('_id')
 
       query.referred = { $in: usersInSpa.map((u) => u._id) }
-    } else if (req.user.role !== 'admin') {
+    } else if (!['admin', 'super-admin'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -347,12 +347,15 @@ export const getAllReferrals = async (req, res, next) => {
       if (endDate) query.createdAt.$lte = new Date(endDate)
     }
 
+    const parsedLimit = parseInt(limit, 10)
+    const parsedPage = parseInt(page, 10)
+
     const referrals = await Referral.find(query)
       .populate('referrer', 'name email referralCode referralStats')
       .populate('referred', 'name email createdAt selectedLocation')
       .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .limit(parsedLimit)
+      .skip((parsedPage - 1) * parsedLimit)
 
     const totalReferrals = await Referral.countDocuments(query)
 
@@ -376,10 +379,10 @@ export const getAllReferrals = async (req, res, next) => {
       data: {
         referrals,
         pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(totalReferrals / limit),
+          currentPage: parsedPage,
+          totalPages: Math.ceil(totalReferrals / parsedLimit),
           totalItems: totalReferrals,
-          itemsPerPage: parseInt(limit),
+          itemsPerPage: parsedLimit,
         },
         stats,
       },
@@ -415,7 +418,7 @@ export const completeReferral = async (req, res, next) => {
           createError(403, 'You can only manage referrals for your spa')
         )
       }
-    } else if (req.user.role !== 'admin') {
+    } else if (!['admin', 'super-admin'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -484,7 +487,7 @@ export const awardMilestoneReward = async (req, res, next) => {
   try {
     const { userId, milestone, purchaseAmount = 0 } = req.body
 
-    if (!['admin', 'spa'].includes(req.user.role)) {
+    if (!['admin', 'spa', 'super-admin'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
     }
 
@@ -562,6 +565,160 @@ export const awardMilestoneReward = async (req, res, next) => {
   } catch (error) {
     console.error('Error awarding milestone:', error)
     next(createError(500, 'Failed to award milestone'))
+  }
+}
+
+// Get referral analytics grouped by user
+export const getReferralUsersAnalytics = async (req, res, next) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      sortBy = 'invitedCount',
+      sortOrder = 'desc',
+    } = req.query
+
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1)
+    const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100)
+
+    if (!['spa', 'admin', 'super-admin'].includes(req.user.role)) {
+      return next(createError(403, 'Access denied'))
+    }
+
+    const userQuery = { isDeleted: { $ne: true } }
+
+    if (search?.trim()) {
+      const pattern = search.trim()
+      userQuery.$or = [
+        { name: { $regex: pattern, $options: 'i' } },
+        { email: { $regex: pattern, $options: 'i' } },
+        { referralCode: { $regex: pattern, $options: 'i' } },
+      ]
+    }
+
+    if (req.user.role === 'spa') {
+      const locationId = req.user.spaLocation?.locationId
+      if (!locationId) {
+        return next(createError(400, 'Spa location not configured'))
+      }
+      userQuery['selectedLocation.locationId'] = locationId
+      userQuery.role = 'user'
+    } else if (req.user.role === 'admin') {
+      userQuery.role = { $ne: 'super-admin' }
+    }
+
+    const totalUsers = await User.countDocuments(userQuery)
+
+    const userSortableFields = new Set(['name', 'email', 'createdAt'])
+    const userSortField = userSortableFields.has(sortBy) ? sortBy : 'createdAt'
+    const userSortDirection = sortOrder === 'asc' ? 1 : -1
+
+    const users = await User.find(userQuery)
+      .select(
+        '_id name email role referralCode referralEarnings referralStats selectedLocation createdAt'
+      )
+      .sort({ [userSortField]: userSortDirection })
+      .skip((parsedPage - 1) * parsedLimit)
+      .limit(parsedLimit)
+
+    const userIds = users.map((user) => user._id)
+
+    const referralStats = await Referral.aggregate([
+      { $match: { referrer: { $in: userIds } } },
+      {
+        $group: {
+          _id: '$referrer',
+          invitedCount: { $sum: 1 },
+          completedCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] },
+          },
+          pendingCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] },
+          },
+          expiredCount: {
+            $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] },
+          },
+          totalPointsEarned: { $sum: '$referrerReward.points' },
+          lastReferralAt: { $max: '$createdAt' },
+        },
+      },
+    ])
+
+    const referralStatsMap = new Map(
+      referralStats.map((item) => [String(item._id), item])
+    )
+
+    let analytics = users.map((user) => {
+      const agg = referralStatsMap.get(String(user._id))
+      const invitedCount = agg?.invitedCount || user.referralStats?.totalReferrals || 0
+      const completedCount =
+        agg?.completedCount || user.referralStats?.convertedReferrals || 0
+      const conversionRate =
+        invitedCount > 0
+          ? Number(((completedCount / invitedCount) * 100).toFixed(1))
+          : 0
+
+      return {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        referralCode: user.referralCode || null,
+        currentTier: user.referralStats?.currentTier || 'bronze',
+        invitedCount,
+        completedCount,
+        pendingCount: agg?.pendingCount || 0,
+        expiredCount: agg?.expiredCount || 0,
+        conversionRate,
+        totalPointsEarned: agg?.totalPointsEarned || user.referralEarnings || 0,
+        lastReferralAt: agg?.lastReferralAt || null,
+        selectedLocation: user.selectedLocation || null,
+      }
+    })
+
+    const sortableFields = new Set([
+      'invitedCount',
+      'completedCount',
+      'conversionRate',
+      'totalPointsEarned',
+      'lastReferralAt',
+      'currentTier',
+    ])
+
+    if (sortableFields.has(sortBy)) {
+      const direction = sortOrder === 'asc' ? 1 : -1
+      analytics = analytics.sort((a, b) => {
+        const av = a[sortBy]
+        const bv = b[sortBy]
+
+        if (av === bv) return 0
+        if (av === null || av === undefined) return 1 * direction
+        if (bv === null || bv === undefined) return -1 * direction
+
+        if (typeof av === 'string' && typeof bv === 'string') {
+          return av.localeCompare(bv) * direction
+        }
+
+        return (av > bv ? 1 : -1) * direction
+      })
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        users: analytics,
+        pagination: {
+          currentPage: parsedPage,
+          totalPages: Math.ceil(totalUsers / parsedLimit),
+          totalItems: totalUsers,
+          itemsPerPage: parsedLimit,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error getting referral users analytics:', error)
+    next(createError(500, 'Failed to get referral user analytics'))
   }
 }
 
@@ -650,7 +807,7 @@ export const getReferralConfig = async (req, res, next) => {
         status: 'success',
         data: { config: spaConfig },
       })
-    } else if (req.user.role === 'admin') {
+    } else if (['admin', 'super-admin'].includes(req.user.role)) {
       res.status(200).json({
         status: 'success',
         data: { config },
@@ -689,7 +846,7 @@ export const updateReferralConfig = async (req, res, next) => {
         message: 'Spa configuration updated',
         data: { config: spaConfig },
       })
-    } else if (req.user.role === 'admin') {
+    } else if (['admin', 'super-admin'].includes(req.user.role)) {
       Object.keys(req.body).forEach((key) => {
         if (!['_id', 'createdAt', 'updatedAt'].includes(key)) {
           config[key] = req.body[key]

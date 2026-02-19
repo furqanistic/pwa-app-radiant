@@ -14,6 +14,7 @@ import {
     getCurrentUser,
     getOnboardingStatus,
     getUserProfile,
+    regenerateReferralCode,
     selectSpa,
     signin,
     signup,
@@ -89,6 +90,14 @@ router.post(
   canManageUser,
   auditLog('points_adjustment'),
   adjustUserPoints
+)
+
+// Regenerate referral code for any user
+router.post(
+  '/users/:userId/referral-code/regenerate',
+  requireAdminOrAbove,
+  auditLog('referral_code_regenerate'),
+  regenerateReferralCode
 )
 
 // Create new spa member (admin only)

@@ -53,6 +53,31 @@ const createSendToken = (user, statusCode, res) => {
   }
 }
 
+const generateUniqueReferralCode = async () => {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const numbers = '0123456789'
+  const generateCode = () => {
+    let code = ''
+    for (let i = 0; i < 2; i++) {
+      code += letters.charAt(Math.floor(Math.random() * letters.length))
+    }
+    for (let i = 0; i < 4; i++) {
+      code += numbers.charAt(Math.floor(Math.random() * numbers.length))
+    }
+    return code
+  }
+
+  let code = generateCode()
+  let codeExists = await User.findOne({ referralCode: code })
+
+  while (codeExists) {
+    code = generateCode()
+    codeExists = await User.findOne({ referralCode: code })
+  }
+
+  return code
+}
+
 const USERS_LIST_CACHE_TTL_MS = 60 * 1000
 const USERS_LIST_CACHE_MAX_KEYS = 500
 const usersListCache = new Map()
@@ -1279,6 +1304,50 @@ export const adjustUserPoints = async (req, res, next) => {
     })
   } catch (error) {
     next(error)
+  }
+}
+
+// Regenerate referral code for a user without touching stats
+export const regenerateReferralCode = async (req, res, next) => {
+  try {
+    const { userId } = req.params
+
+    if (!['admin', 'super-admin'].includes(req.user.role)) {
+      return next(
+        createError(403, 'Access denied. Admin or Super-Admin rights required.')
+      )
+    }
+
+    const targetUser = await User.findById(userId)
+    if (!targetUser) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (req.user.role === 'admin') {
+      if (['admin', 'super-admin'].includes(targetUser.role)) {
+        return next(createError(403, 'Cannot update admin or super-admin users'))
+      }
+      if (req.user._id.toString() === targetUser._id.toString()) {
+        return next(createError(400, 'Cannot update your own referral code'))
+      }
+    }
+
+    const newCode = await generateUniqueReferralCode()
+    targetUser.referralCode = newCode
+    await targetUser.save()
+
+    await Referral.updateMany(
+      { referrer: targetUser._id },
+      { $set: { referralCode: newCode } }
+    )
+
+    res.status(200).json({
+      status: 'success',
+      data: { referralCode: newCode, userId: targetUser._id },
+    })
+  } catch (error) {
+    console.error('Error regenerating referral code:', error)
+    next(createError(500, 'Failed to regenerate referral code'))
   }
 }
 

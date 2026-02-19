@@ -111,6 +111,45 @@ export const useAllReferrals = (filters) => {
   })
 }
 
+// Get referral analytics grouped by users (admin/spa/super-admin)
+export const useReferralUsersAnalytics = (filters) => {
+  return useQuery({
+    queryKey: ['referral', 'users-analytics', filters],
+    queryFn: async () => {
+      const response = await axiosInstance.get('/referral/users-analytics', {
+        params: filters,
+      })
+      return response.data.data
+    },
+    staleTime: 1000 * 60 * 2,
+  })
+}
+
+// Regenerate referral code for a user (admin/super-admin)
+export const useRegenerateReferralCode = (options = {}) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ userId }) => {
+      const response = await axiosInstance.post(
+        `/auth/users/${userId}/referral-code/regenerate`
+      )
+      return response.data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['referral', 'users-analytics'])
+      toast.success('Referral code regenerated')
+      options.onSuccess?.(data)
+    },
+    onError: (error) => {
+      toast.error(
+        error.response?.data?.message || 'Failed to regenerate referral code'
+      )
+      options.onError?.(error)
+    },
+  })
+}
+
 // Complete referral manually
 export const useCompleteReferral = (options = {}) => {
   const queryClient = useQueryClient()
