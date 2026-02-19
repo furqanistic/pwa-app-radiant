@@ -358,7 +358,6 @@ const NativeBottomSheet = ({ children, onClose, tall }) => {
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 0.4 }}
         onDragEnd={handleDragEnd}
-        style={{ y, opacity }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}

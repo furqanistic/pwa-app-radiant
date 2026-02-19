@@ -12,6 +12,7 @@ import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { AlertCircle, Clock, ExternalLink, Globe, Image as ImageIcon, Loader2, LocateFixed, MapPin, Palette, Plus, Search, Trash2, Upload, X } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import Cropper from 'react-easy-crop'
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import { toast } from 'sonner'
 
@@ -112,6 +113,38 @@ const MapUpdater = ({ position }) => {
   return null;
 };
 
+const createImage = (url) =>
+  new Promise((resolve, reject) => {
+    const image = new Image()
+    image.addEventListener('load', () => resolve(image))
+    image.addEventListener('error', (error) => reject(error))
+    image.src = url
+  })
+
+const getCroppedImage = async (imageSrc, pixelCrop) => {
+  const image = await createImage(imageSrc)
+  const canvas = document.createElement('canvas')
+  canvas.width = pixelCrop.width
+  canvas.height = pixelCrop.height
+  const ctx = canvas.getContext('2d')
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  )
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/png')
+  })
+}
+
 const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const { branding } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
@@ -148,6 +181,16 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const [position, setPosition] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+
+  const [cropperState, setCropperState] = useState({
+    isOpen: false,
+    src: '',
+    type: null,
+    fileName: '',
+  })
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
 
   const queryClient = useQueryClient()
 
@@ -241,6 +284,79 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     setSearchTerm("");
   }
 
+  const setUploadingForType = (type, value) => {
+    if (type === 'logo') {
+      setIsUploading(value)
+    } else {
+      setIsUploadingFavicon(value)
+    }
+  }
+
+  const getImageFields = (type) => {
+    if (type === 'logo') {
+      return {
+        url: formData.logo,
+        publicId: formData.logoPublicId,
+        update: (url, publicId) =>
+          setFormData((prev) => ({ ...prev, logo: url, logoPublicId: publicId || '' })),
+      }
+    }
+    return {
+      url: formData.favicon,
+      publicId: formData.faviconPublicId,
+      update: (url, publicId) =>
+        setFormData((prev) => ({ ...prev, favicon: url, faviconPublicId: publicId || '' })),
+    }
+  }
+
+  const openCropper = (file, type) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCrop({ x: 0, y: 0 })
+      setZoom(1)
+      setCroppedAreaPixels(null)
+      setCropperState({
+        isOpen: true,
+        src: reader.result,
+        type,
+        fileName: file.name || `${type}.png`,
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const uploadImageForType = async (fileOrBlob, type) => {
+    setUploadingForType(type, true)
+    try {
+      if (fileOrBlob.size > IMAGE_SIZE_LIMIT_BYTES) {
+        toast.info('Image is large, compressing...')
+      }
+      const compressed = await compressImage(fileOrBlob)
+      if (!isUnderSizeLimit(compressed)) {
+        toast.error(`${type === 'logo' ? 'Logo' : 'Favicon'} image must be less than 1MB`)
+        return
+      }
+      const { url, publicId, update } = getImageFields(type)
+      if (publicId || url) {
+        await uploadService
+          .deleteImage({
+            url,
+            publicId,
+          })
+          .catch(console.error)
+      }
+      const resp = await uploadService.uploadImage(compressed)
+      if (resp.success) {
+        update(resp.url, resp.publicId)
+        toast.success(`${type === 'logo' ? 'Logo' : 'Favicon'} uploaded successfully`)
+      }
+    } catch (err) {
+      console.error(`${type} upload error:`, err)
+      toast.error(`Failed to upload ${type === 'logo' ? 'logo' : 'favicon'}`)
+    } finally {
+      setUploadingForType(type, false)
+    }
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -256,38 +372,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-
-    setIsUploading(true)
-    try {
-      if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
-        toast.info('Image is large, compressing...')
-      }
-      const compressed = await compressImage(file)
-      if (!isUnderSizeLimit(compressed)) {
-        toast.error('Logo image must be less than 1MB')
-        return
-      }
-      if (formData.logoPublicId || formData.logo) {
-        await uploadService.deleteImage({
-          url: formData.logo,
-          publicId: formData.logoPublicId,
-        }).catch(console.error)
-      }
-      const resp = await uploadService.uploadImage(compressed)
-      if (resp.success) {
-        setFormData((prev) => ({
-          ...prev,
-          logo: resp.url,
-          logoPublicId: resp.publicId || '',
-        }))
-        toast.success('Logo uploaded successfully')
-      }
-    } catch (err) {
-      console.error('Logo upload error:', err)
-      toast.error('Failed to upload logo')
-    } finally {
-      setIsUploading(false)
-    }
+    openCropper(file, 'logo')
   }
 
   const handleRemoveLogo = async () => {
@@ -304,38 +389,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const handleFaviconUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-
-    setIsUploadingFavicon(true)
-    try {
-      if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
-        toast.info('Image is large, compressing...')
-      }
-      const compressed = await compressImage(file)
-      if (!isUnderSizeLimit(compressed)) {
-        toast.error('Favicon image must be less than 1MB')
-        return
-      }
-      if (formData.faviconPublicId || formData.favicon) {
-        await uploadService.deleteImage({
-          url: formData.favicon,
-          publicId: formData.faviconPublicId,
-        }).catch(console.error)
-      }
-      const resp = await uploadService.uploadImage(compressed)
-      if (resp.success) {
-        setFormData((prev) => ({
-          ...prev,
-          favicon: resp.url,
-          faviconPublicId: resp.publicId || '',
-        }))
-        toast.success('Favicon uploaded successfully')
-      }
-    } catch (err) {
-      console.error('Favicon upload error:', err)
-      toast.error('Failed to upload favicon')
-    } finally {
-      setIsUploadingFavicon(false)
-    }
+    openCropper(file, 'favicon')
   }
 
   const handleRemoveFavicon = async () => {
@@ -347,6 +401,20 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       }).catch(console.error)
     }
     setFormData((prev) => ({ ...prev, favicon: '', faviconPublicId: '' }))
+  }
+
+  const handleCropConfirm = async () => {
+    if (!cropperState.src || !croppedAreaPixels || !cropperState.type) return
+    const croppedBlob = await getCroppedImage(cropperState.src, croppedAreaPixels)
+    if (!croppedBlob) {
+      toast.error('Failed to crop image')
+      return
+    }
+    const file = new File([croppedBlob], cropperState.fileName || `${cropperState.type}.png`, {
+      type: croppedBlob.type || 'image/png',
+    })
+    setCropperState({ isOpen: false, src: '', type: null, fileName: '' })
+    await uploadImageForType(file, cropperState.type)
   }
 
   const handleSubdomainChange = async (e) => {
@@ -465,6 +533,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     createLocationMutation.isPending || updateLocationMutation.isPending
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent showCloseButton={false} className={getDialogSheetClasses}>
         <div className='w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 sm:hidden shrink-0' />
@@ -550,7 +619,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 </div>
                 <div className='flex-1'>
                   <p className='text-xs text-gray-500 mb-2'>
-                    Upload a high-quality logo for this spa. It will be used as the PWA icon for users. Keep it under 1MB for faster loading.
+                    Upload a high-quality logo for this spa. You will crop it to a square. Keep it under 1MB for faster loading.
                   </p>
                   <div className='flex gap-2'>
                     <Button
@@ -659,7 +728,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 </div>
                 <div className='flex-1'>
                   <p className='text-xs text-gray-500 mb-2'>
-                    Upload a favicon (square, 192x192px recommended). Keep it under 1MB for faster loading. Falls back to logo if not provided.
+                    Upload a favicon. You will crop it to a square (192x192px recommended). Keep it under 1MB for faster loading. Falls back to logo if not provided.
                   </p>
                   <Button
                     type='button'
@@ -979,6 +1048,65 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
         </form>
       </DialogContent>
     </Dialog>
+    <Dialog
+      open={cropperState.isOpen}
+      onOpenChange={(open) =>
+        !open && setCropperState({ isOpen: false, src: '', type: null, fileName: '' })
+      }
+    >
+      <DialogContent showCloseButton={false} className='max-w-lg w-[95vw] p-0 overflow-hidden rounded-2xl'>
+        <div className='px-5 py-4 border-b border-gray-100 flex items-center justify-between'>
+          <DialogTitle className='text-lg font-bold text-gray-900'>
+            Crop {cropperState.type === 'favicon' ? 'Favicon' : 'Logo'}
+          </DialogTitle>
+          <button
+            type='button'
+            className='p-2 rounded-lg hover:bg-gray-100'
+            onClick={() => setCropperState({ isOpen: false, src: '', type: null, fileName: '' })}
+          >
+            <X className='w-4 h-4 text-gray-500' />
+          </button>
+        </div>
+        <div className='relative w-full h-72 bg-gray-100'>
+          {cropperState.src && (
+            <Cropper
+              image={cropperState.src}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
+            />
+          )}
+        </div>
+        <div className='px-5 py-4 space-y-3'>
+          <Label className='text-xs font-semibold text-gray-600'>Zoom</Label>
+          <input
+            type='range'
+            min={1}
+            max={3}
+            step={0.01}
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className='w-full accent-pink-500'
+          />
+          <div className='flex justify-end gap-2 pt-2'>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setCropperState({ isOpen: false, src: '', type: null, fileName: '' })}
+            >
+              Cancel
+            </Button>
+            <Button type='button' onClick={handleCropConfirm} className='bg-gray-900 text-white'>
+              Use Crop
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 

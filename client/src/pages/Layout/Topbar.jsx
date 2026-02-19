@@ -33,7 +33,7 @@ const Topbar = ({
             {/* Left side - Brand Logo + Install Button */}
             <div className="flex items-center space-x-3">
               {(branding?.logo || branding?.logoPublicId) && (
-                <div className="w-10 h-10 rounded-lg border border-gray-200 shadow-sm bg-gradient-to-br from-gray-100 to-gray-200 p-1.5 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center">
                   <img
                     src={resolveImageUrl(
                       branding.logo || branding.logoPublicId,

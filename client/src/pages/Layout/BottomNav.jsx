@@ -1,9 +1,7 @@
 import MembershipManagementModal from "@/components/Management/MembershipManagementModal";
-import QRCodeScanner from "@/components/QRCode/QRCodeScanner";
 import { useBranding } from '@/context/BrandingContext';
 import {
     logout,
-    selectCurrentUser,
     selectIsElevatedUser,
     selectIsSuperAdmin,
 } from '@/redux/userSlice';
@@ -18,7 +16,6 @@ import {
     LayoutDashboard,
     LogOut,
     Menu,
-    QrCode,
     Star,
     User,
     Users,
@@ -45,7 +42,6 @@ const BottomNav = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const { branding, locationId } = useBranding()
-  const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isMembershipOpen, setIsMembershipOpen] = useState(false);
   const brandColor = branding?.themeColor || '#ec4899'
@@ -62,29 +58,33 @@ const BottomNav = () => {
       rgba40,
       rgba10,
       rgba08,
-      gradient: `linear-gradient(135deg, ${brandColor}, ${hexToRgba(brandColor, 0.8)})`,
-      shadow: `0 8px 20px -4px ${rgba40}`
     }
   }, [brandColor])
 
   // Selector for role-based access
-  const currentUser = useSelector(selectCurrentUser);
   const isSuperAdmin = useSelector(selectIsSuperAdmin)
   const isElevatedUser = useSelector(selectIsElevatedUser)
-  const isSpaUser = currentUser?.role === 'spa';
+  const isRegularUser = !isSuperAdmin && !isElevatedUser
 
   // Navigation logic mirrored from Layout.jsx
   const baseNavigationItems = [
     {
       id: 'dashboard',
-      label: 'Home',
+      label: 'Dashboard',
       icon: LayoutDashboard,
       href: '/dashboard',
       inBottomBar: true,
     },
     {
+      id: 'contacts',
+      label: 'Contacts',
+      icon: Contact2,
+      href: '/contacts',
+      elevatedAccessRequired: true,
+    },
+    {
       id: 'services',
-      label: 'Explore',
+      label: 'Services',
       icon: CompassIcon,
       href: '/services',
       inBottomBar: true,
@@ -96,26 +96,11 @@ const BottomNav = () => {
       href: '/membership',
     },
     {
-      id: 'scanner',
-      label: 'Scan',
-      icon: QrCode,
-      isScanner: true,
-      onClick: () => setQrScannerOpen(true),
-      inBottomBar: true,
-    },
-    {
       id: 'rewards',
-      label: 'Rewards',
+      label: 'Claim Rewards',
       icon: Star,
       href: '/rewards',
       inBottomBar: true,
-    },
-    {
-      id: 'contacts',
-      label: 'Contacts',
-      icon: Contact2,
-      href: '/contacts',
-      superAdminOnly: true,
     },
     {
       id: 'booking',
@@ -132,24 +117,29 @@ const BottomNav = () => {
     },
     {
       id: 'referrals',
-      label: 'Referrals',
+      label: 'Referral System',
       icon: Gift,
       href: '/referrals',
+      inBottomBar: true,
     },
     {
       id: 'gamification',
-      label: 'Games',
+      label: 'Scratch & Spin',
       icon: Gamepad2,
       href: '/spin',
       hideForElevated: true,
+      inBottomBar: true,
     },
   ]
 
   // Filter items based on user role
   const allowedItems = baseNavigationItems.filter((item) => {
-    // 1. Super Admin: Only see Contacts, Client Management, and QR Scanner
+    if (isRegularUser && item.elevatedAccessRequired) {
+      return false
+    }
+    // 1. Super Admin: Only see Contacts and Client Management
     if (isSuperAdmin) {
-      return ['contacts', 'clients', 'scanner'].includes(item.id)
+      return ['contacts', 'clients'].includes(item.id)
     }
     // 2. Admin/SPA: Specialized redirects for services, rewards, membership
     if (isElevatedUser) {
@@ -176,26 +166,16 @@ const BottomNav = () => {
         return { ...item, href: '/management/bookings', onClick: undefined }
       }
       if (item.id === 'membership') {
-        return { ...item, onClick: () => setIsMembershipOpen(true), href: undefined }
+        return { ...item, onClick: () => setIsMembershipOpen(true), href: '#' }
       }
     }
     return item
   })
 
-  // Refined filter for Super Admin (redundant now but keeping it safe)
-  const finalAllowedItems = allowedItems.filter(item => {
-    if (isSuperAdmin) {
-      return ['contacts', 'clients', 'scanner'].includes(item.id)
-    }
-    return true
-  })
-
   // Split into bottom bar and "More" menu
   const bottomNavItems = [
-    ...finalAllowedItems.filter(item => {
-      if (isSuperAdmin) {
-        return ['contacts', 'clients'].includes(item.id)
-      }
+    ...allowedItems.filter(item => {
+      if (isSuperAdmin) return true
       return item.inBottomBar
     }),
     {
@@ -206,8 +186,31 @@ const BottomNav = () => {
     }
   ]
 
+  const withSpaParam = (href) => {
+    if (!locationId || !href || href.startsWith('http')) return href
+    try {
+      const url = new URL(href, window.location.origin)
+      if (!url.searchParams.has('spa')) {
+        url.searchParams.set('spa', locationId)
+      }
+      return `${url.pathname}${url.search}${url.hash}`
+    } catch (error) {
+      return href
+    }
+  }
+
+  const handleNavigation = (href, isLogout = false) => {
+    const destination = isLogout ? href : withSpaParam(href)
+    if (isLogout) {
+      dispatch(logout())
+      localStorage.removeItem('userToken')
+      sessionStorage.clear()
+    }
+    navigate(destination)
+  }
+
   const moreItems = [
-    ...finalAllowedItems.filter(item => {
+    ...allowedItems.filter(item => {
       if (isSuperAdmin) return false // Already in bottom bar
       return !item.inBottomBar
     }),
@@ -221,7 +224,7 @@ const BottomNav = () => {
       id: 'logout',
       label: 'Logout',
       icon: LogOut,
-      onClick: () => dispatch(logout()),
+      onClick: () => handleNavigation('/auth', true),
       className: `text-red-500 hover:bg-red-50`,
     },
   ]
@@ -231,7 +234,7 @@ const BottomNav = () => {
     if (item.onClick) {
       item.onClick()
     } else if (item.href) {
-      navigate(item.href)
+      handleNavigation(item.href)
     }
   }
 
@@ -243,40 +246,11 @@ const BottomNav = () => {
             const Icon = item.icon
             const isActive = item.href ? location.pathname === item.href : false
 
-            if (item.isScanner) {
-              return (
-                <div key={item.id} className='relative -top-6 flex flex-col items-center w-14'>
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    whileHover={{ scale: 1.05 }}
-                    onClick={item.onClick}
-                    className='flex items-center justify-center w-14 h-14 rounded-full shadow-lg border-4 border-white text-white transition-all'
-                    style={{ 
-                      background: brandStyles.gradient,
-                      boxShadow: brandStyles.shadow
-                    }}
-                  >
-                    <Icon className='w-7 h-7' />
-                  </motion.button>
-                  <span 
-                    className='absolute -bottom-8 text-[10px] font-bold uppercase tracking-tighter w-20 text-center whitespace-nowrap backdrop-blur-md rounded-full py-0.5 border shadow-sm'
-                    style={{ 
-                      color: brandStyles.primary,
-                      backgroundColor: brandStyles.rgba10,
-                      borderColor: brandStyles.rgba20
-                    }}
-                  >
-                    {item.label}
-                  </span>
-                </div>
-              )
-            }
-
             return (
               <motion.button
                 key={item.id}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => (item.onClick ? item.onClick() : navigate(item.href))}
+                onClick={() => (item.onClick ? item.onClick() : handleNavigation(item.href))}
                 className={cn(
                   'relative flex flex-col items-center justify-center min-w-[50px] h-full transition-all duration-200'
                 )}
@@ -379,12 +353,6 @@ const BottomNav = () => {
           </>
         )}
       </AnimatePresence>
-
-      {/* QR Code Scanner Modal */}
-      <QRCodeScanner
-        isOpen={qrScannerOpen}
-        onClose={() => setQrScannerOpen(false)}
-      />
 
       <MembershipManagementModal
         isOpen={isMembershipOpen}
