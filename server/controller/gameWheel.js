@@ -99,7 +99,7 @@ const checkPlayEligibility = async (userId, gameId, game) => {
     settings = game.settings?.spinSettings || {
       maxSpinsPerUser: 1,
       resetPeriod: 'daily',
-      requirePoints: 10,
+      requirePoints: 0,
       spinDuration: 3000,
     }
   }
@@ -402,14 +402,14 @@ export const createGame = async (req, res, next) => {
             scratchSettings: {
               maxPlaysPerUser: settings.scratchSettings?.maxPlaysPerUser || 1,
               resetPeriod: settings.scratchSettings?.resetPeriod || 'daily',
-              requirePoints: settings.scratchSettings?.requirePoints || 10,
+              requirePoints: settings.scratchSettings?.requirePoints ?? 0,
             },
           }
         : {
             spinSettings: {
               maxSpinsPerUser: settings.spinSettings?.maxSpinsPerUser || 1,
               resetPeriod: settings.spinSettings?.resetPeriod || 'daily',
-              requirePoints: settings.spinSettings?.requirePoints || 10,
+              requirePoints: settings.spinSettings?.requirePoints ?? 0,
               spinDuration: settings.spinSettings?.spinDuration || 3000,
             },
           }),
@@ -601,25 +601,10 @@ export const playGame = async (req, res, next) => {
       )
     }
 
-    // Get user and check points
+    // Get user — games are always free to play (no point entry cost)
     const user = await User.findById(userId)
-    const requiredPoints =
-      game.type === 'scratch'
-        ? game.settings.scratchSettings?.requirePoints || 0
-        : game.settings.spinSettings?.requirePoints || 0
+    const requiredPoints = 0  // Games are free; cost feature is disabled
 
-    console.log(
-      `Required points: ${requiredPoints}, User points: ${user.points}`
-    )
-
-    if (user.points < requiredPoints) {
-      return next(
-        createError(
-          400,
-          `You need ${requiredPoints} points to play this ${game.type}. You have ${user.points} points.`
-        )
-      )
-    }
 
     // Determine winning item
     let winningItem
@@ -636,6 +621,15 @@ export const playGame = async (req, res, next) => {
     }
 
     console.log('Winning item:', winningItem)
+
+    const isPointReward = winningItem.valueType === 'points'
+    const rewardValidDays = isPointReward
+      ? 0
+      : Math.max(0, parseInt(winningItem.validDays || 30, 10) || 30)
+    const rewardExpiresAt =
+      isPointReward || rewardValidDays <= 0
+        ? null
+        : new Date(Date.now() + rewardValidDays * 24 * 60 * 60 * 1000)
 
     // Start MongoDB transaction for atomic operations
     const session = await mongoose.startSession()
@@ -673,14 +667,7 @@ export const playGame = async (req, res, next) => {
         await game.save({ session })
 
         // FIXED: Properly handle expiresAt based on reward type
-        const isPointReward = winningItem.valueType === 'points'
-        const rewardValidDays = isPointReward
-          ? 0
-          : Math.max(0, parseInt(winningItem.validDays || 30, 10) || 30)
-        const expiresAt =
-          isPointReward || rewardValidDays <= 0
-            ? null // Point rewards or zero days don't expire
-            : new Date(Date.now() + rewardValidDays * 24 * 60 * 60 * 1000)
+        const expiresAt = rewardExpiresAt
 
         // Create UserReward entry with proper schema structure
         const gameRewardData = {
@@ -871,15 +858,16 @@ export const playGame = async (req, res, next) => {
             icon: winningItem.icon,
             color: winningItem.color,
           },
+          // The exact index in game.items[] — used by frontend wheel to guarantee correct segment
+          winningItemIndex: game.items.findIndex(
+            (item) => item._id.toString() === winningItem._id.toString()
+          ),
           pointsSpent: requiredPoints,
           pointsWon: pointsWon,
           newPointsBalance: user.points,
           prizeType: winningItem.valueType,
           isInstantReward: winningItem.valueType === 'points',
-          expiresAt:
-            winningItem.valueType !== 'points' && rewardValidDays > 0
-              ? new Date(Date.now() + rewardValidDays * 24 * 60 * 60 * 1000)
-              : null,
+          expiresAt: rewardExpiresAt,
           eligibilityAfterPlay: {
             playsRemaining: Math.max(0, eligibilityAfterPlay.playsRemaining),
             nextReset: eligibilityAfterPlay.nextReset,
@@ -1207,7 +1195,7 @@ export const updateGame = async (req, res, next) => {
           maxSpinsPerUser:
             spinSettings.maxSpinsPerUser || spinSettings.maxPlaysPerUser || 1,
           resetPeriod: spinSettings.resetPeriod || 'daily',
-          requirePoints: spinSettings.requirePoints || 10,
+          requirePoints: spinSettings.requirePoints ?? 0,
           spinDuration: spinSettings.spinDuration || 3000,
         }
 

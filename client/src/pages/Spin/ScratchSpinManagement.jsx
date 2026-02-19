@@ -192,14 +192,14 @@ const ScratchSpinManagement = () => {
                 scratchSettings: {
                   maxPlaysPerUser: 1,
                   resetPeriod: 'daily',
-                  requirePoints: 10,
+                  requirePoints: 0,
                 },
               }
             : {
                 spinSettings: {
                   maxSpinsPerUser: 1,
                   resetPeriod: 'daily',
-                  requirePoints: 10,
+                  requirePoints: 0,
                   spinDuration: 3000,
                 },
               }
@@ -768,14 +768,14 @@ const SettingsModal = ({ gameType, currentSettings, onSave, onClose }) => {
           currentSettings?.maxPlaysPerUser ||
           1,
         resetPeriod: currentSettings?.resetPeriod || 'daily',
-        requirePoints: currentSettings?.requirePoints || 10,
+        requirePoints: currentSettings?.requirePoints ?? 0,
         spinDuration: currentSettings?.spinDuration || 3000,
       }
     } else {
       return {
         maxPlaysPerUser: currentSettings?.maxPlaysPerUser || 1,
         resetPeriod: currentSettings?.resetPeriod || 'daily',
-        requirePoints: currentSettings?.requirePoints || 10,
+        requirePoints: currentSettings?.requirePoints ?? 0,
       }
     }
   })
@@ -949,44 +949,6 @@ const SettingsModal = ({ gameType, currentSettings, onSave, onClose }) => {
             </div>
           </div>
 
-          {/* Points Required */}
-          <div className='space-y-3'>
-            <div className='flex items-center gap-2'>
-              <Sparkles className='w-4 h-4 text-gray-500' />
-              <label className='text-sm font-medium text-gray-700'>
-                Points cost
-              </label>
-            </div>
-            <div className='flex items-center gap-3 bg-gray-50 p-3 rounded-lg'>
-              <span className='text-sm text-gray-600'>Free</span>
-              <input
-                type='range'
-                min='0'
-                max='100'
-                step='5'
-                value={settings.requirePoints}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    requirePoints: parseInt(e.target.value),
-                  })
-                }
-                className='flex-1 h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer'
-                style={{
-                  background: `linear-gradient(to right, #ec4899 0%, #ec4899 ${settings.requirePoints}%, #e5e7eb ${settings.requirePoints}%, #e5e7eb 100%)`,
-                }}
-              />
-              <span className='text-sm text-gray-600'>100</span>
-            </div>
-            <div className='text-center'>
-              <span className='text-2xl font-bold text-pink-600'>
-                {settings.requirePoints}
-              </span>
-              <span className='text-sm text-gray-500 ml-1'>
-                points per play
-              </span>
-            </div>
-          </div>
 
           {/* Spin Duration (Spin Wheel Only) */}
           {gameType === 'spin' && (
@@ -1054,9 +1016,7 @@ const SettingsModal = ({ gameType, currentSettings, onSave, onClose }) => {
               </div>
               <div className='flex justify-between'>
                 <span>Cost per play:</span>
-                <span className='font-medium'>
-                  {settings.requirePoints} points
-                </span>
+                <span className='font-medium text-green-600'>Free 🎉</span>
               </div>
               {gameType === 'spin' && (
                 <div className='flex justify-between'>

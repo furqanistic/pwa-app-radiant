@@ -279,6 +279,10 @@ const AuthPage = () => {
       setSuccess(null)
     },
     onSuccess: (data) => {
+      if (data.token) {
+        localStorage.setItem('token', data.token)
+      }
+      localStorage.setItem('lastActivity', `${Date.now()}`)
       dispatch(loginSuccess(data))
       setSuccess('Radiant account created! Transforming your experience...')
       setTimeout(() => {
@@ -306,6 +310,7 @@ const AuthPage = () => {
       if (data.token) {
         localStorage.setItem('token', data.token)
       }
+      localStorage.setItem('lastActivity', `${Date.now()}`)
       dispatch(loginSuccess(data))
       setSuccess('Welcome back! Loading your dashboard...')
       const role = getRoleFromAuthPayload(data)

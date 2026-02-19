@@ -1,6 +1,8 @@
 // File: client/src/hooks/useGameWheel.js
+import { setPoints } from '@/redux/userSlice'
 import { gameWheelService } from '@/services/gameWheelService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDispatch } from 'react-redux'
 
 // Query Keys
 export const gameWheelQueryKeys = {
@@ -147,10 +149,31 @@ export const useDeleteGame = (options = {}) => {
 // Play a game
 export const usePlayGame = (options = {}) => {
   const queryClient = useQueryClient()
+  const dispatch = useDispatch()
 
   return useMutation({
     mutationFn: gameWheelService.playGame,
     onSuccess: (data, gameId) => {
+      const newBalance = data?.data?.result?.newPointsBalance
+      if (typeof newBalance === 'number') {
+        dispatch(setPoints(newBalance))
+        queryClient.setQueryData(['auth', 'me'], (old) => {
+          if (old?.data?.user) {
+            return {
+              ...old,
+              data: {
+                ...old.data,
+                user: {
+                  ...old.data.user,
+                  points: newBalance,
+                },
+              },
+            }
+          }
+          return old
+        })
+      }
+
       // Invalidate game analytics
       queryClient.invalidateQueries({
         queryKey: gameWheelQueryKeys.analytics(gameId),
@@ -158,6 +181,10 @@ export const usePlayGame = (options = {}) => {
       // Invalidate the specific game (to update play count)
       queryClient.invalidateQueries({
         queryKey: gameWheelQueryKeys.game(gameId),
+      })
+      // Invalidate available games so eligibility + plays remaining updates
+      queryClient.invalidateQueries({
+        queryKey: gameWheelQueryKeys.available(),
       })
 
       options.onSuccess?.(data, gameId)

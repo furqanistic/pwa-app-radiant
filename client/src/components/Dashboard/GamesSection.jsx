@@ -411,9 +411,11 @@ const GamesSection = () => {
       setGameResult(null)
       setShowResult(false)
       setIsAnimationComplete(false)
-      await playGameMutation.mutateAsync(gameId)
+      const response = await playGameMutation.mutateAsync(gameId)
+      return response
     } catch (error) {
       setIsPlaying(false)
+      throw error
     }
   }
 

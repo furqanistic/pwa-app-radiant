@@ -39,7 +39,7 @@ import RewardManagement from './pages/Rewards/RewardManagement'
 import RewardsCatalogPage from './pages/Rewards/RewardsCatalogPage'
 import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
-import { updateProfile } from './redux/userSlice'
+import { loginFailure, loginSuccess, logout, updateProfile } from './redux/userSlice'
 import { authService } from './services/authService'
 
 // Scroll to top whenever the route changes
@@ -201,6 +201,15 @@ const SpaSelectionGuard = ({ children }) => {
 // Rest of the component remains the same...
 const ProtectedRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const token = localStorage.getItem('token')
+
+  if (!currentUser && token) {
+    return (
+      <div className='min-h-screen flex items-center justify-center bg-white'>
+        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
+      </div>
+    )
+  }
 
   if (!currentUser) {
     return <Navigate to='/auth' replace />
@@ -211,6 +220,15 @@ const ProtectedRoute = ({ children }) => {
 
 const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const token = localStorage.getItem('token')
+
+  if (!currentUser && token) {
+    return (
+      <div className='min-h-screen flex items-center justify-center bg-white'>
+        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
+      </div>
+    )
+  }
 
   if (!currentUser) {
     return <Navigate to='/auth' replace />
@@ -230,6 +248,14 @@ const PublicRoute = ({ children }) => {
   const buildSpaPath = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
+  if (!currentUser && token) {
+    return (
+      <div className='min-h-screen flex items-center justify-center bg-white'>
+        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
+      </div>
+    )
+  }
+
   if (currentUser && token) {
     const targetPath =
       currentUser?.role === 'super-admin' ? '/management' : '/dashboard'
@@ -246,6 +272,14 @@ const WelcomeRoute = ({ children }) => {
   const buildSpaPath = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
+  if (!currentUser && token) {
+    return (
+      <div className='min-h-screen flex items-center justify-center bg-white'>
+        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
+      </div>
+    )
+  }
+
   if (!currentUser || !token) {
     return <Navigate to={buildSpaPath('/auth')} replace />
   }
@@ -254,6 +288,61 @@ const WelcomeRoute = ({ children }) => {
 }
 
 const App = () => {
+  const dispatch = useDispatch()
+  const { currentUser } = useSelector((state) => state.user)
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const lastActivity = parseInt(localStorage.getItem('lastActivity') || '0', 10)
+    const maxIdleMs = 30 * 24 * 60 * 60 * 1000
+    if (lastActivity && Date.now() - lastActivity > maxIdleMs) {
+      dispatch(logout())
+      localStorage.removeItem('token')
+      return
+    }
+
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await authService.getCurrentUser()
+        const user = response?.data?.user || response?.data || response?.user
+        if (user) {
+          dispatch(loginSuccess({ data: { user }, token }))
+          localStorage.setItem('lastActivity', `${Date.now()}`)
+        }
+      } catch (error) {
+        dispatch(loginFailure(error.response?.data?.message || 'Session expired'))
+        dispatch(logout())
+        localStorage.removeItem('token')
+      }
+    }
+
+    if (!currentUser) {
+      fetchCurrentUser()
+    }
+  }, [currentUser, dispatch])
+
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const refreshActivity = () => {
+      localStorage.setItem('lastActivity', `${Date.now()}`)
+    }
+
+    refreshActivity()
+
+    const events = ['click', 'keydown', 'touchstart', 'scroll', 'mousemove']
+    events.forEach((event) => window.addEventListener(event, refreshActivity, { passive: true }))
+    document.addEventListener('visibilitychange', refreshActivity)
+
+    return () => {
+      events.forEach((event) => window.removeEventListener(event, refreshActivity))
+      document.removeEventListener('visibilitychange', refreshActivity)
+    }
+  }, [])
+
   // PWA setup (keep existing code)
   useEffect(() => {
     const setupPWA = () => {
