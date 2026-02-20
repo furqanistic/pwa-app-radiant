@@ -75,7 +75,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     email: '',
     dateOfBirth: '',
     password: '',
-    role: 'user', // Default role
+    role: 'spa', // Default role changed from 'user'
     assignedLocation: '', // For location assignment
   })
   const [errors, setErrors] = useState({})
@@ -89,17 +89,15 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
   const getAvailableRoles = () => {
     if (isSuperAdmin) {
       return [
-        { value: 'user', label: 'User' },
         { value: 'spa', label: 'Spa' },
         { value: 'admin', label: 'Admin' },
       ]
     } else if (isAdmin) {
       return [
-        { value: 'user', label: 'User' },
         { value: 'spa', label: 'Spa' },
       ]
     } else {
-      return [{ value: 'user', label: 'User' }]
+      return []
     }
   }
 
@@ -113,7 +111,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
         textColor: 'text-yellow-800',
         title: 'Super Admin Powers',
         description:
-          'You can create Users, Spa managers, and Admins. You have full control over the platform!',
+          'You can create Spa managers and Admins. You have full control over the platform!',
       }
     } else if (isAdmin) {
       return {
@@ -123,7 +121,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
         textColor: 'text-blue-800',
         title: 'Admin Rights',
         description:
-          'You can create Users and Spa managers. Spa managers must be assigned to locations.',
+          'You can create Spa managers. They must be assigned to locations.',
       }
     } else {
       return {
@@ -131,8 +129,8 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
         bgColor: 'bg-gradient-to-r from-pink-50 to-rose-50',
         borderColor: 'border-pink-200',
         textColor: 'text-pink-800',
-        title: 'spa Member',
-        description: 'You can create User accounts for your spa location.',
+        title: 'Spa Member',
+        description: 'You can manage settings for your assigned location.',
       }
     }
   }
@@ -309,7 +307,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
         showCloseButton={false}
-        className='p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2'
+        className='p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 flex flex-col'
       >
         <div
           className='px-6 py-4 text-white flex items-center justify-between'
@@ -335,7 +333,7 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
           Create a new user account with specified role and permissions
         </DialogDescription>
 
-        <div className='space-y-6 py-4 px-6 overflow-y-auto'>
+        <div className='flex-1 overflow-y-auto p-6 space-y-6'>
           {/* Permission Notice */}
           <div
             className={`p-4 ${permissionNotice.bgColor} border ${permissionNotice.borderColor} rounded-xl`}
@@ -701,35 +699,32 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
               )}
             </Button>
           </div>
-        </div>
-
-        {/* Info Card */}
-        <div className='mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100'>
-          <div className='flex items-start gap-3'>
-            <Users className='w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0' />
-            <div>
-              <h4 className='font-medium text-gray-900 mb-1'>
-                Creating:{' '}
-                {formData.role === 'spa'
-                  ? 'Spa Manager'
-                  : formData.role.charAt(0).toUpperCase() +
-                    formData.role.slice(1)}{' '}
-                User
-              </h4>
-              <p className='text-sm text-gray-600'>
-                {formData.role === 'admin' &&
-                  'Admin users can manage locations and spa managers.'}
-                {formData.role === 'spa' &&
-                  'Spa managers can manage users and services in their assigned location.'}
-                {formData.role === 'user' &&
-                  'Regular users can access basic features and book services.'}
-                {selectedLocation && formData.role === 'spa' && (
-                  <span className='block mt-1 font-medium'>
-                    Will be assigned to:{' '}
-                    {selectedLocation.name || selectedLocation.locationId}
-                  </span>
-                )}
-              </p>
+          {/* Info Card - MOVED INSIDE SCROLLABLE AREA */}
+          <div className='mt-8 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100'>
+            <div className='flex items-start gap-3'>
+              <Users className='w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0' />
+              <div>
+                <h4 className='font-medium text-gray-900 mb-1'>
+                  Creating:{' '}
+                  {formData.role === 'spa'
+                    ? 'Spa Manager'
+                    : formData.role.charAt(0).toUpperCase() +
+                      formData.role.slice(1)}{' '}
+                  User
+                </h4>
+                <p className='text-sm text-gray-600'>
+                  {formData.role === 'admin' &&
+                    'Admin users can manage locations and spa managers.'}
+                  {formData.role === 'spa' &&
+                    'Spa managers can manage users and services in their assigned location.'}
+                  {selectedLocation && formData.role === 'spa' && (
+                    <span className='block mt-1 font-medium'>
+                      Will be assigned to:{' '}
+                      {selectedLocation.name || selectedLocation.locationId}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
           </div>
         </div>
