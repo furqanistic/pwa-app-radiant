@@ -37,17 +37,8 @@ const upload = multer({
   },
 });
 
-// Configure Multer for image storage
-const imageStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "public/uploads/images/");
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname) || ".png";
-    cb(null, "image-" + uniqueSuffix + ext);
-  },
-});
+// Configure Multer for image storage (Cloudinary-only, no disk writes)
+const imageStorage = multer.memoryStorage();
 
 const uploadImageMulter = multer({
   storage: imageStorage,

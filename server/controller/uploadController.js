@@ -29,13 +29,32 @@ export const uploadImage = async (req, res, next) => {
       return next(createError(400, "No image uploaded"));
     }
 
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/images/${req.file.filename}`;
+    if (!req.file.buffer) {
+      return next(createError(400, "Image buffer missing"));
+    }
+
+    const folder = process.env.CLOUDINARY_FOLDER || undefined;
+
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: "image",
+          folder,
+        },
+        (error, uploadResult) => {
+          if (error) return reject(error);
+          resolve(uploadResult);
+        }
+      );
+      stream.end(req.file.buffer);
+    });
 
     res.status(200).json({
       success: true,
-      url: fileUrl,
-      filename: req.file.filename,
-      message: "Image uploaded successfully"
+      url: result.secure_url || result.url,
+      publicId: result.public_id,
+      provider: "cloudinary",
+      message: "Image uploaded successfully",
     });
   } catch (error) {
     next(error);
