@@ -350,8 +350,18 @@ export const getBookedTimes = async (req, res, next) => {
 // Get all bookings for admin/spa
 export const getAdminBookings = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search = '', status } = req.query
-    const skip = (parseInt(page) - 1) * parseInt(limit)
+    const {
+      page = 1,
+      limit = 10,
+      search = '',
+      status,
+      locationId,
+      sortBy = 'date',
+      sortOrder = 'desc',
+    } = req.query
+    const pageNum = Math.max(1, parseInt(page, 10) || 1)
+    const limitNum = Math.min(200, Math.max(10, parseInt(limit, 10) || 10))
+    const skip = (pageNum - 1) * limitNum
 
     // Build query
     const query = {}
@@ -374,6 +384,11 @@ export const getAdminBookings = async (req, res, next) => {
       query.status = status
     }
 
+    // Location filter (super-admin only)
+    if (req.user.role === 'super-admin' && locationId) {
+      query.locationId = locationId
+    }
+
     // Search filter (by client name, email, or service name)
     if (search) {
       query.$or = [
@@ -383,11 +398,15 @@ export const getAdminBookings = async (req, res, next) => {
       ]
     }
 
+    const allowedSortFields = new Set(['date', 'time', 'createdAt', 'finalPrice', 'status'])
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : 'date'
+    const safeSortOrder = sortOrder === 'asc' ? 1 : -1
+
     const [bookings, totalBookings] = await Promise.all([
       Booking.find(query)
-        .sort({ date: -1, time: -1 })
+        .sort({ [safeSortBy]: safeSortOrder, time: -1, _id: -1 })
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(limitNum)
         .populate('userId', 'name email'),
       Booking.countDocuments(query)
     ])
@@ -408,9 +427,9 @@ export const getAdminBookings = async (req, res, next) => {
         bookings: formattedBookings,
         pagination: {
           totalBookings,
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(totalBookings / parseInt(limit)),
-          pageSize: parseInt(limit)
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalBookings / limitNum),
+          pageSize: limitNum
         }
       }
     })

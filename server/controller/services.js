@@ -2,6 +2,7 @@
 // server/controller/services.js - Complete Enhanced with Reward Integration
 import { createError } from '../error.js'
 import Category from '../models/Category.js'
+import Location from '../models/Location.js'
 import Reward from '../models/Reward.js'
 import Service from '../models/Service.js'
 import UserReward from '../models/UserReward.js'
@@ -308,6 +309,127 @@ export const getServices = async (req, res, next) => {
   } catch (error) {
     console.error('Error fetching services:', error)
     next(createError(500, 'Failed to fetch services'))
+  }
+}
+
+// Super-admin only: cross-platform services database
+export const getServicesDatabase = async (req, res, next) => {
+  try {
+    const {
+      search = '',
+      category = '',
+      status = '',
+      locationId = '',
+      page = 1,
+      limit = 50,
+      sortBy = 'updatedAt',
+      sortOrder = 'desc',
+    } = req.query
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1)
+    const limitNum = Math.min(200, Math.max(10, parseInt(limit, 10) || 50))
+    const skip = (pageNum - 1) * limitNum
+
+    const filter = { isDeleted: false }
+    const andConditions = []
+
+    if (category) {
+      filter.categoryId = category
+    }
+
+    if (status) {
+      filter.status = status
+    }
+
+    if (locationId) {
+      filter.locationId = locationId
+    }
+
+    if (search) {
+      andConditions.push({
+        $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { locationId: { $regex: search, $options: 'i' } },
+        ],
+      })
+    }
+
+    if (andConditions.length > 0) {
+      filter.$and = andConditions
+    }
+
+    const allowedSortFields = new Set([
+      'name',
+      'basePrice',
+      'duration',
+      'status',
+      'bookings',
+      'rating',
+      'createdAt',
+      'updatedAt',
+    ])
+    const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : 'updatedAt'
+    const safeSortOrder = sortOrder === 'asc' ? 1 : -1
+    const sortObject = { [safeSortBy]: safeSortOrder, _id: -1 }
+
+    const [services, total] = await Promise.all([
+      Service.find(filter)
+        .populate('categoryId', 'name color')
+        .select(
+          'name description categoryId basePrice duration status locationId bookings rating createdAt updatedAt'
+        )
+        .sort(sortObject)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      Service.countDocuments(filter),
+    ])
+
+    const locationIds = [
+      ...new Set(
+        services
+          .map((service) => service.locationId)
+          .filter((value) => typeof value === 'string' && value.length > 0)
+      ),
+    ]
+
+    const locations = locationIds.length
+      ? await Location.find({ locationId: { $in: locationIds } })
+          .select('locationId name')
+          .lean()
+      : []
+
+    const locationMap = new Map(
+      locations.map((location) => [location.locationId, location.name])
+    )
+
+    const enrichedServices = services.map((service) => ({
+      ...service,
+      locationName: service.locationId
+        ? locationMap.get(service.locationId) || 'Unknown Location'
+        : 'Global',
+    }))
+
+    const totalPages = Math.max(1, Math.ceil(total / limitNum))
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        services: enrichedServices,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalServices: total,
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1,
+          limit: limitNum,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching services database:', error)
+    next(createError(500, 'Failed to fetch services database'))
   }
 }
 
@@ -874,9 +996,11 @@ export const createCategory = async (req, res, next) => {
       createdBy: req.user.id,
     }
 
-    // Add location if provided or use user's location
+    // Add location if provided or use user's assigned location
     if (locationId) {
       categoryData.locationId = locationId
+    } else if (req.user.spaLocation?.locationId) {
+      categoryData.locationId = req.user.spaLocation.locationId
     } else if (req.user.selectedLocation?.locationId) {
       categoryData.locationId = req.user.selectedLocation.locationId
     }

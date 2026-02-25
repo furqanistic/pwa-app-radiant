@@ -12,6 +12,14 @@ export const servicesService = {
     return response.data
   },
 
+  // Super-admin: Get platform-wide services database
+  getServicesDatabase: async (params = {}) => {
+    const response = await axiosInstance.get('/services/database/all', {
+      params,
+    })
+    return response.data
+  },
+
   // Get single service by ID
   getService: async (id) => {
     const response = await axiosInstance.get(`/services/${id}`)

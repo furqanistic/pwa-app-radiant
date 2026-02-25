@@ -117,9 +117,10 @@ const ManagementPage = () => {
   const createUserMutation = useMutation({
     mutationFn: authService.createSpaMember,
     onSuccess: () => {
+      setIsAddUserOpen(false);
       toast.success("User created successfully!");
       // Invalidate queries to update lists in other pages (like ContactsPage)
-      queryClient.invalidateQueries(["all-users"]);
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || "Failed to create user");
@@ -129,18 +130,26 @@ const ManagementPage = () => {
   // Navigation cards
   const managementRoutes = [
     {
-      title: "Service Management",
-      description: "Manage services, bookings, and pricing",
+      title: isSuperAdmin ? "Services Database" : "Service Management",
+      description: isSuperAdmin
+        ? "Browse all platform services by location"
+        : "Manage services, bookings, and pricing",
       icon: Settings,
-      path: "/management/services",
+      path: isSuperAdmin
+        ? "/management/services-database"
+        : "/management/services",
       color: "from-blue-500 to-blue-600",
       visible: isElevatedUser,
     },
     {
-      title: "Manage Bookings",
-      description: "View and manage all client bookings",
+      title: isSuperAdmin ? "Bookings Database" : "Manage Bookings",
+      description: isSuperAdmin
+        ? "View all platform bookings in real time"
+        : "View and manage all client bookings",
       icon: Calendar,
-      path: "/management/bookings",
+      path: isSuperAdmin
+        ? "/management/bookings-database"
+        : "/management/bookings",
       color: "from-yellow-500 to-yellow-600",
       visible: isAdminOrAbove,
     },
@@ -182,7 +191,6 @@ const ManagementPage = () => {
 
   const handleCreateUser = async (userData) => {
     await createUserMutation.mutateAsync(userData);
-    setIsAddUserOpen(false);
   };
 
   return (
@@ -525,7 +533,10 @@ const ManagementPage = () => {
                 setEditingLocation(null);
               }}
               onSuccess={() => {
+                setIsLocationFormOpen(false);
+                setEditingLocation(null);
                 toast.success(editingLocation ? "Location updated successfully!" : "Location created successfully!");
+                queryClient.invalidateQueries({ queryKey: ["locations"] });
                 refetchLocations();
               }}
             />
@@ -535,7 +546,8 @@ const ManagementPage = () => {
                 isOpen={isLocationAssignmentOpen}
                 onClose={() => setIsLocationAssignmentOpen(false)}
                 onSuccess={() => {
-                  queryClient.invalidateQueries(["all-users"]);
+                  queryClient.invalidateQueries({ queryKey: ["all-users"] });
+                  queryClient.invalidateQueries({ queryKey: ["locations"] });
                   refetchLocations();
                 }}
               />

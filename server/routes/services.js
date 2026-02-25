@@ -13,6 +13,7 @@ import {
   getAvailableAddOnServices,
   getCategories,
   getService,
+  getServicesDatabase,
   getServices,
   getServiceStats,
   getServiceWithLinkedServices,
@@ -46,6 +47,9 @@ router.use(verifyToken)
 
 // Get all services with filtering and search
 router.get('/', getServices)
+
+// Super-admin global services database
+router.get('/database/all', restrictTo('super-admin'), getServicesDatabase)
 
 // Get single service by ID
 router.get('/:id', getService)

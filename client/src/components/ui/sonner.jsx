@@ -9,7 +9,7 @@ const Toaster = ({
   return (
     (<Sonner
       theme={theme}
-      className="toaster group"
+      className="toaster group !z-[2147483647]"
       style={
         {
           "--normal-bg": "var(--brand-primary)",
@@ -27,7 +27,8 @@ const Toaster = ({
           "--warning-bg": "var(--brand-primary)",
           "--warning-text": "#ffffff",
           "--warning-border": "transparent",
-          zIndex: 10000
+          zIndex: 2147483647,
+          position: "fixed",
         }
       }
       {...props} />)

@@ -194,6 +194,46 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
 
   const queryClient = useQueryClient()
 
+  const extractLocationFromResponse = (payload) => {
+    if (!payload || typeof payload !== 'object') return null
+    return (
+      payload.location ||
+      payload.data?.location ||
+      payload.data ||
+      null
+    )
+  }
+
+  const syncLocationsCache = (payload, mode = 'update') => {
+    const location = extractLocationFromResponse(payload)
+    if (!location?._id && !location?.locationId) return
+
+    queryClient.setQueryData(['locations'], (previous) => {
+      const existing = previous?.data?.locations || []
+      const matchIndex = existing.findIndex(
+        (item) =>
+          item?._id === location._id ||
+          item?.locationId === location.locationId
+      )
+
+      let nextLocations = existing
+      if (matchIndex >= 0) {
+        nextLocations = [...existing]
+        nextLocations[matchIndex] = { ...nextLocations[matchIndex], ...location }
+      } else if (mode === 'create') {
+        nextLocations = [location, ...existing]
+      }
+
+      return {
+        ...(previous || {}),
+        data: {
+          ...(previous?.data || {}),
+          locations: nextLocations,
+        },
+      }
+    })
+  }
+
   // Initialize form with initialData if editing
   useEffect(() => {
     if (initialData) {
@@ -233,9 +273,11 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const createLocationMutation = useMutation({
     mutationFn: locationService.createLocation,
     onSuccess: (data) => {
-      queryClient.invalidateQueries(['locations'])
-      onSuccess?.(data)
+      syncLocationsCache(data, 'create')
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+      queryClient.refetchQueries({ queryKey: ['locations'], type: 'active' })
       onClose()
+      onSuccess?.(data)
       resetForm()
     },
     onError: (error) => {
@@ -247,9 +289,11 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const updateLocationMutation = useMutation({
     mutationFn: ({ id, data }) => locationService.updateLocation(id, data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries(['locations'])
-      onSuccess?.(data)
+      syncLocationsCache(data, 'update')
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+      queryClient.refetchQueries({ queryKey: ['locations'], type: 'active' })
       onClose()
+      onSuccess?.(data)
       resetForm()
     },
     onError: (error) => {

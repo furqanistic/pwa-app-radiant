@@ -173,8 +173,8 @@ const AvailabilitySettings = ({ isOpen, onClose }) => {
         latitude: position?.lat,
         longitude: position?.lng
       });
-      toast.success("Location and time settings updated!");
       onClose();
+      toast.success("Location and time settings updated!");
     } catch (error) {
       toast.error("Failed to update settings");
       console.error(error);

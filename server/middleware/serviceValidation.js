@@ -377,7 +377,15 @@ export const checkLocationAccess = async (req, res, next) => {
   try {
     const { locationId } = req.body
     const userRole = req.user.role
-    const userLocationId = req.user.selectedLocation?.locationId
+
+    if (userRole === 'super-admin') {
+      return next()
+    }
+
+    const userLocationId =
+      userRole === 'spa'
+        ? req.user.spaLocation?.locationId || req.user.selectedLocation?.locationId
+        : req.user.selectedLocation?.locationId
 
     // Admins can manage all services
     if (userRole === 'admin') {
@@ -390,7 +398,7 @@ export const checkLocationAccess = async (req, res, next) => {
         return next(
           createError(
             403,
-            'spa members must be assigned to a location to manage services'
+            'Spa members must be assigned to a location to manage services'
           )
         )
       }

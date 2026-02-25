@@ -33,7 +33,6 @@ import {
     Zap,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -804,14 +803,6 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [showServiceModal, setShowServiceModal] = useState(false)
 
-  // Get current user to check Stripe connection
-  const { currentUser } = useSelector((state) => state.user)
-
-  // Check if spa user has Stripe connected
-  const hasStripeConnected =
-    currentUser?.role !== 'spa' || // Admins bypass this check
-    (currentUser?.stripe?.accountId && currentUser?.stripe?.chargesEnabled)
-
   // API hooks
   const { data: categories = [], isLoading: categoriesLoading } =
     useCategories(false)
@@ -943,15 +934,6 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
   // Fixed handleSubmit function
   const handleSubmit = () => {
-    // Check if spa user has Stripe connected (only for creating new services)
-    if (!service && !hasStripeConnected) {
-      toast.error(
-        'Please connect your Stripe account before creating services. Go to Management > Stripe Connect to set up your payment account.',
-        { duration: 6000 }
-      )
-      return
-    }
-
     if (validateForm()) {
       // Prepare the data for submission
       const submissionData = { ...formData }
@@ -1834,36 +1816,12 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
           </div>
         </div>
 
-        {/* Stripe Connection Warning */}
-        {!service && !hasStripeConnected && (
-          <div className='bg-yellow-50 border border-yellow-200 rounded-lg p-4'>
-            <div className='flex items-start gap-3'>
-              <Zap className='w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5' />
-              <div>
-                <h4 className='font-semibold text-yellow-900 mb-1'>
-                  Stripe Account Required
-                </h4>
-                <p className='text-sm text-yellow-800 mb-3'>
-                  You must connect your Stripe account before creating services.
-                  This is required to accept payments from customers.
-                </p>
-                <button
-                  onClick={() => window.location.href = '/management'}
-                  className='bg-yellow-600 text-white px-4 h-8 rounded-lg text-sm font-semibold hover:bg-yellow-700'
-                >
-                  Connect Stripe Account
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Save/Cancel */}
         <div className='bg-white rounded-lg p-6'>
           <div className='flex flex-col sm:flex-row gap-4'>
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || (!service && !hasStripeConnected)}
+              disabled={isSubmitting}
               className='flex-1 text-white h-10 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
               style={{
                 background:
@@ -1877,8 +1835,6 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                   : 'Creating...'
                 : service
                 ? 'Update Service'
-                : !hasStripeConnected
-                ? 'Connect Stripe First'
                 : 'Create Service'}
             </button>
             <button

@@ -92,11 +92,11 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
     mutationFn: ({ userId, locationId }) =>
       authService.assignLocationToUser(userId, locationId),
     onSuccess: () => {
-      toast.success('Location assigned successfully!')
-      queryClient.invalidateQueries(['all-users'])
-      queryClient.invalidateQueries(['assignable-users'])
+      queryClient.invalidateQueries({ queryKey: ['all-users'] })
+      queryClient.invalidateQueries({ queryKey: ['assignable-users'] })
       onSuccess?.()
       handleClose()
+      toast.success('Location assigned successfully!')
     },
     onError: (error) => {
       const message =

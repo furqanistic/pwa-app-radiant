@@ -96,6 +96,7 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
       month: 1,
       day: 1,
     });
+    onClose();
   };
 
   const handleDeleteGift = (index) => {

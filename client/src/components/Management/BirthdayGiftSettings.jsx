@@ -60,8 +60,8 @@ const BirthdayGiftSettings = ({ isOpen, onClose }) => {
       await updateAvailability.mutateAsync({
         birthdayGift: birthdayGift,
       });
-      toast.success("Birthday gift settings updated!");
       onClose();
+      toast.success("Birthday gift settings updated!");
     } catch (error) {
       toast.error("Failed to update settings");
       console.error(error);

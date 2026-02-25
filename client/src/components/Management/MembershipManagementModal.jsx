@@ -136,11 +136,11 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
       });
     },
     onSuccess: () => {
-      toast.success('Membership updated successfully!');
-      queryClient.invalidateQueries(['my-location']);
-      queryClient.invalidateQueries(['locations']);
-      queryClient.invalidateQueries(['locations', 'membership-modal']);
+      queryClient.invalidateQueries({ queryKey: ['my-location'] });
+      queryClient.invalidateQueries({ queryKey: ['locations'] });
+      queryClient.invalidateQueries({ queryKey: ['locations', 'membership-modal'] });
       onClose();
+      toast.success('Membership updated successfully!');
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to update membership');

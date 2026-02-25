@@ -24,9 +24,11 @@ import ContactsPage from './pages/Contacts/ContactsPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import InstallPrompt from './pages/Layout/InstallPrompt'
 import BookingsManagementPage from './pages/Management/BookingsManagementPage'
+import BookingsDatabasePage from './pages/Management/BookingsDatabasePage'
 import ClientRevenuePage from './pages/Management/ClientRevenuePage'
 import ManagementPage from './pages/Management/ManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
+import ServicesDatabasePage from './pages/Management/ServicesDatabasePage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
 import MembershipPage from './pages/Membership/MembershipPage'
 import WelcomePage from './pages/Other/WelcomePage'
@@ -536,6 +538,15 @@ const App = () => {
             </RoleProtectedRoute>
           }
         />
+
+        <Route
+          path="/management/bookings-database"
+          element={
+            <RoleProtectedRoute allowedRoles={["super-admin"]}>
+              <BookingsDatabasePage />
+            </RoleProtectedRoute>
+          }
+        />
         <Route
           path="/Booking"
           element={
@@ -597,6 +608,15 @@ const App = () => {
           element={
             <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <ServiceManagementPage />
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/management/services-database"
+          element={
+            <RoleProtectedRoute allowedRoles={["super-admin"]}>
+              <ServicesDatabasePage />
             </RoleProtectedRoute>
           }
         />

@@ -46,6 +46,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
       setIsDirty(false)
       queryClient.invalidateQueries({ queryKey: ['myLocation'] })
       toast.success('Points settings updated!')
+      onClose?.()
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to update settings')
