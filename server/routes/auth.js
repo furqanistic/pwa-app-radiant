@@ -18,6 +18,7 @@ import {
     selectSpa,
     signin,
     signup,
+    unassignLocationFromUser,
     updateUser,
 } from '../controller/auth.js'
 import {
@@ -127,6 +128,13 @@ router.post(
   requireAdminOrAbove,
   auditLog('location_assignment'),
   assignLocationToUser
+)
+
+router.post(
+  '/unassign-location',
+  requireAdminOrAbove,
+  auditLog('location_unassignment'),
+  unassignLocationFromUser
 )
 
 // Get users eligible for location assignment (admin/spa only)

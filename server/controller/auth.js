@@ -89,6 +89,8 @@ const getUsersListCacheKey = ({
   limit,
   search,
   roleFilter,
+  assignedOnly,
+  unassignedOnly,
   locationId,
   sortBy,
   sortOrder,
@@ -100,6 +102,8 @@ const getUsersListCacheKey = ({
     limit,
     search,
     roleFilter,
+    assignedOnly,
+    unassignedOnly,
     locationId,
     sortBy,
     sortOrder,
@@ -144,6 +148,8 @@ export const getAllUsers = async (req, res, next) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100)
     const search = (req.query.search || '').trim()
     const role = (req.query.role || '').trim()
+    const assignedOnly = req.query.assignedOnly === 'true'
+    const unassignedOnly = req.query.unassignedOnly === 'true'
     const locationId = req.query.locationId || '' // NEW: Location filtering
     const sortBy = req.query.sortBy || 'createdAt'
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1
@@ -155,6 +161,8 @@ export const getAllUsers = async (req, res, next) => {
       limit,
       search,
       roleFilter: role,
+      assignedOnly,
+      unassignedOnly,
       locationId,
       sortBy,
       sortOrder: req.query.sortOrder === 'asc' ? 'asc' : 'desc',
@@ -184,7 +192,55 @@ export const getAllUsers = async (req, res, next) => {
 
     // Role filter
     if (role && role !== 'all') {
-      andFilters.push({ role })
+      if (role === 'assignable') {
+        andFilters.push({ role: { $in: ['admin', 'spa'] } })
+      } else {
+        andFilters.push({ role })
+      }
+    }
+
+    if (assignedOnly && unassignedOnly) {
+      return next(
+        createError(400, 'assignedOnly and unassignedOnly cannot both be true')
+      )
+    }
+
+    if (assignedOnly) {
+      andFilters.push({
+        $or: [
+          {
+            'selectedLocation.locationId': {
+              $exists: true,
+              $nin: [null, ''],
+            },
+          },
+          {
+            'spaLocation.locationId': {
+              $exists: true,
+              $nin: [null, ''],
+            },
+          },
+        ],
+      })
+    }
+
+    if (unassignedOnly) {
+      andFilters.push({
+        $and: [
+          {
+            $or: [
+              { 'selectedLocation.locationId': { $exists: false } },
+              { 'selectedLocation.locationId': { $in: [null, ''] } },
+            ],
+          },
+          {
+            $or: [
+              { 'spaLocation.locationId': { $exists: false } },
+              { 'spaLocation.locationId': { $in: [null, ''] } },
+            ],
+          },
+        ],
+      })
     }
 
     if (locationId && req.user.role !== 'super-admin') {
@@ -225,6 +281,8 @@ export const getAllUsers = async (req, res, next) => {
             filters: {
               search,
               role,
+              assignedOnly,
+              unassignedOnly,
               sortBy,
               sortOrder: req.query.sortOrder || 'desc',
             },
@@ -297,6 +355,8 @@ export const getAllUsers = async (req, res, next) => {
         filters: {
           search,
           role,
+          assignedOnly,
+          unassignedOnly,
           locationId,
           sortBy,
           sortOrder: req.query.sortOrder || 'desc',
@@ -996,6 +1056,76 @@ export const assignLocationToUser = async (req, res, next) => {
   } catch (error) {
     console.error('Error assigning location:', error)
     next(createError(500, 'Failed to assign location'))
+  }
+}
+
+export const unassignLocationFromUser = async (req, res, next) => {
+  try {
+    const { userId } = req.body
+
+    if (!['admin', 'super-admin'].includes(req.user.role)) {
+      return next(
+        createError(403, 'Access denied. Admin or Super-Admin rights required.')
+      )
+    }
+
+    if (!userId) {
+      return next(createError(400, 'User ID is required'))
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const canUnassign =
+      req.user.role === 'super-admin' ||
+      (req.user.role === 'admin' && user.role === 'spa')
+
+    if (!canUnassign) {
+      return next(
+        createError(403, 'You can only unassign locations from eligible users')
+      )
+    }
+
+    // Spa users require spaLocation by schema, so they cannot be fully unassigned.
+    if (user.role === 'spa') {
+      return next(
+        createError(
+          400,
+          'Spa users must remain assigned to a location. Reassign them instead.'
+        )
+      )
+    }
+
+    user.selectedLocation = {
+      locationId: null,
+      locationName: null,
+      locationAddress: null,
+      locationPhone: null,
+      logo: null,
+      selectedAt: null,
+    }
+
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Location unassigned successfully',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          selectedLocation: user.selectedLocation,
+          spaLocation: user.spaLocation,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error unassigning location:', error)
+    next(createError(500, 'Failed to unassign location'))
   }
 }
 

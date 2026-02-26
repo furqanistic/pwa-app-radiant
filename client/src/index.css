@@ -119,3 +119,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Keep Sonner toasts above all modal/dialog layers */
+[data-sonner-toaster] {
+  z-index: 2147483647 !important;
+}
+
+[data-sonner-toast] {
+  z-index: 2147483647 !important;
+}

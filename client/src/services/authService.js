@@ -34,6 +34,8 @@ export const authService = {
       limit: params.limit || 10,
       search: params.search || '',
       role: params.role || 'all',
+      assignedOnly: params.assignedOnly ? 'true' : 'false',
+      unassignedOnly: params.unassignedOnly ? 'true' : 'false',
       locationId: params.locationId || '', // Filter by location
       sortBy: params.sortBy || 'createdAt',
       sortOrder: params.sortOrder || 'desc',
@@ -196,6 +198,13 @@ export const authService = {
     const response = await axiosInstance.post('/auth/assign-location', {
       userId,
       locationId,
+    })
+    return response.data
+  },
+
+  unassignLocationFromUser: async (userId) => {
+    const response = await axiosInstance.post('/auth/unassign-location', {
+      userId,
     })
     return response.data
   },
