@@ -7,6 +7,9 @@ import {
   Award,
   Building,
   Calendar,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
   Clock,
   Crown,
   Edit2,
@@ -15,6 +18,8 @@ import {
   QrCode,
   RefreshCw,
   Settings,
+  ShieldCheck,
+  Sparkles,
   TrendingUp,
   UserCheck,
   UserPlus,
@@ -82,6 +87,8 @@ const ManagementPage = () => {
   const [isPointsSettingsOpen, setIsPointsSettingsOpen] = useState(false);
   const [isMembershipOpen, setIsMembershipOpen] = useState(false);
   const [selectedQRLocation, setSelectedQRLocation] = useState(null);
+  const [showAllQuickActionsMobile, setShowAllQuickActionsMobile] = useState(false);
+  const [showAllToolsMobile, setShowAllToolsMobile] = useState(false);
 
   // Permission checks
   const isElevatedUser = [
@@ -188,6 +195,121 @@ const ManagementPage = () => {
   ];
 
   const locations = locationsData?.data?.locations || [];
+  const activeLocationsCount = locations.filter((location) => location.isActive).length;
+  const inactiveLocationsCount = locations.length - activeLocationsCount;
+  const roleLabelByKey = {
+    spa: "Spa Manager",
+    admin: "Admin",
+    enterprise: "Enterprise",
+    "super-admin": "Super Admin",
+  };
+  const roleLabel = roleLabelByKey[currentUser?.role] || "Team Member";
+
+  const toolActions = [
+    ...(isSuperAdmin
+      ? [
+          {
+            key: "add-user",
+            title: "Add User",
+            description: "Create a new teammate account with role access.",
+            icon: UserPlus,
+            onClick: () => setIsAddUserOpen(true),
+            className:
+              "border-blue-100 bg-blue-50/70 hover:bg-blue-100/70 text-blue-900",
+          },
+        ]
+      : []),
+    ...(isTeamOrAbove && !isSuperAdmin
+      ? [
+          {
+            key: "availability",
+            title:
+              currentUser?.role === "spa"
+                ? "Edit Location and Time"
+                : "Availability Settings",
+            description: "Adjust opening hours and team availability windows.",
+            icon: Clock,
+            onClick: () => setIsAvailabilityOpen(true),
+            className:
+              "border-orange-100 bg-orange-50/70 hover:bg-orange-100/70 text-orange-900",
+          },
+          {
+            key: "gift-settings",
+            title: "Gift Settings",
+            description: "Set birthday and event-based gift behavior.",
+            icon: Gift,
+            onClick: () => setIsBirthdayGiftOpen(true),
+            className:
+              "border-fuchsia-100 bg-fuchsia-50/70 hover:bg-fuchsia-100/70 text-fuchsia-900",
+          },
+          {
+            key: "automated-gifts",
+            title: "Automated Gifts",
+            description: "Schedule and control automated gift campaigns.",
+            icon: Sparkles,
+            onClick: () => setIsAutomatedGiftOpen(true),
+            className:
+              "border-rose-100 bg-rose-50/70 hover:bg-rose-100/70 text-rose-900",
+          },
+          {
+            key: "points-rules",
+            title: "Points Rules",
+            description: "Control earning, redemption, and loyalty balance rules.",
+            icon: Award,
+            onClick: () => setIsPointsSettingsOpen(true),
+            className:
+              "border-transparent text-white hover:opacity-95",
+            style: {
+              backgroundImage: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})`,
+            },
+          },
+        ]
+      : []),
+    ...(isTeamOrAbove
+      ? [
+          {
+            key: "membership",
+            title: currentUser?.role === "spa" ? "View Membership" : "Manage Membership",
+            description: "Review and configure membership plans and benefits.",
+            icon: Crown,
+            onClick: handleOpenMembership,
+            className:
+              "border-cyan-100 bg-cyan-50/70 hover:bg-cyan-100/70 text-cyan-900",
+          },
+        ]
+      : []),
+    ...(isSuperAdmin
+      ? [
+          {
+            key: "add-location",
+            title: "Add Location",
+            description: "Create and configure a new spa location.",
+            icon: MapPin,
+            onClick: () => setIsLocationFormOpen(true),
+            className:
+              "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900",
+          },
+        ]
+      : []),
+    ...(isAdminOrAbove
+      ? [
+          {
+            key: "assign-location",
+            title: "Assign Location",
+            description: "Grant users access to the right location.",
+            icon: UserCheck,
+            onClick: () => setIsLocationAssignmentOpen(true),
+            className:
+              "border-violet-100 bg-violet-50/70 hover:bg-violet-100/70 text-violet-900",
+          },
+        ]
+      : []),
+  ];
+  const visibleManagementRoutes = managementRoutes.filter((route) => route.visible);
+  const quickActionsPrimaryMobile = visibleManagementRoutes.slice(0, 3);
+  const quickActionsSecondaryMobile = visibleManagementRoutes.slice(3);
+  const toolsPrimaryMobile = toolActions.slice(0, 3);
+  const toolsSecondaryMobile = toolActions.slice(3);
 
   const handleCreateUser = async (userData) => {
     await createUserMutation.mutateAsync(userData);
@@ -195,152 +317,250 @@ const ManagementPage = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-stone-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Management Dashboard
-            </h1>
-            <p className="text-gray-600">
-              Manage system settings and configurations
-              {currentUserLocationId && (
-                <span className="block text-sm text-blue-600 mt-1">
-                  Current location:{" "}
-                  {currentUser?.selectedLocation?.locationName ||
-                    currentUser?.spaLocation?.locationName}
-                </span>
-              )}
-            </p>
+          <div className="mb-8 rounded-2xl border border-slate-200 bg-white/95 shadow-sm overflow-hidden">
+            <div className="h-2 w-full bg-gradient-to-r from-cyan-400 via-sky-500 to-indigo-500" />
+            <div className="px-5 py-5 md:px-8 md:py-7">
+              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+                    Management Dashboard
+                  </h1>
+                  <p className="mt-2 text-slate-600">
+                    Run operations, configure core settings, and keep your team aligned.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {roleLabel}
+                  </span>
+                  {currentUserLocationId && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-800">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {currentUser?.selectedLocation?.locationName ||
+                        currentUser?.spaLocation?.locationName}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Navigation Cards */}
           {isElevatedUser && (
             <div className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">
                 Quick Actions
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                {managementRoutes
-                  .filter((route) => route.visible)
-                  .map((route) => (
-                    <button
-                      key={route.path}
-                      onClick={() => navigate(route.path)}
-                      className={`p-4 bg-gradient-to-r ${route.color} rounded-lg text-white hover:opacity-90 transition-all transform hover:scale-105 flex flex-col items-center text-center`}
+              <div className="sm:hidden space-y-3">
+                {quickActionsPrimaryMobile.map((route) => (
+                  <button
+                    key={route.path}
+                    onClick={() => navigate(route.path)}
+                    className={`group w-full p-4 bg-gradient-to-br ${route.color} rounded-xl text-white hover:opacity-95 transition-all duration-300 text-left`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <route.icon className="w-5 h-5 shrink-0 opacity-95" />
+                      <ChevronRight className="w-4 h-4 shrink-0 opacity-75" />
+                    </div>
+                    <h3 className="mt-3 font-semibold text-sm">{route.title}</h3>
+                    <p className="mt-1 text-xs opacity-90 leading-relaxed">{route.description}</p>
+                  </button>
+                ))}
+
+                {quickActionsSecondaryMobile.length > 0 && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAllQuickActionsMobile((prev) => !prev)}
+                      className="w-full justify-between"
                     >
-                      <route.icon className="w-6 h-6 mb-2 " />
-                      <h3 className="font-semibold text-sm mb-1">
-                        {route.title}
-                      </h3>
-                      <p className="text-xs opacity-90">{route.description}</p>
-                    </button>
-                  ))}
+                      <span>
+                        {showAllQuickActionsMobile
+                          ? "Show fewer quick actions"
+                          : `Show ${quickActionsSecondaryMobile.length} more quick actions`}
+                      </span>
+                      {showAllQuickActionsMobile ? (
+                        <ChevronUp className="w-4 h-4 ml-2" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 ml-2" />
+                      )}
+                    </Button>
+
+                    {showAllQuickActionsMobile && (
+                      <div className="space-y-3">
+                        {quickActionsSecondaryMobile.map((route) => (
+                          <button
+                            key={route.path}
+                            onClick={() => navigate(route.path)}
+                            className={`group w-full p-4 bg-gradient-to-br ${route.color} rounded-xl text-white hover:opacity-95 transition-all duration-300 text-left`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <route.icon className="w-5 h-5 shrink-0 opacity-95" />
+                              <ChevronRight className="w-4 h-4 shrink-0 opacity-75" />
+                            </div>
+                            <h3 className="mt-3 font-semibold text-sm">{route.title}</h3>
+                            <p className="mt-1 text-xs opacity-90 leading-relaxed">{route.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {visibleManagementRoutes.map((route) => (
+                  <button
+                    key={route.path}
+                    onClick={() => navigate(route.path)}
+                    className={`group p-5 bg-gradient-to-br ${route.color} rounded-xl text-white hover:opacity-95 transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-0.5 text-left`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <route.icon className="w-6 h-6 shrink-0 opacity-95" />
+                      <ChevronRight className="w-5 h-5 shrink-0 opacity-75 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                    <h3 className="mt-6 font-semibold text-base">{route.title}</h3>
+                    <p className="mt-1.5 text-sm opacity-90 leading-relaxed">{route.description}</p>
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            {isSuperAdmin && (
-              <Button
-                onClick={() => setIsAddUserOpen(true)}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add User
-              </Button>
-            )}
+          {/* Management Tools */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-slate-900 mb-4">
+              Management Tools
+            </h2>
+            <div className="sm:hidden space-y-3">
+              {toolsPrimaryMobile.map((action) => (
+                <button
+                  key={action.key}
+                  onClick={action.onClick}
+                  className={`w-full rounded-xl border p-4 text-left transition-all duration-200 ${action.className}`}
+                  style={action.style}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <action.icon className="h-5 w-5 shrink-0" />
+                    <ChevronRight className="h-4 w-4 opacity-70" />
+                  </div>
+                  <h3 className="mt-3 text-sm font-semibold">{action.title}</h3>
+                  <p className="mt-1 text-xs opacity-85 leading-relaxed">
+                    {action.description}
+                  </p>
+                </button>
+              ))}
 
-            {(isTeamOrAbove && !isSuperAdmin) && (
-              <>
-               <Button
-                onClick={() => setIsAvailabilityOpen(true)}
-                className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
-              >
-                <Clock className="w-4 h-4 mr-2" />
-                {currentUser.role === 'spa' ? 'Edit Location and Time' : 'Availability Settings'}
-              </Button>
-
-               <Button
-                onClick={() => setIsBirthdayGiftOpen(true)}
-                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
-              >
-                <Gift className="w-4 h-4 mr-2" />
-                Gift Settings
-              </Button>
-
-              <Button
-                onClick={() => setIsAutomatedGiftOpen(true)}
-                className="bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700"
-              >
-                <Gift className="w-4 h-4 mr-2" />
-                Automated Gifts
-              </Button>
-
-              <Button
-                onClick={() => setIsPointsSettingsOpen(true)}
-                className="text-white hover:opacity-90"
-                style={{
-                  backgroundImage: `linear-gradient(to right, ${brandColor}, ${brandColorDark})`,
-                }}
-              >
-                <Award className="w-4 h-4 mr-2" />
-                Points Rules
-              </Button>
-
-              </>
-            )}
-
-            {isTeamOrAbove && (
-              <Button
-                onClick={handleOpenMembership}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
-              >
-                <Crown className="w-4 h-4 mr-2" />
-                {currentUser?.role === "spa" ? "View Membership" : "Manage Membership"}
-              </Button>
-            )}
-
-            {isTeamOrAbove && (
-              <>
-                {isSuperAdmin && (
+              {toolsSecondaryMobile.length > 0 && (
+                <>
                   <Button
-                    onClick={() => setIsLocationFormOpen(true)}
-                    className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                    variant="outline"
+                    onClick={() => setShowAllToolsMobile((prev) => !prev)}
+                    className="w-full justify-between"
                   >
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Add Location
+                    <span>
+                      {showAllToolsMobile
+                        ? "Show fewer tools"
+                        : `Show ${toolsSecondaryMobile.length} more tools`}
+                    </span>
+                    {showAllToolsMobile ? (
+                      <ChevronUp className="w-4 h-4 ml-2" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 ml-2" />
+                    )}
                   </Button>
-                )}
 
-                {isAdminOrAbove && (
-                  <Button
-                    onClick={() => setIsLocationAssignmentOpen(true)}
-                    className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
-                  >
-                    <UserCheck className="w-4 h-4 mr-2" />
-                    Assign Location
-                  </Button>
-                )}
-              </>
-            )}
+                  {showAllToolsMobile && (
+                    <div className="space-y-3">
+                      {toolsSecondaryMobile.map((action) => (
+                        <button
+                          key={action.key}
+                          onClick={action.onClick}
+                          className={`w-full rounded-xl border p-4 text-left transition-all duration-200 ${action.className}`}
+                          style={action.style}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <action.icon className="h-5 w-5 shrink-0" />
+                            <ChevronRight className="h-4 w-4 opacity-70" />
+                          </div>
+                          <h3 className="mt-3 text-sm font-semibold">{action.title}</h3>
+                          <p className="mt-1 text-xs opacity-85 leading-relaxed">
+                            {action.description}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {toolActions.map((action) => (
+                <button
+                  key={action.key}
+                  onClick={action.onClick}
+                  className={`rounded-xl border p-4 text-left transition-all duration-200 hover:shadow-sm ${action.className}`}
+                  style={action.style}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <action.icon className="h-5 w-5 shrink-0" />
+                    <ChevronRight className="h-4 w-4 opacity-70" />
+                  </div>
+                  <h3 className="mt-4 text-sm font-semibold">{action.title}</h3>
+                  <p className="mt-1 text-xs opacity-85 leading-relaxed">
+                    {action.description}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Stripe Connect - spa Role Only */}
           {currentUser?.role === "spa" && (
-            <div className="mb-8">
+            <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">Payouts</h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Connect and monitor Stripe to receive payouts without leaving this dashboard.
+              </p>
               <StripeConnect />
             </div>
           )}
 
           {/* Location Management Section - Super Admin Only */}
           {isSuperAdmin && (
-            <div className="mt-8 bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">
+            <div className="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="px-5 py-4 md:px-6 md:py-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    Location Management
+                  </h3>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Track all locations and manage edits, status, and QR access.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                    Active: {activeLocationsCount}
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
+                    Inactive: {inactiveLocationsCount}
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                    Total: {locations.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-slate-700">
                   Locations ({locations.length})
-                </h3>
+                </h4>
                 <Button
                   size="sm"
                   onClick={() => refetchLocations()}
@@ -352,8 +572,13 @@ const ManagementPage = () => {
               </div>
 
               {isLoadingLocations ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="w-8 h-8 border-4 border-green-200 border-t-green-500 rounded-full animate-spin"></div>
+                <div className="px-5 py-6 space-y-3">
+                  {[...Array(4)].map((_, index) => (
+                    <div
+                      key={`location-skeleton-${index}`}
+                      className="h-14 rounded-lg bg-slate-100 animate-pulse"
+                    />
+                  ))}
                 </div>
               ) : locations.length === 0 ? (
                 <div className="text-center py-12">
@@ -361,7 +586,68 @@ const ManagementPage = () => {
                   <p className="text-gray-500">No locations found</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                  <div className="md:hidden p-4 space-y-3">
+                    {locations.map((location) => (
+                      <div
+                        key={location._id}
+                        className="rounded-xl border border-slate-200 bg-slate-50/40 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h5 className="text-sm font-semibold text-slate-900">
+                              {location.name || "Unnamed Location"}
+                            </h5>
+                            <p className="text-xs text-slate-500 mt-1">
+                              ID: {location.locationId}
+                            </p>
+                          </div>
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                              location.isActive
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {location.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+
+                        <p className="mt-3 text-sm text-slate-700">
+                          {location.address || "No address"}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Created: {new Date(location.createdAt).toLocaleDateString()}
+                        </p>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingLocation(location);
+                              setIsLocationFormOpen(true);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedQRLocation(location)}
+                            className="flex-1 flex items-center justify-center gap-2 text-pink-600 border-pink-200 hover:bg-pink-50"
+                          >
+                            <QrCode className="w-4 h-4" />
+                            QR Code
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden md:block overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
@@ -439,7 +725,8 @@ const ManagementPage = () => {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -527,7 +814,7 @@ const ManagementPage = () => {
           <>
             <LocationForm
               isOpen={isLocationFormOpen}
-              initialData={editingLocation || (currentUser.role === 'spa' ? locations[0] : null)}
+              initialData={editingLocation || (currentUser?.role === "spa" ? locations[0] : null)}
               onClose={() => {
                 setIsLocationFormOpen(false);
                 setEditingLocation(null);
