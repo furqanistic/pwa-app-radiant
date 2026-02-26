@@ -68,6 +68,16 @@ const normalizeMembershipPlans = (membership) => {
   return []
 }
 
+const getServiceImageSource = (service) =>
+  service?.image ||
+  service?.imageUrl ||
+  service?.serviceImage ||
+  service?.service?.image ||
+  service?.serviceId?.image ||
+  service?.linkedService?.image ||
+  service?.linkedServiceId?.image ||
+  ''
+
 // ==========================================
 // 2. COMPONENTS
 // ==========================================
@@ -136,7 +146,7 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
       <div className='relative h-48 rounded-[1.5rem] overflow-hidden mb-4 shadow-sm bg-gray-100'>
         <img
           src={resolveImageUrl(
-            service.image,
+            getServiceImageSource(service),
             'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=800&auto=format&fit=crop&q=60',
             { width: 800, height: 600 }
           )}
@@ -255,7 +265,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
     currentUser?.spaLocation?.locationId
 
   const { data: categories = [] } = useCategories(true) // Enable counts
-  const { services, isLoading } = useActiveServices({
+  const { services, isLoading, isFetching } = useActiveServices({
     search: debouncedSearchTerm,
     locationId
   })
@@ -478,14 +488,14 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                 <div className='animate-fadeIn'>
                     {renderCategories()}
                     
-                    {isLoading ? (
+                    {isLoading && (!services || services.length === 0) ? (
                         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
                             {[...Array(6)].map((_, i) => <ServiceCardSkeleton key={i} />)}
                         </div>
                     ) : browseServices.length > 0 ? (
-                        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+                        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity ${isFetching ? 'opacity-70' : 'opacity-100'}`}>
                             {browseServices.map(service => (
-                                <ServiceCard key={service._id} service={service} onSelect={onServiceSelect} />
+                                <ServiceCard key={service._id || service.serviceId || service.id || service.name} service={service} onSelect={onServiceSelect} />
                             ))}
                         </div>
                     ) : (
@@ -499,7 +509,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             {activeTab === 'membership' && (
                 <div className='animate-fadeIn'>
 
-                    {isLoading ? (
+                    {isLoading && (!services || services.length === 0) ? (
                         <div className='grid grid-cols-1 gap-6 md:px-8'>
                              {[...Array(3)].map((_, i) => <ServiceCardSkeleton key={i} />)}
                         </div>
@@ -523,7 +533,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                              {/* Real Memberships from Services */}
                              {membershipServices.map(service => (
                                 <MembershipCard 
-                                    key={service._id} 
+                                    key={service._id || service.serviceId || service.id || service.name} 
                                     service={service} 
                                     onSelect={onServiceSelect} 
                                 />
@@ -538,7 +548,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
                         {services && services.length > 0 ? (
                             services.map(service => (
-                                <ServiceCard key={service._id} service={service} onSelect={onServiceSelect} />
+                                <ServiceCard key={service._id || service.serviceId || service.id || service.name} service={service} onSelect={onServiceSelect} />
                             ))
                         ) : (
                              <div className='col-span-full text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-gray-200/70'>

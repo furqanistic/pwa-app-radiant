@@ -18,7 +18,6 @@ import {
     Clock,
     DollarSign,
     Edit3,
-    Eye,
     Layers,
     LayoutGrid,
     List,
@@ -32,7 +31,7 @@ import {
     X,
     Zap,
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -41,6 +40,20 @@ import { useBranding } from '@/context/BrandingContext'
 
 const fallbackServiceImage =
   'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=500&h=300&fit=crop'
+
+const getLinkedServiceImageSource = (linkedService) =>
+  linkedService?.image ||
+  linkedService?.imageUrl ||
+  linkedService?.serviceImage ||
+  linkedService?.service?.image ||
+  linkedService?.serviceId?.image ||
+  ''
+
+const normalizeForSearch = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
 
 // Enhanced Service Selection Modal for Add-ons with custom pricing
 const ServiceSelectionModal = ({
@@ -599,7 +612,7 @@ const ServiceHeader = ({
 )
 
 // Enhanced Service Card with linked services display
-const ServiceCard = ({ service, category, onEdit, onDelete, onView }) => {
+const ServiceCard = ({ service, category, onEdit, onDelete }) => {
   const isDiscountActive =
     service.discount?.active &&
     new Date() >= new Date(service.discount.startDate) &&
@@ -652,12 +665,6 @@ const ServiceCard = ({ service, category, onEdit, onDelete, onView }) => {
 
         <div className='absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity'>
           <button
-            onClick={() => onView(service)}
-            className='bg-white/90 p-2 rounded-lg hover:bg-white'
-          >
-            <Eye className='w-4 h-4 text-gray-700' />
-          </button>
-          <button
             onClick={() => onEdit(service)}
             className='bg-white/90 p-2 rounded-lg hover:bg-white'
           >
@@ -674,7 +681,7 @@ const ServiceCard = ({ service, category, onEdit, onDelete, onView }) => {
 
       <div className='p-6'>
         <div className='flex items-start justify-between mb-3'>
-          <h3 className='text-xl font-bold text-gray-900 flex-1'>
+          <h3 className='text-lg font-bold text-gray-900 flex-1 leading-snug pr-1'>
             {service.name}
           </h3>
           <div className='flex items-center gap-1 ml-3 bg-yellow-50 px-2 py-1 rounded-lg'>
@@ -839,7 +846,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
             description: link.description,
             basePrice: link.basePrice,
             duration: link.duration,
-            image: link.image,
+            image: getLinkedServiceImageSource(link),
             categoryId: link.categoryId,
             status: link.status,
 
@@ -1678,7 +1685,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                         <div className='flex items-center gap-3'>
                           <img
                             src={resolveImageUrl(
-                              linkedService.image,
+                              getLinkedServiceImageSource(linkedService),
                               fallbackServiceImage,
                               { width: 100, height: 100 }
                             )}
@@ -1896,17 +1903,14 @@ const ServiceManagementPage = () => {
 
   const getCategoryById = (id) => categories.find((cat) => cat._id === id)
 
-  const filteredServices = services.filter((service) => {
-    const matchesSearch =
-      service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.subTreatments?.some(
-        (sub) =>
-          sub.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          sub.description.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    return matchesSearch
-  })
+  const filteredServices = useMemo(() => {
+    const q = normalizeForSearch(searchTerm)
+    if (!q) return services
+
+    return services.filter((service) => {
+      return normalizeForSearch(service.name).includes(q)
+    })
+  }, [services, searchTerm])
 
   const handleAddService = () => {
     setSelectedService(null)
@@ -1935,7 +1939,7 @@ const ServiceManagementPage = () => {
   }
 
   // Loading state
-  if (servicesLoading) {
+  if (servicesLoading && services.length === 0) {
     return (
       <Layout>
         <div className='flex items-center justify-center min-h-[50vh]'>
@@ -1997,7 +2001,6 @@ const ServiceManagementPage = () => {
                 category={getCategoryById(service.categoryId)}
                 onEdit={handleEditService}
                 onDelete={handleDeleteService}
-                onView={(service) => alert(`View ${service.name}`)}
               />
             ))}
           </div>

@@ -47,6 +47,7 @@ export const useServices = (params = {}) => {
     queryKey: serviceQueryKeys.list(params),
     queryFn: () => servicesService.getServices(params),
     select: (data) => data.data, // Extract the data object
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
 }
