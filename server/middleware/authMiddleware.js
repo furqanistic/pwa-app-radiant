@@ -365,7 +365,7 @@ export const requireStripeConnection = async (req, res, next) => {
       return next(
         createError(
           403,
-          'You must connect your Stripe account before creating services or rewards. Please go to Management > Stripe Connect to set up your payment account.'
+          'You must connect your Stripe account before creating paid rewards or accepting payments. Please go to Management > Stripe Connect to set up your payment account.'
         )
       )
     }
@@ -385,4 +385,3 @@ export const requireStripeConnection = async (req, res, next) => {
     next(error)
   }
 }
-

@@ -75,7 +75,6 @@ router.use(restrictTo('super-admin', 'admin', 'spa', 'spa'))
 // Create new service
 router.post(
   '/',
-  requireStripeConnection,
   sanitizeServiceData,
   validateServiceData,
   checkLocationAccess,
