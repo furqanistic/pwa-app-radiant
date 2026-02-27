@@ -269,6 +269,10 @@ const LocationSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      pendingStripeActivation: {
+        type: Boolean,
+        default: false,
+      },
       plans: {
         type: [
           {

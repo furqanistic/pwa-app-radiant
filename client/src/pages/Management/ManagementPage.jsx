@@ -39,7 +39,6 @@ import AvailabilitySettings from "@/components/Management/AvailabilitySettings";
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
 import LocationForm from "@/components/Management/LocationForm";
-import MembershipManagementModal from "@/components/Management/MembershipManagementModal";
 import PointsSettings from "@/components/Management/PointsSettings";
 import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import StripeConnect from "@/components/Stripe/StripeConnect";
@@ -85,7 +84,6 @@ const ManagementPage = () => {
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
   const [isPointsSettingsOpen, setIsPointsSettingsOpen] = useState(false);
-  const [isMembershipOpen, setIsMembershipOpen] = useState(false);
   const [selectedQRLocation, setSelectedQRLocation] = useState(null);
   const [showAllQuickActionsMobile, setShowAllQuickActionsMobile] = useState(false);
   const [showAllToolsMobile, setShowAllToolsMobile] = useState(false);
@@ -116,9 +114,7 @@ const ManagementPage = () => {
     enabled: isTeamOrAbove,
   });
 
-  const handleOpenMembership = () => {
-    setIsMembershipOpen(true);
-  };
+  const handleOpenMembership = () => navigate("/management/membership");
 
   // Create user mutation
   const createUserMutation = useMutation({
@@ -758,12 +754,6 @@ const ManagementPage = () => {
         />
 
         {/* Points Settings Modal */}
-        {/* Membership Management Modal */}
-        <MembershipManagementModal
-          isOpen={isMembershipOpen}
-          onClose={() => setIsMembershipOpen(false)}
-        />
-
         <PointsSettings
           isOpen={isPointsSettingsOpen}
           onClose={() => setIsPointsSettingsOpen(false)}

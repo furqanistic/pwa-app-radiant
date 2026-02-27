@@ -23,8 +23,6 @@ import {
   updateService,
 } from '../controller/services.js'
 import {
-  checkPermission,
-  requireStripeConnection,
   restrictTo,
   verifyToken,
 } from '../middleware/authMiddleware.js'
@@ -102,7 +100,6 @@ router.delete('/:id/unlink/:linkedServiceId', unlinkServiceFromService)
 // Create a reward specifically for a service
 router.post(
   '/:serviceId/rewards',
-  requireStripeConnection,
   sanitizeRewardData,
   validateRewardData,
   checkRewardLocationAccess,

@@ -8,6 +8,192 @@ import Service from '../models/Service.js'
 import User from '../models/User.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 
+const DEFAULT_MEMBERSHIP_PLAN = {
+  name: 'Gold Glow Membership',
+  description: 'Unlock exclusive perks and premium benefits',
+  price: 99,
+  benefits: ['Priority Booking', 'Free Premium Facial', '15% Product Discount'],
+  currency: 'usd',
+}
+
+const toPlainObject = (value) =>
+  value && typeof value.toObject === 'function' ? value.toObject() : value
+
+const normalizeMembershipPlan = (planInput = {}, fallbackPlan = DEFAULT_MEMBERSHIP_PLAN) => {
+  const base = toPlainObject(planInput) || {}
+  const fallback = toPlainObject(fallbackPlan) || DEFAULT_MEMBERSHIP_PLAN
+  const normalizedBenefits = Array.isArray(base.benefits)
+    ? base.benefits.map((item) => `${item || ''}`.trim()).filter(Boolean)
+    : []
+
+  return {
+    name: `${base.name || fallback.name || DEFAULT_MEMBERSHIP_PLAN.name}`.trim(),
+    description: `${base.description || fallback.description || DEFAULT_MEMBERSHIP_PLAN.description}`.trim(),
+    price: Math.max(
+      0,
+      Number.isFinite(Number(base.price))
+        ? Number(base.price)
+        : Number(fallback.price || DEFAULT_MEMBERSHIP_PLAN.price)
+    ),
+    benefits: normalizedBenefits.length
+      ? normalizedBenefits
+      : [...(fallback.benefits || DEFAULT_MEMBERSHIP_PLAN.benefits)],
+    currency: `${base.currency || fallback.currency || 'usd'}`.trim().toLowerCase(),
+    stripeProductId: base.stripeProductId || fallback.stripeProductId || null,
+    stripePriceId: base.stripePriceId || fallback.stripePriceId || null,
+    syncedAt: base.syncedAt || fallback.syncedAt || null,
+  }
+}
+
+const normalizeMembershipForStripe = (membershipInput = {}) => {
+  const membership = toPlainObject(membershipInput) || {}
+  let plans = Array.isArray(membership.plans) && membership.plans.length > 0
+    ? membership.plans
+    : null
+
+  if (!plans && (membership.name || membership.description || membership.price !== undefined)) {
+    plans = [membership]
+  }
+
+  if (!plans || plans.length === 0) {
+    plans = [DEFAULT_MEMBERSHIP_PLAN]
+  }
+
+  const normalizedPlans = plans
+    .slice(0, 3)
+    .map((plan, index) => normalizeMembershipPlan(plan, plans[index] || DEFAULT_MEMBERSHIP_PLAN))
+
+  const firstPlan = normalizedPlans[0] || normalizeMembershipPlan(DEFAULT_MEMBERSHIP_PLAN)
+
+  return {
+    ...membership,
+    isActive: Boolean(membership.isActive),
+    pendingStripeActivation: Boolean(membership.pendingStripeActivation),
+    plans: normalizedPlans,
+    name: firstPlan.name,
+    description: firstPlan.description,
+    price: firstPlan.price,
+    benefits: firstPlan.benefits,
+    currency: firstPlan.currency || 'usd',
+    stripeProductId: firstPlan.stripeProductId || null,
+    stripePriceId: firstPlan.stripePriceId || null,
+    syncedAt: firstPlan.syncedAt || null,
+  }
+}
+
+const syncMembershipPlansToStripe = async ({ location, stripeAccount }) => {
+  const normalizedMembership = normalizeMembershipForStripe(location.membership || {})
+  const existingPlans = Array.isArray(location.membership?.plans)
+    ? location.membership.plans.map((plan) => toPlainObject(plan))
+    : []
+
+  const syncedPlans = []
+  for (let index = 0; index < normalizedMembership.plans.length; index += 1) {
+    const plan = normalizeMembershipPlan(normalizedMembership.plans[index], normalizedMembership.plans[index])
+    const existingPlan = normalizeMembershipPlan(
+      existingPlans[index] || location.membership || DEFAULT_MEMBERSHIP_PLAN,
+      DEFAULT_MEMBERSHIP_PLAN
+    )
+
+    const resolvedName = plan.name
+    const resolvedDescription = plan.description || ''
+    const resolvedPrice = plan.price
+    const currency = plan.currency || 'usd'
+    const nameChanged = resolvedName !== existingPlan.name
+    const descriptionChanged = resolvedDescription !== existingPlan.description
+    const priceChanged = resolvedPrice !== existingPlan.price
+
+    let stripeProductId = plan.stripeProductId || existingPlan.stripeProductId || null
+    let stripePriceId = plan.stripePriceId || existingPlan.stripePriceId || null
+
+    if (!stripeProductId) {
+      const product = await stripe.products.create(
+        {
+          name: resolvedName,
+          description: resolvedDescription,
+          metadata: {
+            type: 'membership',
+            locationId: location.locationId,
+            planIndex: `${index}`,
+          },
+        },
+        { stripeAccount }
+      )
+      stripeProductId = product.id
+    } else if (nameChanged || descriptionChanged) {
+      await stripe.products.update(
+        stripeProductId,
+        {
+          name: resolvedName,
+          description: resolvedDescription,
+        },
+        { stripeAccount }
+      )
+    }
+
+    if (!stripePriceId || priceChanged) {
+      const price = await stripe.prices.create(
+        {
+          product: stripeProductId,
+          unit_amount: Math.round(resolvedPrice * 100),
+          currency,
+          recurring: { interval: 'month' },
+        },
+        { stripeAccount }
+      )
+      stripePriceId = price.id
+    }
+
+    syncedPlans.push({
+      ...plan,
+      stripeProductId,
+      stripePriceId,
+      currency,
+      syncedAt: new Date(),
+    })
+  }
+
+  const firstPlan = syncedPlans[0] || normalizeMembershipPlan(DEFAULT_MEMBERSHIP_PLAN)
+  return {
+    ...normalizedMembership,
+    isActive: true,
+    pendingStripeActivation: false,
+    plans: syncedPlans,
+    name: firstPlan.name,
+    description: firstPlan.description,
+    price: firstPlan.price,
+    benefits: firstPlan.benefits,
+    currency: firstPlan.currency || 'usd',
+    stripeProductId: firstPlan.stripeProductId || null,
+    stripePriceId: firstPlan.stripePriceId || null,
+    syncedAt: firstPlan.syncedAt || null,
+  }
+}
+
+const autoActivatePendingMembershipForSpa = async (user) => {
+  if (
+    user?.role !== 'spa' ||
+    !user?.spaLocation?.locationId ||
+    !user?.stripe?.accountId ||
+    !user?.stripe?.chargesEnabled
+  ) {
+    return
+  }
+
+  const location = await Location.findOne({ locationId: user.spaLocation.locationId })
+  if (!location?.membership?.pendingStripeActivation) {
+    return
+  }
+
+  const syncedMembership = await syncMembershipPlansToStripe({
+    location,
+    stripeAccount: user.stripe.accountId,
+  })
+
+  location.membership = syncedMembership
+  await location.save()
+}
+
 const resolvePurchasePoints = async (locationId, amount, cache = null) => {
   const normalizedAmount = Number(amount) || 0
   if (!locationId || normalizedAmount <= 0) return 0
@@ -184,6 +370,14 @@ export const getAccountStatus = async (req, res, next) => {
     user.stripe.lastUpdated = new Date()
 
     await user.save()
+    try {
+      await autoActivatePendingMembershipForSpa(user)
+    } catch (membershipSyncError) {
+      console.error(
+        'Auto-activation failed after Stripe status refresh:',
+        membershipSyncError
+      )
+    }
 
     res.status(200).json({
       success: true,
@@ -1138,6 +1332,14 @@ async function handleAccountUpdated(account) {
     user.stripe.lastUpdated = new Date()
 
     await user.save()
+    try {
+      await autoActivatePendingMembershipForSpa(user)
+    } catch (membershipSyncError) {
+      console.error(
+        'Auto-activation failed on account.updated webhook:',
+        membershipSyncError
+      )
+    }
   }
 }
 

@@ -29,8 +29,6 @@ import {
   updateReward,
 } from '../controller/rewards.js'
 import {
-  checkPermission,
-  requireStripeConnection,
   restrictTo,
   verifyToken,
 } from '../middleware/authMiddleware.js'
@@ -140,7 +138,6 @@ router.get('/stats/overview', getRewardStats)
 // Create new reward
 router.post(
   '/',
-  requireStripeConnection,
   sanitizeRewardData,
   validateRewardData,
   checkRewardLocationAccess,
@@ -150,7 +147,6 @@ router.post(
 // Create service-specific reward
 router.post(
   '/services/:serviceId/create-reward',
-  requireStripeConnection,
   sanitizeRewardData,
   validateRewardData,
   checkRewardLocationAccess,

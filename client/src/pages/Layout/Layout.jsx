@@ -1,5 +1,4 @@
 // File: client/src/pages/Layout/Layout.jsx
-import MembershipManagementModal from '@/components/Management/MembershipManagementModal'
 import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
 import { useBranding } from '@/context/BrandingContext'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -92,7 +91,6 @@ const Layout = ({
     return false
   })
   const [isNavigating, setIsNavigating] = useState(false)
-  const [isMembershipOpen, setIsMembershipOpen] = useState(false)
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -259,7 +257,7 @@ const Layout = ({
         return { ...item, href: '/management/bookings' }
       }
       if (item.id === 'membership') {
-        return { ...item, onClick: () => setIsMembershipOpen(true), href: '#' }
+        return { ...item, href: '/management/membership' }
       }
     }
     return item
@@ -502,10 +500,6 @@ const Layout = ({
       {/* Push Notification prompt for PWA user engagement */}
       <PushNotificationPrompt />
 
-      <MembershipManagementModal 
-        isOpen={isMembershipOpen} 
-        onClose={() => setIsMembershipOpen(false)} 
-      />
     </div>
     </>
   )

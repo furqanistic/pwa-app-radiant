@@ -1,4 +1,3 @@
-import MembershipManagementModal from "@/components/Management/MembershipManagementModal";
 import { useBranding } from '@/context/BrandingContext';
 import {
     logout,
@@ -43,7 +42,6 @@ const BottomNav = () => {
   const dispatch = useDispatch()
   const { branding, locationId } = useBranding()
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [isMembershipOpen, setIsMembershipOpen] = useState(false);
   const brandColor = branding?.themeColor || '#ec4899'
   
   const brandStyles = useMemo(() => {
@@ -166,7 +164,7 @@ const BottomNav = () => {
         return { ...item, href: '/management/bookings', onClick: undefined }
       }
       if (item.id === 'membership') {
-        return { ...item, onClick: () => setIsMembershipOpen(true), href: '#' }
+        return { ...item, href: '/management/membership', onClick: undefined }
       }
     }
     return item
@@ -353,11 +351,6 @@ const BottomNav = () => {
           </>
         )}
       </AnimatePresence>
-
-      <MembershipManagementModal
-        isOpen={isMembershipOpen}
-        onClose={() => setIsMembershipOpen(false)}
-      />
     </>
   )
 }

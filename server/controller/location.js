@@ -97,6 +97,10 @@ const normalizeMembershipInput = (membershipInput, existingMembershipInput = {})
       incoming.isActive !== undefined
         ? Boolean(incoming.isActive)
         : Boolean(existing.isActive),
+    pendingStripeActivation:
+      incoming.pendingStripeActivation !== undefined
+        ? Boolean(incoming.pendingStripeActivation)
+        : Boolean(existing.pendingStripeActivation),
     plans: normalizedPlans,
     name: firstPlan.name,
     description: firstPlan.description,
@@ -126,7 +130,20 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
   const normalizedMembership = normalizeMembershipInput(membership, location.membership);
 
   const spaOwner = await resolveSpaOwnerForLocation(location, currentUser);
-  if (!spaOwner || !spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
+  const stripeConnected = Boolean(
+    spaOwner?.stripe?.accountId && spaOwner?.stripe?.chargesEnabled
+  );
+
+  // Allow draft membership saves without Stripe.
+  // Stripe is required only when membership is activated.
+  if (!stripeConnected && normalizedMembership.isActive) {
+    throw createError(
+      400,
+      'Stripe must be connected before activating membership. Save as inactive first, then activate after Stripe is ready.'
+    );
+  }
+
+  if (!stripeConnected) {
     return normalizedMembership;
   }
 
@@ -205,6 +222,7 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
 
   return {
     ...normalizedMembership,
+    pendingStripeActivation: false,
     plans: syncedPlans,
     name: firstPlan.name,
     description: firstPlan.description,
@@ -483,6 +501,9 @@ export const updateLocation = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error updating location:', error)
+    if (error?.status) {
+      return next(error)
+    }
     next(createError(500, 'Failed to update location'))
   }
 }

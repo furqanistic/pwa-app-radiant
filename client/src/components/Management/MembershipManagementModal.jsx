@@ -68,7 +68,13 @@ const normalizeMembership = (membership) => {
   };
 };
 
-const MembershipManagementModal = ({ isOpen, onClose }) => {
+const MembershipManagementModal = ({
+  isOpen = false,
+  onClose = () => {},
+  renderMode = 'modal',
+}) => {
+  const isPageMode = renderMode === 'page';
+  const isVisible = isPageMode || isOpen;
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
   const isSuperAdmin = currentUser?.role === 'super-admin';
@@ -80,18 +86,18 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
   const { data: locationData, isLoading: isLoadingMyLocation } = useQuery({
     queryKey: ['my-location'],
     queryFn: () => locationService.getMyLocation(),
-    enabled: isOpen && !isSuperAdmin,
+    enabled: isVisible && !isSuperAdmin,
   });
 
   const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
     queryKey: ['locations', 'membership-modal'],
     queryFn: () => locationService.getAllLocations(),
-    enabled: isOpen && isSuperAdmin,
+    enabled: isVisible && isSuperAdmin,
   });
   const { data: spaStripeStatusData } = useQuery({
     queryKey: ['stripe-account-status', 'membership-modal'],
     queryFn: () => stripeService.getAccountStatus(),
-    enabled: isOpen && isSpaReadOnly,
+    enabled: isVisible && isSpaReadOnly,
   });
 
   const locations = useMemo(
@@ -101,10 +107,10 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
   const [selectedLocationId, setSelectedLocationId] = useState('');
 
   useEffect(() => {
-    if (isSuperAdmin && isOpen && locations.length > 0 && !selectedLocationId) {
+    if (isSuperAdmin && isVisible && locations.length > 0 && !selectedLocationId) {
       setSelectedLocationId(locations[0]._id);
     }
-  }, [isSuperAdmin, isOpen, locations, selectedLocationId]);
+  }, [isSuperAdmin, isVisible, locations, selectedLocationId]);
 
   const location = isSuperAdmin
     ? locations.find((item) => item._id === selectedLocationId) || null
@@ -235,6 +241,7 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const submitIntent = e.nativeEvent?.submitter?.dataset?.intent || 'save';
 
     if (isSpaReadOnly) {
       toast.message('Spa accounts can only view membership. Contact super-admin to update plans.');
@@ -279,7 +286,12 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
     }
 
     const payload = {
-      isActive: formData.isActive,
+      isActive: submitIntent === 'activate' ? true : formData.isActive,
+      pendingStripeActivation:
+        submitIntent === 'save' &&
+        !formData.isActive &&
+        isSuperAdmin &&
+        !isSelectedLocationStripeConnected,
       plans: formData.plans.map((plan) => ({
         ...plan,
         name: plan.name.trim(),
@@ -300,6 +312,331 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
   const spaMembershipPlans = Array.isArray(formData?.plans) ? formData.plans : [];
   const spaHasActiveMembership = Boolean(formData?.isActive && spaMembershipPlans.length > 0);
 
+  if (!isVisible) return null;
+
+  const panel = (
+    <div
+      className={
+        isPageMode
+          ? 'w-full bg-white/95 backdrop-blur rounded-[2rem] shadow-[0_20px_60px_rgba(15,23,42,0.08)] border border-slate-200/80 overflow-hidden flex flex-col min-h-[80vh]'
+          : 'fixed inset-x-0 bottom-0 md:inset-x-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:bottom-auto w-full md:max-w-3xl bg-white md:rounded-[2.5rem] rounded-t-[2.5rem] shadow-2xl z-[101] overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]'
+      }
+    >
+      {!isPageMode && (
+        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 md:hidden shrink-0" />
+      )}
+
+      <div className={`px-6 md:px-8 border-b border-gray-100 flex items-center justify-between shrink-0 ${isPageMode ? 'py-6 md:py-7 bg-gradient-to-r from-slate-50 via-white to-pink-50/40' : 'py-4 md:py-6'}`}>
+        <div>
+          <h2 className={`font-black text-gray-900 tracking-tight flex items-center gap-2 ${isPageMode ? 'text-2xl md:text-3xl' : 'text-xl md:text-2xl'}`}>
+            <Crown className="w-5 h-5 text-[color:var(--brand-primary)]" />
+            Manage Membership
+          </h2>
+          <p className={`font-bold uppercase tracking-widest mt-1 ${isPageMode ? 'text-[11px] md:text-xs text-slate-600' : 'text-xs md:text-sm text-pink-500'}`}>
+            Plans, Activation, And Stripe Sync
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className={`transition-all group ${isPageMode ? 'px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-slate-300 hover:bg-slate-50 font-semibold text-sm' : 'p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-pink-50 hover:text-pink-500'}`}
+          type="button"
+        >
+          {isPageMode ? 'Back' : <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />}
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12 flex-1">
+          <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div>
+        </div>
+      ) : isSpaReadOnly ? (
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-4">
+          {!spaHasActiveMembership && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-medium text-gray-800">
+              No membership yet.
+            </div>
+          )}
+
+          {!spaStripeConnected && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
+              No membership yet because Stripe is not connected. Please connect Stripe first.
+            </div>
+          )}
+
+          {spaHasActiveMembership && (
+            <div className="space-y-4">
+              <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                Your Membership Plans
+              </p>
+              {spaMembershipPlans.map((plan, index) => (
+                <div key={index} className="p-4 bg-white rounded-2xl border border-gray-200 space-y-2">
+                  <p className="font-black text-gray-900">{plan.name}</p>
+                  <p className="text-sm text-gray-600">{plan.description}</p>
+                  <p className="text-sm font-bold text-gray-900">${plan.price}/month</p>
+                  <ul className="text-sm text-gray-700 list-disc pl-5">
+                    {Array.isArray(plan.benefits) && plan.benefits.map((benefit, i) => (
+                      <li key={i}>{benefit}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className={`flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-5 ${isPageMode ? 'md:space-y-6' : ''}`}>
+            {isSpaReadOnly && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl text-sm font-medium text-blue-800">
+                View only: spa role can see current membership plans, but only super-admin can create or update them.
+              </div>
+            )}
+
+            {isSuperAdmin && (
+              <div className={`space-y-2 ${isPageMode ? 'bg-slate-50 border border-slate-200 rounded-2xl p-4' : ''}`}>
+                <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Location
+                </label>
+                <select
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                >
+                  {locations.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.name || item.locationId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {hasNoLocations && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
+                No locations found. Create a location first, then assign membership plans.
+              </div>
+            )}
+
+            {isSuperAdmin && location && !isSelectedLocationStripeConnected && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
+                Stripe note: {stripeNotConnectedMessage} You can still save membership as inactive draft.
+              </div>
+            )}
+
+            <div className={`flex items-center justify-between p-4 rounded-3xl border ${isPageMode ? 'bg-gradient-to-r from-slate-50 to-pink-50/40 border-slate-200' : 'bg-pink-50/50 border-pink-100/50'}`}>
+              <div>
+                <label className="text-sm font-black text-gray-900">
+                  Membership Active
+                </label>
+                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-1">
+                  Enable all plans for this location
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                disabled={isSpaReadOnly}
+                className={`w-12 h-6 rounded-full transition-colors relative ${
+                  formData.isActive ? 'bg-pink-500' : 'bg-gray-300'
+                }`}
+              >
+                <div
+                  className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    formData.isActive ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className={`flex items-center justify-between ${isPageMode ? 'pt-2' : ''}`}>
+              <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                Plans ({formData.plans.length}/{MAX_PLANS})
+              </p>
+              {isPageMode && (
+                <span className="text-xs font-semibold text-slate-500">Minimum 1 • Maximum 3</span>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addPlan}
+                disabled={isSpaReadOnly || formData.plans.length >= MAX_PLANS || hasNoLocations}
+                className="rounded-2xl h-10"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Plan
+              </Button>
+            </div>
+
+            <div className={isPageMode ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-4'}>
+              {formData.plans.map((plan, planIndex) => (
+                <div key={planIndex} className={`p-4 md:p-5 bg-white rounded-3xl space-y-4 ${isPageMode ? 'border border-slate-200 shadow-sm' : 'border-2 border-pink-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="font-black text-gray-900 tracking-tight">Plan {planIndex + 1}</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removePlan(planIndex)}
+                      disabled={isSpaReadOnly || formData.plans.length <= 1 || hasNoLocations}
+                      className="text-red-600 hover:text-red-700 rounded-xl border border-red-100 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Remove
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Plan Name</label>
+                    <input
+                      type="text"
+                      value={plan.name}
+                      onChange={(e) => handlePlanChange(planIndex, 'name', e.target.value)}
+                      disabled={isSpaReadOnly}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                      placeholder="e.g. Gold Glow Membership"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Description</label>
+                    <textarea
+                      value={plan.description}
+                      onChange={(e) => handlePlanChange(planIndex, 'description', e.target.value)}
+                      disabled={isSpaReadOnly}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none resize-none"
+                      placeholder="Describe this plan"
+                      rows={2}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Monthly Price ($)</label>
+                    <input
+                      type="number"
+                      value={plan.price}
+                      onChange={(e) => handlePlanChange(planIndex, 'price', e.target.value)}
+                      disabled={isSpaReadOnly}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                      placeholder="99"
+                      min="0"
+                      step="1"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+                        Feature Points
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => addFeaturePoint(planIndex)}
+                        disabled={isSpaReadOnly || hasNoLocations}
+                        className="rounded-xl h-8 px-3"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {plan.benefits.map((benefit, benefitIndex) => (
+                        <div key={benefitIndex} className="flex gap-2">
+                          <input
+                            type="text"
+                            value={benefit}
+                            onChange={(e) =>
+                              handleBenefitChange(planIndex, benefitIndex, e.target.value)
+                            }
+                            disabled={isSpaReadOnly}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                            placeholder={`Feature point ${benefitIndex + 1}`}
+                            required
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => removeFeaturePoint(planIndex, benefitIndex)}
+                            disabled={isSpaReadOnly || plan.benefits.length <= 1 || hasNoLocations}
+                            className="px-3 rounded-2xl"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={`shrink-0 px-6 md:px-8 py-4 border-t border-gray-100 bg-white ${isPageMode ? 'sticky bottom-0 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]' : ''}`}>
+            <div className="flex flex-col md:flex-row gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs border-2"
+              >
+                {isPageMode ? 'Back To Management' : 'Cancel'}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  updateMembership.isPending ||
+                  hasNoLocations
+                }
+                data-intent="save"
+                className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
+                style={{
+                  background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                }}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {updateMembership.isPending
+                  ? 'Saving...'
+                  : 'Save Draft / Changes'}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  updateMembership.isPending ||
+                  hasNoLocations ||
+                  (isSuperAdmin && !isSelectedLocationStripeConnected)
+                }
+                data-intent="activate"
+                className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
+                style={{
+                  background: `linear-gradient(90deg, ${brandColorDark}, ${brandColor})`,
+                }}
+              >
+                {updateMembership.isPending
+                  ? 'Activating...'
+                  : isSuperAdmin && !isSelectedLocationStripeConnected
+                  ? 'Activate (Stripe Required)'
+                  : 'Activate Membership'}
+              </Button>
+            </div>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+
+  if (isPageMode) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(236,72,153,0.08),_transparent_40%),radial-gradient(circle_at_bottom_left,_rgba(14,165,233,0.08),_transparent_45%),linear-gradient(to_bottom,#f8fafc,#ffffff,#f8fafc)] py-8 md:py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {panel}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -308,292 +645,7 @@ const MembershipManagementModal = ({ isOpen, onClose }) => {
             onClick={onClose}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
           />
-
-          <div
-            className="fixed inset-x-0 bottom-0 md:inset-x-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:bottom-auto w-full md:max-w-3xl bg-white md:rounded-[2.5rem] rounded-t-[2.5rem] shadow-2xl z-[101] overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]"
-          >
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 md:hidden shrink-0" />
-
-            <div className="px-6 py-4 md:px-8 md:py-6 border-b border-gray-50 flex items-center justify-between shrink-0">
-              <div>
-                <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                  <Crown className="w-5 h-5 text-[color:var(--brand-primary)]" />
-                  Manage Membership
-                </h2>
-                <p className="text-xs md:text-sm font-bold text-pink-500 uppercase tracking-widest mt-0.5">
-                  Plans & Features
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-pink-50 hover:text-pink-500 transition-all group"
-                type="button"
-              >
-                <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-              </button>
-            </div>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12 flex-1">
-                <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div>
-              </div>
-            ) : isSpaReadOnly ? (
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-4">
-                {!spaHasActiveMembership && (
-                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-medium text-gray-800">
-                    No membership yet.
-                  </div>
-                )}
-
-                {!spaStripeConnected && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
-                    No membership yet because Stripe is not connected. Please connect Stripe first.
-                  </div>
-                )}
-
-                {spaHasActiveMembership && (
-                  <div className="space-y-4">
-                    <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
-                      Your Membership Plans
-                    </p>
-                    {spaMembershipPlans.map((plan, index) => (
-                      <div key={index} className="p-4 bg-white rounded-2xl border border-gray-200 space-y-2">
-                        <p className="font-black text-gray-900">{plan.name}</p>
-                        <p className="text-sm text-gray-600">{plan.description}</p>
-                        <p className="text-sm font-bold text-gray-900">${plan.price}/month</p>
-                        <ul className="text-sm text-gray-700 list-disc pl-5">
-                          {Array.isArray(plan.benefits) && plan.benefits.map((benefit, i) => (
-                            <li key={i}>{benefit}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-5">
-                  {isSpaReadOnly && (
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl text-sm font-medium text-blue-800">
-                      View only: spa role can see current membership plans, but only super-admin can create or update them.
-                    </div>
-                  )}
-
-                  {isSuperAdmin && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-                        Location
-                      </label>
-                      <select
-                        value={selectedLocationId}
-                        onChange={(e) => setSelectedLocationId(e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
-                      >
-                        {locations.map((item) => (
-                          <option key={item._id} value={item._id}>
-                            {item.name || item.locationId}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {hasNoLocations && (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
-                      No locations found. Create a location first, then assign membership plans.
-                    </div>
-                  )}
-
-                  {isSuperAdmin && location && !isSelectedLocationStripeConnected && (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
-                      Save disabled: {stripeNotConnectedMessage}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between p-4 bg-pink-50/50 rounded-3xl border border-pink-100/50">
-                    <div>
-                      <label className="text-sm font-black text-gray-900">
-                        Membership Active
-                      </label>
-                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-1">
-                        Enable all plans for this location
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
-                      disabled={isSpaReadOnly}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${
-                        formData.isActive ? 'bg-pink-500' : 'bg-gray-300'
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                          formData.isActive ? 'translate-x-6' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
-                      Plans ({formData.plans.length}/{MAX_PLANS})
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={addPlan}
-                      disabled={isSpaReadOnly || formData.plans.length >= MAX_PLANS || hasNoLocations}
-                      className="rounded-2xl h-10"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Plan
-                    </Button>
-                  </div>
-
-                  <div className="space-y-4">
-                    {formData.plans.map((plan, planIndex) => (
-                      <div key={planIndex} className="p-4 md:p-5 bg-white rounded-3xl border-2 border-pink-50 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <p className="font-black text-gray-900 tracking-tight">Plan {planIndex + 1}</p>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => removePlan(planIndex)}
-                            disabled={isSpaReadOnly || formData.plans.length <= 1 || hasNoLocations}
-                            className="text-red-600 hover:text-red-700 rounded-xl"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Remove
-                          </Button>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Plan Name</label>
-                          <input
-                            type="text"
-                            value={plan.name}
-                            onChange={(e) => handlePlanChange(planIndex, 'name', e.target.value)}
-                            disabled={isSpaReadOnly}
-                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
-                            placeholder="e.g. Gold Glow Membership"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Description</label>
-                          <textarea
-                            value={plan.description}
-                            onChange={(e) => handlePlanChange(planIndex, 'description', e.target.value)}
-                            disabled={isSpaReadOnly}
-                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none resize-none"
-                            placeholder="Describe this plan"
-                            rows={2}
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Monthly Price ($)</label>
-                          <input
-                            type="number"
-                            value={plan.price}
-                            onChange={(e) => handlePlanChange(planIndex, 'price', e.target.value)}
-                            disabled={isSpaReadOnly}
-                            className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
-                            placeholder="99"
-                            min="0"
-                            step="1"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-pink-500" />
-                              Feature Points
-                            </label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => addFeaturePoint(planIndex)}
-                              disabled={isSpaReadOnly || hasNoLocations}
-                              className="rounded-xl h-8 px-3"
-                            >
-                              <Plus className="w-3.5 h-3.5 mr-1" />
-                              Add
-                            </Button>
-                          </div>
-
-                          <div className="space-y-2">
-                            {plan.benefits.map((benefit, benefitIndex) => (
-                              <div key={benefitIndex} className="flex gap-2">
-                                <input
-                                  type="text"
-                                  value={benefit}
-                                  onChange={(e) =>
-                                    handleBenefitChange(planIndex, benefitIndex, e.target.value)
-                                  }
-                                  disabled={isSpaReadOnly}
-                                  className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
-                                  placeholder={`Feature point ${benefitIndex + 1}`}
-                                  required
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => removeFeaturePoint(planIndex, benefitIndex)}
-                                  disabled={isSpaReadOnly || plan.benefits.length <= 1 || hasNoLocations}
-                                  className="px-3 rounded-2xl"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="shrink-0 px-6 md:px-8 py-4 border-t border-gray-100 bg-white">
-                  <div className="flex flex-col md:flex-row gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={onClose}
-                      className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs border-2"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={
-                        updateMembership.isPending ||
-                        hasNoLocations ||
-                        (isSuperAdmin && !isSelectedLocationStripeConnected)
-                      }
-                      className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
-                      style={{
-                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
-                      }}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      {updateMembership.isPending
-                        ? 'Saving...'
-                        : isSuperAdmin && !isSelectedLocationStripeConnected
-                        ? 'Stripe Required'
-                        : 'Save Changes'}
-                    </Button>
-                  </div>
-                </div>
-              </form>
-            )}
-          </div>
+          {panel}
         </>
       )}
     </AnimatePresence>
