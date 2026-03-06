@@ -96,6 +96,7 @@ const Layout = ({
   const location = useLocation()
   const dispatch = useDispatch()
   const { branding, locationId } = useBranding()
+  const sidebarSubtitle = branding?.subtitle?.trim() || ''
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -422,9 +423,11 @@ const Layout = ({
               <h1 className='text-base font-bold text-gray-900 truncate'>
                 {branding?.name || 'RadiantAI'}
               </h1>
-              <p className='text-xs text-gray-500 font-medium'>
-                Beauty & Wellness
-              </p>
+              {sidebarSubtitle ? (
+                <p className='text-xs text-gray-500 font-medium truncate'>
+                  {sidebarSubtitle}
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

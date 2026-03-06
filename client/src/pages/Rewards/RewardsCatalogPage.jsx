@@ -16,6 +16,7 @@ import {
     SortAsc,
     Sparkles,
     Star,
+    Plus,
     Users,
     Volume2,
     X,
@@ -29,8 +30,12 @@ import { resolveImageUrl } from '@/lib/imageHelpers'
 
 const rewardTypes = [
   { id: 'all', name: 'All Rewards' },
+  { id: 'add_on', name: 'Add-On' },
+  { id: 'upgrade', name: 'Upgrade' },
   { id: 'credit', name: 'Service Credits' },
   { id: 'discount', name: 'Discounts' },
+  { id: 'experience', name: 'Experiences' },
+  { id: 'free_service', name: 'Free Services' },
   { id: 'service', name: 'Free Services' },
   { id: 'combo', name: 'Combo Deals' },
   { id: 'referral', name: 'Referral Rewards' },
@@ -155,10 +160,17 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
   const getRewardIcon = (type) => {
     switch (type) {
+      case 'add_on':
+        return <Plus className='w-4 h-4 text-indigo-500' />
+      case 'upgrade':
+        return <Sparkles className='w-4 h-4 text-violet-500' />
       case 'credit':
         return <DollarSign className='w-4 h-4 text-green-500' />
       case 'discount':
         return <Percent className='w-4 h-4 text-pink-500' />
+      case 'experience':
+        return <Star className='w-4 h-4 text-amber-500' />
+      case 'free_service':
       case 'service':
         return <Gift className='w-4 h-4 text-purple-500' />
       case 'combo':
@@ -172,10 +184,17 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
   const getRewardColor = (type) => {
     switch (type) {
+      case 'add_on':
+        return 'from-indigo-400 to-blue-400'
+      case 'upgrade':
+        return 'from-violet-400 to-purple-400'
       case 'credit':
         return 'from-green-400 to-emerald-400'
       case 'discount':
         return 'from-pink-400 to-rose-400'
+      case 'experience':
+        return 'from-amber-400 to-orange-400'
+      case 'free_service':
       case 'service':
         return 'from-purple-400 to-violet-400'
       case 'combo':
@@ -206,7 +225,7 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
   const getButtonText = () => {
     if (isClaiming) return 'Claiming...'
     if (canAfford) return 'Claim'
-    if (!reward.canClaimMoreThisMonth) return 'Limit Reached'
+    if (!reward.canClaimMoreInWindow) return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
   }
 
@@ -349,9 +368,9 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
             </div>
           </div>
           <div className='text-center bg-gray-50 rounded-xl p-3'>
-            <div className='text-xs text-gray-500 mb-1'>Monthly Limit</div>
+            <div className='text-xs text-gray-500 mb-1'>Claim Limit</div>
             <div className='font-semibold text-sm text-gray-900'>
-              {reward.limit} ({reward.userClaimsThisMonth || 0} used)
+              {(reward.limitCount || reward.limit || 1)} per {(reward.limitDays || 30)} days
             </div>
           </div>
         </div>
@@ -416,8 +435,12 @@ const RewardsCatalogPage = () => {
   // Enhanced filter options with icons
   const rewardTypeOptions = [
     { value: 'all', label: 'All', icon: Award },
+    { value: 'add_on', label: 'Add-On', icon: Plus },
+    { value: 'upgrade', label: 'Upgrade', icon: Sparkles },
     { value: 'credit', label: 'Credits', icon: DollarSign },
     { value: 'discount', label: 'Discounts', icon: Percent },
+    { value: 'experience', label: 'Experiences', icon: Star },
+    { value: 'free_service', label: 'Free Service', icon: Gift },
     { value: 'service', label: 'Services', icon: Gift },
     { value: 'combo', label: 'Combos', icon: Star },
     { value: 'referral', label: 'Referrals', icon: Users },

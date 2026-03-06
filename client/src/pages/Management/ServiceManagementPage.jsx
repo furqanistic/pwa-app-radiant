@@ -10,6 +10,8 @@ import {
     useUpdateCategory,
     useUpdateService,
 } from '@/hooks/useServices'
+import { locationService } from '@/services/locationService'
+import { useQuery } from '@tanstack/react-query'
 import { uploadService } from '@/services/uploadService'
 import {
     ArrowLeft,
@@ -54,6 +56,19 @@ const normalizeForSearch = (value) =>
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
+
+const normalizeMembershipPlans = (membership) => {
+  if (!membership) return []
+  if (Array.isArray(membership.plans) && membership.plans.length > 0)
+    return membership.plans
+  if (
+    membership.name ||
+    membership.description ||
+    membership.price !== undefined
+  )
+    return [membership]
+  return []
+}
 
 // Enhanced Service Selection Modal for Add-ons with custom pricing
 const ServiceSelectionModal = ({
@@ -803,6 +818,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     status: service?.status || 'active',
     subTreatments: service?.subTreatments || [],
     linkedServices: service?.linkedServices || [],
+    membershipPricing: service?.membershipPricing || [],
   })
 
   const [isUploadingImage, setIsUploadingImage] = useState(false)
@@ -813,6 +829,18 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
   // API hooks
   const { data: categories = [], isLoading: categoriesLoading } =
     useCategories(false)
+  const { data: locationData } = useQuery({
+    queryKey: ['my-location', 'service-management-form'],
+    queryFn: () => locationService.getMyLocation(),
+  })
+
+  const locationMembership =
+    branding?.membership || locationData?.data?.location?.membership
+  const membershipPlans = normalizeMembershipPlans(locationMembership)
+  const membershipPlanOptions = membershipPlans.map((plan, index) => ({
+    id: plan._id || plan.id || `membership-plan-${index}`,
+    name: plan.name || `Plan ${index + 1}`,
+  }))
 
   const createServiceMutation = useCreateService({
     onSuccess: () => {
@@ -883,6 +911,20 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
         status: service.status || 'active',
         subTreatments: service.subTreatments || [],
         linkedServices: formattedLinkedServices,
+        membershipPricing: Array.isArray(service.membershipPricing)
+          ? service.membershipPricing.map((entry) => ({
+              membershipPlanId: entry.membershipPlanId || null,
+              membershipPlanName: entry.membershipPlanName || '',
+              price: Number.isFinite(Number(entry.price))
+                ? Number(entry.price)
+                : '',
+              appliesTo: entry.appliesTo || 'single_session',
+              minimumPurchase: entry.minimumPurchase || 'none',
+              usageLimit: entry.usageLimit || 'None',
+              notes: entry.notes || '',
+              isActive: entry.isActive !== false,
+            }))
+          : [],
       })
 
       console.log(
@@ -1004,6 +1046,26 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
           )
       }
 
+      if (submissionData.membershipPricing) {
+        submissionData.membershipPricing = submissionData.membershipPricing
+          .map((entry) => ({
+            membershipPlanId: entry.membershipPlanId || null,
+            membershipPlanName: entry.membershipPlanName?.trim() || '',
+            price: Number(entry.price),
+            appliesTo: entry.appliesTo || 'single_session',
+            minimumPurchase: entry.minimumPurchase || 'none',
+            usageLimit: entry.usageLimit || 'None',
+            notes: entry.notes || '',
+            isActive: entry.isActive !== false,
+          }))
+          .filter(
+            (entry) =>
+              entry.membershipPlanName &&
+              Number.isFinite(entry.price) &&
+              entry.price >= 0
+          )
+      }
+
       console.log('🔄 Submitting service data:', submissionData)
 
       if (service) {
@@ -1050,6 +1112,66 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
         (service) => (service.serviceId || service._id) !== serviceId
       ),
     })
+  }
+
+  const findMembershipEntry = (plan) =>
+    formData.membershipPricing.find(
+      (entry) =>
+        (entry.membershipPlanId &&
+          String(entry.membershipPlanId) === String(plan.id)) ||
+        (entry.membershipPlanName &&
+          entry.membershipPlanName.toLowerCase() === plan.name.toLowerCase())
+    )
+
+  const toggleMembershipPricing = (plan, enabled) => {
+    if (enabled) {
+      if (findMembershipEntry(plan)) return
+      setFormData((prev) => ({
+        ...prev,
+        membershipPricing: [
+          ...prev.membershipPricing,
+          {
+            membershipPlanId: plan.id,
+            membershipPlanName: plan.name,
+            price: prev.basePrice || '',
+            appliesTo: 'single_session',
+            minimumPurchase: 'none',
+            usageLimit: 'None',
+            notes: '',
+            isActive: true,
+          },
+        ],
+      }))
+      return
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      membershipPricing: prev.membershipPricing.filter(
+        (entry) =>
+          !(
+            (entry.membershipPlanId &&
+              String(entry.membershipPlanId) === String(plan.id)) ||
+            (entry.membershipPlanName &&
+              entry.membershipPlanName.toLowerCase() === plan.name.toLowerCase())
+          )
+      ),
+    }))
+  }
+
+  const updateMembershipPricingField = (plan, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      membershipPricing: prev.membershipPricing.map((entry) => {
+        const matches =
+          (entry.membershipPlanId &&
+            String(entry.membershipPlanId) === String(plan.id)) ||
+          (entry.membershipPlanName &&
+            entry.membershipPlanName.toLowerCase() === plan.name.toLowerCase())
+
+        return matches ? { ...entry, [field]: value } : entry
+      }),
+    }))
   }
 
   const isSubmitting =
@@ -1377,6 +1499,92 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               Tip: Upload low-size images (max 1MB) for faster loading.
             </p>
           </div>
+        </div>
+
+        {/* Membership Pricing */}
+        <div className='bg-white rounded-lg p-6'>
+          <h2 className='text-lg font-bold text-gray-900 mb-2'>
+            Membership Pricing
+          </h2>
+          <p className='text-sm text-gray-600 mb-5'>
+            Enable plans where members should get a different price. These prices power the Member Deal block in the service catalog.
+          </p>
+
+          {membershipPlanOptions.length === 0 ? (
+            <div className='text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-lg p-3'>
+              No membership plans found. Create membership plans first in Management.
+            </div>
+          ) : (
+            <div className='space-y-3'>
+              {membershipPlanOptions.map((plan) => {
+                const entry = findMembershipEntry(plan)
+                const isEnabled = Boolean(entry)
+                const basePrice = Number(formData.basePrice)
+                const memberPrice = Number(entry?.price)
+                const hasValidSavings =
+                  Number.isFinite(basePrice) &&
+                  basePrice > 0 &&
+                  Number.isFinite(memberPrice) &&
+                  memberPrice >= 0 &&
+                  memberPrice < basePrice
+                const savePercent = hasValidSavings
+                  ? Math.round(((basePrice - memberPrice) / basePrice) * 100)
+                  : 0
+
+                return (
+                  <div
+                    key={plan.id}
+                    className='border border-gray-200 rounded-lg p-4'
+                  >
+                    <div className='flex flex-col md:flex-row md:items-center gap-3 md:gap-5'>
+                      <label className='inline-flex items-center gap-2 min-w-0 md:min-w-[260px]'>
+                        <input
+                          type='checkbox'
+                          checked={isEnabled}
+                          onChange={(e) =>
+                            toggleMembershipPricing(plan, e.target.checked)
+                          }
+                          disabled={isSubmitting}
+                          className='w-4 h-4'
+                        />
+                        <span className='text-sm font-semibold text-gray-800'>
+                          {plan.name}
+                        </span>
+                      </label>
+
+                      <div className='flex items-center gap-2'>
+                        <span className='text-sm text-gray-500'>Price ($)</span>
+                        <input
+                          type='number'
+                          min='0'
+                          step='0.01'
+                          value={entry?.price ?? ''}
+                          onChange={(e) =>
+                            updateMembershipPricingField(
+                              plan,
+                              'price',
+                              parseFloat(e.target.value) || ''
+                            )
+                          }
+                          disabled={!isEnabled || isSubmitting}
+                          className='w-32 px-3 h-8 border border-gray-300 rounded-lg disabled:bg-gray-50 disabled:text-gray-400'
+                        />
+                        {isEnabled ? (
+                          <span
+                            className={`text-xs font-semibold ${
+                              hasValidSavings ? 'text-emerald-600' : 'text-gray-400'
+                            }`}
+                          >
+                            {hasValidSavings ? `Save ${savePercent}%` : 'No savings'}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Discount Settings */}

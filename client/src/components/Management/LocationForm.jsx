@@ -152,6 +152,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const [formData, setFormData] = useState({
     locationId: '',
     name: '',
+    subtitle: '',
     description: '',
     address: '',
     phone: '',
@@ -240,6 +241,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       setFormData({
         locationId: initialData.locationId || '',
         name: initialData.name || '',
+        subtitle: initialData.subtitle || '',
         description: initialData.description || '',
         address: initialData.address || '',
         phone: initialData.phone || '',
@@ -306,6 +308,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     setFormData({
       locationId: '',
       name: '',
+      subtitle: '',
       description: '',
       address: '',
       phone: '',
@@ -513,6 +516,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     const locationData = {
       locationId: formData.locationId,
       name: formData.name.trim(),
+      subtitle: formData.subtitle.trim(),
       description: formData.description.trim(),
       address: formData.address.trim(),
       phone: formData.phone.trim(),
@@ -860,7 +864,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             </div>
           </div>
 
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
             {/* Location Name */}
             <div className='space-y-2'>
               <Label htmlFor='name' className='text-sm font-semibold text-gray-700'>
@@ -873,6 +877,21 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 onChange={handleInputChange}
                 placeholder='e.g., Avous Med Spa & Wellness'
                 required
+                className='rounded-xl'
+              />
+            </div>
+
+            {/* Sidebar Subtitle */}
+            <div className='space-y-2'>
+              <Label htmlFor='subtitle' className='text-sm font-semibold text-gray-700'>
+                Sidebar Subtitle (Optional)
+              </Label>
+              <Input
+                id='subtitle'
+                name='subtitle'
+                value={formData.subtitle}
+                onChange={handleInputChange}
+                placeholder='e.g., HU GO PEMF Therapy'
                 className='rounded-xl'
               />
             </div>

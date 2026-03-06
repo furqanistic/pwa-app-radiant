@@ -5,6 +5,9 @@ import {
     useEnhancedRewardsCatalog,
     useUpdateReward,
 } from '@/hooks/useRewards'
+import { useBranding } from '@/context/BrandingContext'
+import { locationService } from '@/services/locationService'
+import { useQuery } from '@tanstack/react-query'
 import { uploadService } from '@/services/uploadService'
 import { resolveImageUrl } from '@/lib/imageHelpers'
 import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
@@ -37,12 +40,28 @@ import VoiceRecorder from '../../components/Common/VoiceRecorder'
 import Layout from '../Layout/Layout'
 
 const rewardTypes = [
+  { id: 'add_on', name: 'Add-On', icon: Plus },
+  { id: 'upgrade', name: 'Upgrade', icon: ArrowLeft },
+  { id: 'experience', name: 'Experience', icon: Target },
+  { id: 'free_service', name: 'Free Service', icon: Gift },
+  { id: 'discount', name: 'Discount', icon: Percent },
   { id: 'credit', name: 'Service Credit', icon: DollarSign },
-  { id: 'discount', name: 'Discount %', icon: Percent },
   { id: 'service', name: 'Free Service', icon: Gift },
   { id: 'combo', name: 'Combo Deal', icon: Star },
   { id: 'referral', name: 'Referral Reward', icon: Users },
 ]
+
+const memberTypeOptions = [
+  { id: 'all_users', label: 'All Users' },
+  { id: 'members_only', label: 'Members Only' },
+]
+
+const normalizeMembershipPlans = (membership) => {
+  if (!membership) return []
+  if (Array.isArray(membership.plans) && membership.plans.length > 0) return membership.plans
+  if (membership.name || membership.description || membership.price !== undefined) return [membership]
+  return []
+}
 
 // Reward Header Component
 const RewardHeader = ({
@@ -249,6 +268,18 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
         <p className='text-gray-600 text-sm mb-4 line-clamp-2'>
           {reward.description}
         </p>
+        <div className='text-xs text-gray-500 mb-4 space-y-1'>
+          <div>
+            Claims: {reward.limitCount || reward.limit || 1} per {reward.limitDays || 30} days
+          </div>
+          <div>
+            Eligible:{' '}
+            {reward.claimAudience === 'members_only' ||
+            (Array.isArray(reward.eligibleMembershipIds) && reward.eligibleMembershipIds.length > 0)
+              ? 'Members Only'
+              : 'All Users'}
+          </div>
+        </div>
         <div className='grid grid-cols-2 gap-3 mb-4'>
           <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-lg'>
             <div className='flex items-center gap-2 mb-1'>
@@ -288,7 +319,7 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
 }
 
 // Reward Form Modal Component
-const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
+const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [] }) => {
   const isEditing = !!reward
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [formData, setFormData] = useState({
@@ -298,8 +329,13 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
     value: '',
     pointCost: '',
     validDays: 30,
-    limit: 1,
+    limitCount: 1,
+    limitDays: 30,
     status: 'active',
+    claimAudience: 'all_users',
+    eligibleMembershipIds: [],
+    eligibleMemberTypes: ['all_clients'],
+    strategicNotes: '',
     image: '',
     imagePublicId: '',
     voiceNoteUrl: '',
@@ -314,8 +350,21 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
         value: reward.value || '',
         pointCost: reward.pointCost || '',
         validDays: reward.validDays || 30,
-        limit: reward.limit || 1,
+        limitCount: reward.limitCount || reward.limit || 1,
+        limitDays: reward.limitDays || 30,
         status: reward.status || 'active',
+        claimAudience:
+          reward.claimAudience ||
+          (Array.isArray(reward.eligibleMembershipIds) && reward.eligibleMembershipIds.length > 0
+            ? 'members_only'
+            : 'all_users'),
+        eligibleMembershipIds: Array.isArray(reward.eligibleMembershipIds)
+          ? reward.eligibleMembershipIds
+          : [],
+        eligibleMemberTypes: Array.isArray(reward.eligibleMemberTypes) && reward.eligibleMemberTypes.length > 0
+          ? reward.eligibleMemberTypes
+          : ['all_clients'],
+        strategicNotes: reward.strategicNotes || '',
         image: reward.image || '',
         imagePublicId: reward.imagePublicId || '',
         voiceNoteUrl: reward.voiceNoteUrl || '',
@@ -328,8 +377,13 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
         value: '',
         pointCost: '',
         validDays: 30,
-        limit: 1,
+        limitCount: 1,
+        limitDays: 30,
         status: 'active',
+        claimAudience: 'all_users',
+        eligibleMembershipIds: [],
+        eligibleMemberTypes: ['all_clients'],
+        strategicNotes: '',
         image: '',
         imagePublicId: '',
         voiceNoteUrl: '',
@@ -357,13 +411,25 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
       toast.error('Please fill in all required fields')
       return
     }
+    if (Number(formData.limitCount) < 1 || Number(formData.limitDays) < 1) {
+      toast.error('Claim limit must be at least 1 per at least 1 day')
+      return
+    }
+    if (formData.claimAudience === 'members_only' && formData.eligibleMembershipIds.length < 1) {
+      toast.error('Select at least one membership plan for Members Only rewards')
+      return
+    }
 
     const payload = {
       ...formData,
       value: Number(formData.value),
       pointCost: Number(formData.pointCost),
       validDays: Number(formData.validDays),
-      limit: Number(formData.limit),
+      limitCount: Number(formData.limitCount),
+      limitDays: Number(formData.limitDays),
+      limit: Number(formData.limitCount),
+      eligibleMemberTypes:
+        formData.claimAudience === 'members_only' ? ['members'] : ['all_clients'],
     }
 
     if (isEditing) {
@@ -446,7 +512,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                   {/* Type */}
                   <div className='space-y-1.5'>
                     <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
-                      Type *
+                      Service Type *
                     </label>
                     <div className='relative'>
                       <select
@@ -521,6 +587,132 @@ const RewardForm = ({ isOpen, onClose, reward, onSave }) => {
                       </select>
                       <ChevronDown className='absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
                     </div>
+                  </div>
+
+                  {/* Claim Limit Count */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Claim Limit
+                    </label>
+                    <input
+                      type='number'
+                      min='1'
+                      value={formData.limitCount === 0 ? '' : formData.limitCount}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          limitCount: e.target.value === '' ? 0 : parseInt(e.target.value, 10),
+                        })
+                      }
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
+                    />
+                  </div>
+
+                  {/* Claim Limit Days */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Per Days
+                    </label>
+                    <input
+                      type='number'
+                      min='1'
+                      value={formData.limitDays === 0 ? '' : formData.limitDays}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          limitDays: e.target.value === '' ? 0 : parseInt(e.target.value, 10),
+                        })
+                      }
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
+                    />
+                  </div>
+
+                  {/* Who Can Claim */}
+                  <div className='space-y-2 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Who Can Claim
+                    </label>
+                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                      {memberTypeOptions.map((option) => {
+                        const isChecked = formData.claimAudience === option.id
+                        return (
+                          <label
+                            key={option.id}
+                            className='flex items-center gap-2 px-3 py-2.5 bg-gray-50/60 border border-gray-100 rounded-xl text-sm text-gray-700'
+                          >
+                            <input
+                              type='radio'
+                              name='claimAudience'
+                              checked={isChecked}
+                              onChange={() => {
+                                setFormData({
+                                  ...formData,
+                                  claimAudience: option.id,
+                                  eligibleMembershipIds:
+                                    option.id === 'members_only'
+                                      ? formData.eligibleMembershipIds
+                                      : [],
+                                })
+                              }}
+                              className='rounded border-gray-300 text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]'
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {formData.claimAudience === 'members_only' && (
+                    <div className='space-y-2 md:col-span-2'>
+                      <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                        Select Membership Plans
+                      </label>
+                      {membershipPlanOptions.length > 0 ? (
+                        <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                          {membershipPlanOptions.map((plan) => {
+                            const checked = formData.eligibleMembershipIds.includes(plan.id)
+                            return (
+                              <label
+                                key={plan.id}
+                                className='flex items-center gap-2 px-3 py-2.5 bg-gray-50/60 border border-gray-100 rounded-xl text-sm text-gray-700'
+                              >
+                                <input
+                                  type='checkbox'
+                                  checked={checked}
+                                  onChange={() => {
+                                    const next = checked
+                                      ? formData.eligibleMembershipIds.filter((id) => id !== plan.id)
+                                      : [...formData.eligibleMembershipIds, plan.id]
+                                    setFormData({ ...formData, eligibleMembershipIds: next })
+                                  }}
+                                  className='rounded border-gray-300 text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]'
+                                />
+                                <span>{plan.name}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className='text-sm text-amber-700 bg-amber-50 border border-amber-100 px-3 py-2 rounded-xl'>
+                          No membership plans found. Please create memberships first.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Strategic Notes */}
+                  <div className='space-y-1.5 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Strategic Notes
+                    </label>
+                    <textarea
+                      value={formData.strategicNotes}
+                      onChange={(e) => setFormData({ ...formData, strategicNotes: e.target.value })}
+                      placeholder='Internal notes about reward strategy and intent'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:bg-white outline-none transition-all text-sm font-medium'
+                      rows='3'
+                    />
                   </div>
 
                   {/* Image Upload */}
@@ -690,8 +882,22 @@ const RewardManagement = () => {
   const [selectedReward, setSelectedReward] = useState(null)
 
   const { currentUser } = useSelector((state) => state.user)
+  const { branding } = useBranding()
   const userRole = currentUser?.role || 'user'
   const canManageRewards = userRole === 'admin' || userRole === 'spa'
+
+  const { data: locationData } = useQuery({
+    queryKey: ['my-location', 'reward-management'],
+    queryFn: () => locationService.getMyLocation(),
+    enabled: canManageRewards,
+  })
+
+  const locationMembership = branding?.membership || locationData?.data?.location?.membership
+  const membershipPlans = normalizeMembershipPlans(locationMembership)
+  const membershipPlanOptions = membershipPlans.map((plan, index) => ({
+    id: plan._id || plan.id || `membership-plan-${index}`,
+    name: plan.name || `Plan ${index + 1}`,
+  }))
 
   const {
     rewards = [],
@@ -845,6 +1051,7 @@ const RewardManagement = () => {
         onClose={() => setIsFormOpen(false)}
         reward={selectedReward}
         onSave={handleFormSave}
+        membershipPlanOptions={membershipPlanOptions}
       />
     </Layout>
   )

@@ -9,8 +9,6 @@ import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 
-const MAX_PLANS = 3;
-
 const DEFAULT_PLAN = {
   name: 'Gold Glow Membership',
   description: 'Unlock exclusive perks and premium benefits',
@@ -51,7 +49,7 @@ const normalizeMembership = (membership) => {
   if (Array.isArray(membership?.plans) && membership.plans.length > 0) {
     return {
       isActive: Boolean(membership.isActive),
-      plans: membership.plans.slice(0, MAX_PLANS).map((plan) => normalizePlan(plan)),
+      plans: membership.plans.map((plan) => normalizePlan(plan)),
     };
   }
 
@@ -184,7 +182,6 @@ const MembershipManagementModal = ({
   };
 
   const addPlan = () => {
-    if (formData.plans.length >= MAX_PLANS) return;
     setFormData((prev) => ({
       ...prev,
       plans: [
@@ -253,8 +250,8 @@ const MembershipManagementModal = ({
       return;
     }
 
-    if (formData.plans.length < 1 || formData.plans.length > MAX_PLANS) {
-      toast.error('You can create between 1 and 3 plans.');
+    if (formData.plans.length < 1) {
+      toast.error('At least one membership plan is required.');
       return;
     }
 
@@ -449,16 +446,16 @@ const MembershipManagementModal = ({
 
             <div className={`flex items-center justify-between ${isPageMode ? 'pt-2' : ''}`}>
               <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
-                Plans ({formData.plans.length}/{MAX_PLANS})
+                Plans ({formData.plans.length})
               </p>
               {isPageMode && (
-                <span className="text-xs font-semibold text-slate-500">Minimum 1 • Maximum 3</span>
+                <span className="text-xs font-semibold text-slate-500">Minimum 1</span>
               )}
               <Button
                 type="button"
                 variant="outline"
                 onClick={addPlan}
-                disabled={isSpaReadOnly || formData.plans.length >= MAX_PLANS || hasNoLocations}
+                disabled={isSpaReadOnly || hasNoLocations}
                 className="rounded-2xl h-10"
               >
                 <Plus className="w-4 h-4 mr-2" />

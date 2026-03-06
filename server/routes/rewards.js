@@ -80,7 +80,7 @@ router.get('/:id', getReward)
 // ===============================================
 
 // Apply permission checking for spa management
-router.use(restrictTo('admin', 'spa'))
+router.use(restrictTo('admin', 'spa', 'super-admin'))
 
 // NEW: Search users for reward giving
 router.get('/users/search', searchUsersForReward)
@@ -114,14 +114,14 @@ router.post('/spa/give-rewards/bulk', sanitizeRewardData, bulkGiveRewards)
 // Admin can get spa rewards for any location
 router.get(
   '/spa/:locationId/user-rewards',
-  restrictTo('admin'),
+  restrictTo('admin', 'super-admin'),
   validatePagination,
   getSpaUserRewards
 )
 
 router.get(
   '/spa/:locationId/analytics',
-  restrictTo('admin'),
+  restrictTo('admin', 'super-admin'),
   getSpaRewardAnalytics
 )
 
@@ -175,7 +175,7 @@ router.delete('/:id', deleteReward)
 // Admin only: Adjust user points
 router.post(
   '/admin/users/:userId/points',
-  restrictTo('admin'),
+  restrictTo('admin', 'super-admin'),
   sanitizeRewardData,
   validatePointAdjustment,
   adjustUserPoints

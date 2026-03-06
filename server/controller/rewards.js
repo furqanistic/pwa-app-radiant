@@ -166,7 +166,7 @@ export const getReward = async (req, res, next) => {
 export const createReward = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'spa'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa'].includes(req.user.role)) {
       return next(
         createError(403, 'Access denied. Admin or spa rights required.')
       )
@@ -182,9 +182,17 @@ export const createReward = async (req, res, next) => {
       imagePublicId,
       status = 'active',
       limit = 1,
+      limitCount,
+      limitDays,
       validDays = 30,
       maxValue,
       minPurchase,
+      minSpendText,
+      tier,
+      strategicNotes,
+      claimAudience = 'all_users',
+      eligibleMembershipIds = [],
+      eligibleMemberTypes = [],
       excludeServices = [],
       includeServices = [],
       locationId,
@@ -208,11 +216,13 @@ export const createReward = async (req, res, next) => {
 
     // Validate value based on type
     if (
-      type !== 'service' &&
+      !['service', 'free_service'].includes(type) &&
       (value === undefined || value === null || value < 0)
     ) {
       return next(createError(400, 'Value is required for non-service rewards'))
     }
+
+    const parsedLimitCount = parseInt(limitCount || limit || 1)
 
     // Create reward data
     const rewardData = {
@@ -220,14 +230,26 @@ export const createReward = async (req, res, next) => {
       description: description.trim(),
       type,
       pointCost: parseInt(pointCost),
-      value: type === 'service' ? 0 : parseFloat(value),
+      value: ['service', 'free_service'].includes(type) ? 0 : parseFloat(value),
       image: image || '',
       imagePublicId: imagePublicId || '',
       status,
-      limit: parseInt(limit),
+      limit: parsedLimitCount,
+      limitCount: parsedLimitCount,
+      limitDays: parseInt(limitDays || 30),
       validDays: parseInt(validDays),
       createdBy: req.user.id,
       voiceNoteUrl: voiceNoteUrl || '',
+      minSpendText: minSpendText || '',
+      tier: tier || '',
+      strategicNotes: strategicNotes || '',
+      claimAudience,
+      eligibleMembershipIds: Array.isArray(eligibleMembershipIds)
+        ? eligibleMembershipIds
+        : [],
+      eligibleMemberTypes: Array.isArray(eligibleMemberTypes)
+        ? eligibleMemberTypes
+        : [],
     }
 
     // Add optional fields
@@ -262,7 +284,7 @@ export const createReward = async (req, res, next) => {
 export const updateReward = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'spa'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa'].includes(req.user.role)) {
       return next(
         createError(403, 'Access denied. Admin or spa rights required.')
       )
@@ -288,6 +310,13 @@ export const updateReward = async (req, res, next) => {
     if (updateData.imagePublicId !== undefined)
       updateData.imagePublicId = updateData.imagePublicId || ''
     if (updateData.limit) updateData.limit = parseInt(updateData.limit)
+    if (updateData.limitCount !== undefined)
+      updateData.limitCount = parseInt(updateData.limitCount)
+    if (updateData.limitDays !== undefined)
+      updateData.limitDays = parseInt(updateData.limitDays)
+    if (updateData.limitCount !== undefined) {
+      updateData.limit = updateData.limitCount
+    }
     if (updateData.validDays)
       updateData.validDays = parseInt(updateData.validDays)
     if (updateData.maxValue)
@@ -319,7 +348,7 @@ export const updateReward = async (req, res, next) => {
 export const deleteReward = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'spa'].includes(req.user.role)) {
+    if (!['super-admin', 'admin', 'spa'].includes(req.user.role)) {
       return next(
         createError(403, 'Access denied. Admin or spa rights required.')
       )

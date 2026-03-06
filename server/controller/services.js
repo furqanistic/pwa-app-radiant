@@ -11,6 +11,60 @@ import UserReward from '../models/UserReward.js'
 // SERVICE MANAGEMENT (ENHANCED WITH REWARDS)
 // ===============================================
 
+const normalizeMembershipPricing = (pricingInput = []) => {
+  if (!Array.isArray(pricingInput)) return []
+
+  return pricingInput
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null
+
+      const membershipPlanName =
+        typeof entry.membershipPlanName === 'string'
+          ? entry.membershipPlanName.trim()
+          : ''
+      const parsedPrice = Number(entry.price)
+      if (!membershipPlanName || !Number.isFinite(parsedPrice) || parsedPrice < 0) {
+        return null
+      }
+
+      const appliesToRaw =
+        typeof entry.appliesTo === 'string'
+          ? entry.appliesTo.trim().toLowerCase()
+          : ''
+      const appliesToMap = {
+        'single session': 'single_session',
+        single_session: 'single_session',
+        bundle: 'bundle',
+        'add on': 'add_on',
+        add_on: 'add_on',
+      }
+      const appliesTo = appliesToMap[appliesToRaw] || 'single_session'
+
+      return {
+        membershipPlanId:
+          typeof entry.membershipPlanId === 'string' &&
+          entry.membershipPlanId.trim()
+            ? entry.membershipPlanId.trim()
+            : null,
+        membershipPlanName,
+        price: parsedPrice,
+        appliesTo,
+        minimumPurchase:
+          typeof entry.minimumPurchase === 'string'
+            ? entry.minimumPurchase.trim() || 'none'
+            : 'none',
+        usageLimit:
+          typeof entry.usageLimit === 'string'
+            ? entry.usageLimit.trim() || 'None'
+            : 'None',
+        notes:
+          typeof entry.notes === 'string' ? entry.notes.trim() : '',
+        isActive: entry.isActive !== false,
+      }
+    })
+    .filter(Boolean)
+}
+
 // Get all services with filtering, sorting, and searching (enhanced with reward data)
 // Fixed getService function in server/controller/services.js
 export const getService = async (req, res, next) => {
@@ -467,6 +521,7 @@ export const createService = async (req, res, next) => {
       defaultRewardType = 'discount',
       defaultRewardValue = 10,
       defaultRewardPoints = 100,
+      membershipPricing = [],
     } = req.body
 
     // Validate required fields
@@ -518,6 +573,7 @@ export const createService = async (req, res, next) => {
       },
       limit: parseInt(limit),
       subTreatments,
+      membershipPricing: normalizeMembershipPricing(membershipPricing),
       createdBy: req.user.id,
       // ✅ NEW: Initialize reward fields
       rewardCount: 0,
@@ -667,6 +723,11 @@ export const updateService = async (req, res, next) => {
     }
     if (updateData.limit !== undefined) {
       updateData.limit = parseInt(updateData.limit) || 1
+    }
+    if (updateData.membershipPricing !== undefined) {
+      updateData.membershipPricing = normalizeMembershipPricing(
+        updateData.membershipPricing
+      )
     }
 
     // Handle discount data safely

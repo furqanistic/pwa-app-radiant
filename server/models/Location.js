@@ -14,6 +14,11 @@ const LocationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    subtitle: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     description: {
       type: String,
       trim: true,
@@ -340,9 +345,9 @@ const LocationSchema = new mongoose.Schema(
         ],
         validate: {
           validator: function (v) {
-            return Array.isArray(v) && v.length >= 1 && v.length <= 3;
+            return Array.isArray(v) && v.length >= 1;
           },
-          message: "Membership must have between 1 and 3 plans",
+          message: "Membership must have at least 1 plan",
         },
       },
       price: {

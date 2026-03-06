@@ -59,9 +59,9 @@ const normalizeMembershipForStripe = (membershipInput = {}) => {
     plans = [DEFAULT_MEMBERSHIP_PLAN]
   }
 
-  const normalizedPlans = plans
-    .slice(0, 3)
-    .map((plan, index) => normalizeMembershipPlan(plan, plans[index] || DEFAULT_MEMBERSHIP_PLAN))
+  const normalizedPlans = plans.map((plan, index) =>
+    normalizeMembershipPlan(plan, plans[index] || DEFAULT_MEMBERSHIP_PLAN)
+  )
 
   const firstPlan = normalizedPlans[0] || normalizeMembershipPlan(DEFAULT_MEMBERSHIP_PLAN)
 

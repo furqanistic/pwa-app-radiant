@@ -19,8 +19,11 @@ const RewardSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: [
+        'add_on',
+        'upgrade',
         'credit',
         'discount',
+        'experience',
         'service',
         'combo',
         'referral',
@@ -95,6 +98,18 @@ const RewardSchema = new mongoose.Schema(
       min: 1,
       default: 1,
     },
+    limitCount: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1,
+    },
+    limitDays: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 30,
+    },
     validDays: {
       type: Number, // how many days the reward is valid after claiming
       required: true,
@@ -124,6 +139,35 @@ const RewardSchema = new mongoose.Schema(
       type: Number, // minimum purchase required to use reward
       default: null,
       min: 0,
+    },
+    minSpendText: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    tier: {
+      type: String,
+      default: '',
+      trim: true,
+      index: true,
+    },
+    strategicNotes: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    claimAudience: {
+      type: String,
+      enum: ['all_users', 'members_only'],
+      default: 'all_users',
+    },
+    eligibleMembershipIds: {
+      type: [String],
+      default: [],
+    },
+    eligibleMemberTypes: {
+      type: [String],
+      default: [],
     },
 
     // ✅ ENHANCED SERVICE RESTRICTIONS
@@ -202,10 +246,13 @@ RewardSchema.index({ createdAt: -1 })
 // Helper function to calculate display value
 function calculateDisplayValue(reward) {
   switch (reward.type) {
+    case 'add_on':
+    case 'upgrade':
     case 'credit':
     case 'referral':
       return `$${reward.value}`
     case 'discount':
+    case 'experience':
     case 'service_discount':
     case 'combo':
       return `${reward.value}%`
@@ -234,8 +281,11 @@ function getRewardScope(reward) {
 // Virtual for reward type display
 RewardSchema.virtual('typeDisplay').get(function () {
   const typeMap = {
+    add_on: 'Add-On',
+    upgrade: 'Upgrade',
     credit: 'Service Credit',
     discount: 'General Discount',
+    experience: 'Experience',
     service: 'Free Service',
     combo: 'Combo Deal',
     referral: 'Referral Reward',

@@ -86,9 +86,9 @@ const normalizeMembershipInput = (membershipInput, existingMembershipInput = {})
   }
 
   const existingPlans = Array.isArray(existing.plans) ? existing.plans : [];
-  const normalizedPlans = plans
-    .slice(0, 3)
-    .map((plan, index) => normalizePlan(plan, existingPlans[index] || existing || DEFAULT_MEMBERSHIP_PLAN));
+  const normalizedPlans = plans.map((plan, index) =>
+    normalizePlan(plan, existingPlans[index] || existing || DEFAULT_MEMBERSHIP_PLAN)
+  );
 
   const firstPlan = normalizedPlans[0] || normalizePlan(DEFAULT_MEMBERSHIP_PLAN);
 
@@ -241,6 +241,7 @@ export const createLocation = async (req, res, next) => {
     const {
       locationId,
       name,
+      subtitle,
       description,
       address,
       phone,
@@ -270,6 +271,7 @@ export const createLocation = async (req, res, next) => {
     const newLocation = await Location.create({
       locationId: locationId.trim(),
       name: name?.trim() || '',
+      subtitle: subtitle?.trim() || '',
       description: description?.trim() || '',
       address: address?.trim() || '',
       phone: phone?.trim() || '',
@@ -319,6 +321,7 @@ export const updateLocation = async (req, res, next) => {
     const {
       locationId,
       name,
+      subtitle,
       description,
       address,
       phone,
@@ -367,6 +370,7 @@ export const updateLocation = async (req, res, next) => {
     const updateData = {}
     if (locationId) updateData.locationId = locationId.trim()
     if (name !== undefined) updateData.name = name.trim()
+    if (subtitle !== undefined) updateData.subtitle = subtitle.trim()
     if (description !== undefined) updateData.description = description.trim()
     if (address !== undefined) updateData.address = address.trim()
     if (phone !== undefined) updateData.phone = phone.trim()
@@ -449,6 +453,7 @@ export const updateLocation = async (req, res, next) => {
                 reviewLink: updatedLocation.reviewLink,
                 coordinates: updatedLocation.coordinates,
                 logo: updatedLocation.logo,
+                subtitle: updatedLocation.subtitle,
                 subdomain: updatedLocation.subdomain,
                 favicon: updatedLocation.favicon,
                 themeColor: updatedLocation.themeColor,
@@ -480,6 +485,7 @@ export const updateLocation = async (req, res, next) => {
                         'selectedLocation.locationPhone': updatedLocation.phone,
                         'selectedLocation.reviewLink': updatedLocation.reviewLink,
                         'selectedLocation.logo': updatedLocation.logo,
+                        'selectedLocation.subtitle': updatedLocation.subtitle,
                         'selectedLocation.subdomain': updatedLocation.subdomain,
                         'selectedLocation.favicon': updatedLocation.favicon,
                         'selectedLocation.themeColor': updatedLocation.themeColor
@@ -594,7 +600,7 @@ export const getActiveLocationsForUsers = async (req, res, next) => {
       isActive: true,
       name: { $ne: '', $exists: true, $ne: null },
     })
-      .select('locationId name address phone reviewLink hours coordinates logo subdomain favicon themeColor membership')
+      .select('locationId name subtitle address phone reviewLink hours coordinates logo subdomain favicon themeColor membership')
       .sort({ name: 1 })
 
     const validLocations = locations.filter(

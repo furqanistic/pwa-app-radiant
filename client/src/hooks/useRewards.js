@@ -105,7 +105,11 @@ export const useEnhancedRewardsCatalog = (filters = {}) => {
     displayValue: reward.displayValue || calculateDisplayValue(reward),
     isAffordable: reward.isAffordable || userPoints >= reward.pointCost,
     pointsNeeded: Math.max(0, reward.pointCost - userPoints),
-    canClaimMoreThisMonth: (reward.userClaimsThisMonth || 0) < reward.limit,
+    limitCount: reward.limitCount || reward.limit || 1,
+    limitDays: reward.limitDays || 30,
+    canClaimMoreInWindow:
+      (reward.userClaimsThisPeriod || reward.userClaimsThisMonth || 0) <
+      (reward.limitCount || reward.limit || 1),
   }))
 
   return {
@@ -596,12 +600,16 @@ export const usePrefetchRewards = () => {
 // Helper function to calculate display value
 function calculateDisplayValue(reward) {
   switch (reward.type) {
+    case 'add_on':
+    case 'upgrade':
     case 'credit':
     case 'referral':
       return `$${reward.value}`
     case 'discount':
+    case 'experience':
     case 'combo':
       return `${reward.value}%`
+    case 'free_service':
     case 'service':
       return 'Free'
     default:
@@ -612,13 +620,16 @@ function calculateDisplayValue(reward) {
 // Helper to format reward type for display
 export const formatRewardType = (type) => {
   const typeMap = {
+    add_on: 'Add-On',
+    upgrade: 'Upgrade',
     credit: 'Service Credit',
-    discount: 'Discount %',
+    discount: 'Discount',
+    experience: 'Experience',
+    free_service: 'Free Service',
     service: 'Free Service',
     combo: 'Combo Deal',
     referral: 'Referral Reward',
     service_discount: 'Service Discount',
-    free_service: 'Free Specific Service',
   }
   return typeMap[type] || type
 }

@@ -16,6 +16,7 @@ export const validateServiceData = async (req, res, next) => {
       discount,
       subTreatments,
       linkedServices, // NEW: Added linkedServices validation
+      membershipPricing,
     } = req.body
 
     const errors = []
@@ -204,6 +205,46 @@ export const validateServiceData = async (req, res, next) => {
           typeof service.isActive !== 'boolean'
         ) {
           errors.push(`Linked service ${index + 1}: isActive must be a boolean`)
+        }
+      })
+    }
+
+    if (membershipPricing && Array.isArray(membershipPricing)) {
+      const validAppliesTo = ['single_session', 'bundle', 'add_on']
+
+      membershipPricing.forEach((entry, index) => {
+        if (
+          !entry.membershipPlanName ||
+          typeof entry.membershipPlanName !== 'string' ||
+          entry.membershipPlanName.trim().length === 0
+        ) {
+          errors.push(
+            `Membership pricing ${index + 1}: membershipPlanName is required`
+          )
+        }
+
+        if (entry.price === undefined || entry.price === null) {
+          errors.push(`Membership pricing ${index + 1}: price is required`)
+        } else {
+          const price = parseFloat(entry.price)
+          if (isNaN(price) || price < 0) {
+            errors.push(
+              `Membership pricing ${
+                index + 1
+              }: price must be a valid non-negative number`
+            )
+          }
+        }
+
+        if (
+          entry.appliesTo !== undefined &&
+          !validAppliesTo.includes(entry.appliesTo)
+        ) {
+          errors.push(
+            `Membership pricing ${
+              index + 1
+            }: appliesTo must be one of ${validAppliesTo.join(', ')}`
+          )
         }
       })
     }

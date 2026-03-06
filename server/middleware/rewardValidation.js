@@ -206,7 +206,7 @@ export const checkSpaLocationAccess = (req, res, next) => {
     const userRole = req.user.role
 
     // Admin users have access to all spas
-    if (userRole === 'admin') {
+    if (userRole === 'admin' || userRole === 'super-admin') {
       return next()
     }
 
@@ -365,8 +365,11 @@ export const validateRewardData = async (req, res, next) => {
 
     // Validate types
     const validTypes = [
+      'add_on',
+      'upgrade',
       'credit',
       'discount',
+      'experience',
       'service',
       'combo',
       'referral',
@@ -491,7 +494,7 @@ export const validateRewardData = async (req, res, next) => {
     }
 
     // Validate service-specific reward types
-    if (['service_discount', 'free_service'].includes(type)) {
+    if (['service_discount'].includes(type)) {
       if (!serviceId && (!serviceIds || serviceIds.length === 0)) {
         return next(createError(400, `${type} rewards must specify a service`))
       }
@@ -509,7 +512,8 @@ export const checkRewardLocationAccess = (req, res, next) => {
   try {
     const { locationId } = req.body
     const userRole = req.user.role
-    const userLocationId = req.user.selectedLocation?.locationId
+    const userLocationId =
+      req.user.selectedLocation?.locationId || req.user.spaLocation?.locationId
 
     // Admins can manage all rewards
     if (userRole === 'admin') {

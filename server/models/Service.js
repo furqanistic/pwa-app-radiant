@@ -68,6 +68,51 @@ const LinkedServiceSchema = new mongoose.Schema(
   { _id: true }
 )
 
+const MembershipPricingSchema = new mongoose.Schema(
+  {
+    membershipPlanId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    membershipPlanName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    appliesTo: {
+      type: String,
+      enum: ['single_session', 'bundle', 'add_on'],
+      default: 'single_session',
+    },
+    minimumPurchase: {
+      type: String,
+      default: 'none',
+      trim: true,
+    },
+    usageLimit: {
+      type: String,
+      default: 'None',
+      trim: true,
+    },
+    notes: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: true }
+)
+
 const ServiceSchema = new mongoose.Schema(
   {
     name: {
@@ -141,6 +186,9 @@ const ServiceSchema = new mongoose.Schema(
 
     // ✅ NEW: Linked services as add-ons
     linkedServices: [LinkedServiceSchema],
+
+    // Per-membership-plan service pricing
+    membershipPricing: [MembershipPricingSchema],
 
     // Analytics fields
     bookings: {
@@ -379,6 +427,83 @@ ServiceSchema.methods.getActiveLinkedServices = async function () {
     })
     .filter(Boolean)
     .sort((a, b) => a.linkedServiceInfo.order - b.linkedServiceInfo.order)
+}
+
+ServiceSchema.methods.getMembershipPrice = function (membershipContext = {}) {
+  const { planId, planName } = membershipContext
+  if (
+    !Array.isArray(this.membershipPricing) ||
+    this.membershipPricing.length === 0
+  ) {
+    return null
+  }
+
+  const normalizedPlanId =
+    typeof planId === 'string' && planId.trim() ? planId.trim() : null
+  const normalizedPlanName =
+    typeof planName === 'string' && planName.trim()
+      ? planName.trim().toLowerCase()
+      : null
+
+  const byId =
+    normalizedPlanId &&
+    this.membershipPricing.find(
+      (entry) =>
+        entry.isActive !== false &&
+        entry.membershipPlanId &&
+        entry.membershipPlanId === normalizedPlanId
+    )
+
+  if (byId && Number.isFinite(Number(byId.price))) {
+    return Number(byId.price)
+  }
+
+  const byName =
+    normalizedPlanName &&
+    this.membershipPricing.find(
+      (entry) =>
+        entry.isActive !== false &&
+        entry.membershipPlanName &&
+        entry.membershipPlanName.trim().toLowerCase() === normalizedPlanName
+    )
+
+  if (byName && Number.isFinite(Number(byName.price))) {
+    return Number(byName.price)
+  }
+
+  return null
+}
+
+ServiceSchema.methods.calculatePrice = function (options = {}) {
+  const { planId, planName } = options || {}
+  let resolvedPrice = Number(this.basePrice) || 0
+
+  const membershipPrice = this.getMembershipPrice({ planId, planName })
+  if (membershipPrice !== null) {
+    resolvedPrice = membershipPrice
+  }
+
+  const hasDiscount =
+    this.discount &&
+    this.discount.active &&
+    Number(this.discount.percentage) > 0
+
+  if (hasDiscount) {
+    const now = new Date()
+    const startDate = this.discount.startDate
+      ? new Date(this.discount.startDate)
+      : null
+    const endDate = this.discount.endDate ? new Date(this.discount.endDate) : null
+    const withinWindow =
+      (!startDate || now >= startDate) && (!endDate || now <= endDate)
+
+    if (withinWindow) {
+      const percentage = Number(this.discount.percentage) || 0
+      resolvedPrice = resolvedPrice - (resolvedPrice * percentage) / 100
+    }
+  }
+
+  return Math.max(0, Number(resolvedPrice) || 0)
 }
 
 // ✅ NEW STATIC METHOD: Get services that can be used as add-ons

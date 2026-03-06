@@ -13,8 +13,10 @@ import {
   Clock,
   Crown,
   Droplets,
+  Eye,
   Gem,
   Heart,
+  Lock,
   Palette,
   Scissors,
   Search,
@@ -78,6 +80,47 @@ const getServiceImageSource = (service) =>
   service?.linkedServiceId?.image ||
   ''
 
+const formatPrice = (value) => {
+  if (!Number.isFinite(Number(value))) return '$0'
+  const amount = Number(value)
+  return `$${amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)}`
+}
+
+const getBestMemberDealPrice = (service) => {
+  if (!Array.isArray(service?.membershipPricing)) return null
+  const activePrices = service.membershipPricing
+    .filter((entry) => entry?.isActive !== false)
+    .map((entry) => Number(entry.price))
+    .filter((price) => Number.isFinite(price) && price >= 0)
+
+  if (activePrices.length === 0) return null
+  return Math.min(...activePrices)
+}
+
+const isMembershipEligible = (currentUser) => {
+  if (!currentUser) return false
+  if (['super-admin', 'admin', 'spa', 'enterprise'].includes(currentUser.role)) {
+    return true
+  }
+
+  const candidateStatuses = [
+    currentUser?.membership?.status,
+    currentUser?.membershipStatus,
+    currentUser?.activeMembership?.status,
+    currentUser?.subscription?.status,
+  ]
+    .filter(Boolean)
+    .map((status) => String(status).toLowerCase())
+
+  if (currentUser?.membership?.isActive || currentUser?.activeMembership?.isActive) {
+    return true
+  }
+
+  return candidateStatuses.some((status) =>
+    ['active', 'trialing', 'paid', 'current'].includes(status)
+  )
+}
+
 // ==========================================
 // 2. COMPONENTS
 // ==========================================
@@ -112,19 +155,14 @@ const TabNavigation = ({ activeTab, onTabChange }) => {
 
 
 // "Sick" Service Card - Matches Dashboard/Referral Style
-const ServiceCard = ({ service, onSelect, isMembership = false }) => {
-  const calculateDiscountedPrice = (price) => {
-    if (service.discount?.active) {
-      return price - (price * service.discount.percentage) / 100
-    }
-    return price
-  }
-
-  const isDiscountActive =
-    service.discount?.active &&
-    new Date() >= new Date(service.discount.startDate || Date.now()) &&
-    new Date() <= new Date(service.discount.endDate || Date.now())
-
+const ServiceCard = ({
+  service,
+  onSelect,
+  isMembership = false,
+  currentUser,
+  locationMembershipPlans = [],
+  onViewMembership,
+}) => {
   // Specific styles for membership vs standard service
   const containerClasses = isMembership
     ? 'border-amber-100 from-amber-50/50 to-white'
@@ -132,18 +170,26 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
   
   const accentColor = isMembership ? 'text-amber-500' : 'text-[color:var(--brand-primary)]'
 
-  // DEMO LOGIC: Simulate Member Price if not explicitly in data (for visual demo)
-  // In real app, check service.memberPrice
-  const hasMemberPerk = !isMembership && (service.name.length % 2 === 0 || service.basePrice > 50); 
-  const memberPrice = hasMemberPerk ? (service.basePrice > 100 ? 0 : Math.floor(service.basePrice * 0.8)) : null;
+  const regularPrice = Number(service?.basePrice) || 0
+  const memberDealPrice = getBestMemberDealPrice(service)
+  const hasMemberDeal =
+    Number.isFinite(memberDealPrice) &&
+    memberDealPrice >= 0 &&
+    memberDealPrice < regularPrice
+  const isEligible = isMembershipEligible(currentUser)
+  const savePercent =
+    hasMemberDeal && regularPrice > 0
+      ? Math.round(((regularPrice - memberDealPrice) / regularPrice) * 100)
+      : 0
+  const membershipJoinPrice = Number(locationMembershipPlans?.[0]?.price)
 
   return (
     <div
       onClick={() => onSelect(service)}
-      className={`relative group cursor-pointer bg-gradient-to-br ${containerClasses} rounded-[2rem] border border-gray-200/70 p-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-[color:var(--brand-primary)/0.18] hover:border-gray-200/70`}
+      className={`relative group cursor-pointer bg-gradient-to-br ${containerClasses} rounded-[1.5rem] border border-gray-200/70 p-3 transition-all duration-300 hover:scale-[1.01] hover:shadow-lg hover:shadow-[color:var(--brand-primary)/0.14] hover:border-gray-200/70`}
     >
       {/* Image Container */}
-      <div className='relative h-48 rounded-[1.5rem] overflow-hidden mb-4 shadow-sm bg-gray-100'>
+      <div className='relative h-40 rounded-[1.25rem] overflow-hidden mb-3 shadow-sm bg-gray-100'>
         <img
           src={resolveImageUrl(
             getServiceImageSource(service),
@@ -168,52 +214,70 @@ const ServiceCard = ({ service, onSelect, isMembership = false }) => {
       </div>
 
       {/* Content */}
-      <div className='px-2 pb-2'>
-        <div className='flex justify-between items-start mb-2'>
-          <h3 className='text-xl font-black text-gray-900 leading-tight group-hover:text-[color:var(--brand-primary)] transition-colors'>
+      <div className='px-1 pb-1'>
+        <div className='flex justify-between items-start mb-1.5'>
+          <h3 className='text-lg font-black text-gray-900 leading-tight group-hover:text-[color:var(--brand-primary)] transition-colors'>
             {service.name}
           </h3>
         </div>
 
-        <p className='text-sm text-gray-500 font-medium mb-4 line-clamp-2 leading-relaxed'>
+        <p className='text-sm text-gray-500 font-medium mb-3 line-clamp-2 leading-relaxed'>
           {service.description}
         </p>
 
-        {/* Member Perk Badge if applicable */}
-        {hasMemberPerk && (
-            <div className='mb-4 flex items-center gap-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-2'>
-                <div className='bg-amber-100 p-1.5 rounded-lg text-amber-600'>
-                    <Crown size={14} fill="currentColor" />
-                </div>
-                <div className='flex flex-col leading-none'>
-                    <span className='text-[10px] uppercase font-bold text-amber-500 tracking-wide'>Member Price</span>
-                    <span className='text-sm font-black text-amber-700'>
-                        {memberPrice === 0 ? 'FREE' : `$${memberPrice}`}
-                    </span>
-                </div>
+        <div className='mb-3 rounded-xl border border-gray-200 bg-white/80 p-2.5'>
+          <p className='text-[11px] font-bold uppercase tracking-wider text-gray-500'>
+            Regular Price
+          </p>
+          <p className='text-2xl font-black text-gray-900'>{formatPrice(regularPrice)}</p>
+        </div>
+
+        {hasMemberDeal && (
+          <div className='mb-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2'>
+            <div className='mb-1.5 flex items-start justify-between gap-2'>
+              <div className='inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white'>
+                <Crown size={12} />
+                Member Deal
+              </div>
+              <p className='text-xl font-black text-emerald-700 leading-none text-right'>
+                {formatPrice(memberDealPrice)}
+              </p>
             </div>
+            <div className='flex justify-end'>
+              <p className='text-xs font-bold text-emerald-700'>Save {savePercent}%</p>
+            </div>
+            {!isEligible && (
+              <div className='mt-1.5 flex items-center justify-between gap-1.5 rounded-lg border border-emerald-200 bg-white/80 p-1.5'>
+                <p className='text-[11px] font-medium text-gray-600 leading-tight'>
+                  <Lock size={12} className='mr-1 inline-block text-gray-500' />
+                  {Number.isFinite(membershipJoinPrice)
+                    ? `Join for ${formatPrice(membershipJoinPrice)}/month to unlock this price`
+                    : 'Join to unlock this price'}
+                </p>
+                <button
+                  type='button'
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onViewMembership?.()
+                  }}
+                  className='inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-200'
+                >
+                  <Eye size={12} />
+                  View
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Bottom Action Row */}
-        <div className='flex items-end justify-between mt-auto'>
-           <div>
-               <div className='flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider mb-1'>
-                   <Clock size={12} />
-                   {service.duration} mins
-               </div>
-               <div className='flex items-baseline gap-2'>
-                   {isDiscountActive ? (
-                       <>
-                           <span className='text-2xl font-black text-gray-900'>${calculateDiscountedPrice(service.basePrice)}</span>
-                           <span className='text-sm font-bold text-gray-400 line-through decoration-[color:var(--brand-primary)/0.5]'>${service.basePrice}</span>
-                       </>
-                   ) : (
-                       <span className='text-2xl font-black text-gray-900'>${service.basePrice}</span>
-                   )}
-               </div>
+        <div className='flex items-center justify-between mt-auto pt-1'>
+           <div className='flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider'>
+             <Clock size={12} />
+             {service.duration} mins
            </div>
 
-           <button className='bg-gray-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-transform active:scale-95 group-hover:bg-[color:var(--brand-primary)]'>
+           <button className='bg-gray-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-transform active:scale-95 group-hover:bg-[color:var(--brand-primary)]'>
                Book
            </button>
         </div>
@@ -495,7 +559,14 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                     ) : browseServices.length > 0 ? (
                         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity ${isFetching ? 'opacity-70' : 'opacity-100'}`}>
                             {browseServices.map(service => (
-                                <ServiceCard key={service._id || service.serviceId || service.id || service.name} service={service} onSelect={onServiceSelect} />
+                                <ServiceCard
+                                  key={service._id || service.serviceId || service.id || service.name}
+                                  service={service}
+                                  onSelect={onServiceSelect}
+                                  currentUser={currentUser}
+                                  locationMembershipPlans={locationMembershipPlans}
+                                  onViewMembership={() => setActiveTab('membership')}
+                                />
                             ))}
                         </div>
                     ) : (
@@ -548,7 +619,14 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
                         {services && services.length > 0 ? (
                             services.map(service => (
-                                <ServiceCard key={service._id || service.serviceId || service.id || service.name} service={service} onSelect={onServiceSelect} />
+                                <ServiceCard
+                                  key={service._id || service.serviceId || service.id || service.name}
+                                  service={service}
+                                  onSelect={onServiceSelect}
+                                  currentUser={currentUser}
+                                  locationMembershipPlans={locationMembershipPlans}
+                                  onViewMembership={() => setActiveTab('membership')}
+                                />
                             ))
                         ) : (
                              <div className='col-span-full text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-gray-200/70'>
