@@ -11,8 +11,10 @@ import {
     Check,
     CheckCircle,
     Clock,
+    Crown,
     DollarSign,
     Info,
+    Lock,
     MapPin,
     Percent,
     Plus,
@@ -180,6 +182,47 @@ const ServiceDetailPage = () => {
     service.discount?.active &&
     new Date() >= new Date(service.discount.startDate) &&
     new Date() <= new Date(service.discount.endDate);
+
+  const formatPrice = (value) => {
+    if (!Number.isFinite(Number(value))) return '$0'
+    const amount = Number(value)
+    return `$${amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)}`
+  }
+
+  const getBestMemberDealPrice = (svc) => {
+    if (!Array.isArray(svc?.membershipPricing)) return null
+    const activePrices = svc.membershipPricing
+      .filter((entry) => entry?.isActive !== false)
+      .map((entry) => Number(entry.price))
+      .filter((price) => Number.isFinite(price) && price >= 0)
+
+    if (activePrices.length === 0) return null
+    return Math.min(...activePrices)
+  }
+
+  const isMembershipEligible = (user) => {
+    if (!user) return false
+    if (['super-admin', 'admin', 'spa', 'enterprise'].includes(user.role)) {
+      return true
+    }
+
+    const candidateStatuses = [
+      user?.membership?.status,
+      user?.membershipStatus,
+      user?.activeMembership?.status,
+      user?.subscription?.status,
+    ]
+      .filter(Boolean)
+      .map((status) => String(status).toLowerCase())
+
+    if (user?.membership?.isActive || user?.activeMembership?.isActive) {
+      return true
+    }
+
+    return candidateStatuses.some((status) =>
+      ['active', 'trialing', 'paid', 'current'].includes(status)
+    )
+  }
 
   const calculateDiscountedPrice = (price) => {
     if (isBirthdayGift) {
@@ -407,6 +450,21 @@ const ServiceDetailPage = () => {
 
   const totalPrice = calculateTotalPrice();
   const totalDuration = calculateTotalDuration();
+  const regularServicePrice = Number(service?.basePrice) || 0
+  const memberDealPrice = getBestMemberDealPrice(service)
+  const hasMemberDeal =
+    Number.isFinite(memberDealPrice) &&
+    memberDealPrice >= 0 &&
+    memberDealPrice < regularServicePrice
+  const isEligibleForMemberDeal = isMembershipEligible(currentUser)
+  const memberSavePercent =
+    hasMemberDeal && regularServicePrice > 0
+      ? Math.round(((regularServicePrice - memberDealPrice) / regularServicePrice) * 100)
+      : 0
+  const membershipJoinPrice = Number(branding?.membership?.plans?.[0]?.price ?? branding?.membership?.price)
+  const membershipPath = activeLocationId
+    ? `/membership?spa=${encodeURIComponent(activeLocationId)}`
+    : '/membership'
 
   return (
     <Layout>
@@ -713,6 +771,46 @@ const ServiceDetailPage = () => {
                               <span className="font-medium text-gray-900">+${selectedAddOns.reduce((acc, curr) => acc + (curr.finalPrice || curr.basePrice), 0)}</span>
                           </div>
                       )}
+
+                      {hasMemberDeal && (
+                        <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3">
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div>
+                              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+                                Member Price
+                              </div>
+                              <div className="text-2xl font-black leading-none text-emerald-700">
+                                {formatPrice(memberDealPrice)}
+                              </div>
+                            </div>
+                            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                              <Crown className="w-3 h-3" />
+                              Save {memberSavePercent}%
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-white/85 px-2 py-1 text-xs font-semibold text-gray-600">
+                            Regular price <span className="font-black text-gray-800">{formatPrice(regularServicePrice)}</span>
+                          </div>
+                          {!isEligibleForMemberDeal && (
+                            <div className="mt-2 rounded-lg bg-emerald-900 p-2">
+                              <p className="text-[11px] font-medium leading-snug text-white/90">
+                                <Lock className="mr-1 inline-block w-3 h-3" />
+                                {Number.isFinite(membershipJoinPrice)
+                                  ? `Join from ${formatPrice(membershipJoinPrice)}/month to unlock this deal.`
+                                  : 'Join membership to unlock this deal.'}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => navigate(membershipPath)}
+                                className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-extrabold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                              >
+                                <Crown className="w-3.5 h-3.5" />
+                                Join Membership
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       <div className="h-px bg-gray-100 my-2" />
                       
@@ -761,6 +859,14 @@ const ServiceDetailPage = () => {
       <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200/70 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-[60] pb-[calc(1rem+env(safe-area-inset-bottom))]">
          <div className="flex items-center gap-4 max-w-lg mx-auto">
             <div className="flex-1">
+               {hasMemberDeal && (
+                 <div className="mb-1.5 rounded-lg bg-emerald-50 px-2 py-1.5">
+                   <div className="flex items-center justify-between">
+                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Member Price</span>
+                     <span className="text-sm font-black text-emerald-700">{formatPrice(memberDealPrice)}</span>
+                   </div>
+                 </div>
+               )}
                <div className="text-xs text-gray-500 font-medium mb-0.5">Total for {totalDuration} min</div>
                <div className="text-2xl font-bold text-gray-900 leading-none">
                   ${totalPrice.toFixed(2)}

@@ -185,11 +185,13 @@ const BottomNav = () => {
   ]
 
   const withSpaParam = (href) => {
-    if (!locationId || !href || href.startsWith('http')) return href
+    const spaFromUrl = new URLSearchParams(location.search).get('spa')
+    const spaId = spaFromUrl || locationId
+    if (!spaId || !href || href.startsWith('http')) return href
     try {
       const url = new URL(href, window.location.origin)
       if (!url.searchParams.has('spa')) {
-        url.searchParams.set('spa', locationId)
+        url.searchParams.set('spa', spaId)
       }
       return `${url.pathname}${url.search}${url.hash}`
     } catch (error) {
@@ -198,7 +200,7 @@ const BottomNav = () => {
   }
 
   const handleNavigation = (href, isLogout = false) => {
-    const destination = isLogout ? href : withSpaParam(href)
+    const destination = withSpaParam(href)
     if (isLogout) {
       dispatch(logout())
       localStorage.removeItem('userToken')

@@ -282,11 +282,13 @@ const Layout = ({
   ]
 
   const withSpaParam = (href) => {
-    if (!locationId || !href || href.startsWith('http')) return href
+    const spaFromUrl = new URLSearchParams(location.search).get('spa')
+    const spaId = spaFromUrl || locationId
+    if (!spaId || !href || href.startsWith('http')) return href
     try {
       const url = new URL(href, window.location.origin)
       if (!url.searchParams.has('spa')) {
-        url.searchParams.set('spa', locationId)
+        url.searchParams.set('spa', spaId)
       }
       return `${url.pathname}${url.search}${url.hash}`
     } catch (error) {
@@ -296,7 +298,7 @@ const Layout = ({
 
   const handleNavigation = async (href, isLogout = false) => {
     try {
-      const destination = isLogout ? href : withSpaParam(href)
+      const destination = withSpaParam(href)
       // If we're already on this route and it's not a logout, just close the menu
       if (location.pathname === href && !isLogout) {
         setIsOpen(false)

@@ -13,7 +13,6 @@ import {
   Clock,
   Crown,
   Droplets,
-  Eye,
   Gem,
   Heart,
   Lock,
@@ -225,34 +224,35 @@ const ServiceCard = ({
           {service.description}
         </p>
 
-        <div className='mb-3 rounded-xl border border-gray-200 bg-white/80 p-2.5'>
-          <p className='text-[11px] font-bold uppercase tracking-wider text-gray-500'>
-            Regular Price
-          </p>
-          <p className='text-2xl font-black text-gray-900'>{formatPrice(regularPrice)}</p>
-        </div>
-
-        {hasMemberDeal && (
-          <div className='mb-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2'>
-            <div className='mb-1.5 flex items-start justify-between gap-2'>
-              <div className='inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white'>
-                <Crown size={12} />
-                Member Deal
+        {hasMemberDeal ? (
+          <div className='mb-3 rounded-2xl bg-gradient-to-br from-emerald-50 to-white p-3'>
+            <div className='mb-2 flex items-start justify-between gap-2'>
+              <div>
+                <p className='text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700'>
+                  Member Price
+                </p>
+                <p className='text-3xl font-black leading-none text-emerald-700'>
+                  {formatPrice(memberDealPrice)}
+                </p>
               </div>
-              <p className='text-xl font-black text-emerald-700 leading-none text-right'>
-                {formatPrice(memberDealPrice)}
-              </p>
+              <div className='inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white'>
+                <Crown size={12} />
+                Save {savePercent}%
+              </div>
             </div>
-            <div className='flex justify-end'>
-              <p className='text-xs font-bold text-emerald-700'>Save {savePercent}%</p>
+            <div className='rounded-lg bg-white/85 px-2.5 py-1.5 text-xs font-semibold text-gray-600'>
+              Regular price <span className='font-black text-gray-800'>{formatPrice(regularPrice)}</span>
             </div>
             {!isEligible && (
-              <div className='mt-1.5 flex items-center justify-between gap-1.5 rounded-lg border border-emerald-200 bg-white/80 p-1.5'>
-                <p className='text-[11px] font-medium text-gray-600 leading-tight'>
-                  <Lock size={12} className='mr-1 inline-block text-gray-500' />
+              <div className='mt-2 rounded-xl bg-emerald-900 p-2'>
+                <p className='mb-2 text-xs font-bold uppercase tracking-[0.12em] text-emerald-100'>
+                  <Lock size={12} className='mr-1 inline-block' />
+                  Member Access
+                </p>
+                <p className='text-xs font-medium leading-snug text-white/90'>
                   {Number.isFinite(membershipJoinPrice)
-                    ? `Join for ${formatPrice(membershipJoinPrice)}/month to unlock this price`
-                    : 'Join to unlock this price'}
+                    ? `Join from ${formatPrice(membershipJoinPrice)}/month and unlock this deal instantly.`
+                    : 'Join membership to unlock this member deal instantly.'}
                 </p>
                 <button
                   type='button'
@@ -260,26 +260,32 @@ const ServiceCard = ({
                     e.stopPropagation()
                     onViewMembership?.()
                   }}
-                  className='inline-flex shrink-0 items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-200'
+                  className='mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-extrabold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-100'
                 >
-                  <Eye size={12} />
-                  View
+                  <Crown size={14} />
+                  Join Membership
                 </button>
               </div>
             )}
           </div>
+        ) : (
+          <div className='mb-3 rounded-2xl border border-gray-200 bg-white p-3'>
+            <p className='text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500'>
+              Price
+            </p>
+            <p className='text-3xl font-black leading-none text-gray-900'>{formatPrice(regularPrice)}</p>
+          </div>
         )}
 
         {/* Bottom Action Row */}
-        <div className='flex items-center justify-between mt-auto pt-1'>
-           <div className='flex items-center gap-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider'>
-             <Clock size={12} />
-             {service.duration} mins
-           </div>
-
-           <button className='bg-gray-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-transform active:scale-95 group-hover:bg-[color:var(--brand-primary)]'>
-               Book
-           </button>
+        <div className='mt-auto flex items-center justify-between gap-2 pt-1'>
+          <div className='inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider'>
+            <Clock size={12} />
+            {service.duration} mins
+          </div>
+          <button className='inline-flex min-w-[118px] items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-extrabold text-white transition-transform active:scale-95 group-hover:bg-[color:var(--brand-primary)]'>
+            Book now
+          </button>
         </div>
       </div>
     </div>

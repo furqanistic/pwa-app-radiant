@@ -204,7 +204,13 @@ const SpaSelectionGuard = ({ children }) => {
 // Rest of the component remains the same...
 const ProtectedRoute = ({ children }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { locationId } = useBranding()
+  const location = useLocation()
   const token = localStorage.getItem('token')
+  const spaFromUrl = new URLSearchParams(location.search).get('spa')
+  const spaId = spaFromUrl || locationId
+  const buildSpaPath = (path) =>
+    spaId ? `${path}?spa=${encodeURIComponent(spaId)}` : path
 
   if (!currentUser && token) {
     return (
@@ -215,7 +221,7 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!currentUser) {
-    return <Navigate to='/auth' replace />
+    return <Navigate to={buildSpaPath('/auth')} replace />
   }
 
   return <SpaSelectionGuard>{children}</SpaSelectionGuard>
@@ -223,7 +229,13 @@ const ProtectedRoute = ({ children }) => {
 
 const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const { locationId } = useBranding()
+  const location = useLocation()
   const token = localStorage.getItem('token')
+  const spaFromUrl = new URLSearchParams(location.search).get('spa')
+  const spaId = spaFromUrl || locationId
+  const buildSpaPath = (path) =>
+    spaId ? `${path}?spa=${encodeURIComponent(spaId)}` : path
 
   if (!currentUser && token) {
     return (
@@ -234,7 +246,7 @@ const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
   }
 
   if (!currentUser) {
-    return <Navigate to='/auth' replace />
+    return <Navigate to={buildSpaPath('/auth')} replace />
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role)) {

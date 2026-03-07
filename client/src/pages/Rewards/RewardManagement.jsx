@@ -63,6 +63,32 @@ const normalizeMembershipPlans = (membership) => {
   return []
 }
 
+const isPercentValueType = (type) => ['discount', 'experience', 'combo', 'service_discount'].includes(type)
+const isFreeValueType = (type) => ['service', 'free_service'].includes(type)
+
+const getRewardValueFieldLabel = (type) => {
+  if (isPercentValueType(type)) return 'Value Amount (%) *'
+  if (isFreeValueType(type)) return 'Value Amount (set 0 for free) *'
+  return 'Value Amount ($) *'
+}
+
+const getRewardValueDisplay = (reward) => {
+  if (reward?.displayValue) return reward.displayValue
+
+  const numericValue = Number(reward?.value)
+  const safeValue = Number.isFinite(numericValue) ? numericValue : 0
+
+  if (isFreeValueType(reward?.type)) return 'Free'
+  if (isPercentValueType(reward?.type)) return `${safeValue}%`
+  return `$${safeValue}`
+}
+
+const RewardValueIcon = ({ type, className }) => {
+  if (isFreeValueType(type)) return <Gift className={className} />
+  if (isPercentValueType(type)) return <Percent className={className} />
+  return <DollarSign className={className} />
+}
+
 // Reward Header Component
 const RewardHeader = ({
   view,
@@ -294,13 +320,13 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
           </div>
           <div className='bg-green-50 p-3 rounded-lg'>
             <div className='flex items-center gap-2 mb-1'>
-              <DollarSign className='w-4 h-4 text-green-600' />
+              <RewardValueIcon type={reward.type} className='w-4 h-4 text-green-600' />
               <span className='text-xs font-semibold text-green-700'>
                 Value
               </span>
             </div>
             <span className='text-lg font-bold text-green-700'>
-              {reward.displayValue || `$${reward.value}`}
+              {getRewardValueDisplay(reward)}
             </span>
           </div>
         </div>
@@ -533,7 +559,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [
                   {/* Value */}
                   <div className='space-y-1.5'>
                     <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
-                      Value Amount (%) *
+                      {getRewardValueFieldLabel(formData.type)}
                     </label>
                     <input
                       type='number'
@@ -1008,7 +1034,7 @@ const RewardManagement = () => {
                     <p className='text-sm text-gray-600 line-clamp-1'>{reward.description}</p>
                     <div className='flex gap-4 mt-1'>
                       <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>{reward.pointCost} pts</span>
-                      <span className='text-xs font-semibold text-green-600'>{reward.displayValue || `$${reward.value}`}</span>
+                      <span className='text-xs font-semibold text-green-600'>{getRewardValueDisplay(reward)}</span>
                     </div>
                   </div>
                   {canManageRewards && (

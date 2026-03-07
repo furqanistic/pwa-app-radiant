@@ -199,7 +199,7 @@ const AuthPage = () => {
   // Get branding context
   // const { branding, loading: brandingLoading, hasBranding, locationId } = useBranding()
 
-  const [view, setView] = useState('signup') // 'signup' or 'login'
+  const [view, setView] = useState('login') // 'signup' or 'login'
   const [signupStep, setSignupStep] = useState(1)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
