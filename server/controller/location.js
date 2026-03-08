@@ -246,6 +246,7 @@ export const createLocation = async (req, res, next) => {
       address,
       phone,
       reviewLink,
+      ghlApiKey,
       hours,
       coordinates,
       logo,
@@ -276,6 +277,7 @@ export const createLocation = async (req, res, next) => {
       address: address?.trim() || '',
       phone: phone?.trim() || '',
       reviewLink: reviewLink?.trim() || '',
+      ghlApiKey: ghlApiKey?.trim() || '',
       hours: hours || [],
       coordinates: coordinates || { latitude: null, longitude: null },
       logo: logo || '',
@@ -326,6 +328,7 @@ export const updateLocation = async (req, res, next) => {
       address,
       phone,
       reviewLink,
+      ghlApiKey,
       hours,
       isActive,
       coordinates,
@@ -375,6 +378,7 @@ export const updateLocation = async (req, res, next) => {
     if (address !== undefined) updateData.address = address.trim()
     if (phone !== undefined) updateData.phone = phone.trim()
     if (reviewLink !== undefined) updateData.reviewLink = reviewLink.trim()
+    if (ghlApiKey !== undefined) updateData.ghlApiKey = ghlApiKey.trim()
     if (hours !== undefined) updateData.hours = hours
     if (isActive !== undefined) updateData.isActive = isActive
     if (coordinates !== undefined) updateData.coordinates = coordinates

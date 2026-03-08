@@ -27,6 +27,7 @@ import BookingsManagementPage from './pages/Management/BookingsManagementPage'
 import BookingsDatabasePage from './pages/Management/BookingsDatabasePage'
 import ClientRevenuePage from './pages/Management/ClientRevenuePage'
 import ManagementPage from './pages/Management/ManagementPage'
+import CalendarManagementPage from './pages/Management/CalendarManagementPage'
 import MembershipManagementPage from './pages/Management/MembershipManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import ServicesDatabasePage from './pages/Management/ServicesDatabasePage'
@@ -673,6 +674,15 @@ const App = () => {
           element={
             <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
               <MembershipManagementPage />
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/management/calendar"
+          element={
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
+              <CalendarManagementPage />
             </RoleProtectedRoute>
           }
         />

@@ -1,5 +1,6 @@
 // File: server/controller/ghl.js
 import axios from 'axios'
+import Location from '../models/Location.js'
 
 // GoHighLevel API v1 configuration for Location API Keys
 const GHL_BASE_URL = 'https://rest.gohighlevel.com/v1'
@@ -63,7 +64,7 @@ const makeGHLV2Request = async (
   }
 }
 
-const getTokenForLocation = (locationId) => {
+const getTokenForLocationFromEnv = (locationId) => {
   const defaultToken = process.env.GHL_LOCATION_API || ''
   const rawTokenMap = process.env.GHL_LOCATION_API_MAP
   if (!rawTokenMap) return defaultToken
@@ -74,6 +75,23 @@ const getTokenForLocation = (locationId) => {
   } catch (error) {
     console.warn('Invalid GHL_LOCATION_API_MAP JSON:', error.message)
     return defaultToken
+  }
+}
+
+const getTokenForLocation = async (locationId) => {
+  const envToken = getTokenForLocationFromEnv(locationId)
+  if (!locationId) return envToken
+
+  try {
+    const location = await Location.findOne({ locationId }).select('ghlApiKey')
+    const locationToken = location?.ghlApiKey?.trim()
+    return locationToken || envToken
+  } catch (error) {
+    console.warn(
+      `Failed loading location API key for ${locationId}:`,
+      error.message
+    )
+    return envToken
   }
 }
 
@@ -131,7 +149,87 @@ const isUnauthorizedGhlError = (error) =>
   error?.response?.data?.statusCode === 401 ||
   `${error?.response?.data?.message || ''}`.toLowerCase().includes('invalid jwt')
 
-const getStartAndEndISOForDate = (dateString) => {
+const getTzOffsetMs = (date, timeZone) => {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+
+  const parts = dtf.formatToParts(date)
+  const values = {}
+  parts.forEach(({ type, value }) => {
+    if (type !== 'literal') values[type] = value
+  })
+
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  )
+
+  return asUtc - date.getTime()
+}
+
+const zonedDateTimeToUtc = (dateString, timeZone, endOfDay = false) => {
+  const [year, month, day] = `${dateString}`.split('-').map(Number)
+  if (!year || !month || !day) {
+    throw new Error('Invalid date format. Expected YYYY-MM-DD')
+  }
+
+  const hh = endOfDay ? 23 : 0
+  const mm = endOfDay ? 59 : 0
+  const ss = endOfDay ? 59 : 0
+  const ms = endOfDay ? 999 : 0
+
+  // Initial UTC guess for the desired wall-clock time in target timezone.
+  let utcDate = new Date(Date.UTC(year, month - 1, day, hh, mm, ss, ms))
+  let offset = getTzOffsetMs(utcDate, timeZone)
+  utcDate = new Date(utcDate.getTime() - offset)
+
+  // One extra pass handles DST transitions correctly.
+  offset = getTzOffsetMs(utcDate, timeZone)
+  return new Date(Date.UTC(year, month - 1, day, hh, mm, ss, ms) - offset)
+}
+
+const getDateKeyInTimeZone = (value, timeZone) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const values = {}
+  parts.forEach(({ type, value: partValue }) => {
+    if (type !== 'literal') values[type] = partValue
+  })
+
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+const getStartAndEndISOForDate = (dateString, timeZone = '') => {
+  if (timeZone) {
+    const start = zonedDateTimeToUtc(dateString, timeZone, false)
+    const end = zonedDateTimeToUtc(dateString, timeZone, true)
+    return {
+      startIso: start.toISOString(),
+      endIso: end.toISOString(),
+    }
+  }
+
   const start = new Date(dateString)
   const end = new Date(dateString)
 
@@ -149,10 +247,36 @@ const getStartAndEndISOForDate = (dateString) => {
 }
 
 const normalizeCalendarEvent = (event) => {
+  const rawStart =
+    event?.startTime ||
+    event?.start ||
+    event?.startAt ||
+    event?.appointmentStartTime ||
+    null
+  const rawEnd =
+    event?.endTime ||
+    event?.end ||
+    event?.endAt ||
+    event?.appointmentEndTime ||
+    null
   const startTime =
-    event?.startTime || event?.start || event?.appointmentStartTime || null
-  const endTime = event?.endTime || event?.end || event?.appointmentEndTime || null
+    rawStart
+  const endTime =
+    rawEnd
   const status = (event?.status || event?.appointmentStatus || '').toLowerCase()
+  const resolvedCalendarId =
+    event?.calendarId ||
+    event?.calendar?.id ||
+    event?.calendar?._id ||
+    null
+  const resolvedTimeZone =
+    event?.timeZone ||
+    event?.timezone ||
+    event?.appointmentTimeZone ||
+    event?.calendar?.timeZone ||
+    event?.calendar?.timezone ||
+    event?.calendarSettings?.timeZone ||
+    null
 
   return {
     id: event?.id || event?._id || event?.appointmentId || null,
@@ -160,41 +284,171 @@ const normalizeCalendarEvent = (event) => {
     status,
     startTime,
     endTime,
-    calendarId: event?.calendarId || null,
+    startTimeRaw: rawStart,
+    endTimeRaw: rawEnd,
+    calendarId: resolvedCalendarId,
     locationId: event?.locationId || null,
+    timeZone: resolvedTimeZone,
   }
 }
 
-export const fetchLocationCalendarEventsByDate = async (locationId, date) => {
-  const { startIso, endIso } = getStartAndEndISOForDate(date)
-  const token = getTokenForLocation(locationId)
+const normalizeCalendarsPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return []
+  return (
+    payload.calendars ||
+    payload.data?.calendars ||
+    payload.data ||
+    []
+  )
+}
 
-  // First try v2 endpoint; if location JWT is rejected, fall back to v1 appointments.
+const matchesCalendar = (eventCalendarId, selectedCalendarId) => {
+  if (!selectedCalendarId) return true
+  return `${eventCalendarId || ''}` === `${selectedCalendarId}`
+}
+
+const hasExplicitOffsetOrZulu = (value) =>
+  /([+-]\d{2}:\d{2}|Z)$/i.test(`${value || ''}`)
+
+const getDatePrefix = (value) => {
+  const match = `${value || ''}`.match(/^(\d{4}-\d{2}-\d{2})/)
+  return match ? match[1] : ''
+}
+
+const matchesRequestedDate = (event, requestedDate, requestedTimeZone = '') => {
+  const rawDatePrefix = getDatePrefix(event?.startTimeRaw)
+  if (rawDatePrefix && !hasExplicitOffsetOrZulu(event?.startTimeRaw)) {
+    // If API returns wall-clock datetime without timezone, trust its date component.
+    return rawDatePrefix === requestedDate
+  }
+
+  const tz = requestedTimeZone || event?.timeZone || ''
+  if (!tz) return true
+  return getDateKeyInTimeZone(event?.startTime, tz) === requestedDate
+}
+
+const extractRawEventsPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return []
+  const candidates = [
+    payload.events,
+    payload.appointments,
+    payload.bookings,
+    payload.items,
+    payload.data?.events,
+    payload.data?.appointments,
+    payload.data?.bookings,
+    payload.data?.items,
+  ]
+
+  for (const entry of candidates) {
+    if (Array.isArray(entry)) return entry
+  }
+  return []
+}
+
+export const fetchLocationCalendarEventsByDate = async (
+  locationId,
+  date,
+  calendarId = '',
+  timeZone = ''
+) => {
+  const { startIso, endIso } = getStartAndEndISOForDate(date, timeZone)
+  const token = await getTokenForLocation(locationId)
+
+  if (!token) {
+    return {
+      events: [],
+      rawCount: 0,
+      total: 0,
+      source: 'ghl',
+      unavailable: true,
+      reason: `No GHL API key configured for location ${locationId}`,
+    }
+  }
+
+  const startMs = Date.parse(startIso)
+  const endMs = Date.parse(endIso)
+
+  // First try v2 endpoints/param shapes; if location JWT is rejected, fall back to v1 appointments.
   try {
-    const response = await makeGHLV2Request('/calendars/events', {
-      token,
-      params: {
-        locationId,
-        startTime: startIso,
-        endTime: endIso,
+    const v2Attempts = [
+      {
+        endpoint: '/calendars/events',
+        params: {
+          locationId,
+          startTime: startIso,
+          endTime: endIso,
+          ...(calendarId ? { calendarId } : {}),
+        },
+        source: 'ghl-v2-events-iso',
       },
-    })
+      {
+        endpoint: '/calendars/events',
+        params: {
+          locationId,
+          startTime: startMs,
+          endTime: endMs,
+          ...(calendarId ? { calendarId } : {}),
+        },
+        source: 'ghl-v2-events-ms',
+      },
+      {
+        endpoint: '/calendars/events/appointments',
+        params: {
+          locationId,
+          startTime: startIso,
+          endTime: endIso,
+          ...(calendarId ? { calendarId } : {}),
+        },
+        source: 'ghl-v2-appointments-iso',
+      },
+      {
+        endpoint: '/calendars/events/appointments',
+        params: {
+          locationId,
+          startTime: startMs,
+          endTime: endMs,
+          ...(calendarId ? { calendarId } : {}),
+        },
+        source: 'ghl-v2-appointments-ms',
+      },
+    ]
 
-    const rawEvents = response?.events || response?.data?.events || []
-    const normalizedEvents = rawEvents
-      .map(normalizeCalendarEvent)
-      .filter(
-        (event) =>
-          event.startTime &&
-          event.endTime &&
-          !['cancelled', 'canceled'].includes(event.status)
-      )
+    for (const attempt of v2Attempts) {
+      const response = await makeGHLV2Request(attempt.endpoint, {
+        token,
+        params: attempt.params,
+      })
+      const rawEvents = extractRawEventsPayload(response)
+      if (!Array.isArray(rawEvents) || rawEvents.length === 0) {
+        continue
+      }
+
+      const normalizedEvents = rawEvents
+        .map(normalizeCalendarEvent)
+        .filter(
+          (event) =>
+            event.startTime &&
+            !['cancelled', 'canceled'].includes(event.status) &&
+            matchesCalendar(event.calendarId, calendarId) &&
+            matchesRequestedDate(event, date, timeZone)
+        )
+
+      return {
+        events: normalizedEvents,
+        rawCount: rawEvents.length,
+        total: normalizedEvents.length,
+        source: attempt.source,
+      }
+    }
 
     return {
-      events: normalizedEvents,
-      rawCount: rawEvents.length,
-      total: normalizedEvents.length,
+      events: [],
+      rawCount: 0,
+      total: 0,
       source: 'ghl-v2',
+      unavailable: true,
+      reason: 'No events returned from tested v2 calendar endpoints',
     }
   } catch (error) {
     if (!isUnauthorizedGhlError(error)) {
@@ -203,6 +457,7 @@ export const fetchLocationCalendarEventsByDate = async (locationId, date) => {
   }
 
   const selector = await resolveV1Selector(locationId, token)
+  const effectiveCalendarId = calendarId || selector.calendarId
   if (!selector.calendarId && !selector.userId && !selector.teamId) {
     return {
       events: [],
@@ -217,7 +472,7 @@ export const fetchLocationCalendarEventsByDate = async (locationId, date) => {
     startDate: startIso,
     endDate: endIso,
   })
-  if (selector.calendarId) params.set('calendarId', selector.calendarId)
+  if (effectiveCalendarId) params.set('calendarId', effectiveCalendarId)
   if (selector.userId) params.set('userId', selector.userId)
   if (selector.teamId) params.set('teamId', selector.teamId)
 
@@ -227,22 +482,13 @@ export const fetchLocationCalendarEventsByDate = async (locationId, date) => {
     v1Response?.appointments || v1Response?.data?.appointments || []
 
   const normalizedEvents = rawAppointments
-    .map((appt) =>
-      normalizeCalendarEvent({
-        id: appt?.id || appt?._id,
-        title: appt?.title || appt?.appointmentTitle || appt?.contactName,
-        status: appt?.appointmentStatus || appt?.status,
-        startTime:
-          appt?.startTime || appt?.appointmentStartTime || appt?.start,
-        endTime: appt?.endTime || appt?.appointmentEndTime || appt?.end,
-        locationId: appt?.locationId || locationId,
-      })
-    )
+    .map(normalizeCalendarEvent)
     .filter(
       (event) =>
         event.startTime &&
-        event.endTime &&
-        !['cancelled', 'canceled'].includes(event.status)
+        !['cancelled', 'canceled'].includes(event.status) &&
+        matchesCalendar(event.calendarId, calendarId) &&
+        matchesRequestedDate(event, date, timeZone)
     )
 
   return {
@@ -553,18 +799,70 @@ export const getOpportunities = async (req, res, next) => {
 // Get calendars
 export const getCalendars = async (req, res, next) => {
   try {
-    const response = await makeGHLRequest('/calendars/')
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.set('Surrogate-Control', 'no-store')
+
+    const { locationId } = req.query
+    if (!locationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'locationId is required',
+      })
+    }
+
+    const token = await getTokenForLocation(locationId)
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: `No GHL API key configured for location ${locationId}`,
+      })
+    }
+
+    let calendars = []
+    let source = 'ghl-v2'
+
+    try {
+      const v2Response = await makeGHLV2Request('/calendars/', {
+        token,
+        params: { locationId },
+      })
+      calendars = normalizeCalendarsPayload(v2Response)
+    } catch (v2Error) {
+      try {
+        const v2AltResponse = await makeGHLV2Request('/calendars', {
+          token,
+          params: { locationId },
+        })
+        calendars = normalizeCalendarsPayload(v2AltResponse)
+      } catch (v2AltError) {
+        source = 'ghl-v1'
+        const v1Response = await makeGHLRequest('/calendars/', 'GET', null, token)
+        calendars = normalizeCalendarsPayload(v1Response)
+      }
+    }
 
     res.status(200).json({
       success: true,
       message: 'Calendars fetched successfully',
-      data: response,
+      data: {
+        calendars,
+        total: calendars.length,
+        source,
+      },
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
-      success: false,
-      message: 'Failed to fetch calendars',
-      error: error.response?.data || error.message,
+    res.status(200).json({
+      success: true,
+      message: 'Calendars unavailable, using fallback',
+      data: {
+        calendars: [],
+        total: 0,
+        source: 'ghl',
+        unavailable: true,
+        error: error.response?.data || error.message,
+      },
     })
   }
 }
@@ -591,7 +889,12 @@ export const getCustomFields = async (req, res, next) => {
 // Get bookings/events for a specific GHL location and date
 export const getLocationBookingsByDate = async (req, res, next) => {
   try {
-    const { locationId, date } = req.query
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.set('Surrogate-Control', 'no-store')
+
+    const { locationId, date, calendarId, timeZone } = req.query
 
     if (!locationId || !date) {
       return res.status(400).json({
@@ -600,7 +903,12 @@ export const getLocationBookingsByDate = async (req, res, next) => {
       })
     }
 
-    const data = await fetchLocationCalendarEventsByDate(locationId, date)
+    const data = await fetchLocationCalendarEventsByDate(
+      locationId,
+      date,
+      calendarId,
+      timeZone
+    )
 
     res.status(200).json({
       success: true,

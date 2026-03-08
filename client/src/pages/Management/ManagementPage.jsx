@@ -46,12 +46,14 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import Layout from "@/pages/Layout/Layout";
 
 const clampChannel = (value) => Math.max(0, Math.min(255, value));
+const EMPTY_LOCATIONS = [];
 
 const adjustHex = (hex, amount) => {
   if (!hex) return "#ec4899";
@@ -190,7 +192,7 @@ const ManagementPage = () => {
     },
   ];
 
-  const locations = locationsData?.data?.locations || [];
+  const locations = locationsData?.data?.locations || EMPTY_LOCATIONS;
   const activeLocationsCount = locations.filter((location) => location.isActive).length;
   const inactiveLocationsCount = locations.length - activeLocationsCount;
   const roleLabelByKey = {
@@ -263,6 +265,15 @@ const ManagementPage = () => {
       : []),
     ...(isTeamOrAbove
       ? [
+          {
+            key: "manage-calendar",
+            title: "Manage Calendar",
+            description: "View location calendars and booked appointments.",
+            icon: Calendar,
+            onClick: () => navigate("/management/calendar"),
+            className:
+              "border-sky-100 bg-sky-50/70 hover:bg-sky-100/70 text-sky-900",
+          },
           {
             key: "membership",
             title: currentUser?.role === "spa" ? "View Membership" : "Manage Membership",
@@ -768,13 +779,16 @@ const ManagementPage = () => {
                 showCloseButton={false}
                 className="max-w-[95vw] md:max-w-[1100px] w-full p-0 border-none bg-transparent shadow-none"
             >
-                <div className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
+                    <div className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
                     {/* Header Area */}
                     <div className="px-6 py-8 md:px-12 md:py-10 flex items-center justify-between border-b border-gray-50 shrink-0">
                         <DialogHeader>
                             <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-900 tracking-tight">
                                 {selectedQRLocation?.name}
                             </DialogTitle>
+                            <DialogDescription className="sr-only">
+                              Manage QR code settings for the selected location.
+                            </DialogDescription>
                         </DialogHeader>
                         
                         <button 

@@ -157,6 +157,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     address: '',
     phone: '',
     reviewLink: '',
+    ghlApiKey: '',
     coordinates: {
       latitude: null,
       longitude: null,
@@ -246,6 +247,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
         address: initialData.address || '',
         phone: initialData.phone || '',
         reviewLink: initialData.reviewLink || '',
+        ghlApiKey: initialData.ghlApiKey || '',
         hours: initialData.hours?.length
           ? initialData.hours
           : DAYS_OF_WEEK.map((day) => ({
@@ -313,6 +315,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       address: '',
       phone: '',
       reviewLink: '',
+      ghlApiKey: '',
       hours: DAYS_OF_WEEK.map((day) => ({
         day,
         open: '09:00',
@@ -521,6 +524,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       address: formData.address.trim(),
       phone: formData.phone.trim(),
       reviewLink: formData.reviewLink.trim(),
+      ghlApiKey: formData.ghlApiKey.trim(),
       hours: formData.hours,
       coordinates: position ? { latitude: position.lat, longitude: position.lng } : formData.coordinates,
       logo: formData.logo,
@@ -947,6 +951,25 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             />
             <p className='text-xs text-gray-400 font-medium'>
               This link is used for the "Leave Review" action on the user dashboard.
+            </p>
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='ghlApiKey' className='text-sm font-semibold text-gray-700'>
+              GHL API Key (Per Location)
+            </Label>
+            <Input
+              id='ghlApiKey'
+              name='ghlApiKey'
+              type='password'
+              value={formData.ghlApiKey}
+              onChange={handleInputChange}
+              placeholder='Paste this location sub-account API key'
+              className='rounded-xl'
+              autoComplete='new-password'
+            />
+            <p className='text-xs text-gray-400 font-medium'>
+              Save each sub-account key here so this location can use its own GHL data.
             </p>
           </div>
 

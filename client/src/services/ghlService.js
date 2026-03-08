@@ -1,9 +1,21 @@
 import { axiosInstance } from '@/config'
 
 export const ghlService = {
-  getLocationBookingsByDate: async (locationId, date) => {
+  getCalendars: async (locationId) => {
+    const response = await axiosInstance.get('/ghl/calendars', {
+      params: { locationId },
+    })
+    return response.data
+  },
+
+  getLocationBookingsByDate: async (locationId, date, calendarId, timeZone) => {
     const response = await axiosInstance.get('/ghl/bookings', {
-      params: { locationId, date },
+      params: {
+        locationId,
+        date,
+        ...(calendarId ? { calendarId } : {}),
+        ...(timeZone ? { timeZone } : {}),
+      },
     })
     return response.data
   },

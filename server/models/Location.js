@@ -39,6 +39,11 @@ const LocationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    ghlApiKey: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     isActive: {
       type: Boolean,
       default: true,
