@@ -32,6 +32,60 @@ const MONTH_LABELS = [
   "December",
 ];
 
+const isOffsetTimeZone = (value = "") => /^[+-]\d{2}:\d{2}$/.test(`${value}`);
+
+const getDatePartsInTimeZone = (value, timeZone = "") => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  if (!timeZone || isOffsetTimeZone(timeZone)) {
+    return {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      day: date.getDate(),
+      weekday: date.getDay(),
+    };
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(date);
+
+  const values = {};
+  parts.forEach(({ type, value: partValue }) => {
+    if (type !== "literal") values[type] = partValue;
+  });
+
+  const weekdayMap = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    weekday: weekdayMap[values.weekday] ?? date.getDay(),
+  };
+};
+
+const getDateKeyInTimeZone = (value, timeZone = "") => {
+  const parts = getDatePartsInTimeZone(value, timeZone);
+  if (!parts) return "";
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(
+    parts.day
+  ).padStart(2, "0")}`;
+};
+
 const clampChannel = (value) => Math.max(0, Math.min(255, value));
 const adjustHex = (hex, amount) => {
   if (!hex) return "#2563eb";
@@ -46,63 +100,105 @@ const adjustHex = (hex, amount) => {
     .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 };
 
-const getTodayLocalString = () => {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-};
+const getTodayLocalString = (timeZone = "") =>
+  getDateKeyInTimeZone(new Date(), timeZone) || getDateKeyInTimeZone(new Date(), "");
 
 const parseDateString = (dateString) => {
   const [y, m, d] = dateString.split("-").map(Number);
   return new Date(y, m - 1, d);
 };
 
-const formatDateTime = (value) =>
+const formatDateTime = (value, timeZone = "") =>
   value
     ? new Date(value).toLocaleString([], {
         dateStyle: "medium",
         timeStyle: "short",
+        ...(timeZone && !isOffsetTimeZone(timeZone) ? { timeZone } : {}),
       })
     : "N/A";
 
-const formatTimeOnly = (value) =>
+const formatTimeOnly = (value, timeZone = "") =>
   value
     ? new Date(value).toLocaleTimeString([], {
         hour: "numeric",
         minute: "2-digit",
+        ...(timeZone && !isOffsetTimeZone(timeZone) ? { timeZone } : {}),
       })
     : "N/A";
 
-const formatDateOnly = (value) =>
+const formatDateOnly = (value, timeZone = "") =>
   value
     ? new Date(value).toLocaleDateString([], {
         weekday: "short",
         day: "2-digit",
         month: "short",
         year: "numeric",
+        ...(timeZone && !isOffsetTimeZone(timeZone) ? { timeZone } : {}),
       })
     : "N/A";
 
-const isSameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() &&
-  a.getMonth() === b.getMonth() &&
-  a.getDate() === b.getDate();
+const getRawDatePrefix = (value = "") => {
+  const match = `${value || ""}`.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : "";
+};
 
-const formatAppointmentWindow = (startTime, endTime) => {
+const formatRawTimeOnly = (value = "") => {
+  const match = `${value || ""}`.match(/T(\d{2}):(\d{2})/);
+  if (!match) return "";
+
+  const hour24 = Number(match[1]);
+  const minute = Number(match[2]);
+  const suffix = hour24 >= 12 ? "pm" : "am";
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${String(minute).padStart(2, "0")} ${suffix}`;
+};
+
+const isSameDay = (a, b, timeZone = "") =>
+  getDateKeyInTimeZone(a, timeZone) === getDateKeyInTimeZone(b, timeZone);
+
+const formatAppointmentWindow = (
+  startTime,
+  endTime,
+  timeZone = "",
+  startTimeRaw = "",
+  endTimeRaw = ""
+) => {
+  const rawStartTime = formatRawTimeOnly(startTimeRaw);
+  const rawEndTime = formatRawTimeOnly(endTimeRaw);
+  if (rawStartTime && rawEndTime) {
+    return `${rawStartTime} - ${rawEndTime}`;
+  }
+  if (rawStartTime) {
+    return rawStartTime;
+  }
+
   if (!startTime) return "Time not available";
-  if (!endTime) return formatTimeOnly(startTime);
+  if (!endTime) return formatTimeOnly(startTime, timeZone);
 
   const start = new Date(startTime);
   const end = new Date(endTime);
-  const sameDay = isSameDay(start, end);
+  const sameDay = isSameDay(start, end, timeZone);
 
   if (sameDay) {
-    return `${formatTimeOnly(startTime)} - ${formatTimeOnly(endTime)}`;
+    return `${formatTimeOnly(startTime, timeZone)} - ${formatTimeOnly(
+      endTime,
+      timeZone
+    )}`;
   }
 
-  return `${formatDateTime(startTime)} - ${formatDateTime(endTime)}`;
+  return `${formatDateTime(startTime, timeZone)} - ${formatDateTime(
+    endTime,
+    timeZone
+  )}`;
+};
+
+const formatAppointmentDate = (startTime, timeZone = "", startTimeRaw = "") => {
+  const rawDatePrefix = getRawDatePrefix(startTimeRaw);
+  if (rawDatePrefix) {
+    return formatDateOnly(rawDatePrefix, timeZone);
+  }
+
+  return formatDateOnly(startTime, timeZone);
 };
 
 const toTitle = (value) => {
@@ -111,11 +207,12 @@ const toTitle = (value) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
-const getMonthMatrix = (monthStart) => {
-  const year = monthStart.getFullYear();
-  const month = monthStart.getMonth();
+const getMonthMatrix = (monthStart, timeZone = "") => {
+  const parts = getDatePartsInTimeZone(monthStart, timeZone);
+  const year = parts?.year ?? monthStart.getFullYear();
+  const month = (parts?.month ?? monthStart.getMonth() + 1) - 1;
   const firstDayOfMonth = new Date(year, month, 1);
-  const startOffset = firstDayOfMonth.getDay();
+  const startOffset = getDatePartsInTimeZone(firstDayOfMonth, timeZone)?.weekday ?? firstDayOfMonth.getDay();
   const gridStart = new Date(year, month, 1 - startOffset);
 
   const matrix = [];
@@ -137,25 +234,26 @@ const CalendarManagementPage = () => {
   const { branding } = useBranding();
   const brandColor = branding?.themeColor || "#2563eb";
   const brandColorDark = adjustHex(brandColor, -22);
+  const [calendarDisplayTimeZone, setCalendarDisplayTimeZone] = useState("");
 
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [selectedCalendarId, setSelectedCalendarId] = useState("");
-  const [selectedDate, setSelectedDate] = useState(getTodayLocalString);
+  const [selectedDate, setSelectedDate] = useState(() => getTodayLocalString(""));
   const [visibleMonth, setVisibleMonth] = useState(() => {
-    const today = parseDateString(getTodayLocalString());
+    const today = parseDateString(getTodayLocalString(""));
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
 
   useEffect(() => {
-    const today = getTodayLocalString();
+    const today = getTodayLocalString(calendarDisplayTimeZone);
     const todayDate = parseDateString(today);
     setSelectedDate(today);
     setVisibleMonth(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
-  }, []);
+  }, [calendarDisplayTimeZone]);
 
-  const isTeamOrAbove = ["spa", "admin", "super-admin"].includes(
-    currentUser?.role
-  );
+  const isTeamOrAbove = ["spa", "admin"].includes(currentUser?.role);
+  const isSpaUser = currentUser?.role === "spa";
+  const canSelectLocation = currentUser?.role === "admin";
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId ||
@@ -164,14 +262,22 @@ const CalendarManagementPage = () => {
   const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
     queryKey: ["locations"],
     queryFn: () => locationService.getAllLocations(),
-    enabled: isTeamOrAbove,
+    enabled: isTeamOrAbove && canSelectLocation,
   });
 
   const locations = locationsData?.data?.locations || EMPTY_LOCATIONS;
-  const effectiveLocationId =
-    selectedLocationId || currentUserLocationId || locations[0]?.locationId || "";
+  const effectiveLocationId = isSpaUser
+    ? currentUserLocationId || ""
+    : selectedLocationId || currentUserLocationId || locations[0]?.locationId || "";
 
   useEffect(() => {
+    if (isSpaUser) {
+      if (currentUserLocationId && selectedLocationId !== currentUserLocationId) {
+        setSelectedLocationId(currentUserLocationId);
+      }
+      return;
+    }
+
     if (selectedLocationId) return;
     if (currentUserLocationId) {
       setSelectedLocationId(currentUserLocationId);
@@ -180,7 +286,7 @@ const CalendarManagementPage = () => {
     if (locations[0]?.locationId) {
       setSelectedLocationId(locations[0].locationId);
     }
-  }, [selectedLocationId, currentUserLocationId, locations]);
+  }, [isSpaUser, selectedLocationId, currentUserLocationId, locations]);
 
   const {
     data: calendarsData,
@@ -205,6 +311,10 @@ const CalendarManagementPage = () => {
     selectedCalendar?.timezone ||
     selectedCalendar?.calendarTimeZone ||
     "";
+
+  useEffect(() => {
+    setCalendarDisplayTimeZone(selectedCalendarTimeZone || "");
+  }, [selectedCalendarTimeZone]);
 
   useEffect(() => {
     if (!calendars.length) {
@@ -245,13 +355,26 @@ const CalendarManagementPage = () => {
   const appointments = bookingsData?.data?.events || [];
   const rawCount = bookingsData?.data?.rawCount ?? 0;
   const isUnavailable = Boolean(bookingsData?.data?.unavailable);
+  const effectiveTimeZone =
+    bookingsData?.data?.effectiveTimeZone ||
+    bookingsData?.data?.timeZone ||
+    selectedCalendarTimeZone ||
+    calendarDisplayTimeZone ||
+    "";
 
   const selectedDateObject = useMemo(
     () => parseDateString(selectedDate),
     [selectedDate]
   );
-  const monthMatrix = useMemo(() => getMonthMatrix(visibleMonth), [visibleMonth]);
-  const monthTitle = `${MONTH_LABELS[visibleMonth.getMonth()]} ${visibleMonth.getFullYear()}`;
+  const monthMatrix = useMemo(
+    () => getMonthMatrix(visibleMonth, effectiveTimeZone),
+    [visibleMonth, effectiveTimeZone]
+  );
+  const visibleMonthParts = useMemo(
+    () => getDatePartsInTimeZone(visibleMonth, effectiveTimeZone),
+    [visibleMonth, effectiveTimeZone]
+  );
+  const monthTitle = `${MONTH_LABELS[(visibleMonthParts?.month ?? visibleMonth.getMonth() + 1) - 1]} ${visibleMonthParts?.year ?? visibleMonth.getFullYear()}`;
 
   const handlePickDate = (date) => {
     const yyyy = date.getFullYear();
@@ -290,9 +413,14 @@ const CalendarManagementPage = () => {
                 <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
                   Calendar Management
                 </h1>
-                <p className="mt-1 text-xs text-slate-600 sm:text-base">
+              <p className="mt-1 text-xs text-slate-600 sm:text-base">
                   View calendars and booked appointments in a focused, full-page layout.
                 </p>
+                {effectiveTimeZone && (
+                  <p className="mt-1 text-[11px] font-medium text-slate-500 sm:text-xs">
+                    Display timezone: {effectiveTimeZone}
+                  </p>
+                )}
               </div>
               <Button
                 variant="outline"
@@ -308,32 +436,38 @@ const CalendarManagementPage = () => {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:mt-6 md:gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Location
-              </label>
-              <select
-                value={selectedLocationId}
-                onChange={(e) => setSelectedLocationId(e.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-transparent focus:ring-2 sm:h-11 sm:rounded-xl"
-                style={{ "--tw-ring-color": `${brandColor}33` }}
-              >
-                {isLoadingLocations ? (
-                  <option value="">Loading locations...</option>
-                ) : locations.length === 0 ? (
-                  <option value={effectiveLocationId || ""}>
-                    {effectiveLocationId || "No locations found"}
-                  </option>
-                ) : (
-                  locations.map((location) => (
-                    <option key={location._id} value={location.locationId}>
-                      {location.name || "Unnamed Location"} ({location.locationId})
+          <div
+            className={`mt-4 grid gap-3 md:mt-6 md:gap-4 ${
+              canSelectLocation ? "md:grid-cols-2" : "md:grid-cols-1"
+            }`}
+          >
+            {canSelectLocation && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Location
+                </label>
+                <select
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-transparent focus:ring-2 sm:h-11 sm:rounded-xl"
+                  style={{ "--tw-ring-color": `${brandColor}33` }}
+                >
+                  {isLoadingLocations ? (
+                    <option value="">Loading locations...</option>
+                  ) : locations.length === 0 ? (
+                    <option value={effectiveLocationId || ""}>
+                      {effectiveLocationId || "No locations found"}
                     </option>
-                  ))
-                )}
-              </select>
-            </div>
+                  ) : (
+                    locations.map((location) => (
+                      <option key={location._id} value={location.locationId}>
+                        {location.name || "Unnamed Location"} ({location.locationId})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -441,10 +575,15 @@ const CalendarManagementPage = () => {
                       />
                     ))
                   : monthMatrix.flat().map((dateCell) => {
+                  const cellParts = getDatePartsInTimeZone(dateCell, effectiveTimeZone);
                   const inCurrentMonth =
-                    dateCell.getMonth() === visibleMonth.getMonth() &&
-                    dateCell.getFullYear() === visibleMonth.getFullYear();
-                  const selected = isSameDay(dateCell, selectedDateObject);
+                    cellParts?.month === visibleMonthParts?.month &&
+                    cellParts?.year === visibleMonthParts?.year;
+                  const selected = isSameDay(
+                    dateCell,
+                    selectedDateObject,
+                    effectiveTimeZone
+                  );
 
                     return (
                       <button
@@ -517,12 +656,19 @@ const CalendarManagementPage = () => {
                         <p className="mt-1 text-xs text-slate-700 sm:text-sm">
                           {formatAppointmentWindow(
                             appointment.startTime,
-                            appointment.endTime
+                            appointment.endTime,
+                            effectiveTimeZone,
+                            appointment.startTimeRaw,
+                            appointment.endTimeRaw
                           )}
                         </p>
                         {appointment.startTime && (
                           <p className="mt-1 text-[11px] text-slate-500 sm:text-xs">
-                            {formatDateOnly(appointment.startTime)}
+                            {formatAppointmentDate(
+                              appointment.startTime,
+                              effectiveTimeZone,
+                              appointment.startTimeRaw
+                            )}
                           </p>
                         )}
                         <div className="mt-2">

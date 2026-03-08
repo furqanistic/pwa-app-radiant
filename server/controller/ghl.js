@@ -539,6 +539,7 @@ export const fetchLocationCalendarEventsByDate = async (
         rawCount: rawEvents.length,
         total: normalizedEvents.length,
         source: attempt.source,
+        effectiveTimeZone: timeZone || normalizedEvents[0]?.timeZone || '',
       }
     }
 
@@ -549,6 +550,7 @@ export const fetchLocationCalendarEventsByDate = async (
       source: 'ghl-v2',
       unavailable: true,
       reason: 'No events returned from tested v2 calendar endpoints',
+      effectiveTimeZone: timeZone || '',
     }
   } catch (error) {
     if (!isUnauthorizedGhlError(error)) {
@@ -596,6 +598,7 @@ export const fetchLocationCalendarEventsByDate = async (
     rawCount: rawAppointments.length,
     total: normalizedEvents.length,
     source: 'ghl-v1',
+    effectiveTimeZone: timeZone || normalizedEvents[0]?.timeZone || '',
   }
 }
 

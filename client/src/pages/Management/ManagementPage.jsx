@@ -263,7 +263,7 @@ const ManagementPage = () => {
           },
         ]
       : []),
-    ...(isTeamOrAbove
+    ...(["admin", "spa"].includes(currentUser?.role)
       ? [
           {
             key: "manage-calendar",
