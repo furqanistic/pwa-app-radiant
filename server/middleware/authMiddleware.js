@@ -3,6 +3,14 @@ import jwt from 'jsonwebtoken'
 import { createError } from '../error.js'
 import User from '../models/User.js'
 
+const isJwtValidationError = (error) => {
+  return (
+    error?.name === 'JsonWebTokenError' ||
+    error?.name === 'TokenExpiredError' ||
+    error?.name === 'NotBeforeError'
+  )
+}
+
 // Verify JWT token and attach user to request
 export const verifyToken = async (req, res, next) => {
   try {
@@ -33,7 +41,17 @@ export const verifyToken = async (req, res, next) => {
     next()
   } catch (error) {
     console.error('Token verification error:', error)
-    return next(createError(401, 'Invalid or expired token'))
+
+    if (isJwtValidationError(error)) {
+      return next(createError(401, 'Invalid or expired token'))
+    }
+
+    return next(
+      createError(
+        503,
+        'Authentication service temporarily unavailable. Please try again.'
+      )
+    )
   }
 }
 
