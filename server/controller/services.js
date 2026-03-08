@@ -522,6 +522,7 @@ export const createService = async (req, res, next) => {
       defaultRewardValue = 10,
       defaultRewardPoints = 100,
       membershipPricing = [],
+      ghlCalendar = {},
     } = req.body
 
     // Validate required fields
@@ -574,6 +575,13 @@ export const createService = async (req, res, next) => {
       limit: parseInt(limit),
       subTreatments,
       membershipPricing: normalizeMembershipPricing(membershipPricing),
+      ghlCalendar: {
+        calendarId: `${ghlCalendar.calendarId || ''}`.trim(),
+        name: `${ghlCalendar.name || ''}`.trim(),
+        timeZone: `${ghlCalendar.timeZone || ''}`.trim(),
+        userId: `${ghlCalendar.userId || ''}`.trim(),
+        teamId: `${ghlCalendar.teamId || ''}`.trim(),
+      },
       createdBy: req.user.id,
       // ✅ NEW: Initialize reward fields
       rewardCount: 0,
@@ -728,6 +736,15 @@ export const updateService = async (req, res, next) => {
       updateData.membershipPricing = normalizeMembershipPricing(
         updateData.membershipPricing
       )
+    }
+    if (updateData.ghlCalendar !== undefined) {
+      updateData.ghlCalendar = {
+        calendarId: `${updateData.ghlCalendar?.calendarId || ''}`.trim(),
+        name: `${updateData.ghlCalendar?.name || ''}`.trim(),
+        timeZone: `${updateData.ghlCalendar?.timeZone || ''}`.trim(),
+        userId: `${updateData.ghlCalendar?.userId || ''}`.trim(),
+        teamId: `${updateData.ghlCalendar?.teamId || ''}`.trim(),
+      }
     }
 
     // Handle discount data safely

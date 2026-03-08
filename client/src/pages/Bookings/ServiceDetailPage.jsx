@@ -109,6 +109,7 @@ const ServiceDetailPage = () => {
   const externalSourceUnavailable = Boolean(
     availabilityMeta.externalSourceUnavailable
   );
+  const ghlCalendarName = availabilityMeta?.ghlCalendar?.name || "";
 
   // ✅ GET CART TIMES FOR THIS SERVICE ON THIS DATE
   const getCartTimesForService = () => {
@@ -129,6 +130,16 @@ const ServiceDetailPage = () => {
   };
 
   const availableTimes = getFinalAvailableTimes();
+
+  useEffect(() => {
+    if (!selectedTime) return;
+    if (loadingAvailability) return;
+
+    if (!availableTimes.includes(selectedTime)) {
+      setSelectedTime("");
+      toastError("That slot was just taken. Please pick another time.");
+    }
+  }, [selectedTime, availableTimes, loadingAvailability]);
 
   // Auto-select ALL treatments by default
   useEffect(() => {
@@ -707,8 +718,10 @@ const ServiceDetailPage = () => {
                            {selectedDate && !loadingAvailability && (
                              <span className="text-xs text-gray-500">
                                {externalSourceUnavailable
-                                 ? "GHL sync unavailable (fallback)"
-                                 : `GHL conflicts: ${externalBookingsCount}`}
+                                 ? "GHL unavailable"
+                                 : ghlCalendarName
+                                 ? `${ghlCalendarName}: ${externalBookingsCount} booked`
+                                 : `GHL booked: ${externalBookingsCount}`}
                              </span>
                            )}
                            {loadingAvailability && <span className="text-xs text-[color:var(--brand-primary)] animate-pulse">Checking availability...</span>}

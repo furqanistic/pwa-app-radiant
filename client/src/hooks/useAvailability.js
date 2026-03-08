@@ -12,7 +12,13 @@ export const useAvailability = (locationId, date, serviceId) => {
       return response.data.data;
     },
     enabled: !!locationId && !!date && !!serviceId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0,
+    gcTime: 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval:
+      locationId && date && serviceId ? 30 * 1000 : false,
   });
 };
 

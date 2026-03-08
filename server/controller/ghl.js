@@ -179,16 +179,35 @@ const getTzOffsetMs = (date, timeZone) => {
   return asUtc - date.getTime()
 }
 
-const zonedDateTimeToUtc = (dateString, timeZone, endOfDay = false) => {
-  const [year, month, day] = `${dateString}`.split('-').map(Number)
+const isOffsetTimeZone = (timeZone = '') => /^[+-]\d{2}:\d{2}$/.test(`${timeZone}`)
+
+export const zonedDateTimeToUtc = (dateString, timeZone, endOfDay = false) => {
+  const [datePart, timePart = ''] = `${dateString}`.split('T')
+  const [year, month, day] = `${datePart}`.split('-').map(Number)
   if (!year || !month || !day) {
     throw new Error('Invalid date format. Expected YYYY-MM-DD')
   }
 
-  const hh = endOfDay ? 23 : 0
-  const mm = endOfDay ? 59 : 0
-  const ss = endOfDay ? 59 : 0
+  let hh = endOfDay ? 23 : 0
+  let mm = endOfDay ? 59 : 0
+  let ss = endOfDay ? 59 : 0
   const ms = endOfDay ? 999 : 0
+
+  if (timePart && !endOfDay) {
+    const [hourText = '0', minuteText = '0', secondText = '0'] = timePart.split(':')
+    hh = Number(hourText)
+    mm = Number(minuteText)
+    ss = Number(secondText)
+  }
+
+  if (isOffsetTimeZone(timeZone)) {
+    const sign = timeZone.startsWith('-') ? -1 : 1
+    const [offsetHours, offsetMinutes] = timeZone.slice(1).split(':').map(Number)
+    const offsetTotalMinutes = sign * (offsetHours * 60 + offsetMinutes)
+    return new Date(
+      Date.UTC(year, month - 1, day, hh, mm, ss, ms) - offsetTotalMinutes * 60000
+    )
+  }
 
   // Initial UTC guess for the desired wall-clock time in target timezone.
   let utcDate = new Date(Date.UTC(year, month - 1, day, hh, mm, ss, ms))
@@ -198,6 +217,15 @@ const zonedDateTimeToUtc = (dateString, timeZone, endOfDay = false) => {
   // One extra pass handles DST transitions correctly.
   offset = getTzOffsetMs(utcDate, timeZone)
   return new Date(Date.UTC(year, month - 1, day, hh, mm, ss, ms) - offset)
+}
+
+const parseDateOnly = (dateString) => {
+  const [year, month, day] = `${dateString}`.split('-').map(Number)
+  if (!year || !month || !day) {
+    throw new Error('Invalid date format. Expected YYYY-MM-DD')
+  }
+
+  return new Date(year, month - 1, day)
 }
 
 const getDateKeyInTimeZone = (value, timeZone) => {
@@ -230,12 +258,8 @@ const getStartAndEndISOForDate = (dateString, timeZone = '') => {
     }
   }
 
-  const start = new Date(dateString)
-  const end = new Date(dateString)
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    throw new Error('Invalid date format. Expected YYYY-MM-DD')
-  }
+  const start = parseDateOnly(dateString)
+  const end = parseDateOnly(dateString)
 
   start.setHours(0, 0, 0, 0)
   end.setHours(23, 59, 59, 999)
@@ -302,6 +326,21 @@ const normalizeCalendarsPayload = (payload) => {
   )
 }
 
+const normalizeCalendarEntity = (calendar) => ({
+  ...calendar,
+  id: calendar?.id || calendar?._id || '',
+  name: calendar?.name || calendar?.title || '',
+  timeZone:
+    calendar?.timeZone ||
+    calendar?.timezone ||
+    calendar?.calendarTimeZone ||
+    calendar?.settings?.timeZone ||
+    calendar?.settings?.timezone ||
+    '',
+  userId: calendar?.userId || calendar?.assignedUserId || '',
+  teamId: calendar?.teamId || '',
+})
+
 const matchesCalendar = (eventCalendarId, selectedCalendarId) => {
   if (!selectedCalendarId) return true
   return `${eventCalendarId || ''}` === `${selectedCalendarId}`
@@ -317,8 +356,8 @@ const getDatePrefix = (value) => {
 
 const matchesRequestedDate = (event, requestedDate, requestedTimeZone = '') => {
   const rawDatePrefix = getDatePrefix(event?.startTimeRaw)
-  if (rawDatePrefix && !hasExplicitOffsetOrZulu(event?.startTimeRaw)) {
-    // If API returns wall-clock datetime without timezone, trust its date component.
+  if (rawDatePrefix) {
+    // Trust the original calendar date whenever the payload includes one.
     return rawDatePrefix === requestedDate
   }
 
@@ -345,6 +384,67 @@ const extractRawEventsPayload = (payload) => {
   }
   return []
 }
+
+const splitFullName = (fullName = '') => {
+  const normalized = `${fullName || ''}`.trim()
+  if (!normalized) {
+    return { firstName: 'Guest', lastName: '' }
+  }
+
+  const parts = normalized.split(/\s+/)
+  return {
+    firstName: parts.shift() || 'Guest',
+    lastName: parts.join(' '),
+  }
+}
+
+const parseBookingDateTime = (dateInput, timeString, duration = 60) => {
+  const date = new Date(dateInput)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid booking date')
+  }
+
+  const [rawTime = '', rawPeriod = ''] = `${timeString || ''}`.trim().split(' ')
+  const [hourText = '0', minuteText = '0'] = rawTime.split(':')
+  let hour = Number.parseInt(hourText, 10)
+  const minute = Number.parseInt(minuteText, 10)
+  const period = rawPeriod.toUpperCase()
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    throw new Error('Invalid booking time')
+  }
+
+  if (period === 'PM' && hour !== 12) hour += 12
+  if (period === 'AM' && hour === 12) hour = 0
+
+  date.setHours(hour, minute, 0, 0)
+
+  return {
+    start: date,
+    end: new Date(date.getTime() + (Number.parseInt(duration, 10) || 60) * 60000),
+  }
+}
+
+const extractContactId = (payload) =>
+  payload?.contact?.id ||
+  payload?.contact?._id ||
+  payload?.contact?.contactId ||
+  payload?.contacts?.[0]?.id ||
+  payload?.contacts?.[0]?._id ||
+  payload?.data?.contact?.id ||
+  payload?.data?.contact?._id ||
+  payload?.id ||
+  payload?._id ||
+  ''
+
+const extractAppointmentId = (payload) =>
+  payload?.appointment?.id ||
+  payload?.appointment?._id ||
+  payload?.event?.id ||
+  payload?.event?._id ||
+  payload?.id ||
+  payload?._id ||
+  ''
 
 export const fetchLocationCalendarEventsByDate = async (
   locationId,
@@ -497,6 +597,216 @@ export const fetchLocationCalendarEventsByDate = async (
     total: normalizedEvents.length,
     source: 'ghl-v1',
   }
+}
+
+export const resolveCalendarDetailsForLocation = async (locationId, calendarId) => {
+  if (!locationId || !calendarId) return null
+
+  const token = await getTokenForLocation(locationId)
+  if (!token) return null
+
+  let calendars = []
+
+  try {
+    const v2Response = await makeGHLV2Request('/calendars/', {
+      token,
+      params: { locationId },
+    })
+    calendars = normalizeCalendarsPayload(v2Response)
+  } catch (v2Error) {
+    try {
+      const v2AltResponse = await makeGHLV2Request('/calendars', {
+        token,
+        params: { locationId },
+      })
+      calendars = normalizeCalendarsPayload(v2AltResponse)
+    } catch (v2AltError) {
+      const v1Response = await makeGHLRequest('/calendars/', 'GET', null, token)
+      calendars = normalizeCalendarsPayload(v1Response)
+    }
+  }
+
+  const match = calendars
+    .map(normalizeCalendarEntity)
+    .find((calendar) => `${calendar.id || ''}` === `${calendarId}`)
+
+  return match || null
+}
+
+export const ensureGhlContactForLocation = async (
+  locationId,
+  {
+    email = '',
+    phone = '',
+    name = '',
+  } = {}
+) => {
+  const token = await getTokenForLocation(locationId)
+  if (!token) {
+    throw new Error(`No GHL API key configured for location ${locationId}`)
+  }
+
+  if (!email && !phone && !name) {
+    throw new Error('Customer identity is required to sync a GHL contact')
+  }
+
+  let existing = null
+
+  if (email || phone) {
+    const query = new URLSearchParams()
+    if (email) query.set('email', email)
+    if (phone) query.set('phone', phone)
+
+    try {
+      const lookupResponse = await makeGHLRequest(
+        `/contacts/lookup?${query.toString()}`,
+        'GET',
+        null,
+        token
+      )
+      const contactId = extractContactId(lookupResponse)
+      if (contactId) {
+        return { token, contactId, created: false }
+      }
+      existing = lookupResponse
+    } catch (error) {
+      console.warn(
+        `GHL contact lookup failed for ${locationId}:`,
+        error.response?.data || error.message
+      )
+    }
+  }
+
+  const { firstName, lastName } = splitFullName(name)
+  const createPayload = {
+    firstName,
+    lastName,
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+  }
+
+  const createResponse = await makeGHLRequest(
+    '/contacts/',
+    'POST',
+    createPayload,
+    token
+  )
+
+  const createdContactId = extractContactId(createResponse || existing)
+  if (!createdContactId) {
+    throw new Error('Failed to resolve GHL contact ID after contact creation')
+  }
+
+  return {
+    token,
+    contactId: createdContactId,
+    created: true,
+  }
+}
+
+export const createGhlAppointmentForBooking = async ({
+  booking,
+  service,
+  customer,
+}) => {
+  const calendarId = `${booking?.ghl?.calendarId || service?.ghlCalendar?.calendarId || ''}`.trim()
+  if (!calendarId) {
+    return { skipped: true, reason: 'No GHL calendar linked to service' }
+  }
+
+  const locationId = booking?.locationId || service?.locationId
+  if (!locationId) {
+    throw new Error('Booking location is required for GHL sync')
+  }
+
+  const { token, contactId } = await ensureGhlContactForLocation(locationId, {
+    email: customer?.email || '',
+    phone: customer?.phone || '',
+    name: customer?.name || booking?.clientName || 'Guest',
+  })
+
+  const window = parseBookingDateTime(booking.date, booking.time, booking.duration)
+  const timeZone =
+    `${booking?.ghl?.timeZone || service?.ghlCalendar?.timeZone || ''}`.trim() ||
+    'UTC'
+  const assignedUserId =
+    `${booking?.ghl?.userId || service?.ghlCalendar?.userId || ''}`.trim()
+  const teamId = `${booking?.ghl?.teamId || service?.ghlCalendar?.teamId || ''}`.trim()
+
+  const basePayload = {
+    locationId,
+    calendarId,
+    contactId,
+    startTime: window.start.toISOString(),
+    endTime: window.end.toISOString(),
+    title: booking.serviceName || service?.name || 'Appointment',
+    appointmentTitle: booking.serviceName || service?.name || 'Appointment',
+    appointmentStatus: 'confirmed',
+    notes: booking.notes || '',
+    timeZone,
+    source: 'pwa-radiant',
+    ...(assignedUserId ? { assignedUserId } : {}),
+    ...(teamId ? { teamId } : {}),
+  }
+
+  const attempts = [
+    {
+      endpoint: '/calendars/events/appointments',
+      method: 'POST',
+      transport: 'v2',
+      data: basePayload,
+    },
+    {
+      endpoint: '/appointments/',
+      method: 'POST',
+      transport: 'v1',
+        data: {
+          locationId,
+          calendarId,
+          contactId,
+          title: basePayload.title,
+          startTime: basePayload.startTime,
+          endTime: basePayload.endTime,
+          appointmentStatus: 'confirmed',
+          notes: basePayload.notes,
+          ...(assignedUserId ? { assignedUserId } : {}),
+          ...(teamId ? { teamId } : {}),
+          address: '',
+          ignoreDateRange: true,
+          toNotify: false,
+      },
+    },
+  ]
+
+  let lastError = null
+
+  for (const attempt of attempts) {
+    try {
+      const response =
+        attempt.transport === 'v2'
+          ? await makeGHLV2Request(attempt.endpoint, {
+              method: attempt.method,
+              token,
+              data: attempt.data,
+            })
+          : await makeGHLRequest(
+              attempt.endpoint,
+              attempt.method,
+              attempt.data,
+              token
+            )
+
+      return {
+        skipped: false,
+        appointmentId: extractAppointmentId(response),
+        response,
+      }
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError || new Error('Failed to create GHL appointment')
 }
 
 // Test API connection

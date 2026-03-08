@@ -7,6 +7,10 @@ import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { awardPoints } from '../utils/rewardHelpers.js'
+import {
+  assertSlotAvailable,
+  getServiceCalendarSelection,
+} from '../utils/bookingScheduling.js'
 
 // Get user's upcoming appointments
 export const getUserUpcomingAppointments = async (req, res, next) => {
@@ -176,6 +180,25 @@ export const createBooking = async (req, res, next) => {
       return next(createError(404, 'Service not found'))
     }
 
+    const effectiveLocationId =
+      req.body.locationId ||
+      req.user.selectedLocation?.locationId ||
+      service.locationId
+
+    if (!effectiveLocationId) {
+      return next(createError(400, 'Location is required for this booking'))
+    }
+
+    const effectiveDuration = Number.parseInt(req.body.duration, 10) || service.duration
+
+    await assertSlotAvailable({
+      locationId: effectiveLocationId,
+      date,
+      time,
+      duration: effectiveDuration,
+      service,
+    })
+
     // Calculate pricing
     let finalPrice = service.calculatePrice()
     let discountApplied = 0
@@ -206,6 +229,8 @@ export const createBooking = async (req, res, next) => {
       }
     }
 
+    const ghlCalendar = getServiceCalendarSelection(service)
+
     const booking = await Booking.create({
       userId,
       serviceId,
@@ -216,12 +241,17 @@ export const createBooking = async (req, res, next) => {
       rewardUsed,
       date: new Date(date),
       time,
-      duration: service.duration,
+      duration: effectiveDuration,
       providerId,
       providerName: providerName || 'Staff Member',
-      locationId: req.user.selectedLocation?.locationId || service.locationId,
+      locationId: effectiveLocationId,
       notes,
       status: 'scheduled',
+      ghl: {
+        calendarId: ghlCalendar.calendarId,
+        calendarName: ghlCalendar.name,
+        timeZone: ghlCalendar.timeZone,
+      },
     })
 
     res.status(201).json({

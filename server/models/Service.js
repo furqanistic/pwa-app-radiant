@@ -113,6 +113,37 @@ const MembershipPricingSchema = new mongoose.Schema(
   { _id: true }
 )
 
+const GhlCalendarSchema = new mongoose.Schema(
+  {
+    calendarId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    name: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    timeZone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    userId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    teamId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+  },
+  { _id: false }
+)
+
 const ServiceSchema = new mongoose.Schema(
   {
     name: {
@@ -189,6 +220,12 @@ const ServiceSchema = new mongoose.Schema(
 
     // Per-membership-plan service pricing
     membershipPricing: [MembershipPricingSchema],
+
+    // Service-specific GHL calendar routing
+    ghlCalendar: {
+      type: GhlCalendarSchema,
+      default: () => ({}),
+    },
 
     // Analytics fields
     bookings: {

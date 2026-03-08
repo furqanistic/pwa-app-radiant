@@ -6,7 +6,12 @@ import Location from '../models/Location.js'
 import Payment from '../models/Payment.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
+import { createGhlAppointmentForBooking } from './ghl.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
+import {
+  assertSlotAvailable,
+  getServiceCalendarSelection,
+} from '../utils/bookingScheduling.js'
 
 const DEFAULT_MEMBERSHIP_PLAN = {
   name: 'Gold Glow Membership',
@@ -653,6 +658,17 @@ export const createCheckoutSession = async (req, res, next) => {
         const itemProportion = cartSubtotal > 0 ? item.price / cartSubtotal : 0
         const itemDiscount = totalCartDiscount * itemProportion
         const itemFinalPrice = Math.max(0, item.price - itemDiscount)
+        const itemDuration = Number.parseInt(item.duration, 10) || service.duration
+
+        await assertSlotAvailable({
+          locationId: item.locationId || cartLocationId,
+          date: item.date,
+          time: item.time,
+          duration: itemDuration,
+          service,
+        })
+
+        const ghlCalendar = getServiceCalendarSelection(service)
 
         const amount = Math.round(itemFinalPrice * 100) // Convert to cents
 
@@ -670,11 +686,16 @@ export const createCheckoutSession = async (req, res, next) => {
           pointsUsed: 0,
           date: new Date(item.date),
           time: item.time,
-          duration: item.duration,
+          duration: itemDuration,
           locationId: item.locationId || cartLocationId,
           notes: item.notes || '',
           status: 'scheduled',
           paymentStatus: 'pending',
+          ghl: {
+            calendarId: ghlCalendar.calendarId,
+            calendarName: ghlCalendar.name,
+            timeZone: ghlCalendar.timeZone,
+          },
         })
 
         bookings.push(booking)
@@ -715,7 +736,7 @@ export const createCheckoutSession = async (req, res, next) => {
           },
           metadata: {
             customerId: customerId.toString(),
-            spaOwnerId: spaOwner._id.toString(),
+            spaOwnerId: checkoutSpaOwner._id.toString(),
             bookingIds: bookings.map((b) => b._id.toString()).join(','),
             userRewardId: userRewardId || '',
             isCartCheckout: 'true',
@@ -768,6 +789,16 @@ export const createCheckoutSession = async (req, res, next) => {
     if (!service || service.status !== 'active' || service.isDeleted) {
       return next(createError(404, 'Service not found or inactive'))
     }
+
+    const effectiveDuration = Number.parseInt(duration, 10) || service.duration
+
+    await assertSlotAvailable({
+      locationId,
+      date,
+      time,
+      duration: effectiveDuration,
+      service,
+    })
 
     // Get spa owner (owner of the location)
     const spaOwner = await User.findOne({
@@ -840,6 +871,7 @@ export const createCheckoutSession = async (req, res, next) => {
     // Calculate final amount
     const finalPrice = Math.max(subtotal - discountAmount, 0)
     const amount = Math.round(finalPrice * 100) // Convert to cents
+    const ghlCalendar = getServiceCalendarSelection(service)
 
     // Create temporary booking record
     const booking = await Booking.create({
@@ -853,11 +885,16 @@ export const createCheckoutSession = async (req, res, next) => {
       pointsUsed: pointsUsed || 0,
       date: new Date(date),
       time,
-      duration: duration || service.duration,
+      duration: effectiveDuration,
       locationId,
       notes: notes || '',
       status: 'scheduled',
       paymentStatus: 'pending',
+      ghl: {
+        calendarId: ghlCalendar.calendarId,
+        calendarName: ghlCalendar.name,
+        timeZone: ghlCalendar.timeZone,
+      },
     })
 
     // Create Stripe Checkout Session
@@ -1343,6 +1380,53 @@ async function handleAccountUpdated(account) {
   }
 }
 
+async function syncBookingToGhl(booking, customerId) {
+  try {
+    if (!booking.ghl) booking.ghl = {}
+
+    const [service, customer] = await Promise.all([
+      Service.findById(booking.serviceId),
+      User.findById(customerId).select('name email'),
+    ])
+
+    if (!service || service.isDeleted) {
+      booking.ghl.syncError = 'Service not found for GHL sync'
+      await booking.save()
+      return
+    }
+
+    const result = await createGhlAppointmentForBooking({
+      booking,
+      service,
+      customer,
+    })
+
+    if (result.skipped) {
+      booking.ghl.syncError = result.reason || ''
+      await booking.save()
+      return
+    }
+
+    booking.ghl.appointmentId = result.appointmentId || ''
+    booking.ghl.appointmentStatus = 'confirmed'
+    booking.ghl.syncedAt = new Date()
+    booking.ghl.syncError = ''
+    await booking.save()
+  } catch (error) {
+    if (!booking.ghl) booking.ghl = {}
+    booking.ghl.syncError =
+      error.response?.data?.message ||
+      error.response?.data?.msg ||
+      error.message ||
+      'Failed to sync booking to GHL'
+    await booking.save()
+    console.error(
+      `Failed syncing booking ${booking._id} to GHL:`,
+      error.response?.data || error.message
+    )
+  }
+}
+
 async function handleCheckoutSessionCompleted(session) {
   const bookingId = session.metadata.bookingId
   const bookingIds = session.metadata.bookingIds
@@ -1425,6 +1509,7 @@ async function handleCheckoutSessionCompleted(session) {
       booking.paymentId = payment._id
       booking.pointsEarned = pointsEarned
       await booking.save()
+      await syncBookingToGhl(booking, customerId)
     }
 
     // Award points to customer and handle deductions
@@ -1511,6 +1596,7 @@ async function handleCheckoutSessionCompleted(session) {
   booking.paymentId = payment._id
   booking.pointsEarned = payment.pointsEarned
   await booking.save()
+  await syncBookingToGhl(booking, customerId)
 
   // Award points to customer
   const customer = await User.findById(customerId)

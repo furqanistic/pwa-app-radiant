@@ -1,40 +1,60 @@
 import { createError } from '../error.js'
-import Booking from '../models/Booking.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
-import { fetchLocationCalendarEventsByDate } from './ghl.js'
+import {
+  getConflictsForWindow,
+  getDailySchedulingContext,
+} from '../utils/bookingScheduling.js'
+import { zonedDateTimeToUtc } from './ghl.js'
 
 // Helper to calculate slots
-const generateSlots = (openTime, closeTime, duration, date) => {
+const formatMinutesAsTime = (totalMinutes) => {
+  const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60)
+  const hour24 = Math.floor(normalized / 60)
+  const minutes = normalized % 60
+  const suffix = hour24 >= 12 ? 'PM' : 'AM'
+  const hour12 = hour24 % 12 || 12
+  return `${hour12}:${String(minutes).padStart(2, '0')} ${suffix}`
+}
+
+const getSlotInstant = (dateString, totalMinutes, timeZone = '') => {
+  const hour = Math.floor(totalMinutes / 60)
+  const minute = totalMinutes % 60
+  const wallClock = `${dateString}T${String(hour).padStart(2, '0')}:${String(
+    minute
+  ).padStart(2, '0')}:00`
+
+  if (timeZone) {
+    return zonedDateTimeToUtc(wallClock, timeZone)
+  }
+
+  const date = parseDateOnly(dateString)
+  date.setHours(hour, minute, 0, 0)
+  return date
+}
+
+const generateSlots = (openTime, closeTime, duration, dateString, timeZone = '') => {
   const slots = []
   const [openHour, openMinute] = openTime.split(':').map(Number)
   const [closeHour, closeMinute] = closeTime.split(':').map(Number)
-
-  let current = new Date(date)
-  current.setHours(openHour, openMinute, 0, 0)
-
-  const end = new Date(date)
-  end.setHours(closeHour, closeMinute, 0, 0)
+  const openMinutes = openHour * 60 + openMinute
+  const closeMinutes = closeHour * 60 + closeMinute
+  let currentMinutes = openMinutes
 
   // Safety break to prevent infinite loops
   let safety = 0
   const MAX_SLOTS = 100
 
-  while (current < end && safety < MAX_SLOTS) {
-    const slotTime = current.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    })
+  while (currentMinutes < closeMinutes && safety < MAX_SLOTS) {
+    const slotStart = getSlotInstant(dateString, currentMinutes, timeZone)
+    const slotEnd = new Date(slotStart.getTime() + duration * 60000)
+    const closingTime = getSlotInstant(dateString, closeMinutes, timeZone)
 
-    // Calculate end time of this slot
-    const slotEnd = new Date(current.getTime() + duration * 60000)
-
-    if (slotEnd <= end) {
+    if (slotEnd <= closingTime) {
       slots.push({
-        time: slotTime, // "9:00 AM"
-        timestamp: new Date(current), // Date object for comparison
-        endTime: new Date(slotEnd),
+        time: formatMinutesAsTime(currentMinutes),
+        timestamp: slotStart,
+        endTime: slotEnd,
       })
     }
 
@@ -44,11 +64,20 @@ const generateSlots = (openTime, closeTime, duration, date) => {
     // Let's stick to 30 min intervals for start times, unless duration is smaller?
     // User request: "time is random shifts" -> implies they want structured slots.
     // Let's default to 15 or 30 minute start intervals. Let's do 30m for now.
-    current.setMinutes(current.getMinutes() + 30)
+    currentMinutes += 30
     safety++
   }
 
   return slots
+}
+
+const parseDateOnly = (dateString) => {
+  const [year, month, day] = `${dateString}`.split('-').map(Number)
+  if (!year || !month || !day) {
+    throw new Error('Invalid date format. Expected YYYY-MM-DD')
+  }
+
+  return new Date(year, month - 1, day)
 }
 
 export const getAvailability = async (req, res, next) => {
@@ -84,7 +113,7 @@ export const getAvailability = async (req, res, next) => {
       })
     }
 
-    const queryDate = new Date(date)
+    const queryDate = parseDateOnly(date)
     const days = [
       'Sunday',
       'Monday',
@@ -105,104 +134,53 @@ export const getAvailability = async (req, res, next) => {
     }
 
     // 3. Generate All Possible Slots
+    const schedulingContext = await getDailySchedulingContext({
+      locationId,
+      date,
+      service,
+    })
+
+    const effectiveTimeZone = schedulingContext.calendarSelection.timeZone || ''
+
     const potentialSlots = generateSlots(
       dayConfig.open,
       dayConfig.close,
       duration,
-      queryDate
+      date,
+      effectiveTimeZone
     )
 
-    const hours = { open: dayConfig.open, close: dayConfig.close }; // For response consistency
+    const hours = { open: dayConfig.open, close: dayConfig.close }
 
-
-    // 4. Fetch Existing Bookings
-    const startOfDay = new Date(date)
-    startOfDay.setHours(0, 0, 0, 0)
-    const endOfDay = new Date(date)
-    endOfDay.setHours(23, 59, 59, 999)
-
-    const existingBookings = await Booking.find({
-      locationId,
-      date: { $gte: startOfDay, $lte: endOfDay },
-      status: { $nin: ['cancelled', 'refused'] }, // Check status enum
-    }).select('date time duration')
-
-    // 5. Fetch GHL bookings for this location/date (optional fallback-safe integration)
-    let externalEvents = []
-    let externalSourceUnavailable = false
-    if (process.env.GHL_LOCATION_API) {
-      try {
-        const ghlData = await fetchLocationCalendarEventsByDate(locationId, date)
-        externalEvents = ghlData.events || []
-      } catch (ghlError) {
-        externalSourceUnavailable = true
-        console.warn(
-          `GHL availability fallback for location ${locationId}:`,
-          ghlError.response?.data || ghlError.message
-        )
-      }
-    }
-
-    // 6. Filter Conflicts
+    // 4. Filter conflicts
     const availableSlots = potentialSlots
       .filter((slot) => {
-        const slotStart = slot.timestamp
-        const slotEnd = slot.endTime
-
-        // Check against every existing booking
-        const hasConflict = existingBookings.some((booking) => {
-          // Parse booking time
-          // Booking stores "time" string "10:00 AM" and "date" Date object
-          // We need to reconstruct the full date range for the booking
-          const bookingStart = new Date(booking.date)
-          // The booking.date might be 00:00:00Z + time string?
-          // Looking at model: date is Date, time is String.
-          // Usually booking.date is accurate for the day.
-          const [bTime, bPeriod] = booking.time.split(' ')
-          const [bHourStr, bMinStr] = bTime.split(':')
-          let bHour = parseInt(bHourStr)
-          if (bPeriod === 'PM' && bHour !== 12) bHour += 12
-          if (bPeriod === 'AM' && bHour === 12) bHour = 0
-          
-          bookingStart.setHours(bHour, parseInt(bMinStr), 0, 0)
-          
-          const bookingEnd = new Date(
-            bookingStart.getTime() + booking.duration * 60000
-          )
-
-          // Conflict Logic:
-          // New Slot Start < Existing Booking End AND New Slot End > Existing Booking Start
-          return slotStart < bookingEnd && slotEnd > bookingStart
+        const conflicts = getConflictsForWindow({
+          windowStart: slot.timestamp,
+          windowEnd: slot.endTime,
+          context: schedulingContext,
         })
 
-        const hasExternalConflict = externalEvents.some((event) => {
-          const externalStart = new Date(event.startTime)
-          const externalEnd = new Date(event.endTime)
-
-          if (
-            Number.isNaN(externalStart.getTime()) ||
-            Number.isNaN(externalEnd.getTime())
-          ) {
-            return false
-          }
-
-          return slotStart < externalEnd && slotEnd > externalStart
-        })
-
-        return !hasConflict && !hasExternalConflict
+        return (
+          conflicts.localConflicts.length === 0 &&
+          conflicts.externalConflicts.length === 0
+        )
       })
       .map((s) => s.time)
 
     res.status(200).json({
       status: 'success',
       data: {
+        requestedDate: date,
         slots: availableSlots,
         day: dayName,
         hours: { open: hours.open, close: hours.close },
         metadata: {
-          localBookingsCount: existingBookings.length,
-          externalBookingsCount: externalEvents.length,
-          externalSourceUnavailable,
+          localBookingsCount: schedulingContext.localBookings.length,
+          externalBookingsCount: schedulingContext.externalEvents.length,
+          externalSourceUnavailable: schedulingContext.externalSourceUnavailable,
+          ghlCalendar: schedulingContext.calendarSelection,
+          effectiveTimeZone,
         },
       },
     })

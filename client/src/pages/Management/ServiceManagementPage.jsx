@@ -10,6 +10,7 @@ import {
     useUpdateCategory,
     useUpdateService,
 } from '@/hooks/useServices'
+import ghlService from '@/services/ghlService'
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
 import { uploadService } from '@/services/uploadService'
@@ -819,6 +820,13 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     subTreatments: service?.subTreatments || [],
     linkedServices: service?.linkedServices || [],
     membershipPricing: service?.membershipPricing || [],
+    ghlCalendar: service?.ghlCalendar || {
+      calendarId: '',
+      name: '',
+      timeZone: '',
+      userId: '',
+      teamId: '',
+    },
   })
 
   const [isUploadingImage, setIsUploadingImage] = useState(false)
@@ -833,6 +841,15 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     queryKey: ['my-location', 'service-management-form'],
     queryFn: () => locationService.getMyLocation(),
   })
+  const effectiveLocationId =
+    service?.locationId || locationData?.data?.location?.locationId || ''
+  const { data: calendarsData, isLoading: calendarsLoading } = useQuery({
+    queryKey: ['ghl-calendars', 'service-management-form', effectiveLocationId],
+    queryFn: () => ghlService.getCalendars(effectiveLocationId),
+    enabled: !!effectiveLocationId,
+    retry: false,
+  })
+  const calendars = calendarsData?.data?.calendars || []
 
   const locationMembership =
     branding?.membership || locationData?.data?.location?.membership
@@ -925,6 +942,13 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               isActive: entry.isActive !== false,
             }))
           : [],
+        ghlCalendar: {
+          calendarId: service.ghlCalendar?.calendarId || '',
+          name: service.ghlCalendar?.name || '',
+          timeZone: service.ghlCalendar?.timeZone || '',
+          userId: service.ghlCalendar?.userId || '',
+          teamId: service.ghlCalendar?.teamId || '',
+        },
       })
 
       console.log(
@@ -949,6 +973,47 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+  }
+
+  const selectedCalendarDetails =
+    calendars.find(
+      (calendar) =>
+        (calendar.id || calendar._id) === formData.ghlCalendar?.calendarId
+    ) || null
+
+  const handleCalendarChange = (calendarId) => {
+    const selectedCalendar =
+      calendars.find((calendar) => (calendar.id || calendar._id) === calendarId) ||
+      null
+
+    if (!selectedCalendar) {
+      setFormData({
+        ...formData,
+        ghlCalendar: {
+          calendarId: '',
+          name: '',
+          timeZone: '',
+          userId: '',
+          teamId: '',
+        },
+      })
+      return
+    }
+
+    setFormData({
+      ...formData,
+      ghlCalendar: {
+        calendarId: selectedCalendar.id || selectedCalendar._id || '',
+        name: selectedCalendar.name || selectedCalendar.title || '',
+        timeZone:
+          selectedCalendar.timeZone ||
+          selectedCalendar.timezone ||
+          selectedCalendar.calendarTimeZone ||
+          '',
+        userId: selectedCalendar.userId || '',
+        teamId: selectedCalendar.teamId || '',
+      },
+    })
   }
 
   // Fixed handleSelectServices function
@@ -1064,6 +1129,14 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               Number.isFinite(entry.price) &&
               entry.price >= 0
           )
+      }
+
+      submissionData.ghlCalendar = {
+        calendarId: submissionData.ghlCalendar?.calendarId || '',
+        name: submissionData.ghlCalendar?.name || '',
+        timeZone: submissionData.ghlCalendar?.timeZone || '',
+        userId: submissionData.ghlCalendar?.userId || '',
+        teamId: submissionData.ghlCalendar?.teamId || '',
       }
 
       console.log('🔄 Submitting service data:', submissionData)
@@ -1344,6 +1417,50 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               <p className='text-[10px] text-gray-500 mt-1'>Default time slot reserved for this service.</p>
               {errors.duration && (
                 <p className='text-red-500 text-xs mt-1'>{errors.duration}</p>
+              )}
+            </div>
+
+            <div>
+              <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                GHL Calendar
+              </label>
+              <select
+                value={formData.ghlCalendar?.calendarId || ''}
+                onChange={(e) => handleCalendarChange(e.target.value)}
+                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                disabled={isSubmitting || !effectiveLocationId || calendarsLoading}
+              >
+                <option value=''>
+                  {calendarsLoading
+                    ? 'Loading calendars...'
+                    : 'No calendar linked'}
+                </option>
+                {calendars.map((calendar) => (
+                  <option
+                    key={calendar.id || calendar._id}
+                    value={calendar.id || calendar._id}
+                  >
+                    {calendar.name || calendar.title || 'Untitled Calendar'}
+                  </option>
+                ))}
+              </select>
+              <p className='text-[10px] text-gray-500 mt-1'>
+                Bookings for this service will sync to the selected GHL calendar and its occupied times will be blocked in-app.
+              </p>
+              {formData.ghlCalendar?.calendarId && !selectedCalendarDetails && (
+                <p className='text-[10px] text-amber-600 mt-1'>
+                  This service is linked to a legacy calendar that was not returned by GHL. Re-save it after picking the correct live calendar if needed.
+                </p>
+              )}
+              {(selectedCalendarDetails || formData.ghlCalendar?.timeZone) && (
+                <p className='text-[10px] text-gray-500 mt-1'>
+                  Time zone:{' '}
+                  {selectedCalendarDetails?.timeZone ||
+                    selectedCalendarDetails?.timezone ||
+                    selectedCalendarDetails?.calendarTimeZone ||
+                    formData.ghlCalendar?.timeZone ||
+                    'Not provided'}
+                </p>
               )}
             </div>
 

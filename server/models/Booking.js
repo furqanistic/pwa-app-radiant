@@ -118,6 +118,42 @@ const BookingSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    ghl: {
+      calendarId: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      calendarName: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      timeZone: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      appointmentId: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      appointmentStatus: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      syncedAt: {
+        type: Date,
+        default: null,
+      },
+      syncError: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+    },
   },
   {
     timestamps: true,

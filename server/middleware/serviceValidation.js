@@ -17,6 +17,7 @@ export const validateServiceData = async (req, res, next) => {
       subTreatments,
       linkedServices, // NEW: Added linkedServices validation
       membershipPricing,
+      ghlCalendar,
     } = req.body
 
     const errors = []
@@ -249,6 +250,26 @@ export const validateServiceData = async (req, res, next) => {
       })
     }
 
+    if (ghlCalendar && typeof ghlCalendar === 'object') {
+      if (
+        ghlCalendar.calendarId !== undefined &&
+        typeof ghlCalendar.calendarId !== 'string'
+      ) {
+        errors.push('GHL calendar ID must be a string')
+      }
+
+      if (ghlCalendar.name !== undefined && typeof ghlCalendar.name !== 'string') {
+        errors.push('GHL calendar name must be a string')
+      }
+
+      if (
+        ghlCalendar.timeZone !== undefined &&
+        typeof ghlCalendar.timeZone !== 'string'
+      ) {
+        errors.push('GHL calendar time zone must be a string')
+      }
+    }
+
     // If there are validation errors, return them
     if (errors.length > 0) {
       return next(createError(400, `Validation failed: ${errors.join(', ')}`))
@@ -404,6 +425,16 @@ export const sanitizeServiceData = (req, res, next) => {
           }
         })
         .filter(Boolean) // Remove null entries
+    }
+
+    if (req.body.ghlCalendar && typeof req.body.ghlCalendar === 'object') {
+      req.body.ghlCalendar = {
+        calendarId: `${req.body.ghlCalendar.calendarId || ''}`.trim(),
+        name: `${req.body.ghlCalendar.name || ''}`.trim(),
+        timeZone: `${req.body.ghlCalendar.timeZone || ''}`.trim(),
+        userId: `${req.body.ghlCalendar.userId || ''}`.trim(),
+        teamId: `${req.body.ghlCalendar.teamId || ''}`.trim(),
+      }
     }
 
     next()
