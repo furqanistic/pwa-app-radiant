@@ -1,8 +1,6 @@
-// File: client/src/App.jsx - UPDATED SpaSelectionGuard with better UX
+// File: client/src/App.jsx
 import { Toaster } from '@/components/ui/sonner'
-import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
     BrowserRouter,
@@ -33,7 +31,6 @@ import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import ServicesDatabasePage from './pages/Management/ServicesDatabasePage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
 import MembershipPage from './pages/Membership/MembershipPage'
-import WelcomePage from './pages/Other/WelcomePage'
 import ClientProfile from './pages/Profile/ClientProfile'
 import ProfilePage from './pages/Profile/ProfilePage'
 import ClaimRewardPage from './pages/QRCode/ClaimRewardPage'
@@ -43,7 +40,7 @@ import RewardManagement from './pages/Rewards/RewardManagement'
 import RewardsCatalogPage from './pages/Rewards/RewardsCatalogPage'
 import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
-import { loginFailure, loginSuccess, logout, updateProfile } from './redux/userSlice'
+import { loginFailure, loginSuccess, logout } from './redux/userSlice'
 import { authService } from './services/authService'
 
 // Scroll to top whenever the route changes
@@ -57,148 +54,8 @@ const ScrollToTop = () => {
   return null
 }
 
-const adjustHex = (hex, amount) => {
-  const sanitized = hex.replace('#', '')
-  const num = parseInt(sanitized, 16)
-  const clamp = (value) => Math.max(0, Math.min(255, value))
-  const r = clamp((num >> 16) + amount)
-  const g = clamp(((num >> 8) & 0x00ff) + amount)
-  const b = clamp((num & 0x0000ff) + amount)
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
-}
-
-// IMPROVED SpaSelectionGuard - Much better UX
 const SpaSelectionGuard = ({ children }) => {
-  const { currentUser } = useSelector((state) => state.user)
-  const { locationId, branding, hasBranding } = useBranding()
-  const location = useLocation()
-  const dispatch = useDispatch()
-  const [hasInitialCheck, setHasInitialCheck] = useState(false)
-  const [showLoader, setShowLoader] = useState(false)
-  const brandColor = branding?.themeColor || '#ec4899'
-  const brandColorDark = adjustHex(brandColor, -24)
-
-  // Check if user already has spa data in Redux
-  const userHasSpaInRedux = !!(
-    (['admin', 'super-admin'].includes(currentUser?.role)) ||
-    (currentUser?.role === 'spa' && currentUser?.spaLocation?.locationId) ||
-    (currentUser?.selectedLocation?.locationId &&
-     currentUser?.selectedLocation?.locationName &&
-     currentUser?.selectedLocation?.locationName.trim() !== '')
-  )
-
-  // Only query onboarding status if we don't have spa data in Redux
-  const shouldCheckOnboarding =
-    !!currentUser && !userHasSpaInRedux && !hasInitialCheck
-
-  const {
-    data: onboardingData,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['onboarding-status'],
-    queryFn: authService.getOnboardingStatus,
-    enabled: shouldCheckOnboarding,
-    retry: 1,
-    staleTime: 5 * 60 * 1000, // 5 minutes cache
-    onSuccess: (data) => {
-      setHasInitialCheck(true)
-      // Update Redux with the latest user data
-      if (data?.data?.onboardingStatus) {
-        const updatedUser = {
-          ...currentUser,
-          selectedLocation: data.data.onboardingStatus.selectedLocation,
-          spaLocation: data.data.onboardingStatus.spaLocation, // Added for spa role
-          hasSelectedSpa: data.data.onboardingStatus.hasSelectedSpa,
-        }
-        dispatch(updateProfile(updatedUser))
-      }
-    },
-    onError: () => {
-      setHasInitialCheck(true)
-    },
-  })
-
-  // Determine spa selection status from Redux first, then API
-  let hasSelectedSpa = userHasSpaInRedux
-
-  if (!userHasSpaInRedux && onboardingData?.data?.onboardingStatus) {
-    hasSelectedSpa = onboardingData.data.onboardingStatus.hasSelectedSpa
-  }
-
-  useEffect(() => {
-    if (shouldCheckOnboarding && isLoading && !hasInitialCheck) {
-      const timer = setTimeout(() => setShowLoader(true), 350)
-      return () => clearTimeout(timer)
-    }
-    setShowLoader(false)
-  }, [shouldCheckOnboarding, isLoading, hasInitialCheck])
-
-  const isOnWelcomePage = location.pathname === '/welcome'
-  const buildSpaPath = (path) =>
-    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
-
-  // IMPROVED: Only show loader when actually needed
-  if (shouldCheckOnboarding && isLoading && !hasInitialCheck && showLoader) {
-    return (
-      <div
-        className='min-h-screen flex items-center justify-center relative overflow-hidden'
-        style={{
-          background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColorDark} 100%)`,
-        }}
-      >
-        {/* Animated background pattern */}
-        <div className='absolute inset-0 opacity-20'>
-          <div className='absolute top-0 left-0 w-96 h-96 bg-white rounded-full -translate-x-32 -translate-y-32 blur-3xl animate-pulse'></div>
-          <div
-            className='absolute bottom-0 right-0 w-96 h-96 rounded-full translate-x-32 translate-y-32 blur-3xl animate-pulse'
-            style={{ backgroundColor: `${brandColor}66` }}
-          ></div>
-        </div>
-
-        <div className='relative z-10 text-center'>
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className='bg-white/10 backdrop-blur-xl p-8 rounded-3xl border border-white/20 shadow-2xl'
-          >
-            {hasBranding && branding?.logo ? (
-              <div className='w-16 h-16 mx-auto mb-6 rounded-2xl bg-white/15 border border-white/25 shadow-lg flex items-center justify-center'>
-                <img
-                  src={branding.logo}
-                  alt={branding.name}
-                  className='w-10 h-10 object-contain'
-                />
-              </div>
-            ) : (
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                className='w-16 h-16 border-4 border-white/30 border-t-white rounded-full mx-auto mb-6 shadow-lg'
-              />
-            )}
-            <h2 className='text-2xl font-bold text-white mb-2 tracking-wide'>
-              {branding?.name || 'RadiantAI'}
-            </h2>
-            <p className='text-white/80 text-sm font-medium animate-pulse'>
-              Loading your experience...
-            </p>
-          </motion.div>
-        </div>
-      </div>
-    )
-  }
-
-  // Handle errors gracefully without blocking navigation
-  if (error && !hasInitialCheck) {
-    console.error('Onboarding status error:', error)
-    // Allow navigation but log the error - don't block user
-    setHasInitialCheck(true)
-  }
-
-  // No longer need to redirect based on SPA selection since it happens before login
-  // Just pass through - location selection is now handled at /auth
+  // Location selection is handled before auth (or via subdomain), so no extra onboarding gate is needed.
   return children
 }
 
@@ -281,12 +138,14 @@ const PublicRoute = ({ children }) => {
   return children
 }
 
-const WelcomeRoute = ({ children }) => {
+const WelcomeRoute = () => {
   const { currentUser } = useSelector((state) => state.user)
   const { locationId } = useBranding()
   const token = localStorage.getItem('token')
   const buildSpaPath = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+  const targetPath =
+    currentUser?.role === 'super-admin' ? '/management' : '/dashboard'
 
   if (!currentUser && token) {
     return (
@@ -300,7 +159,7 @@ const WelcomeRoute = ({ children }) => {
     return <Navigate to={buildSpaPath('/auth')} replace />
   }
 
-  return children
+  return <Navigate to={buildSpaPath(targetPath)} replace />
 }
 
 const App = () => {
@@ -466,9 +325,7 @@ const App = () => {
         <Route
           path="/welcome"
           element={
-            <WelcomeRoute>
-              <WelcomePage />
-            </WelcomeRoute>
+            <WelcomeRoute />
           }
         />
 

@@ -6,7 +6,9 @@ import {
     loginStart,
     loginSuccess,
     selectIsLoading,
+    updateProfile,
 } from '@/redux/userSlice'
+import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
 import { resolveImageUrl } from '@/lib/imageHelpers'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -34,7 +36,6 @@ import {
 import React, { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
-    useLocation,
     useNavigate,
     useSearchParams,
 } from 'react-router-dom'
@@ -51,6 +52,12 @@ const signinUser = async (credentials) => {
 
 const getRoleFromAuthPayload = (payload) =>
   payload?.data?.user?.role || payload?.user?.role || payload?.role || null
+
+const shouldSyncSelectedLocationForRole = (role) => {
+  // Admin/super-admin/spa users are location-scoped differently.
+  if (['admin', 'super-admin', 'spa'].includes(role)) return false
+  return true
+}
 
 const clampChannel = (value) => Math.max(0, Math.min(255, value))
 
@@ -189,10 +196,16 @@ const SuccessAlert = ({ message }) => (
 const AuthPage = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { branding, locationId: contextLocationId, hasBranding } = useBranding()
+  const {
+    branding,
+    locationId: contextLocationId,
+    hasBranding,
+    loading: brandingLoading,
+  } = useBranding()
   const [searchParams] = useSearchParams()
   const urlLocationId = searchParams.get('spa')
-  const locationId = urlLocationId || null 
+  const locationId = urlLocationId || contextLocationId || null
+  const shouldWaitForSubdomainResolution = !urlLocationId && brandingLoading
   const isLoading = useSelector(selectIsLoading)
   const reduxError = useSelector((state) => state.user.error)
   
@@ -228,7 +241,7 @@ const AuthPage = () => {
     queryKey: ['active-locations'],
     queryFn: locationService.getActiveLocations,
     staleTime: 5 * 60 * 1000,
-    enabled: !locationId, // Only fetch if we don't have a location selected
+    enabled: !locationId && !shouldWaitForSubdomainResolution, // Only fetch if we don't have a location selected
   })
 
   const spas = useMemo(() => {
@@ -278,15 +291,46 @@ const AuthPage = () => {
       setLocalError(null)
       setSuccess(null)
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.token) {
         localStorage.setItem('token', data.token)
       }
       localStorage.setItem('lastActivity', `${Date.now()}`)
       dispatch(loginSuccess(data))
+      const role = getRoleFromAuthPayload(data)
+
+      if (locationId && shouldSyncSelectedLocationForRole(role)) {
+        try {
+          const selectionResponse = await authService.selectSpa(locationId)
+          const selectedLocation = selectionResponse?.data?.user?.selectedLocation
+          if (selectedLocation?.locationId) {
+            dispatch(
+              updateProfile({
+                selectedLocation,
+                profileCompleted:
+                  selectionResponse?.data?.user?.profileCompleted ?? true,
+                points: selectionResponse?.data?.user?.points,
+                hasSelectedSpa: true,
+              })
+            )
+          }
+        } catch (error) {
+          const errorMessage =
+            error.response?.data?.message ||
+            'We could not save your selected spa. Please try again.'
+          setLocalError(errorMessage)
+          dispatch(loginFailure(errorMessage))
+          localStorage.removeItem('token')
+          localStorage.removeItem('lastActivity')
+          return
+        }
+      }
+
       setSuccess('Radiant account created! Transforming your experience...')
+      const targetPath =
+        role === 'super-admin' ? '/management' : '/dashboard'
       setTimeout(() => {
-        navigate(buildSpaPath('/welcome'))
+        navigate(buildSpaPath(targetPath))
       }, 1500)
     },
     onError: (error) => {
@@ -306,14 +350,42 @@ const AuthPage = () => {
       setLocalError(null)
       setSuccess(null)
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data.token) {
         localStorage.setItem('token', data.token)
       }
       localStorage.setItem('lastActivity', `${Date.now()}`)
       dispatch(loginSuccess(data))
-      setSuccess('Welcome back! Loading your dashboard...')
       const role = getRoleFromAuthPayload(data)
+
+      if (locationId && shouldSyncSelectedLocationForRole(role)) {
+        try {
+          const selectionResponse = await authService.selectSpa(locationId)
+          const selectedLocation = selectionResponse?.data?.user?.selectedLocation
+          if (selectedLocation?.locationId) {
+            dispatch(
+              updateProfile({
+                selectedLocation,
+                profileCompleted:
+                  selectionResponse?.data?.user?.profileCompleted ?? true,
+                points: selectionResponse?.data?.user?.points,
+                hasSelectedSpa: true,
+              })
+            )
+          }
+        } catch (error) {
+          const errorMessage =
+            error.response?.data?.message ||
+            'We could not apply your selected spa. Please try again.'
+          setLocalError(errorMessage)
+          dispatch(loginFailure(errorMessage))
+          localStorage.removeItem('token')
+          localStorage.removeItem('lastActivity')
+          return
+        }
+      }
+
+      setSuccess('Welcome back! Loading your dashboard...')
       const targetPath =
         role === 'super-admin' ? '/management' : '/dashboard'
       setTimeout(() => {
@@ -482,7 +554,7 @@ const AuthPage = () => {
               </div>
             )}
             <h3 className='text-3xl font-bold text-gray-900 mb-1'>
-              {!locationId ? 'Choose your spa' : view === 'signup' ? 'Create Account' : 'Welcome back'}
+            {!locationId ? 'Choose your spa' : view === 'signup' ? 'Create Account' : 'Welcome back'}
             </h3>
             <p className='text-gray-500'>
               {!locationId 
@@ -551,7 +623,7 @@ const AuthPage = () => {
           <div className='relative overflow-hidden'>
             {!locationId ? (
               <div className='space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar'>
-                {locationsLoading ? (
+                {locationsLoading || shouldWaitForSubdomainResolution ? (
                   [1, 2, 3, 4].map((i) => (
                     <div key={i} className='h-20 bg-gray-50 rounded-2xl animate-pulse' />
                   ))
