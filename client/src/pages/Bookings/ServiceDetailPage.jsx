@@ -31,6 +31,78 @@ import { toast } from 'sonner';
 import { addToCart } from "../../redux/cartSlice";
 import stripeService from "../../services/stripeService";
 
+const ServiceDetailSkeleton = () => (
+  <Layout>
+    <div className="pb-32 md:pb-12 bg-gray-50/50 min-h-screen animate-pulse">
+      <div className="relative h-[35vh] min-h-[300px] w-full overflow-hidden bg-gray-200">
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-300 via-gray-200 to-gray-100" />
+        <div className="absolute top-6 left-4 md:left-8 h-10 w-10 rounded-full bg-white/70" />
+        <div className="absolute inset-x-4 bottom-8 mx-auto max-w-6xl md:px-4">
+          <div className="mb-3 h-6 w-28 rounded-full bg-white/70" />
+          <div className="mb-3 h-10 w-3/4 max-w-xl rounded-xl bg-white/70" />
+          <div className="h-5 w-64 rounded-lg bg-white/70" />
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 md:px-8 -mt-6 relative z-10">
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
+              <div className="h-6 w-40 rounded bg-gray-100 mb-4" />
+              <div className="space-y-2 mb-6">
+                <div className="h-4 w-full rounded bg-gray-100" />
+                <div className="h-4 w-11/12 rounded bg-gray-100" />
+                <div className="h-4 w-2/3 rounded bg-gray-100" />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, idx) => (
+                  <div key={idx} className="rounded-xl bg-gray-100 h-24" />
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
+              <div className="h-7 w-44 rounded bg-gray-100 mb-6" />
+              <div className="space-y-4">
+                {[...Array(3)].map((_, idx) => (
+                  <div key={idx} className="rounded-2xl border border-gray-200/70 p-5">
+                    <div className="h-5 w-48 rounded bg-gray-100 mb-3" />
+                    <div className="h-4 w-full rounded bg-gray-100 mb-2" />
+                    <div className="h-4 w-2/3 rounded bg-gray-100" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
+              <div className="h-7 w-48 rounded bg-gray-100 mb-6" />
+              <div className="h-12 w-full rounded-xl bg-gray-100 mb-6" />
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                {[...Array(10)].map((_, idx) => (
+                  <div key={idx} className="h-10 rounded-lg bg-gray-100" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200/70">
+              <div className="h-6 w-32 rounded bg-gray-100 mb-4" />
+              <div className="space-y-3">
+                <div className="h-4 w-full rounded bg-gray-100" />
+                <div className="h-4 w-5/6 rounded bg-gray-100" />
+                <div className="h-4 w-2/3 rounded bg-gray-100" />
+              </div>
+              <div className="h-12 w-full rounded-xl bg-gray-100 mt-6" />
+              <div className="h-12 w-full rounded-xl bg-gray-100 mt-3" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Layout>
+);
+
 const ServiceDetailPage = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
@@ -152,16 +224,7 @@ const ServiceDetailPage = () => {
 
 
   if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color:var(--brand-primary)]"></div>
-          <span className="ml-3 text-lg font-medium text-gray-600">
-            Loading service details...
-          </span>
-        </div>
-      </Layout>
-    );
+    return <ServiceDetailSkeleton />;
   }
 
   if (isError || !service) {

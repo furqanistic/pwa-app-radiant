@@ -10,7 +10,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import Layout from "@/pages/Layout/Layout";
 import { clearCart, removeFromCart } from "@/redux/cartSlice";
 import { notificationService } from "@/services/notificationService";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Bell,
@@ -81,18 +81,6 @@ const BookingCard = ({
     if (isPast) return "bg-gray-50 text-gray-600 border-gray-200/70";
     return "bg-green-50 text-green-700 border-green-100";
   };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
-    
-  const formatTime = (time) => {
-     // Simple check if it needs formatting or is already 12h
-     return time.toLowerCase();
-  }
 
   const getTotalPrice = () => {
     return booking.finalPrice || booking.totalPrice || booking.price || 0;
@@ -249,7 +237,6 @@ const BookingsPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const queryClient = useQueryClient();
 
   const { currentUser } = useSelector((state) => state.user);
   const cartItems = useSelector((state) => state.cart?.items || []);
@@ -287,7 +274,6 @@ const BookingsPage = () => {
   } = usePushNotifications();
 
   // ✅ State management
-  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming"); // 'upcoming' | 'history'
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showReschedule, setShowReschedule] = useState(false);
@@ -326,8 +312,6 @@ const BookingsPage = () => {
 
   const upcomingBookings = upcomingData?.data?.appointments || [];
   const pastBookings = pastData?.data?.visits || [];
-  
-  const isInitialLoading = upcomingLoading && !upcomingData;
 
   // ✅ Payment success redirection
   useEffect(() => {
@@ -406,12 +390,13 @@ const BookingsPage = () => {
       bookingDate.setHours(0, 0, 0, 0);
 
       const isUpcoming = booking.isPending || (bookingDate >= today && booking.status !== "cancelled");
+      const isPaidBooking = booking.paymentStatus === "paid";
       
       if (activeTab === "upcoming") {
         return isUpcoming;
       } else {
-        // history = past OR cancelled
-        return !isUpcoming; 
+        // History includes past/cancelled and also newly paid bookings
+        return !isUpcoming || isPaidBooking; 
       }
     });
   }, [allBookings, activeTab]);

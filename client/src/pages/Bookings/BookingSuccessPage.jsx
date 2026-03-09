@@ -1,7 +1,8 @@
 import Layout from '@/pages/Layout/Layout'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ArrowRight, Calendar, CheckCircle, Home, Sparkles } from 'lucide-react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { useDispatch } from 'react-redux'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useBranding } from '@/context/BrandingContext'
@@ -113,8 +114,8 @@ const BookingSuccessPage = () => {
   const sessionId = searchParams.get('session_id')
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const [showContent, setShowContent] = useState(false)
-  const { branding } = useBranding()
+  const queryClient = useQueryClient()
+  const { branding, locationId } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -132,10 +133,13 @@ const BookingSuccessPage = () => {
     // Clear cart immediately on mount if coming from a successful session
     if (sessionId) {
       dispatch(clearCart())
+      // Force fresh data so the latest paid booking appears immediately
+      queryClient.invalidateQueries({ queryKey: ['bookings'] })
     }
-    // Small delay for content enter animation to sync with confetti
-    setTimeout(() => setShowContent(true), 100)
-  }, [dispatch, sessionId])
+  }, [dispatch, queryClient, sessionId])
+
+  const withSpaParam = (path) =>
+    locationId ? `${path}${path.includes('?') ? '&' : '?'}spa=${encodeURIComponent(locationId)}` : path
 
   return (
     <Layout>
@@ -231,7 +235,7 @@ const BookingSuccessPage = () => {
                     <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => navigate('/Booking')} // Original path was /Booking (capital B according to existing files)
+                        onClick={() => navigate(withSpaParam('/Booking?tab=history'))}
                         className="w-full bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white py-4 rounded-2xl font-bold shadow-xl shadow-[color:var(--brand-primary)/0.25] transition-all flex items-center justify-center gap-2 group hover:brightness-95"
                     >
                         <span>View My Bookings</span>

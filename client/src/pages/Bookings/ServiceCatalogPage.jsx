@@ -6,7 +6,6 @@ import {
   useCategories,
 } from '@/hooks/useServices'
 import { resolveImageUrl } from '@/lib/imageHelpers'
-import ghlService from '@/services/ghlService'
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -42,20 +41,6 @@ const useDebounce = (value, delay) => {
     return () => clearTimeout(handler)
   }, [value, delay])
   return debouncedValue
-}
-
-// Helper to pick icons based on category name
-const getCategoryIcon = (name) => {
-  const n = name.toLowerCase()
-  if (n.includes('hair') || n.includes('cut')) return Scissors
-  if (n.includes('face') || n.includes('skin') || n.includes('peel')) return Smile
-  if (n.includes('body') || n.includes('slim')) return Sun
-  if (n.includes('laser') || n.includes('remove')) return Zap
-  if (n.includes('massage') || n.includes('relax')) return Heart
-  if (n.includes('nail') || n.includes('manicure')) return Palette
-  if (n.includes('hydra') || n.includes('water')) return Droplets
-  if (n.includes('premium') || n.includes('vip')) return Crown
-  return Gem // Default premium fallback
 }
 
 const normalizeMembershipPlans = (membership) => {
@@ -292,14 +277,43 @@ const ServiceCard = ({
   )
 }
 
-// Clean Skeleton
+const CategorySkeleton = () => (
+  <div className='aspect-square rounded-[1.5rem] border border-gray-200/70 bg-white p-3'>
+    <div className='mb-6 h-9 w-9 animate-pulse rounded-2xl bg-gray-100' />
+    <div className='h-3 w-16 animate-pulse rounded bg-gray-100' />
+    <div className='mt-2 h-2 w-10 animate-pulse rounded bg-gray-100' />
+  </div>
+)
+
 const ServiceCardSkeleton = () => (
-    <div className='bg-white rounded-[2rem] border border-gray-200/70 p-4 h-[340px]'>
-        <div className='bg-gray-100 h-48 rounded-[1.5rem] w-full animate-pulse mb-4' />
-        <div className='h-6 bg-gray-100 rounded-lg w-2/3 mb-3 animate-pulse' />
-        <div className='h-4 bg-gray-100 rounded-lg w-full mb-2 animate-pulse' />
-        <div className='h-4 bg-gray-100 rounded-lg w-1/2 animate-pulse' />
+  <div className='rounded-[1.5rem] border border-gray-200/70 bg-white p-3'>
+    <div className='mb-3 h-40 w-full animate-pulse rounded-[1.25rem] bg-gray-100' />
+    <div className='mb-2 h-5 w-2/3 animate-pulse rounded bg-gray-100' />
+    <div className='mb-1.5 h-3 w-full animate-pulse rounded bg-gray-100' />
+    <div className='mb-3 h-3 w-1/2 animate-pulse rounded bg-gray-100' />
+    <div className='mb-3 h-14 w-full animate-pulse rounded-2xl bg-gray-100' />
+    <div className='flex items-center justify-between gap-2'>
+      <div className='h-7 w-24 animate-pulse rounded-full bg-gray-100' />
+      <div className='h-9 w-28 animate-pulse rounded-xl bg-gray-100' />
     </div>
+  </div>
+)
+
+const CatalogSkeleton = ({ showCategories = true, cards = 6 }) => (
+  <div className='animate-fadeIn'>
+    {showCategories && (
+      <div className='grid grid-cols-3 gap-3 sm:grid-cols-4 md:flex md:flex-wrap md:justify-center md:gap-4 mb-8'>
+        {[...Array(8)].map((_, idx) => (
+          <CategorySkeleton key={idx} />
+        ))}
+      </div>
+    )}
+    <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
+      {[...Array(cards)].map((_, idx) => (
+        <ServiceCardSkeleton key={idx} />
+      ))}
+    </div>
+  </div>
 )
 
 // ==========================================
@@ -312,9 +326,6 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const { currentUser } = useSelector((state) => state.user)
   const { branding, locationId } = useBranding()
-  const [selectedBookingsDate, setSelectedBookingsDate] = useState(
-    new Date().toISOString().split('T')[0]
-  )
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -329,10 +340,6 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   })()
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
-  const activeLocationId =
-    locationId ||
-    currentUser?.selectedLocation?.locationId ||
-    currentUser?.spaLocation?.locationId
 
   const { data: categories = [] } = useCategories(true) // Enable counts
   const { services, isLoading, isFetching } = useActiveServices({
@@ -346,15 +353,6 @@ const ServiceCatalog = ({ onServiceSelect }) => {
     queryFn: () => locationService.getMyLocation(),
     enabled: !!(currentUser?.role === 'spa' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin'),
   })
-
-  const { data: ghlBookingsData, isLoading: isLoadingGhlBookings } = useQuery({
-    queryKey: ['ghl-bookings', activeLocationId, selectedBookingsDate],
-    queryFn: () =>
-      ghlService.getLocationBookingsByDate(activeLocationId, selectedBookingsDate),
-    enabled: !!activeLocationId && !!selectedBookingsDate,
-  })
-
-  const ghlBookings = ghlBookingsData?.data?.events || []
 
   // Use branding membership as primary source for customers, or locationData for owners
   const locationMembership = branding?.membership || locationData?.data?.location?.membership
@@ -379,16 +377,6 @@ const ServiceCatalog = ({ onServiceSelect }) => {
         s.categoryName?.toLowerCase().includes('membership') ||
         s.description?.toLowerCase().includes('subscription')
     )
-  }, [services])
-
-  const groupedServices = useMemo(() => {
-    const groups = {}
-    ;(services || []).forEach((service) => {
-      const catName = service.categoryName || 'Other'
-      if (!groups[catName]) groups[catName] = []
-      groups[catName].push(service)
-    })
-    return groups
   }, [services])
 
   // ---- COMPUTED COUNTS ----
@@ -555,14 +543,12 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
             
             {activeTab === 'browse' && (
+                isLoading && (!services || services.length === 0) ? (
+                    <CatalogSkeleton showCategories cards={6} />
+                ) : (
                 <div className='animate-fadeIn'>
                     {renderCategories()}
-                    
-                    {isLoading && (!services || services.length === 0) ? (
-                        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-                            {[...Array(6)].map((_, i) => <ServiceCardSkeleton key={i} />)}
-                        </div>
-                    ) : browseServices.length > 0 ? (
+                    {browseServices.length > 0 ? (
                         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity ${isFetching ? 'opacity-70' : 'opacity-100'}`}>
                             {browseServices.map(service => (
                                 <ServiceCard
@@ -581,27 +567,30 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                         </div>
                     )}
                 </div>
+                )
             )}
 
             {activeTab === 'membership' && (
+                isLoading && (!services || services.length === 0) ? (
+                    <CatalogSkeleton showCategories={false} cards={3} />
+                ) : (
                 <div className='animate-fadeIn'>
-
-                    {isLoading && (!services || services.length === 0) ? (
-                        <div className='grid grid-cols-1 gap-6 md:px-8'>
-                             {[...Array(3)].map((_, i) => <ServiceCardSkeleton key={i} />)}
-                        </div>
-                    ) : (
+                    {
                         <MembershipPlansGrid
                           plans={locationMembershipPlans}
                           membershipServices={membershipServices}
                           onSelectService={onServiceSelect}
                           className='grid grid-cols-1 gap-6 md:px-8'
                         />
-                    )}
+                    }
                 </div>
+                )
             )}
 
             {activeTab === 'treatment' && (
+                isLoading && (!services || services.length === 0) ? (
+                    <CatalogSkeleton showCategories={false} cards={6} />
+                ) : (
                 <div className='animate-fadeIn'>
                      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
                         {services && services.length > 0 ? (
@@ -622,6 +611,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                         )}
                      </div>
                 </div>
+                )
             )}
 
         </div>

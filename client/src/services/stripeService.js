@@ -62,7 +62,7 @@ const stripeService = {
    */
   createCheckoutSession: async (sessionData) => {
     const response = await axiosInstance.post(
-      'stripe/create-checkout-session',
+      'stripe/payment/create-checkout-session',
       sessionData
     )
     return response.data
