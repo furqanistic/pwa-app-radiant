@@ -1,5 +1,5 @@
 // client/src/pages/Bookings/ServiceCatalogPage.jsx - HIGH-END PREMIUM DESIGN
-import MembershipCard from '@/components/Bookings/MembershipCard'
+import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
 import { useBranding } from '@/context/BrandingContext'
 import {
   useActiveServices,
@@ -263,7 +263,7 @@ const ServiceCard = ({
                   className='mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-extrabold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-100'
                 >
                   <Crown size={14} />
-                  Join Membership
+                  Save Now
                 </button>
               </div>
             )}
@@ -591,31 +591,12 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                              {[...Array(3)].map((_, i) => <ServiceCardSkeleton key={i} />)}
                         </div>
                     ) : (
-                        <div className='grid grid-cols-1 gap-6 md:px-8'>
-                             {/* Location Membership Plans */}
-                             {locationMembershipPlans.map((plan, index) => (
-                                 <MembershipCard 
-                                    service={{
-                                        _id: `location-membership-${index}`,
-                                        name: plan.name,
-                                        description: plan.description,
-                                        basePrice: plan.price,
-                                        duration: 0,
-                                        categoryId: { name: 'Membership' }
-                                    }} 
-                                    membership={plan}
-                                    key={`location-membership-plan-${index}`}
-                                 />
-                             ))}
-                             {/* Real Memberships from Services */}
-                             {membershipServices.map(service => (
-                                <MembershipCard 
-                                    key={service._id || service.serviceId || service.id || service.name} 
-                                    service={service} 
-                                    onSelect={onServiceSelect} 
-                                />
-                            ))}
-                        </div>
+                        <MembershipPlansGrid
+                          plans={locationMembershipPlans}
+                          membershipServices={membershipServices}
+                          onSelectService={onServiceSelect}
+                          className='grid grid-cols-1 gap-6 md:px-8'
+                        />
                     )}
                 </div>
             )}

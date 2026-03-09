@@ -2,32 +2,32 @@
 // ✅ FIXED: Booked times + Cart duplicate prevention
 
 import BNPLBanner from "@/components/Common/BNPLBanner";
+import { useBranding } from '@/context/BrandingContext';
 import { useAvailability } from "@/hooks/useAvailability";
 import { useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
 import {
-    ArrowLeft,
-    Calendar,
-    Check,
-    CheckCircle,
-    Clock,
-    Crown,
-    DollarSign,
-    Info,
-    Lock,
-    MapPin,
-    Percent,
-    Plus,
-    Star,
-    User,
-    X,
-    Zap,
+  ArrowLeft,
+  Calendar,
+  Check,
+  CheckCircle,
+  Clock,
+  Crown,
+  DollarSign,
+  Info,
+  Lock,
+  MapPin,
+  Percent,
+  Plus,
+  Star,
+  User,
+  X,
+  Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from 'sonner';
-import { useBranding } from '@/context/BrandingContext';
 import { addToCart } from "../../redux/cartSlice";
 import stripeService from "../../services/stripeService";
 
@@ -818,7 +818,7 @@ const ServiceDetailPage = () => {
                                 className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-extrabold text-emerald-800 hover:bg-emerald-100 transition-colors"
                               >
                                 <Crown className="w-3.5 h-3.5" />
-                                Join Membership
+                                Save Now
                               </button>
                             </div>
                           )}

@@ -1,4 +1,4 @@
-import MembershipCard from '@/components/Bookings/MembershipCard'
+import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
 import { useBranding } from '@/context/BrandingContext'
 import { useActiveServices } from '@/hooks/useServices'
 import { locationService } from '@/services/locationService'
@@ -98,31 +98,12 @@ const MembershipPage = () => {
                         {isLoading || isLoadingLocation ? (
                             <div className="w-full h-80 bg-gray-200 rounded-[2.5rem] animate-pulse max-w-md mx-auto" />
                         ) : (
-                            <div className="grid grid-cols-1 gap-6 px-2 w-full max-w-7xl mx-auto">
-                                {/* Show location membership plans if they exist */}
-                                {locationMembershipPlans.map((plan, index) => (
-                                    <MembershipCard 
-                                        service={{
-                                            _id: `location-membership-${index}`,
-                                            name: plan.name,
-                                            description: plan.description,
-                                            basePrice: plan.price,
-                                            duration: 0,
-                                            categoryId: { name: 'Membership' }
-                                        }} 
-                                        membership={plan}
-                                        key={`location-membership-plan-${index}`}
-                                    />
-                                ))}
-                                {/* Show membership services from catalog */}
-                                {membershipServices.map(service => (
-                                    <MembershipCard 
-                                        key={service._id} 
-                                        service={service} 
-                                        onSelect={onServiceSelect} 
-                                    />
-                                ))}
-                            </div>
+                            <MembershipPlansGrid
+                                plans={locationMembershipPlans}
+                                membershipServices={membershipServices}
+                                onSelectService={onServiceSelect}
+                                className="grid grid-cols-1 gap-6 px-2 w-full max-w-7xl mx-auto"
+                            />
                         )}
                     </div>
 

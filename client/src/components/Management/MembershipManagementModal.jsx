@@ -1,4 +1,5 @@
 import { useBranding } from '@/context/BrandingContext';
+import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid';
 import { locationService } from '@/services/locationService';
 import stripeService from '@/services/stripeService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -307,6 +308,7 @@ const MembershipManagementModal = ({
     spaStripeStatusData?.connected && spaStripeStatusData?.account?.chargesEnabled
   );
   const spaMembershipPlans = Array.isArray(formData?.plans) ? formData.plans : [];
+  const spaHasMembershipPlans = spaMembershipPlans.length > 0;
   const spaHasActiveMembership = Boolean(formData?.isActive && spaMembershipPlans.length > 0);
 
   if (!isVisible) return null;
@@ -348,35 +350,39 @@ const MembershipManagementModal = ({
         </div>
       ) : isSpaReadOnly ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-4">
-          {!spaHasActiveMembership && (
+          {!spaHasMembershipPlans && (
             <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-medium text-gray-800">
               No membership yet.
             </div>
           )}
 
-          {!spaStripeConnected && (
+          {spaHasMembershipPlans && !spaStripeConnected && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
-              No membership yet because Stripe is not connected. Please connect Stripe first.
+              Membership is not activated because Stripe is not connected. Please connect Stripe first.
             </div>
           )}
 
-          {spaHasActiveMembership && (
+          {spaHasMembershipPlans && (
             <div className="space-y-4">
-              <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
-                Your Membership Plans
-              </p>
-              {spaMembershipPlans.map((plan, index) => (
-                <div key={index} className="p-4 bg-white rounded-2xl border border-gray-200 space-y-2">
-                  <p className="font-black text-gray-900">{plan.name}</p>
-                  <p className="text-sm text-gray-600">{plan.description}</p>
-                  <p className="text-sm font-bold text-gray-900">${plan.price}/month</p>
-                  <ul className="text-sm text-gray-700 list-disc pl-5">
-                    {Array.isArray(plan.benefits) && plan.benefits.map((benefit, i) => (
-                      <li key={i}>{benefit}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                  Your Membership Plans
+                </p>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                    spaHasActiveMembership && spaStripeConnected
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  {spaHasActiveMembership && spaStripeConnected ? 'Active' : 'Not Activated'}
+                </span>
+              </div>
+              <MembershipPlansGrid
+                plans={spaMembershipPlans}
+                includeServiceMemberships={false}
+                className="grid grid-cols-1 gap-5"
+              />
             </div>
           )}
         </div>

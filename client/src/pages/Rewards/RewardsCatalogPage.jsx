@@ -136,7 +136,7 @@ const PremiumDropdown = ({
 }
 
 // Reward Card Component
-const RewardCard = ({ reward, onClaim, userPoints }) => {
+const RewardCard = ({ reward, onClaim }) => {
   const [isClaiming, setIsClaiming] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
@@ -226,13 +226,14 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
   const getButtonText = () => {
     if (isClaiming) return 'Claiming...'
-    if (canAfford) return 'Claim'
+    if (canAfford) return 'Tap card to claim & use'
     if (!reward.canClaimMoreInWindow) return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
   }
 
   return (
     <div
+      onClick={handleClaim}
       className={`relative bg-white rounded-2xl overflow-hidden transition-all border ${
         canAfford
           ? 'hover:border-pink-300 cursor-pointer group border-pink-100'
@@ -379,7 +380,10 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
         {/* Claim Button */}
         <button
-          onClick={handleClaim}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleClaim()
+          }}
           disabled={!canAfford || isClaiming}
           style={canAfford && !isClaiming ? { background: brandGradient } : undefined}
           className={`w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
@@ -451,7 +455,12 @@ const RewardsCatalogPage = () => {
       const claimedReward = rewards.find((reward) => reward._id === rewardId)
       const linkedServiceId = getLinkedServiceId(claimedReward)
       if (linkedServiceId) {
-        navigate(withSpaParam(`/services/${linkedServiceId}`))
+        navigate(withSpaParam(`/services/${linkedServiceId}`), {
+          state: {
+            autoApplyRewardId: rewardId,
+            autoApplyRewardName: claimedReward?.name || 'Reward',
+          },
+        })
       }
     },
     onError: (error) => {
@@ -514,8 +523,8 @@ const RewardsCatalogPage = () => {
   const filteredRewards = rewards || []
   const affordableRewards = filteredRewards.filter((r) => r.canClaim)
 
-  const handleClaimReward = async (rewardId) => {
-    claimRewardMutation.mutate(rewardId)
+  const handleClaimReward = async (reward) => {
+    claimRewardMutation.mutate(reward._id)
   }
 
   return (
@@ -642,7 +651,6 @@ const RewardsCatalogPage = () => {
                 key={reward._id}
                 reward={reward}
                 onClaim={handleClaimReward}
-                userPoints={userPoints}
               />
             ))}
           </div>
