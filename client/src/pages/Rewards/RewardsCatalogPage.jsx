@@ -24,9 +24,11 @@ import {
 } from 'lucide-react'
 import React, { useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
+import { useBranding } from '@/context/BrandingContext'
 
 const rewardTypes = [
   { id: 'all', name: 'All Rewards' },
@@ -404,11 +406,31 @@ const RewardCard = ({ reward, onClaim, userPoints }) => {
 
 // Main Rewards Catalog Component
 const RewardsCatalogPage = () => {
+  const navigate = useNavigate()
+  const { locationId } = useBranding()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState('all')
   const [sortBy, setSortBy] = useState('pointCost-low')
 
   const { currentUser } = useSelector((state) => state.user)
+
+  const withSpaParam = (path) => {
+    if (!locationId) return path
+    const separator = path.includes('?') ? '&' : '?'
+    return `${path}${separator}spa=${encodeURIComponent(locationId)}`
+  }
+
+  const getLinkedServiceId = (reward) => {
+    if (!reward) return null
+    const value =
+      reward.serviceId?._id ||
+      reward.serviceId ||
+      reward.linkedServiceId?._id ||
+      reward.linkedServiceId ||
+      reward.service?._id ||
+      reward.linkedService?._id
+    return value ? String(value) : null
+  }
 
   // API calls using React Query hooks
   const {
@@ -424,8 +446,13 @@ const RewardsCatalogPage = () => {
   })
 
   const claimRewardMutation = useClaimReward({
-    onSuccess: (data) => {
+    onSuccess: (data, rewardId) => {
       // Toast handled by hook
+      const claimedReward = rewards.find((reward) => reward._id === rewardId)
+      const linkedServiceId = getLinkedServiceId(claimedReward)
+      if (linkedServiceId) {
+        navigate(withSpaParam(`/services/${linkedServiceId}`))
+      }
     },
     onError: (error) => {
       // Toast handled by hook

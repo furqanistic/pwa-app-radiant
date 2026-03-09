@@ -5,6 +5,7 @@ import {
     useEnhancedRewardsCatalog,
     useUpdateReward,
 } from '@/hooks/useRewards'
+import { useServices } from '@/hooks/useServices'
 import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
@@ -345,7 +346,14 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
 }
 
 // Reward Form Modal Component
-const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [] }) => {
+const RewardForm = ({
+  isOpen,
+  onClose,
+  reward,
+  onSave,
+  membershipPlanOptions = [],
+  serviceOptions = [],
+}) => {
   const isEditing = !!reward
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [formData, setFormData] = useState({
@@ -365,6 +373,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [
     image: '',
     imagePublicId: '',
     voiceNoteUrl: '',
+    serviceId: '',
   })
 
   useEffect(() => {
@@ -394,6 +403,12 @@ const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [
         image: reward.image || '',
         imagePublicId: reward.imagePublicId || '',
         voiceNoteUrl: reward.voiceNoteUrl || '',
+        serviceId:
+          reward.serviceId?._id ||
+          reward.serviceId ||
+          reward.linkedServiceId?._id ||
+          reward.linkedServiceId ||
+          '',
       })
     } else {
       setFormData({
@@ -413,6 +428,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [
         image: '',
         imagePublicId: '',
         voiceNoteUrl: '',
+        serviceId: '',
       })
     }
   }, [reward, isOpen])
@@ -456,6 +472,7 @@ const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [
       limit: Number(formData.limitCount),
       eligibleMemberTypes:
         formData.claimAudience === 'members_only' ? ['members'] : ['all_clients'],
+      serviceId: formData.serviceId || undefined,
     }
 
     if (isEditing) {
@@ -582,6 +599,31 @@ const RewardForm = ({ isOpen, onClose, reward, onSave, membershipPlanOptions = [
                       className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
                       required
                     />
+                  </div>
+
+                  {/* Linked Service (Optional) */}
+                  <div className='space-y-1.5 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Linked Service (Optional)
+                    </label>
+                    <div className='relative'>
+                      <select
+                        value={formData.serviceId}
+                        onChange={(e) => setFormData({ ...formData, serviceId: e.target.value })}
+                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none outline-none text-sm font-medium'
+                      >
+                        <option value=''>No linked service</option>
+                        {serviceOptions.map((service) => (
+                          <option key={service.id} value={service.id}>
+                            {service.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className='absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
+                    </div>
+                    <p className='text-[11px] text-gray-400'>
+                      If selected, user will be redirected to this service right after claiming this reward.
+                    </p>
                   </div>
 
                   {/* Valid Days */}
@@ -931,6 +973,11 @@ const RewardManagement = () => {
     error,
     refetch,
   } = useEnhancedRewardsCatalog({ search: searchTerm })
+  const { data: servicesData } = useServices({ status: 'active', limit: 300 })
+  const serviceOptions = (servicesData?.services || []).map((service) => ({
+    id: service._id || service.id,
+    name: service.name || 'Unnamed Service',
+  }))
 
   const deleteRewardMutation = useDeleteReward({
     onSuccess: () => toast.success('Reward deleted successfully!'),
@@ -1078,6 +1125,7 @@ const RewardManagement = () => {
         reward={selectedReward}
         onSave={handleFormSave}
         membershipPlanOptions={membershipPlanOptions}
+        serviceOptions={serviceOptions}
       />
     </Layout>
   )
