@@ -37,6 +37,7 @@ import {
 import React, { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
+    useLocation,
     useNavigate,
     useSearchParams,
 } from 'react-router-dom'
@@ -197,6 +198,7 @@ const SuccessAlert = ({ message }) => (
 const AuthPage = () => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
   const {
     branding,
     locationId: contextLocationId,
@@ -289,6 +291,18 @@ const AuthPage = () => {
   }, [spas, searchTerm])
 
   const isMobile = windowWidth < 1024
+
+  useEffect(() => {
+    if (!locationId) return
+    if (urlLocationId) return
+
+    const params = new URLSearchParams(location.search)
+    params.set('spa', locationId)
+    navigate(
+      `${location.pathname}?${params.toString()}`,
+      { replace: true }
+    )
+  }, [location.pathname, location.search, locationId, navigate, urlLocationId])
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
