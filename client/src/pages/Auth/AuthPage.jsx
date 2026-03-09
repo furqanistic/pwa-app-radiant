@@ -11,6 +11,7 @@ import {
 import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
 import { resolveImageUrl } from '@/lib/imageHelpers'
+import { getCurrentSubdomain } from '@/utils/subdomain'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -204,8 +205,12 @@ const AuthPage = () => {
   } = useBranding()
   const [searchParams] = useSearchParams()
   const urlLocationId = searchParams.get('spa')
-  const locationId = urlLocationId || contextLocationId || null
-  const shouldWaitForSubdomainResolution = !urlLocationId && brandingLoading
+  const currentSubdomain = useMemo(() => getCurrentSubdomain(), [])
+  const [subdomainLocationId, setSubdomainLocationId] = useState(null)
+  const locationId =
+    urlLocationId || contextLocationId || subdomainLocationId || null
+  const shouldWaitForSubdomainResolution =
+    !urlLocationId && !subdomainLocationId && brandingLoading
   const isLoading = useSelector(selectIsLoading)
   const reduxError = useSelector((state) => state.user.error)
   
@@ -241,7 +246,7 @@ const AuthPage = () => {
     queryKey: ['active-locations'],
     queryFn: locationService.getActiveLocations,
     staleTime: 5 * 60 * 1000,
-    enabled: !locationId && !shouldWaitForSubdomainResolution, // Only fetch if we don't have a location selected
+    enabled: !locationId && !shouldWaitForSubdomainResolution, // Fallback resolver + selector when no resolved location
   })
 
   const spas = useMemo(() => {
@@ -252,8 +257,26 @@ const AuthPage = () => {
         locationId: location.locationId,
         name: location.name,
         address: location.address || 'Address not available',
+        subdomain: location.subdomain || null,
       }))
   }, [locationsData])
+
+  useEffect(() => {
+    if (subdomainLocationId || locationId) return
+    if (!currentSubdomain) return
+    if (!spas.length) return
+
+    const matchedSpa = spas.find(
+      (spa) =>
+        typeof spa.subdomain === 'string' &&
+        spa.subdomain.toLowerCase().trim() === currentSubdomain
+    )
+
+    if (matchedSpa?.locationId) {
+      setSubdomainLocationId(matchedSpa.locationId)
+      localStorage.setItem('brandingLocationId', matchedSpa.locationId)
+    }
+  }, [currentSubdomain, locationId, spas, subdomainLocationId])
 
   const filteredSpas = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
