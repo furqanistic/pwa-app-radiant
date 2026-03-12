@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import Layout from "@/pages/Layout/Layout";
 
 const EMPTY_LOCATIONS = [];
-const EMPTY_CALENDARS = [];
+const EMPTY_SERVICES = [];
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_LABELS = [
   "January",
@@ -212,7 +212,8 @@ const getMonthMatrix = (monthStart, timeZone = "") => {
   const year = parts?.year ?? monthStart.getFullYear();
   const month = (parts?.month ?? monthStart.getMonth() + 1) - 1;
   const firstDayOfMonth = new Date(year, month, 1);
-  const startOffset = getDatePartsInTimeZone(firstDayOfMonth, timeZone)?.weekday ?? firstDayOfMonth.getDay();
+  const startOffset =
+    getDatePartsInTimeZone(firstDayOfMonth, timeZone)?.weekday ?? firstDayOfMonth.getDay();
   const gridStart = new Date(year, month, 1 - startOffset);
 
   const matrix = [];
@@ -228,28 +229,118 @@ const getMonthMatrix = (monthStart, timeZone = "") => {
   return matrix;
 };
 
+const getNumericValue = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^\d.-]/g, "");
+    if (!cleaned) return null;
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const nested = getNumericValue(entry);
+      if (nested !== null) return nested;
+    }
+    return null;
+  }
+
+  if (!value || typeof value !== "object") return null;
+
+  const centKeys = [
+    "amountInCents",
+    "amount_cents",
+    "amountCents",
+    "cents",
+    "unitAmount",
+    "unit_amount",
+  ];
+  for (const key of centKeys) {
+    const cents = getNumericValue(value[key]);
+    if (cents !== null) return cents / 100;
+  }
+
+  const valueKeys = [
+    "amount",
+    "value",
+    "price",
+    "servicePrice",
+    "basePrice",
+    "cost",
+    "defaultPrice",
+  ];
+  for (const key of valueKeys) {
+    const nested = getNumericValue(value[key]);
+    if (nested !== null) return nested;
+  }
+
+  for (const nestedValue of Object.values(value)) {
+    const nested = getNumericValue(nestedValue);
+    if (nested !== null) return nested;
+  }
+
+  return null;
+};
+
+const formatServicePrice = (service) => {
+  const rawPrice = service?.price;
+  const numericPrice = getNumericValue(rawPrice);
+
+  if (numericPrice !== null) {
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: service?.currency || "USD",
+      }).format(numericPrice);
+    } catch {
+      return `$${numericPrice.toFixed(2)}`;
+    }
+  }
+
+  if (`${rawPrice || ""}`.trim()) return `${rawPrice}`;
+  return "";
+};
+
+const formatServiceDuration = (service) => {
+  const rawDuration = service?.duration;
+  if (typeof rawDuration === "string" && /[a-z]/i.test(rawDuration)) {
+    return rawDuration;
+  }
+
+  const durationMinutes =
+    getNumericValue(service?.durationMinutes) ?? getNumericValue(rawDuration) ?? null;
+
+  if (durationMinutes === null) return "Duration not set";
+  if (durationMinutes >= 60 && durationMinutes % 60 === 0) {
+    const hours = durationMinutes / 60;
+    return `${hours} hr${hours === 1 ? "" : "s"}`;
+  }
+  return `${durationMinutes} min`;
+};
+
+const getServiceStaffSummary = (service) => {
+  const names = Array.isArray(service?.staffNames) ? service.staffNames.filter(Boolean) : [];
+  if (names.length === 0) {
+    return service?.staffCount ? `${service.staffCount} staff assigned` : "No staff listed";
+  }
+  if (names.length <= 2) return names.join(", ");
+  return `${names.slice(0, 2).join(", ")} +${names.length - 2} more`;
+};
+
 const CalendarManagementPage = () => {
   const navigate = useNavigate();
   const { currentUser } = useSelector((state) => state.user);
   const { branding } = useBranding();
   const brandColor = branding?.themeColor || "#2563eb";
   const brandColorDark = adjustHex(brandColor, -22);
-  const [calendarDisplayTimeZone, setCalendarDisplayTimeZone] = useState("");
 
   const [selectedLocationId, setSelectedLocationId] = useState("");
-  const [selectedCalendarId, setSelectedCalendarId] = useState("");
   const [selectedDate, setSelectedDate] = useState(() => getTodayLocalString(""));
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const today = parseDateString(getTodayLocalString(""));
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
-
-  useEffect(() => {
-    const today = getTodayLocalString(calendarDisplayTimeZone);
-    const todayDate = parseDateString(today);
-    setSelectedDate(today);
-    setVisibleMonth(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
-  }, [calendarDisplayTimeZone]);
 
   const isTeamOrAbove = ["spa", "admin"].includes(currentUser?.role);
   const isSpaUser = currentUser?.role === "spa";
@@ -289,78 +380,35 @@ const CalendarManagementPage = () => {
   }, [isSpaUser, selectedLocationId, currentUserLocationId, locations]);
 
   const {
-    data: calendarsData,
-    isLoading: isLoadingCalendars,
-    refetch: refetchCalendars,
+    data: servicesData,
+    isLoading: isLoadingServices,
+    refetch: refetchServices,
   } = useQuery({
-    queryKey: ["ghl-calendars", effectiveLocationId],
-    queryFn: () => ghlService.getCalendars(effectiveLocationId),
+    queryKey: ["ghl-calendar-services", effectiveLocationId],
+    queryFn: () => ghlService.getCalendarServices(effectiveLocationId),
     enabled: !!effectiveLocationId,
     retry: false,
   });
-
-  const calendars = calendarsData?.data?.calendars || EMPTY_CALENDARS;
-  const selectedCalendar = useMemo(
-    () =>
-      calendars.find((calendar) => (calendar.id || calendar._id) === selectedCalendarId) ||
-      null,
-    [calendars, selectedCalendarId]
-  );
-  const selectedCalendarTimeZone =
-    selectedCalendar?.timeZone ||
-    selectedCalendar?.timezone ||
-    selectedCalendar?.calendarTimeZone ||
-    "";
-
-  useEffect(() => {
-    setCalendarDisplayTimeZone(selectedCalendarTimeZone || "");
-  }, [selectedCalendarTimeZone]);
-
-  useEffect(() => {
-    if (!calendars.length) {
-      if (selectedCalendarId) setSelectedCalendarId("");
-      return;
-    }
-    const exists = calendars.some(
-      (calendar) => (calendar.id || calendar._id) === selectedCalendarId
-    );
-    if (!exists) {
-      setSelectedCalendarId(calendars[0]?.id || calendars[0]?._id || "");
-    }
-  }, [calendars, selectedCalendarId]);
 
   const {
     data: bookingsData,
     isLoading: isLoadingBookings,
     refetch: refetchBookings,
   } = useQuery({
-    queryKey: [
-      "ghl-bookings-management-page",
-      effectiveLocationId,
-      selectedDate,
-      selectedCalendarId,
-      selectedCalendarTimeZone,
-    ],
-    queryFn: () =>
-      ghlService.getLocationBookingsByDate(
-        effectiveLocationId,
-        selectedDate,
-        selectedCalendarId,
-        selectedCalendarTimeZone
-      ),
+    queryKey: ["ghl-bookings-management-page", effectiveLocationId, selectedDate],
+    queryFn: () => ghlService.getLocationBookingsByDate(effectiveLocationId, selectedDate),
     enabled: !!effectiveLocationId && !!selectedDate,
     retry: false,
   });
 
+  const ghlServices = servicesData?.data?.services || EMPTY_SERVICES;
+  const servicesSource = servicesData?.data?.source || "ghl-v2";
+  const servicesUnavailable = Boolean(servicesData?.data?.unavailable);
   const appointments = bookingsData?.data?.events || [];
   const rawCount = bookingsData?.data?.rawCount ?? 0;
   const isUnavailable = Boolean(bookingsData?.data?.unavailable);
   const effectiveTimeZone =
-    bookingsData?.data?.effectiveTimeZone ||
-    bookingsData?.data?.timeZone ||
-    selectedCalendarTimeZone ||
-    calendarDisplayTimeZone ||
-    "";
+    bookingsData?.data?.effectiveTimeZone || bookingsData?.data?.timeZone || "";
 
   const selectedDateObject = useMemo(
     () => parseDateString(selectedDate),
@@ -413,19 +461,18 @@ const CalendarManagementPage = () => {
                 <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
                   Calendar Management
                 </h1>
-              <p className="mt-1 text-xs text-slate-600 sm:text-base">
-                  View calendars and booked appointments in a focused, full-page layout.
+                <p className="mt-1 text-xs text-slate-600 sm:text-base">
+                  View all GoHighLevel services and booked appointments for the selected location.
                 </p>
-                {effectiveTimeZone && (
-                  <p className="mt-1 text-[11px] font-medium text-slate-500 sm:text-xs">
-                    Display timezone: {effectiveTimeZone}
-                  </p>
-                )}
+                <p className="mt-1 text-[11px] font-medium text-slate-500 sm:text-xs">
+                  Services are loaded from the GoHighLevel v2 service catalog.
+                  {effectiveTimeZone ? ` Display timezone: ${effectiveTimeZone}` : ""}
+                </p>
               </div>
               <Button
                 variant="outline"
                 onClick={() => {
-                  refetchCalendars();
+                  refetchServices();
                   refetchBookings();
                 }}
                 className="h-9 rounded-lg border-slate-200 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50 sm:h-10 sm:rounded-xl sm:px-4 sm:text-sm"
@@ -438,7 +485,7 @@ const CalendarManagementPage = () => {
 
           <div
             className={`mt-4 grid gap-3 md:mt-6 md:gap-4 ${
-              canSelectLocation ? "md:grid-cols-2" : "md:grid-cols-1"
+              canSelectLocation ? "md:grid-cols-[1.25fr_0.75fr]" : "md:grid-cols-1"
             }`}
           >
             {canSelectLocation && (
@@ -469,56 +516,47 @@ const CalendarManagementPage = () => {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Calendar
-              </label>
-              <select
-                value={selectedCalendarId}
-                onChange={(e) => setSelectedCalendarId(e.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-transparent focus:ring-2 sm:h-11 sm:rounded-xl"
-                style={{ "--tw-ring-color": `${brandColor}33` }}
-              >
-                {isLoadingCalendars ? (
-                  <option value="">Loading calendars...</option>
-                ) : calendars.length === 0 ? (
-                  <option value="">No calendars available</option>
-                ) : (
-                  calendars.map((calendar) => {
-                    const id = calendar.id || calendar._id || "";
-                    return (
-                      <option key={id} value={id}>
-                        {calendar.name || calendar.title || "Untitled Calendar"}
-                      </option>
-                    );
-                  })
-                )}
-              </select>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:rounded-2xl sm:p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Integration
+              </p>
+              <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">
+                GoHighLevel Services Catalog
+              </p>
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                Source: {servicesSource}
+              </p>
             </div>
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-4">
             <div className="rounded-xl border border-slate-200 bg-white p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Calendars
+                Services
               </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-3xl">{calendars.length}</p>
+              <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-3xl">
+                {ghlServices.length}
+              </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Booked
               </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-3xl">{appointments.length}</p>
+              <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-3xl">
+                {appointments.length}
+              </p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-3 sm:rounded-2xl sm:p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Raw Returned
               </p>
-              <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-3xl">{rawCount}</p>
+              <p className="mt-1 text-xl font-bold text-slate-900 sm:mt-2 sm:text-3xl">
+                {rawCount}
+              </p>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 lg:mt-6 lg:gap-5 lg:grid-cols-[1.15fr_1fr]">
+          <div className="mt-4 grid gap-4 lg:mt-6 lg:gap-5 lg:grid-cols-[1.05fr_1.2fr]">
             <section className="rounded-xl border border-slate-200 bg-white p-3 sm:rounded-2xl sm:p-5">
               <div className="mb-3 flex items-center justify-between sm:mb-4">
                 <div className="flex items-center gap-2">
@@ -571,118 +609,217 @@ const CalendarManagementPage = () => {
                   ? Array.from({ length: 42 }).map((_, idx) => (
                       <div
                         key={`calendar-skeleton-${idx}`}
-                        className="h-9 rounded-md border border-slate-200 bg-slate-100 animate-pulse sm:h-11 sm:rounded-xl"
+                        className="h-9 animate-pulse rounded-md border border-slate-200 bg-slate-100 sm:h-11 sm:rounded-xl"
                       />
                     ))
                   : monthMatrix.flat().map((dateCell) => {
-                  const cellParts = getDatePartsInTimeZone(dateCell, effectiveTimeZone);
-                  const inCurrentMonth =
-                    cellParts?.month === visibleMonthParts?.month &&
-                    cellParts?.year === visibleMonthParts?.year;
-                  const selected = isSameDay(
-                    dateCell,
-                    selectedDateObject,
-                    effectiveTimeZone
-                  );
+                      const cellParts = getDatePartsInTimeZone(dateCell, effectiveTimeZone);
+                      const inCurrentMonth =
+                        cellParts?.month === visibleMonthParts?.month &&
+                        cellParts?.year === visibleMonthParts?.year;
+                      const selected = isSameDay(
+                        dateCell,
+                        selectedDateObject,
+                        effectiveTimeZone
+                      );
 
-                    return (
-                      <button
-                        key={dateCell.toISOString()}
-                        type="button"
-                        onClick={() => handlePickDate(dateCell)}
-                        className={`h-9 rounded-md border text-xs font-semibold transition sm:h-11 sm:rounded-xl sm:text-sm ${
-                          selected
-                            ? "text-white"
-                            : inCurrentMonth
-                            ? "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
-                            : "border-slate-100 bg-slate-50 text-slate-400 hover:bg-slate-100"
-                        }`}
-                        style={
-                          selected
-                            ? {
-                                background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})`,
-                                borderColor: brandColorDark,
-                              }
-                            : undefined
-                        }
-                      >
-                        {dateCell.getDate()}
-                      </button>
-                    );
-                  })}
+                      return (
+                        <button
+                          key={dateCell.toISOString()}
+                          type="button"
+                          onClick={() => handlePickDate(dateCell)}
+                          className={`h-9 rounded-md border text-xs font-semibold transition sm:h-11 sm:rounded-xl sm:text-sm ${
+                            selected
+                              ? "text-white"
+                              : inCurrentMonth
+                              ? "border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                              : "border-slate-100 bg-slate-50 text-slate-400 hover:bg-slate-100"
+                          }`}
+                          style={
+                            selected
+                              ? {
+                                  background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})`,
+                                  borderColor: brandColorDark,
+                                }
+                              : undefined
+                          }
+                        >
+                          {dateCell.getDate()}
+                        </button>
+                      );
+                    })}
               </div>
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white p-3 sm:rounded-2xl sm:p-5">
-              <h2 className="text-base font-bold text-slate-900 sm:text-lg">
-                Booked Appointments for {selectedDate}
-              </h2>
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
-                {selectedCalendarId
-                  ? `Filtered by selected calendar`
-                  : "No calendar filter selected"}
-              </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 sm:text-lg">
+                    GoHighLevel Services
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                    Showing every service returned for this location from the GHL services tab.
+                  </p>
+                </div>
+                <span className="inline-flex items-center rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                  v2
+                </span>
+              </div>
 
-              <div className="mt-3 sm:mt-4">
-                {isLoadingBookings ? (
-                  <div className="space-y-3">
-                    {[0, 1, 2].map((idx) => (
-                      <div
-                        key={`appt-skeleton-${idx}`}
-                        className="rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-4"
-                      >
-                        <div className="h-4 w-40 rounded bg-slate-100 animate-pulse sm:h-5" />
-                        <div className="mt-2 h-3 w-52 rounded bg-slate-100 animate-pulse sm:h-4" />
-                        <div className="mt-2 h-3 w-28 rounded bg-slate-100 animate-pulse" />
+              <div className="mt-3 space-y-3 sm:mt-4">
+                {isLoadingServices ? (
+                  Array.from({ length: 4 }).map((_, idx) => (
+                    <div
+                      key={`service-skeleton-${idx}`}
+                      className="rounded-lg border border-slate-200 bg-white p-4 sm:rounded-xl"
+                    >
+                      <div className="h-4 w-40 animate-pulse rounded bg-slate-100 sm:h-5" />
+                      <div className="mt-2 h-3 w-full animate-pulse rounded bg-slate-100" />
+                      <div className="mt-3 flex gap-2">
+                        <div className="h-6 w-20 animate-pulse rounded-full bg-slate-100" />
+                        <div className="h-6 w-24 animate-pulse rounded-full bg-slate-100" />
                       </div>
-                    ))}
-                  </div>
-                ) : appointments.length === 0 ? (
+                    </div>
+                  ))
+                ) : !effectiveLocationId ? (
+                  <p className="text-sm text-slate-500">Select a location to load services.</p>
+                ) : ghlServices.length === 0 ? (
                   <p className="text-sm text-slate-500">
-                    {isUnavailable
-                      ? "Appointments are currently unavailable for this selection."
-                      : "No booked appointments for selected date and calendar."}
+                    {servicesUnavailable
+                      ? "Services are currently unavailable from GoHighLevel for this location."
+                      : "No services were returned for this location."}
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {appointments.map((appointment, index) => (
-                      <article
-                        key={appointment.id || `${appointment.startTime || "start"}-${index}`}
-                        className="rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-4"
-                      >
-                        <p className="text-sm font-semibold text-slate-900 sm:text-base">
-                          {appointment.title || "Booked Appointment"}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-700 sm:text-sm">
-                          {formatAppointmentWindow(
-                            appointment.startTime,
-                            appointment.endTime,
-                            effectiveTimeZone,
-                            appointment.startTimeRaw,
-                            appointment.endTimeRaw
-                          )}
-                        </p>
-                        {appointment.startTime && (
-                          <p className="mt-1 text-[11px] text-slate-500 sm:text-xs">
-                            {formatAppointmentDate(
-                              appointment.startTime,
-                              effectiveTimeZone,
-                              appointment.startTimeRaw
-                            )}
-                          </p>
-                        )}
-                        <div className="mt-2">
-                          <span className="inline-flex items-center rounded-full border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                            {toTitle(appointment.status)}
+                  <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
+                    {ghlServices.map((service, index) => {
+                      const priceLabel = formatServicePrice(service);
+                      return (
+                        <article
+                          key={service.id || `${service.name || "service"}-${index}`}
+                          className="rounded-lg border border-slate-200 bg-white p-4 sm:rounded-xl"
+                        >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 sm:text-base">
+                              {service.name || "Untitled Service"}
+                            </p>
+                            {service.description ? (
+                              <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
+                                {service.description}
+                              </p>
+                            ) : null}
+                          </div>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                              service.isActive
+                                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "border border-slate-200 bg-slate-50 text-slate-600"
+                            }`}
+                          >
+                            {service.isActive ? "Active" : "Inactive"}
                           </span>
                         </div>
-                      </article>
-                    ))}
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+                            {formatServiceDuration(service)}
+                          </span>
+                          {priceLabel ? (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+                              {priceLabel}
+                            </span>
+                          ) : null}
+                          {service.category ? (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+                              {service.category}
+                            </span>
+                          ) : null}
+                          {service.calendarName ? (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+                              {service.calendarName}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <p className="mt-3 text-xs text-slate-500 sm:text-sm">
+                          Staff: {getServiceStaffSummary(service)}
+                        </p>
+                        </article>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </section>
           </div>
+
+          <section className="mt-4 rounded-xl border border-slate-200 bg-white p-3 sm:mt-6 sm:rounded-2xl sm:p-5">
+            <h2 className="text-base font-bold text-slate-900 sm:text-lg">
+              Booked Appointments for {selectedDate}
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+              Showing all booked appointments returned for this location on the selected date.
+            </p>
+
+            <div className="mt-3 sm:mt-4">
+              {isLoadingBookings ? (
+                <div className="space-y-3">
+                  {[0, 1, 2].map((idx) => (
+                    <div
+                      key={`appt-skeleton-${idx}`}
+                      className="rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-4"
+                    >
+                      <div className="h-4 w-40 animate-pulse rounded bg-slate-100 sm:h-5" />
+                      <div className="mt-2 h-3 w-52 animate-pulse rounded bg-slate-100 sm:h-4" />
+                      <div className="mt-2 h-3 w-28 animate-pulse rounded bg-slate-100" />
+                    </div>
+                  ))}
+                </div>
+              ) : appointments.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  {isUnavailable
+                    ? "Appointments are currently unavailable for this location."
+                    : "No booked appointments for the selected date."}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {appointments.map((appointment, index) => (
+                    <article
+                      key={appointment.id || `${appointment.startTime || "start"}-${index}`}
+                      className="rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-4"
+                    >
+                      <p className="text-sm font-semibold text-slate-900 sm:text-base">
+                        {appointment.title || "Booked Appointment"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-700 sm:text-sm">
+                        {formatAppointmentWindow(
+                          appointment.startTime,
+                          appointment.endTime,
+                          effectiveTimeZone,
+                          appointment.startTimeRaw,
+                          appointment.endTimeRaw
+                        )}
+                      </p>
+                      {appointment.startTime ? (
+                        <p className="mt-1 text-[11px] text-slate-500 sm:text-xs">
+                          {formatAppointmentDate(
+                            appointment.startTime,
+                            effectiveTimeZone,
+                            appointment.startTimeRaw
+                          )}
+                        </p>
+                      ) : null}
+                      <div className="mt-2">
+                        <span className="inline-flex items-center rounded-full border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {toTitle(appointment.status)}
+                        </span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </Layout>

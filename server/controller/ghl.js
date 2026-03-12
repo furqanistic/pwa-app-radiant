@@ -326,6 +326,235 @@ const normalizeCalendarsPayload = (payload) => {
   )
 }
 
+const normalizeCalendarServicesPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return []
+
+  const candidates = [
+    payload.services,
+    payload.serviceCatalog,
+    payload.catalog,
+    payload.items,
+    payload.data?.services,
+    payload.data?.serviceCatalog,
+    payload.data?.catalog,
+    payload.data?.items,
+    payload.data,
+  ]
+
+  for (const entry of candidates) {
+    if (Array.isArray(entry)) return entry
+  }
+
+  return []
+}
+
+const parseServiceDurationMinutes = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+
+  if (typeof value === 'string') {
+    const numericMatch = value.match(/(\d+(?:\.\d+)?)/)
+    if (numericMatch) {
+      const numericValue = Number(numericMatch[1])
+      if (Number.isFinite(numericValue)) {
+        return /hour|hr/i.test(value) ? numericValue * 60 : numericValue
+      }
+    }
+  }
+
+  return 0
+}
+
+const parseNumberish = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^\d.-]/g, '')
+    if (!cleaned) return null
+    const parsed = Number(cleaned)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const normalizeCurrencyCode = (value) => {
+  const raw = `${value || ''}`.trim().toUpperCase()
+  return /^[A-Z]{3}$/.test(raw) ? raw : ''
+}
+
+const extractPriceAmount = (input, depth = 0) => {
+  if (depth > 3 || input == null) return null
+
+  const primitive = parseNumberish(input)
+  if (primitive !== null) return primitive
+
+  if (Array.isArray(input)) {
+    for (const entry of input) {
+      const extracted = extractPriceAmount(entry, depth + 1)
+      if (extracted !== null) return extracted
+    }
+    return null
+  }
+
+  if (typeof input !== 'object') return null
+
+  const centKeys = [
+    'amountInCents',
+    'amount_cents',
+    'amountCents',
+    'cents',
+    'unitAmount',
+    'unit_amount',
+  ]
+  for (const key of centKeys) {
+    const cents = parseNumberish(input?.[key])
+    if (cents !== null) return cents / 100
+  }
+
+  const valueKeys = [
+    'amount',
+    'value',
+    'price',
+    'servicePrice',
+    'basePrice',
+    'cost',
+    'defaultPrice',
+    'minPrice',
+    'maxPrice',
+  ]
+  for (const key of valueKeys) {
+    const direct = parseNumberish(input?.[key])
+    if (direct !== null) return direct
+  }
+
+  const nestedKeys = [
+    'price',
+    'pricing',
+    'prices',
+    'rate',
+    'cost',
+    'default',
+    'values',
+    'amounts',
+    'money',
+  ]
+  for (const key of nestedKeys) {
+    if (input?.[key] == null) continue
+    const nested = extractPriceAmount(input[key], depth + 1)
+    if (nested !== null) return nested
+  }
+
+  for (const value of Object.values(input)) {
+    const nested = extractPriceAmount(value, depth + 1)
+    if (nested !== null) return nested
+  }
+
+  return null
+}
+
+const resolveServiceCurrency = (service = {}) => {
+  const directCandidates = [
+    service?.currency,
+    service?.priceCurrency,
+    service?.currencyCode,
+    service?.pricing?.currency,
+    service?.pricing?.currencyCode,
+    service?.price?.currency,
+    service?.price?.currencyCode,
+    service?.servicePrice?.currency,
+    service?.servicePrice?.currencyCode,
+  ]
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeCurrencyCode(candidate)
+    if (normalized) return normalized
+  }
+
+  return 'USD'
+}
+
+const resolveServicePrice = (service = {}) => {
+  const candidates = [
+    service?.price,
+    service?.amount,
+    service?.servicePrice,
+    service?.basePrice,
+    service?.cost,
+    service?.priceValue,
+    service?.priceAmount,
+    service?.defaultPrice,
+    service?.pricing,
+    service?.prices,
+    service?.rate,
+  ]
+
+  for (const candidate of candidates) {
+    const extracted = extractPriceAmount(candidate)
+    if (extracted !== null) {
+      return extracted
+    }
+  }
+
+  return ''
+}
+
+const normalizeCalendarServiceEntity = (service, index = 0) => {
+  const staffEntries = [
+    ...(Array.isArray(service?.staff) ? service.staff : []),
+    ...(Array.isArray(service?.users) ? service.users : []),
+    ...(Array.isArray(service?.assignedUsers) ? service.assignedUsers : []),
+    ...(Array.isArray(service?.teamMembers) ? service.teamMembers : []),
+  ]
+
+  const staffNames = staffEntries
+    .map((entry) =>
+      [
+        entry?.name,
+        entry?.fullName,
+        [entry?.firstName, entry?.lastName].filter(Boolean).join(' ').trim(),
+      ]
+        .find(Boolean)
+        ?.trim()
+    )
+    .filter(Boolean)
+
+  return {
+    ...service,
+    id: service?.id || service?._id || service?.serviceId || `ghl-service-${index}`,
+    name: service?.name || service?.title || service?.serviceName || 'Untitled Service',
+    description:
+      service?.description || service?.details || service?.serviceDescription || '',
+    category:
+      service?.categoryName ||
+      service?.category?.name ||
+      service?.groupName ||
+      service?.group ||
+      '',
+    duration:
+      service?.duration ??
+      service?.durationInMinutes ??
+      service?.serviceDuration ??
+      service?.slotDuration ??
+      service?.durationMinutes ??
+      '',
+    durationMinutes: parseServiceDurationMinutes(
+      service?.duration ??
+        service?.durationInMinutes ??
+        service?.serviceDuration ??
+        service?.slotDuration ??
+        service?.durationMinutes ??
+        ''
+    ),
+    price: resolveServicePrice(service),
+    currency: resolveServiceCurrency(service),
+    calendarId: service?.calendarId || service?.calendar?.id || service?.calendar?._id || '',
+    calendarName:
+      service?.calendarName || service?.calendar?.name || service?.calendar?.title || '',
+    staff: staffEntries,
+    staffNames,
+    staffCount: staffNames.length || staffEntries.length,
+    isActive: service?.isActive ?? service?.active ?? true,
+  }
+}
+
 const normalizeCalendarEntity = (calendar) => ({
   ...calendar,
   id: calendar?.id || calendar?._id || '',
@@ -1173,6 +1402,78 @@ export const getCalendars = async (req, res, next) => {
         calendars: [],
         total: 0,
         source: 'ghl',
+        unavailable: true,
+        error: error.response?.data || error.message,
+      },
+    })
+  }
+}
+
+export const getCalendarServices = async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.set('Surrogate-Control', 'no-store')
+
+    const { locationId } = req.query
+    if (!locationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'locationId is required',
+      })
+    }
+
+    const token = await getTokenForLocation(locationId)
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: `No GHL API key configured for location ${locationId}`,
+      })
+    }
+
+    const attempts = [
+      { endpoint: '/calendars/services/catalog', source: 'ghl-v2' },
+      { endpoint: '/calendars/services/catalog/', source: 'ghl-v2' },
+      { endpoint: '/calendars/services', source: 'ghl-v2-fallback' },
+    ]
+
+    let lastError = null
+
+    for (const attempt of attempts) {
+      try {
+        const response = await makeGHLV2Request(attempt.endpoint, {
+          token,
+          params: { locationId },
+        })
+
+        const services = normalizeCalendarServicesPayload(response).map(
+          normalizeCalendarServiceEntity
+        )
+
+        return res.status(200).json({
+          success: true,
+          message: 'Calendar services fetched successfully',
+          data: {
+            services,
+            total: services.length,
+            source: attempt.source,
+          },
+        })
+      } catch (error) {
+        lastError = error
+      }
+    }
+
+    throw lastError || new Error('Failed to fetch GHL calendar services')
+  } catch (error) {
+    res.status(200).json({
+      success: true,
+      message: 'Calendar services unavailable, using fallback',
+      data: {
+        services: [],
+        total: 0,
+        source: 'ghl-v2',
         unavailable: true,
         error: error.response?.data || error.message,
       },

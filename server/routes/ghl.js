@@ -2,6 +2,7 @@
 // server/routes/ghl.js
 import express from 'express'
 import {
+  getCalendarServices,
   createContact,
   deleteContact,
   getAllContacts,
@@ -33,6 +34,7 @@ router.delete('/contacts/:contactId', deleteContact)
 // Other resource routes
 router.get('/opportunities', getOpportunities)
 router.get('/calendars', getCalendars)
+router.get('/calendar-services', getCalendarServices)
 router.get('/bookings', getLocationBookingsByDate)
 router.get('/custom-fields', getCustomFields)
 

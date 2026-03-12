@@ -8,6 +8,13 @@ export const ghlService = {
     return response.data
   },
 
+  getCalendarServices: async (locationId) => {
+    const response = await axiosInstance.get('/ghl/calendar-services', {
+      params: { locationId },
+    })
+    return response.data
+  },
+
   getLocationBookingsByDate: async (locationId, date, calendarId, timeZone) => {
     const response = await axiosInstance.get('/ghl/bookings', {
       params: {
