@@ -118,6 +118,11 @@ const PaymentSchema = new mongoose.Schema(
       default: 'pending',
       index: true,
     },
+    livemode: {
+      type: Boolean,
+      default: null,
+      index: true,
+    },
 
     // Refund details
     refund: {

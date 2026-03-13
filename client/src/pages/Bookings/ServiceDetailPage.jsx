@@ -6,6 +6,7 @@ import { useBranding } from '@/context/BrandingContext';
 import { useAvailability } from "@/hooks/useAvailability";
 import { useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Calendar,
@@ -29,6 +30,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from 'sonner';
 import { addToCart } from "../../redux/cartSlice";
+import ghlService from "../../services/ghlService";
 import stripeService from "../../services/stripeService";
 
 const ServiceDetailSkeleton = () => (
@@ -103,6 +105,220 @@ const ServiceDetailSkeleton = () => (
   </Layout>
 );
 
+const extractGhlEmbedSrc = (value = "") => {
+  const raw = decodeHtmlEntities(`${value || ""}`).trim();
+  if (!raw) return "";
+
+  const iframeMatch = raw.match(/src=(['"])(.*?)\1/i);
+  if (iframeMatch?.[2]) return iframeMatch[2];
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^\/\//.test(raw)) return `https:${raw}`;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(raw)) return `https://${raw}`;
+  return "";
+};
+
+function decodeHtmlEntities(value) {
+  let output = `${value || ""}`;
+  const replacements = [
+    [/&amp;/gi, "&"],
+    [/&lt;/gi, "<"],
+    [/&gt;/gi, ">"],
+    [/&quot;/gi, '"'],
+    [/&#34;/gi, '"'],
+    [/&apos;/gi, "'"],
+    [/&#39;/gi, "'"],
+  ];
+
+  for (let i = 0; i < 3; i += 1) {
+    const previous = output;
+    replacements.forEach(([pattern, replacement]) => {
+      output = output.replace(pattern, replacement);
+    });
+    if (output === previous) break;
+  }
+
+  return output;
+}
+
+const normalizeUrlLikeValue = (value) => {
+  const raw = decodeHtmlEntities(`${value || ""}`).trim();
+  if (!raw) return "";
+  if (/<iframe/i.test(raw) || /<script/i.test(raw) || /form_embed\.js/i.test(raw)) {
+    return raw;
+  }
+  return extractGhlEmbedSrc(raw);
+};
+
+const normalizeHttpUrl = (value) => {
+  const normalized = normalizeUrlLikeValue(value);
+  if (!normalized || /<iframe/i.test(normalized) || /<script/i.test(normalized)) {
+    return "";
+  }
+  return normalized;
+};
+
+const extractGhlBookingFromPayload = (payload = {}) => {
+  const candidatesForScheduling = [
+    payload?.schedulingLink,
+    payload?.schedulingURL,
+    payload?.schedulingUrl,
+    payload?.bookingLink,
+    payload?.bookingUrl,
+    payload?.bookingURL,
+    payload?.shareBookingLink,
+    payload?.shareLink,
+    payload?.url,
+    payload?.shareBooking?.schedulingLink,
+    payload?.shareBooking?.schedulingURL,
+    payload?.shareBooking?.schedulingUrl,
+    payload?.shareBooking?.bookingLink,
+    payload?.shareBooking?.shareLink,
+    payload?.shareBooking?.url,
+    payload?.booking?.schedulingLink,
+    payload?.booking?.schedulingURL,
+    payload?.booking?.schedulingUrl,
+    payload?.booking?.bookingLink,
+    payload?.booking?.shareLink,
+    payload?.booking?.url,
+    payload?.links?.scheduling,
+    payload?.links?.schedulingLink,
+    payload?.links?.booking,
+    payload?.links?.bookingLink,
+    payload?.links?.public,
+    payload?.links?.publicLink,
+  ];
+
+  const candidatesForPermanent = [
+    payload?.permanentLink,
+    payload?.permaLink,
+    payload?.permalink,
+    payload?.publicLink,
+    payload?.publicUrl,
+    payload?.shareBooking?.permanentLink,
+    payload?.shareBooking?.permaLink,
+    payload?.shareBooking?.permalink,
+    payload?.shareBooking?.publicLink,
+    payload?.shareBooking?.publicUrl,
+    payload?.booking?.permanentLink,
+    payload?.booking?.permaLink,
+    payload?.booking?.permalink,
+    payload?.booking?.publicLink,
+    payload?.booking?.publicUrl,
+    payload?.links?.permanent,
+    payload?.links?.permanentLink,
+    payload?.links?.public,
+    payload?.links?.publicLink,
+  ];
+
+  const candidatesForEmbed = [
+    payload?.embedCode,
+    payload?.embed,
+    payload?.embedHtml,
+    payload?.mCode,
+    payload?.mcode,
+    payload?.shareBookingCode,
+    payload?.shareBookingMCode,
+    payload?.widgetCode,
+    payload?.widgetMCode,
+    payload?.iframeCode,
+    payload?.shareBooking?.embedCode,
+    payload?.shareBooking?.mCode,
+    payload?.shareBooking?.mcode,
+    payload?.shareBooking?.code,
+    payload?.booking?.embedCode,
+    payload?.booking?.mCode,
+    payload?.booking?.mcode,
+    payload?.booking?.code,
+    payload?.widget?.embedCode,
+    payload?.widget?.mCode,
+    payload?.widget?.mcode,
+    payload?.widget?.code,
+    payload?.links?.embedCode,
+    payload?.links?.mCode,
+    payload?.links?.mcode,
+  ];
+
+  const embedCode = candidatesForEmbed.map(normalizeUrlLikeValue).find(Boolean) || "";
+  const schedulingLink =
+    candidatesForScheduling.map(normalizeHttpUrl).find(Boolean) ||
+    extractGhlEmbedSrc(embedCode) ||
+    "";
+  const permanentLink =
+    candidatesForPermanent.map(normalizeHttpUrl).find(Boolean) ||
+    schedulingLink ||
+    "";
+
+  return {
+    schedulingLink,
+    permanentLink,
+    embedCode,
+  };
+};
+
+const buildSpaSchedulerBookingFallback = ({ subdomain = "", serviceId = "" } = {}) => {
+  const normalizedSubdomain = `${subdomain || ""}`.trim().toLowerCase();
+  const normalizedServiceId = `${serviceId || ""}`.trim();
+  if (!normalizedSubdomain || !normalizedServiceId || !normalizedSubdomain.includes("-")) {
+    return { schedulingLink: "", permanentLink: "", embedCode: "" };
+  }
+
+  const baseUrl = `https://app.spascheduler.online/booking/${normalizedSubdomain}/sv/${normalizedServiceId}`;
+  const iframeSrc = `${baseUrl}?heightMode=fixed&showHeader=true`;
+  return {
+    schedulingLink: baseUrl,
+    permanentLink: baseUrl,
+    embedCode: `<iframe src="${iframeSrc}" style="width: 100%;border:none;overflow: hidden;" scrolling="no" id="${normalizedServiceId}_auto"></iframe><br><script src="https://app.spascheduler.online/js/form_embed.js" type="text/javascript"></script>`,
+  };
+};
+
+const getGhlBookingConfig = (service = null, liveGhlService = null, fallback = {}) => {
+  const bookingFromService = extractGhlBookingFromPayload(service?.ghlBooking || {});
+  const bookingFromServiceRoot = extractGhlBookingFromPayload(service || {});
+  const bookingFromGhlApi = extractGhlBookingFromPayload(liveGhlService || {});
+  const bookingFallback = buildSpaSchedulerBookingFallback(fallback);
+  const schedulingLink =
+    bookingFromGhlApi.schedulingLink ||
+    bookingFromService.schedulingLink ||
+    bookingFromServiceRoot.schedulingLink ||
+    bookingFallback.schedulingLink ||
+    "";
+  const permanentLink =
+    bookingFromGhlApi.permanentLink ||
+    bookingFromService.permanentLink ||
+    bookingFromServiceRoot.permanentLink ||
+    bookingFallback.permanentLink ||
+    "";
+  const embedCode =
+    bookingFromGhlApi.embedCode ||
+    bookingFromService.embedCode ||
+    bookingFromServiceRoot.embedCode ||
+    bookingFallback.embedCode ||
+    "";
+  const embedSrc = extractGhlEmbedSrc(embedCode);
+  const bookingUrl = embedSrc || schedulingLink || permanentLink;
+
+  return {
+    schedulingLink,
+    permanentLink,
+    embedCode,
+    embedSrc,
+    bookingUrl,
+    isEnabled: Boolean(bookingUrl),
+  };
+};
+
+const isFrameLikelyBlocked = (url = "") => {
+  try {
+    const normalized = extractGhlEmbedSrc(url);
+    if (!normalized) return false;
+    const hostname = new URL(normalized).hostname.toLowerCase();
+    // This provider currently blocks cross-site iframe embedding in Firefox.
+    return hostname === "app.spascheduler.online";
+  } catch {
+    return false;
+  }
+};
+
 const ServiceDetailPage = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
@@ -114,7 +330,7 @@ const ServiceDetailPage = () => {
   const giftValue = location.state?.giftValue || 0;
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
-  const { branding, locationId: brandedLocationId } = useBranding();
+  const { branding, locationId: brandedLocationId, subdomain: brandingSubdomain } = useBranding();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '');
@@ -163,7 +379,29 @@ const ServiceDetailPage = () => {
     spaParamLocationId ||
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId ||
-    brandedLocationId;
+    brandedLocationId ||
+    service?.locationId ||
+    "";
+
+  const linkedGhlServiceId = `${service?.ghlService?.serviceId || service?.ghlCalendar?.calendarId || ""}`.trim();
+  const bookingSubdomain = `${branding?.subdomain || brandingSubdomain || ""}`.trim().toLowerCase();
+  const { data: liveGhlServiceData } = useQuery({
+    queryKey: ["ghl-calendar-service", "service-detail-page", activeLocationId, linkedGhlServiceId],
+    queryFn: () => ghlService.getCalendarServiceById(activeLocationId, linkedGhlServiceId),
+    enabled: Boolean(activeLocationId && linkedGhlServiceId),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const liveGhlService = liveGhlServiceData?.data?.service || null;
+
+  const ghlBookingConfig = getGhlBookingConfig(service, liveGhlService, {
+    subdomain: bookingSubdomain,
+    serviceId: linkedGhlServiceId,
+  });
+  const hasGhlBooking = ghlBookingConfig.isEnabled;
+  const hasEmbeddedGhlBooking = Boolean(ghlBookingConfig.embedSrc);
+  const shouldRenderEmbeddedBooking =
+    hasEmbeddedGhlBooking && !isFrameLikelyBlocked(ghlBookingConfig.embedSrc);
 
   // ✅ DYNAMIC AVAILABILITY
   const { 
@@ -182,6 +420,25 @@ const ServiceDetailPage = () => {
     availabilityMeta.externalSourceUnavailable
   );
   const ghlCalendarName = availabilityMeta?.ghlCalendar?.name || "";
+
+  const handleOpenGhlBooking = () => {
+    if (shouldRenderEmbeddedBooking) {
+      const section = document.getElementById("ghl-booking-section");
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      return;
+    }
+
+    const directUrl =
+      ghlBookingConfig.schedulingLink ||
+      ghlBookingConfig.permanentLink ||
+      ghlBookingConfig.bookingUrl;
+
+    if (directUrl) {
+      window.open(directUrl, "_blank", "noopener,noreferrer");
+    }
+  };
 
   // ✅ GET CART TIMES FOR THIS SERVICE ON THIS DATE
   const getCartTimesForService = () => {
@@ -642,185 +899,247 @@ const ServiceDetailPage = () => {
                  </div>
               </div>
 
-              {/* Treatment Options */}
-              <div id="treatments-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Select Treatment</h2>
-                
-                {service.subTreatments && service.subTreatments.length > 0 ? (
-                  <div className="grid gap-4">
-                    {service.subTreatments.map((treatment) => {
-                      // Robust ID check
-                      const isSelected = selectedTreatments.some(t => 
-                        (t._id && treatment._id && t._id === treatment._id) || 
-                        (t.id && treatment.id && t.id === treatment.id) ||
-                        (t._id === treatment.id) || 
-                        (t.id === treatment._id)
-                      );
+              {hasGhlBooking ? (
+                <div
+                  id="ghl-booking-section"
+                  className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Book This Service</h2>
+                      <p className="text-sm text-gray-500 mt-1">
+                        This service uses its linked GoHighLevel Share Booking page for live booking.
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center rounded-full bg-[color:var(--brand-primary)/0.12] px-3 py-1 text-xs font-bold text-[color:var(--brand-primary)]">
+                      GHL Booking
+                    </span>
+                  </div>
 
-                      return (
-                        <div
-                          key={treatment._id || treatment.id}
-                          onClick={() => handleTreatmentSelect(treatment)}
-                          className={`relative cursor-pointer rounded-2xl p-5 transition-all duration-200 border ${
-                            isSelected
-                              ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] ring-2 ring-[color:var(--brand-primary)/0.25] ring-offset-1"
-                              : "border-gray-200/70 hover:border-gray-200/70 hover:bg-gray-50"
-                          }`}
-                        >
-                           <div className="flex justify-between items-start">
-                              <div className="flex gap-4">
-                                 {/* Custom Radio Button */}
-                                 <div className={`mt-0.5 h-6 w-6 min-w-[1.5rem] rounded-full border flex items-center justify-center transition-all ${
-                                    isSelected ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08]" : "border-gray-200/70"
-                                 }`}>
-                                    {isSelected && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
-                                 </div>
-                                 
-                                 <div>
-                                    <h3 className={`font-bold text-lg mb-1 leading-snug ${isSelected ? "text-[color:var(--brand-primary)]" : "text-gray-900"}`}>
-                                      {treatment.name}
-                                    </h3>
-                                    <p className="text-gray-600 text-sm mb-3">
-                                      {treatment.description}
-                                    </p>
-                                    <div className="flex items-center gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                       <span className="flex items-center gap-1">
-                                          <Clock className="w-3.5 h-3.5" /> {treatment.duration} min
-                                       </span>
-                                    </div>
-                                 </div>
-                              </div>
-                              
-                              <div className="text-right pl-4">
-                                 <div className={`text-xl font-bold ${isSelected ? "text-[color:var(--brand-primary)]" : "text-gray-900"}`}>
-                                    ${treatment.price}
-                                 </div>
-                              </div>
-                           </div>
+                  {shouldRenderEmbeddedBooking ? (
+                    <>
+                      <div className="overflow-hidden rounded-2xl border border-gray-200/70 bg-white">
+                        <iframe
+                          src={ghlBookingConfig.embedSrc}
+                          title={`${service.name} booking widget`}
+                          className="w-full min-h-[980px] bg-white"
+                          loading="lazy"
+                          allow="payment *; fullscreen *"
+                        />
+                      </div>
+                      {(ghlBookingConfig.schedulingLink || ghlBookingConfig.permanentLink) && (
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              window.open(
+                                ghlBookingConfig.schedulingLink ||
+                                  ghlBookingConfig.permanentLink,
+                                "_blank",
+                                "noopener,noreferrer"
+                              )
+                            }
+                            className="px-4 py-2 rounded-xl border border-gray-200/70 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            Open in new tab
+                          </button>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 rounded-xl p-6 text-center border border-dashed border-gray-200/70">
-                     <p className="text-gray-500">Standard service booking. No variants available.</p>
-                  </div>
-                )}
-              </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-gray-200/70 bg-gray-50 p-6 text-center">
+                      <p className="text-sm text-gray-600 mb-4">
+                        {hasEmbeddedGhlBooking
+                          ? "Your browser is blocking this provider inside an iframe. Open the booking page in a new tab to continue."
+                          : "This service is configured to book through an external GoHighLevel page."}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleOpenGhlBooking}
+                        className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[color:var(--brand-primary)/0.25]"
+                      >
+                        Open booking page
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Treatment Options */}
+                  <div id="treatments-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Select Treatment</h2>
+                    
+                    {service.subTreatments && service.subTreatments.length > 0 ? (
+                      <div className="grid gap-4">
+                        {service.subTreatments.map((treatment) => {
+                          const isSelected = selectedTreatments.some(t => 
+                            (t._id && treatment._id && t._id === treatment._id) || 
+                            (t.id && treatment.id && t.id === treatment.id) ||
+                            (t._id === treatment.id) || 
+                            (t.id === treatment._id)
+                          );
 
-               {/* Add-ons Section */}
-               {service.linkedServices && service.linkedServices.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
-                   <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-xl font-bold text-gray-900">Recommended Add-ons</h2>
-                      <span className="bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] text-xs font-bold px-2 py-1 rounded-full">Optional</span>
-                   </div>
-                   
-                   <div className="grid gap-3">
-                      {service.linkedServices.map((addOn) => {
-                         const isSelected = selectedAddOns.some(item => item.serviceId === addOn.serviceId);
-                         const price = addOn.finalPrice || addOn.customPrice || addOn.basePrice;
-                         
-                         return (
+                          return (
                             <div
-                               key={addOn.serviceId}
-                               onClick={() => handleAddOnToggle(addOn)}
-                               className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                                  isSelected 
-                                    ? "border-green-500 bg-green-50/50 ring-1 ring-green-200" 
-                                    : "border-gray-200/70 hover:border-gray-200/70"
-                               }`}
+                              key={treatment._id || treatment.id}
+                              onClick={() => handleTreatmentSelect(treatment)}
+                              className={`relative cursor-pointer rounded-2xl p-5 transition-all duration-200 border ${
+                                isSelected
+                                  ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] ring-2 ring-[color:var(--brand-primary)/0.25] ring-offset-1"
+                                  : "border-gray-200/70 hover:border-gray-200/70 hover:bg-gray-50"
+                              }`}
                             >
-                               <div className="flex items-center gap-3">
-                                  <div className={`flex items-center justify-center h-5 w-5 min-w-[1.25rem] rounded-md border transition-colors ${
-                                     isSelected ? "bg-green-500 border-green-500" : "border-gray-200/70"
-                                  }`}>
-                                     {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                               <div className="flex justify-between items-start">
+                                  <div className="flex gap-4">
+                                     <div className={`mt-0.5 h-6 w-6 min-w-[1.5rem] rounded-full border flex items-center justify-center transition-all ${
+                                        isSelected ? "border-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08]" : "border-gray-200/70"
+                                     }`}>
+                                        {isSelected && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
+                                     </div>
+                                     
+                                     <div>
+                                        <h3 className={`font-bold text-lg mb-1 leading-snug ${isSelected ? "text-[color:var(--brand-primary)]" : "text-gray-900"}`}>
+                                          {treatment.name}
+                                        </h3>
+                                        <p className="text-gray-600 text-sm mb-3">
+                                          {treatment.description}
+                                        </p>
+                                        <div className="flex items-center gap-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                           <span className="flex items-center gap-1">
+                                              <Clock className="w-3.5 h-3.5" /> {treatment.duration} min
+                                           </span>
+                                        </div>
+                                     </div>
                                   </div>
-                                  <div>
-                                     <div className="font-semibold text-gray-900">{addOn.name}</div>
-                                     <div className="text-xs text-gray-500">+{addOn.duration} min</div>
+                                  
+                                  <div className="text-right pl-4">
+                                     <div className={`text-xl font-bold ${isSelected ? "text-[color:var(--brand-primary)]" : "text-gray-900"}`}>
+                                        ${treatment.price}
+                                     </div>
                                   </div>
-                               </div>
-                               <div className="font-bold text-gray-900">
-                                  +${price}
                                </div>
                             </div>
-                         );
-                      })}
-                   </div>
-                </div>
-               )}
-
-              {/* Date & Time Section */}
-              <div id="datetime-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Select Date & Time</h2>
-                
-                <div className="space-y-6">
-                   {/* Date Picker */}
-                   <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Pick a Date</label>
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => {
-                           setSelectedDate(e.target.value);
-                           setSelectedTime(""); 
-                        }}
-                        min={new Date().toISOString().split("T")[0]}
-                        className="w-full h-12 px-4 bg-gray-50 border border-gray-200/70 rounded-xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:border-[color:var(--brand-primary)] outline-none transition-all appearance-none text-base"
-                        style={{ WebkitAppearance: 'none' }} 
-                      />
-                   </div>
-
-                   {/* Time Slots */}
-                   <div>
-                      <div className="flex items-center justify-between mb-3">
-                         <label className="block text-sm font-medium text-gray-700">Available Slots</label>
-                         <div className="flex items-center gap-3">
-                           {selectedDate && !loadingAvailability && (
-                             <span className="text-xs text-gray-500">
-                               {externalSourceUnavailable
-                                 ? "GHL unavailable"
-                                 : ghlCalendarName
-                                 ? `${ghlCalendarName}: ${externalBookingsCount} booked`
-                                 : `GHL booked: ${externalBookingsCount}`}
-                             </span>
-                           )}
-                           {loadingAvailability && <span className="text-xs text-[color:var(--brand-primary)] animate-pulse">Checking availability...</span>}
-                         </div>
+                          );
+                        })}
                       </div>
-                      
-                      {selectedDate ? (
-                         availableTimes.length > 0 ? (
-                           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                             {availableTimes.map((time) => (
-                               <button
-                                 key={time}
-                                 onClick={() => setSelectedTime(time)}
-                                 className={`py-2 px-1 text-sm font-medium rounded-lg border transition-all ${
-                                   selectedTime === time
-                                     ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
-                                     : "bg-white text-gray-700 border-gray-200/70 hover:border-gray-200/70 hover:bg-gray-50"
-                                 }`}
-                               >
-                                 {time}
-                               </button>
-                             ))}
-                           </div>
-                         ) : (
-                           <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
-                              <p className="text-gray-500">No time slots available for this date.</p>
-                           </div>
-                         )
-                      ) : (
-                         <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
-                            <p className="text-gray-500">Please select a date to view times.</p>
-                         </div>
-                      )}
-                   </div>
-                </div>
-              </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-xl p-6 text-center border border-dashed border-gray-200/70">
+                         <p className="text-gray-500">Standard service booking. No variants available.</p>
+                      </div>
+                    )}
+                  </div>
+
+                   {service.linkedServices && service.linkedServices.length > 0 && (
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
+                       <div className="flex items-center justify-between mb-4">
+                          <h2 className="text-xl font-bold text-gray-900">Recommended Add-ons</h2>
+                          <span className="bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] text-xs font-bold px-2 py-1 rounded-full">Optional</span>
+                       </div>
+                       
+                       <div className="grid gap-3">
+                          {service.linkedServices.map((addOn) => {
+                             const isSelected = selectedAddOns.some(item => item.serviceId === addOn.serviceId);
+                             const price = addOn.finalPrice || addOn.customPrice || addOn.basePrice;
+                             
+                             return (
+                                <div
+                                   key={addOn.serviceId}
+                                   onClick={() => handleAddOnToggle(addOn)}
+                                   className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                                      isSelected 
+                                        ? "border-green-500 bg-green-50/50 ring-1 ring-green-200" 
+                                        : "border-gray-200/70 hover:border-gray-200/70"
+                                   }`}
+                                >
+                                   <div className="flex items-center gap-3">
+                                      <div className={`flex items-center justify-center h-5 w-5 min-w-[1.25rem] rounded-md border transition-colors ${
+                                         isSelected ? "bg-green-500 border-green-500" : "border-gray-200/70"
+                                      }`}>
+                                         {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                                      </div>
+                                      <div>
+                                         <div className="font-semibold text-gray-900">{addOn.name}</div>
+                                         <div className="text-xs text-gray-500">+{addOn.duration} min</div>
+                                      </div>
+                                   </div>
+                                   <div className="font-bold text-gray-900">
+                                      +${price}
+                                   </div>
+                                </div>
+                             );
+                          })}
+                       </div>
+                    </div>
+                   )}
+
+                  <div id="datetime-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Select Date & Time</h2>
+                    
+                    <div className="space-y-6">
+                       <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Pick a Date</label>
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => {
+                               setSelectedDate(e.target.value);
+                               setSelectedTime(""); 
+                            }}
+                            min={new Date().toISOString().split("T")[0]}
+                            className="w-full h-12 px-4 bg-gray-50 border border-gray-200/70 rounded-xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:border-[color:var(--brand-primary)] outline-none transition-all appearance-none text-base"
+                            style={{ WebkitAppearance: 'none' }} 
+                          />
+                       </div>
+
+                       <div>
+                          <div className="flex items-center justify-between mb-3">
+                             <label className="block text-sm font-medium text-gray-700">Available Slots</label>
+                             <div className="flex items-center gap-3">
+                               {selectedDate && !loadingAvailability && (
+                                 <span className="text-xs text-gray-500">
+                                   {externalSourceUnavailable
+                                     ? "GHL unavailable"
+                                     : ghlCalendarName
+                                     ? `${ghlCalendarName}: ${externalBookingsCount} booked`
+                                     : `GHL booked: ${externalBookingsCount}`}
+                                 </span>
+                               )}
+                               {loadingAvailability && <span className="text-xs text-[color:var(--brand-primary)] animate-pulse">Checking availability...</span>}
+                             </div>
+                          </div>
+                          
+                          {selectedDate ? (
+                             availableTimes.length > 0 ? (
+                               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                                 {availableTimes.map((time) => (
+                                   <button
+                                     key={time}
+                                     onClick={() => setSelectedTime(time)}
+                                     className={`py-2 px-1 text-sm font-medium rounded-lg border transition-all ${
+                                       selectedTime === time
+                                         ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
+                                         : "bg-white text-gray-700 border-gray-200/70 hover:border-gray-200/70 hover:bg-gray-50"
+                                     }`}
+                                   >
+                                     {time}
+                                   </button>
+                                 ))}
+                               </div>
+                             ) : (
+                               <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
+                                  <p className="text-gray-500">No time slots available for this date.</p>
+                               </div>
+                             )
+                          ) : (
+                             <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
+                                <p className="text-gray-500">Please select a date to view times.</p>
+                             </div>
+                          )}
+                       </div>
+                    </div>
+                  </div>
+                </>
+              )}
 
             </div>
 
@@ -901,22 +1220,33 @@ const ServiceDetailPage = () => {
                       </div>
                    </div>
 
-                   <BNPLBanner variant="minimal" className="my-3" />
+                   {!hasGhlBooking && <BNPLBanner variant="minimal" className="my-3" />}
 
                    <div className="space-y-3">
-                      <button
-                        onClick={handleBooking}
-                        disabled={isProcessing}
-                        className="w-full py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] hover:shadow-[color:var(--brand-primary)/0.4] transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isProcessing ? "Processing..." : "Book Now"}
-                      </button>
-                      <button
-                        onClick={handleAddToCart}
-                        className="w-full py-3.5 bg-white border border-gray-200/70 text-gray-900 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-200/70 transition-all flex items-center justify-center gap-2"
-                      >
-                         <Plus className="w-4 h-4" /> Add to Cart
-                      </button>
+                      {hasGhlBooking ? (
+                        <button
+                          onClick={handleOpenGhlBooking}
+                          className="w-full py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] hover:shadow-[color:var(--brand-primary)/0.4] transform hover:-translate-y-0.5 transition-all"
+                        >
+                          {hasEmbeddedGhlBooking ? "Open Booking Widget" : "Book in GHL"}
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={handleBooking}
+                            disabled={isProcessing}
+                            className="w-full py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] hover:shadow-[color:var(--brand-primary)/0.4] transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isProcessing ? "Processing..." : "Book Now"}
+                          </button>
+                          <button
+                            onClick={handleAddToCart}
+                            className="w-full py-3.5 bg-white border border-gray-200/70 text-gray-900 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-200/70 transition-all flex items-center justify-center gap-2"
+                          >
+                             <Plus className="w-4 h-4" /> Add to Cart
+                          </button>
+                        </>
+                      )}
                    </div>
                    
                    <div className="mt-4 text-center">
@@ -949,25 +1279,36 @@ const ServiceDetailPage = () => {
                </div>
             </div>
             <div className="flex gap-2">
-               <button
-                  onClick={handleAddToCart}
-                   className="p-3.5 rounded-xl border border-gray-200/70 text-gray-600 hover:bg-gray-50 transition-colors"
-               >
-                  <Plus className="w-6 h-6" />
-               </button>
-               <button
-                  onClick={handleBooking}
-                  disabled={isProcessing}
-                  className="px-6 py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] disabled:opacity-50"
-               >
-                  {isProcessing ? (
-                     <span className="flex items-center gap-2">
-                        <div className="w-4 h-4 border border-white/30 border-t-white rounded-full animate-spin" />
-                     </span>
-                  ) : (
-                     "Book"
-                  )}
-               </button>
+               {hasGhlBooking ? (
+                 <button
+                    onClick={handleOpenGhlBooking}
+                    className="px-6 py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25]"
+                 >
+                    {hasEmbeddedGhlBooking ? "Book in GHL" : "Open Booking"}
+                 </button>
+               ) : (
+                 <>
+                   <button
+                      onClick={handleAddToCart}
+                       className="p-3.5 rounded-xl border border-gray-200/70 text-gray-600 hover:bg-gray-50 transition-colors"
+                   >
+                      <Plus className="w-6 h-6" />
+                   </button>
+                   <button
+                      onClick={handleBooking}
+                      disabled={isProcessing}
+                      className="px-6 py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] disabled:opacity-50"
+                   >
+                      {isProcessing ? (
+                         <span className="flex items-center gap-2">
+                            <div className="w-4 h-4 border border-white/30 border-t-white rounded-full animate-spin" />
+                         </span>
+                      ) : (
+                         "Book"
+                      )}
+                   </button>
+                 </>
+               )}
             </div>
          </div>
          {/* Safe area is handled by padding-bottom now, removed separate spacer div to avoid double spacing if any */}

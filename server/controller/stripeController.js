@@ -1061,6 +1061,7 @@ export const createPaymentIntent = async (req, res, next) => {
       tax: { amount: tax, rate: 0 },
       platformFee: { amount: 0, percentage: 0 },
       status: 'pending',
+      livemode: paymentIntent.livemode,
       pointsEarned,
     })
 
@@ -1104,6 +1105,7 @@ export const confirmPayment = async (req, res, next) => {
       payment.status =
         paymentIntent.status === 'succeeded' ? 'succeeded' : 'failed'
       payment.stripeChargeId = paymentIntent.charges?.data[0]?.id || null
+      payment.livemode = paymentIntent.livemode
 
       if (paymentIntent.status === 'succeeded') {
         payment.processedAt = new Date()
@@ -1491,6 +1493,7 @@ async function handleCheckoutSessionCompleted(session) {
           percentage: 0,
         },
         status: 'succeeded',
+        livemode: paymentIntent.livemode,
         processedAt: new Date(),
         pointsEarned: pointsEarned,
         paymentMethod: {
@@ -1578,6 +1581,7 @@ async function handleCheckoutSessionCompleted(session) {
       percentage: 0,
     },
     status: 'succeeded',
+    livemode: paymentIntent.livemode,
     processedAt: new Date(),
     pointsEarned: singleBookingPoints,
     paymentMethod: {

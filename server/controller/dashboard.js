@@ -94,7 +94,8 @@ export const getDashboardData = async (req, res, next) => {
       // Total Visits: completed bookings for this spa
       const totalVisits = await Booking.countDocuments({
         locationId,
-        status: 'completed'
+        status: 'completed',
+        paymentStatus: 'paid',
       })
 
       // Active Memberships: bookings for 'membership' services (simplified)
@@ -104,15 +105,27 @@ export const getDashboardData = async (req, res, next) => {
       const activeMemberships = await Booking.countDocuments({
         locationId,
         status: 'completed',
+        paymentStatus: 'paid',
         serviceName: { $regex: /membership/i }
       })
 
-      // 2. Get Live Activity: Recently created bookings
-      const liveActivity = await Booking.find({ locationId })
+      // 2. Get Live Activity: Only paid bookings with a linked payment record
+      const liveActivity = await Booking.find({
+        locationId,
+        paymentStatus: 'paid',
+        paymentId: { $ne: null },
+        status: 'completed',
+      })
         .sort({ createdAt: -1 })
         .limit(10)
         .populate('userId', 'name email avatar')
+        .populate('paymentId', 'livemode')
         .lean()
+
+      const filteredLiveActivity = liveActivity.filter((activity) => {
+        const payment = activity?.paymentId
+        return !(payment && payment.livemode === false)
+      })
 
       // 3. Get Upcoming Bookings
       const currentBookings = await Booking.find({
@@ -135,7 +148,8 @@ export const getDashboardData = async (req, res, next) => {
           $match: {
             locationId,
             createdAt: { $gte: thirtyDaysAgo },
-            status: { $ne: 'cancelled' }
+            status: 'completed',
+            paymentStatus: 'paid',
           }
         },
         {
@@ -153,7 +167,8 @@ export const getDashboardData = async (req, res, next) => {
         {
           $match: {
             locationId,
-            status: 'completed'
+            status: 'completed',
+            paymentStatus: 'paid',
           }
         },
         {
@@ -185,9 +200,9 @@ export const getDashboardData = async (req, res, next) => {
       }
 
       const clientGrowth = await getGrowth(User, { 'selectedLocation.locationId': locationId, role: 'user', isDeleted: false })
-      const visitGrowth = await getGrowth(Booking, { locationId, status: 'completed' })
-      const membershipGrowth = await getGrowth(Booking, { locationId, status: 'completed', serviceName: { $regex: /membership/i } })
-      const revenueGrowth = await getGrowth(Booking, { locationId, status: { $ne: 'cancelled' } }, 'createdAt') // This might need a custom aggregator but let's stick to counts for now or sum
+      const visitGrowth = await getGrowth(Booking, { locationId, status: 'completed', paymentStatus: 'paid' })
+      const membershipGrowth = await getGrowth(Booking, { locationId, status: 'completed', paymentStatus: 'paid', serviceName: { $regex: /membership/i } })
+      const revenueGrowth = await getGrowth(Booking, { locationId, status: 'completed', paymentStatus: 'paid' }, 'createdAt')
 
       return res.status(200).json({
         status: 'success',
@@ -206,7 +221,7 @@ export const getDashboardData = async (req, res, next) => {
             trendData,
             topServices
           },
-          liveActivity,
+          liveActivity: filteredLiveActivity,
           currentBookings,
           spaLocation: user.spaLocation,
           automatedGifts

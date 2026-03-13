@@ -6,6 +6,10 @@ import Location from '../models/Location.js'
 const GHL_BASE_URL = 'https://rest.gohighlevel.com/v1'
 const GHL_V2_BASE_URL = 'https://services.leadconnectorhq.com'
 const GHL_API_VERSION = process.env.GHL_API_VERSION || '2021-07-28'
+const KNOWN_BOOKING_PATH_BY_LOCATION = {
+  // Ageless Wellness Spa
+  '6RL2MtUxqIc5fUgWRw1O': 'ageless-wellness-spa-fzvcfoccwov',
+}
 
 // Helper function to make GHL API requests
 const makeGHLRequest = async (
@@ -92,6 +96,98 @@ const getTokenForLocation = async (locationId) => {
       error.message
     )
     return envToken
+  }
+}
+
+const parseBookingPathFromUrl = (value = '') => {
+  const raw = `${value || ''}`.trim()
+  if (!raw) return ''
+  const match = raw.match(/app\.spascheduler\.online\/booking\/([^/?#]+)/i)
+  return match?.[1] ? decodeURIComponent(match[1]).trim().toLowerCase() : ''
+}
+
+const resolveBookingSubdomainForLocation = async (locationId) => {
+  if (!locationId) return ''
+
+  const mappedFromCode = `${KNOWN_BOOKING_PATH_BY_LOCATION[locationId] || ''}`.trim().toLowerCase()
+  if (mappedFromCode) return mappedFromCode
+
+  try {
+    const rawMap = process.env.GHL_BOOKING_PATH_MAP
+    if (rawMap) {
+      const parsedMap = JSON.parse(rawMap)
+      const mapped = `${parsedMap?.[locationId] || ''}`.trim().toLowerCase()
+      if (mapped) return mapped
+    }
+  } catch (error) {
+    console.warn('Invalid GHL_BOOKING_PATH_MAP JSON:', error.message)
+  }
+
+  try {
+    const location = await Location.findOne({ locationId })
+      .select('subdomain reviewLink')
+      .lean()
+
+    const fromReviewLink = parseBookingPathFromUrl(location?.reviewLink)
+    if (fromReviewLink) return fromReviewLink
+
+    const rawSubdomain = `${location?.subdomain || ''}`.trim().toLowerCase()
+    // Simple subdomains like "ageless" are often not the real booking path segment.
+    if (rawSubdomain && rawSubdomain.includes('-')) return rawSubdomain
+    return ''
+  } catch (error) {
+    console.warn(
+      `Failed loading booking subdomain for location ${locationId}:`,
+      error.message
+    )
+    return ''
+  }
+}
+
+const buildSpaSchedulerBookingPayload = ({ subdomain = '', serviceId = '' } = {}) => {
+  const normalizedSubdomain = `${subdomain || ''}`.trim().toLowerCase()
+  const normalizedServiceId = `${serviceId || ''}`.trim()
+  if (!normalizedSubdomain || !normalizedServiceId) {
+    return {
+      schedulingLink: '',
+      permanentLink: '',
+      embedCode: '',
+      mCode: '',
+    }
+  }
+
+  const baseUrl = `https://app.spascheduler.online/booking/${normalizedSubdomain}/sv/${normalizedServiceId}`
+  const iframeSrc = `${baseUrl}?heightMode=fixed&showHeader=true`
+  const embedCode = `<iframe src="${iframeSrc}" style="width: 100%;border:none;overflow: hidden;" scrolling="no" id="${normalizedServiceId}_auto"></iframe><br><script src="https://app.spascheduler.online/js/form_embed.js" type="text/javascript"></script>`
+
+  return {
+    schedulingLink: baseUrl,
+    permanentLink: baseUrl,
+    embedCode,
+    mCode: embedCode,
+  }
+}
+
+const applyBookingFallback = (service = null, bookingSubdomain = '') => {
+  if (!service || typeof service !== 'object') return service
+  if (!bookingSubdomain) return service
+
+  const existingScheduling = `${service?.schedulingLink || ''}`.trim()
+  const existingPermanent = `${service?.permanentLink || ''}`.trim()
+  const existingEmbed = `${service?.embedCode || service?.mCode || ''}`.trim()
+  if (existingScheduling || existingPermanent || existingEmbed) {
+    return service
+  }
+
+  const resolvedServiceId = `${service?.serviceId || service?.id || service?._id || ''}`.trim()
+  if (!resolvedServiceId) return service
+
+  return {
+    ...service,
+    ...buildSpaSchedulerBookingPayload({
+      subdomain: bookingSubdomain,
+      serviceId: resolvedServiceId,
+    }),
   }
 }
 
@@ -380,6 +476,240 @@ const normalizeCurrencyCode = (value) => {
   return /^[A-Z]{3}$/.test(raw) ? raw : ''
 }
 
+const decodeHtmlEntities = (value) => {
+  let output = `${value || ''}`
+  const replacements = [
+    [/&amp;/gi, '&'],
+    [/&lt;/gi, '<'],
+    [/&gt;/gi, '>'],
+    [/&quot;/gi, '"'],
+    [/&#34;/gi, '"'],
+    [/&apos;/gi, "'"],
+    [/&#39;/gi, "'"],
+  ]
+
+  // Some payloads are doubly-encoded, so decode a few passes.
+  for (let i = 0; i < 3; i += 1) {
+    const previous = output
+    replacements.forEach(([pattern, replacement]) => {
+      output = output.replace(pattern, replacement)
+    })
+    if (output === previous) break
+  }
+
+  return output
+}
+
+const normalizeUrlLikeValue = (value) => {
+  const raw = decodeHtmlEntities(`${value || ''}`).trim()
+  if (!raw) return ''
+  if (/<iframe/i.test(raw) || /<script/i.test(raw) || /form_embed\.js/i.test(raw)) {
+    return raw
+  }
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (/^\/\//.test(raw)) return `https:${raw}`
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(raw)) return `https://${raw}`
+  return ''
+}
+
+const normalizeHttpUrl = (value) => {
+  const normalized = normalizeUrlLikeValue(value)
+  if (!normalized || /<iframe/i.test(normalized) || /<script/i.test(normalized)) {
+    return ''
+  }
+  return normalized
+}
+
+const isLikelyBookingUrl = (value = '') =>
+  /(\/booking\/|\/sv\/|\/calendar|\/appointment|schedule|scheduler|slot|book)/i.test(
+    `${value || ''}`
+  ) && !/form_embed\.js/i.test(`${value || ''}`)
+
+const extractIframeSrc = (value = '') => {
+  const raw = decodeHtmlEntities(`${value || ''}`).trim()
+  if (!raw) return ''
+
+  const iframeMatch = raw.match(/src=(['"])(.*?)\1/i)
+  if (iframeMatch?.[2]) {
+    return normalizeHttpUrl(iframeMatch[2])
+  }
+
+  return ''
+}
+
+const findStringInObject = (input, matcher, depth = 0, seen = new Set()) => {
+  if (depth > 5 || input == null) return ''
+
+  if (typeof input === 'string') {
+    return matcher(input) ? input : ''
+  }
+
+  if (typeof input !== 'object') return ''
+  if (seen.has(input)) return ''
+  seen.add(input)
+
+  const values = Array.isArray(input) ? input : Object.values(input)
+  for (const value of values) {
+    const match = findStringInObject(value, matcher, depth + 1, seen)
+    if (match) return match
+  }
+
+  return ''
+}
+
+const extractEmbedCode = (service = {}) => {
+  const candidates = [
+    service?.embedCode,
+    service?.embed,
+    service?.embedHtml,
+    service?.mCode,
+    service?.mcode,
+    service?.shareBookingCode,
+    service?.shareBookingMCode,
+    service?.widgetMCode,
+    service?.widgetCode,
+    service?.iframeCode,
+    service?.widget?.mCode,
+    service?.widget?.mcode,
+    service?.widget?.code,
+    service?.widget?.embed,
+    service?.widget?.embedHtml,
+    service?.shareBooking?.embedCode,
+    service?.shareBooking?.mCode,
+    service?.shareBooking?.mcode,
+    service?.shareBooking?.code,
+    service?.booking?.embedCode,
+    service?.booking?.mCode,
+    service?.booking?.mcode,
+    service?.booking?.code,
+    service?.widget?.embedCode,
+    service?.links?.mCode,
+    service?.links?.mcode,
+    service?.links?.embedCode,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeUrlLikeValue(candidate)
+    if (normalized) return normalized
+  }
+
+  const deepEmbed = findStringInObject(
+    service,
+    (value) => {
+      const decoded = decodeHtmlEntities(value)
+      return (
+        /<iframe/i.test(decoded) ||
+        /<script/i.test(decoded) ||
+        /form_embed\.js/i.test(decoded)
+      )
+    }
+  )
+  if (deepEmbed) {
+    return decodeHtmlEntities(`${deepEmbed}`).trim()
+  }
+
+  return ''
+}
+
+const extractSchedulingLink = (service = {}) => {
+  const candidates = [
+    service?.schedulingLink,
+    service?.schedulingURL,
+    service?.schedulingUrl,
+    service?.bookingLink,
+    service?.bookingUrl,
+    service?.bookingURL,
+    service?.shareBookingLink,
+    service?.shareLink,
+    service?.publicLink,
+    service?.url,
+    service?.shareBooking?.schedulingLink,
+    service?.shareBooking?.schedulingURL,
+    service?.shareBooking?.schedulingUrl,
+    service?.shareBooking?.bookingLink,
+    service?.shareBooking?.shareLink,
+    service?.shareBooking?.url,
+    service?.booking?.schedulingLink,
+    service?.booking?.schedulingURL,
+    service?.booking?.schedulingUrl,
+    service?.booking?.bookingLink,
+    service?.booking?.shareLink,
+    service?.booking?.url,
+    service?.links?.scheduling,
+    service?.links?.schedulingLink,
+    service?.links?.booking,
+    service?.links?.bookingLink,
+    service?.links?.public,
+    service?.links?.publicLink,
+  ]
+
+  let firstUrl = ''
+  for (const candidate of candidates) {
+    const normalized = normalizeHttpUrl(candidate)
+    if (!normalized) continue
+    if (!firstUrl) firstUrl = normalized
+    if (isLikelyBookingUrl(normalized)) return normalized
+  }
+
+  const deepUrl = findStringInObject(service, (value) => {
+    const normalized = normalizeHttpUrl(value)
+    return normalized ? isLikelyBookingUrl(normalized) : false
+  })
+  if (deepUrl) return normalizeHttpUrl(deepUrl)
+
+  const embedSrc = extractIframeSrc(extractEmbedCode(service))
+  if (embedSrc) return embedSrc
+
+  if (firstUrl) return firstUrl
+
+  return ''
+}
+
+const extractPermanentLink = (service = {}) => {
+  const candidates = [
+    service?.permanentLink,
+    service?.permaLink,
+    service?.permalink,
+    service?.publicLink,
+    service?.publicUrl,
+    service?.shareBooking?.permanentLink,
+    service?.shareBooking?.permaLink,
+    service?.shareBooking?.permalink,
+    service?.shareBooking?.publicLink,
+    service?.shareBooking?.publicUrl,
+    service?.booking?.permanentLink,
+    service?.booking?.permaLink,
+    service?.booking?.permalink,
+    service?.booking?.publicLink,
+    service?.booking?.publicUrl,
+    service?.links?.permanent,
+    service?.links?.permanentLink,
+    service?.links?.public,
+    service?.links?.publicLink,
+  ]
+
+  let firstUrl = ''
+  for (const candidate of candidates) {
+    const normalized = normalizeHttpUrl(candidate)
+    if (!normalized) continue
+    if (!firstUrl) firstUrl = normalized
+    if (isLikelyBookingUrl(normalized)) return normalized
+  }
+
+  const deepUrl = findStringInObject(service, (value) => {
+    const normalized = normalizeHttpUrl(value)
+    return normalized ? isLikelyBookingUrl(normalized) : false
+  })
+  if (deepUrl) return normalizeHttpUrl(deepUrl)
+
+  const embedSrc = extractIframeSrc(extractEmbedCode(service))
+  if (embedSrc) return embedSrc
+
+  if (firstUrl) return firstUrl
+
+  return ''
+}
+
 const extractPriceAmount = (input, depth = 0) => {
   if (depth > 3 || input == null) return null
 
@@ -496,6 +826,24 @@ const resolveServicePrice = (service = {}) => {
   return ''
 }
 
+const normalizeSingleCalendarServicePayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return null
+
+  const candidates = [
+    payload.service,
+    payload.serviceCatalog,
+    payload.catalog,
+    payload.data?.service,
+    payload.data?.serviceCatalog,
+    payload.data?.catalog,
+    payload.data,
+  ]
+
+  return candidates.find(
+    (entry) => entry && typeof entry === 'object' && !Array.isArray(entry)
+  ) || null
+}
+
 const normalizeCalendarServiceEntity = (service, index = 0) => {
   const staffEntries = [
     ...(Array.isArray(service?.staff) ? service.staff : []),
@@ -519,6 +867,7 @@ const normalizeCalendarServiceEntity = (service, index = 0) => {
   return {
     ...service,
     id: service?.id || service?._id || service?.serviceId || `ghl-service-${index}`,
+    serviceId: service?.id || service?._id || service?.serviceId || `ghl-service-${index}`,
     name: service?.name || service?.title || service?.serviceName || 'Untitled Service',
     description:
       service?.description || service?.details || service?.serviceDescription || '',
@@ -545,12 +894,30 @@ const normalizeCalendarServiceEntity = (service, index = 0) => {
     ),
     price: resolveServicePrice(service),
     currency: resolveServiceCurrency(service),
-    calendarId: service?.calendarId || service?.calendar?.id || service?.calendar?._id || '',
+    calendarId:
+      service?.calendarId ||
+      service?.calendar?.id ||
+      service?.calendar?._id ||
+      service?.id ||
+      service?._id ||
+      service?.serviceId ||
+      '',
     calendarName:
       service?.calendarName || service?.calendar?.name || service?.calendar?.title || '',
+    timeZone:
+      service?.timeZone ||
+      service?.timezone ||
+      service?.calendarTimeZone ||
+      service?.calendar?.timeZone ||
+      service?.calendar?.timezone ||
+      '',
     staff: staffEntries,
     staffNames,
     staffCount: staffNames.length || staffEntries.length,
+    schedulingLink: extractSchedulingLink(service),
+    permanentLink: extractPermanentLink(service),
+    embedCode: extractEmbedCode(service),
+    mCode: extractEmbedCode(service),
     isActive: service?.isActive ?? service?.active ?? true,
   }
 }
@@ -1439,6 +1806,7 @@ export const getCalendarServices = async (req, res, next) => {
     ]
 
     let lastError = null
+    const bookingSubdomain = await resolveBookingSubdomainForLocation(locationId)
 
     for (const attempt of attempts) {
       try {
@@ -1447,9 +1815,9 @@ export const getCalendarServices = async (req, res, next) => {
           params: { locationId },
         })
 
-        const services = normalizeCalendarServicesPayload(response).map(
-          normalizeCalendarServiceEntity
-        )
+        const services = normalizeCalendarServicesPayload(response)
+          .map(normalizeCalendarServiceEntity)
+          .map((service) => applyBookingFallback(service, bookingSubdomain))
 
         return res.status(200).json({
           success: true,
@@ -1473,6 +1841,83 @@ export const getCalendarServices = async (req, res, next) => {
       data: {
         services: [],
         total: 0,
+        source: 'ghl-v2',
+        unavailable: true,
+        error: error.response?.data || error.message,
+      },
+    })
+  }
+}
+
+export const getCalendarServiceById = async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.set('Surrogate-Control', 'no-store')
+
+    const { locationId } = req.query
+    const { serviceId } = req.params
+
+    if (!locationId || !serviceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'locationId and serviceId are required',
+      })
+    }
+
+    const token = await getTokenForLocation(locationId)
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: `No GHL API key configured for location ${locationId}`,
+      })
+    }
+
+    const attempts = [
+      { endpoint: `/calendars/services/catalog/${serviceId}`, source: 'ghl-v2' },
+      { endpoint: `/calendars/services/catalog/${serviceId}/`, source: 'ghl-v2' },
+      { endpoint: `/calendars/services/${serviceId}`, source: 'ghl-v2-fallback' },
+    ]
+
+    let lastError = null
+    const bookingSubdomain = await resolveBookingSubdomainForLocation(locationId)
+
+    for (const attempt of attempts) {
+      try {
+        const response = await makeGHLV2Request(attempt.endpoint, {
+          token,
+          params: { locationId },
+        })
+
+        const rawService = normalizeSingleCalendarServicePayload(response)
+        if (!rawService) continue
+
+        const service = applyBookingFallback(
+          normalizeCalendarServiceEntity(rawService),
+          bookingSubdomain
+        )
+
+        return res.status(200).json({
+          success: true,
+          message: 'Calendar service fetched successfully',
+          data: {
+            service,
+            source: attempt.source,
+          },
+        })
+      } catch (error) {
+        lastError = error
+      }
+    }
+
+    throw lastError || new Error('Failed to fetch GHL calendar service')
+  } catch (error) {
+    res.status(200).json({
+      success: true,
+      message: 'Calendar service unavailable, using fallback',
+      data: {
+        service: null,
         source: 'ghl-v2',
         unavailable: true,
         error: error.response?.data || error.message,

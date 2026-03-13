@@ -18,6 +18,8 @@ export const validateServiceData = async (req, res, next) => {
       linkedServices, // NEW: Added linkedServices validation
       membershipPricing,
       ghlCalendar,
+      ghlService,
+      ghlBooking,
     } = req.body
 
     const errors = []
@@ -270,6 +272,42 @@ export const validateServiceData = async (req, res, next) => {
       }
     }
 
+    if (ghlService && typeof ghlService === 'object') {
+      if (
+        ghlService.serviceId !== undefined &&
+        typeof ghlService.serviceId !== 'string'
+      ) {
+        errors.push('GHL service ID must be a string')
+      }
+
+      if (ghlService.name !== undefined && typeof ghlService.name !== 'string') {
+        errors.push('GHL service name must be a string')
+      }
+    }
+
+    if (ghlBooking && typeof ghlBooking === 'object') {
+      if (
+        ghlBooking.schedulingLink !== undefined &&
+        typeof ghlBooking.schedulingLink !== 'string'
+      ) {
+        errors.push('GHL scheduling link must be a string')
+      }
+
+      if (
+        ghlBooking.permanentLink !== undefined &&
+        typeof ghlBooking.permanentLink !== 'string'
+      ) {
+        errors.push('GHL permanent link must be a string')
+      }
+
+      if (
+        ghlBooking.embedCode !== undefined &&
+        typeof ghlBooking.embedCode !== 'string'
+      ) {
+        errors.push('GHL embed code must be a string')
+      }
+    }
+
     // If there are validation errors, return them
     if (errors.length > 0) {
       return next(createError(400, `Validation failed: ${errors.join(', ')}`))
@@ -434,6 +472,21 @@ export const sanitizeServiceData = (req, res, next) => {
         timeZone: `${req.body.ghlCalendar.timeZone || ''}`.trim(),
         userId: `${req.body.ghlCalendar.userId || ''}`.trim(),
         teamId: `${req.body.ghlCalendar.teamId || ''}`.trim(),
+      }
+    }
+
+    if (req.body.ghlService && typeof req.body.ghlService === 'object') {
+      req.body.ghlService = {
+        serviceId: `${req.body.ghlService.serviceId || ''}`.trim(),
+        name: `${req.body.ghlService.name || ''}`.trim(),
+      }
+    }
+
+    if (req.body.ghlBooking && typeof req.body.ghlBooking === 'object') {
+      req.body.ghlBooking = {
+        schedulingLink: `${req.body.ghlBooking.schedulingLink || ''}`.trim(),
+        permanentLink: `${req.body.ghlBooking.permanentLink || ''}`.trim(),
+        embedCode: `${req.body.ghlBooking.embedCode || ''}`.trim(),
       }
     }
 

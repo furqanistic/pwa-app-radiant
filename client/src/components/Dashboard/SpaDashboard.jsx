@@ -108,6 +108,21 @@ const SpaDashboard = ({ data, refetch }) => {
         color: COLORS[index % COLORS.length]
     }))
 
+    const filteredLiveActivity = liveActivity.filter((activity) => {
+        const payment = activity?.paymentId
+        const paymentLivemode =
+            payment && typeof payment === 'object' ? payment?.livemode : undefined
+
+        // Show only successfully paid activity and hide test-mode Stripe activity.
+        return !(
+            activity?.paymentStatus !== 'paid' ||
+            activity?.stripeMode === 'test' ||
+            activity?.testMode === true ||
+            activity?.isTestMode === true ||
+            paymentLivemode === false
+        )
+    })
+
     // Sub-components for better organization
     const StatsGrid = () => (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
@@ -196,7 +211,7 @@ const SpaDashboard = ({ data, refetch }) => {
                 <span className="flex h-2 w-2 rounded-full bg-[color:var(--brand-primary)] animate-pulse" />
             </div>
             <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-                {liveActivity.map((activity) => (
+                {filteredLiveActivity.map((activity) => (
                     <div key={activity._id} className="flex items-start gap-4 p-4 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200/70 group">
                         <div className="w-10 h-10 rounded-xl bg-[color:var(--brand-primary)/0.12] flex-shrink-0 flex items-center justify-center font-black text-[color:var(--brand-primary)] border border-white shadow-sm overflow-hidden text-sm">
                             {activity.userId?.avatar ? <img src={activity.userId.avatar} alt="" /> : activity.userId?.name.charAt(0)}
@@ -214,6 +229,14 @@ const SpaDashboard = ({ data, refetch }) => {
                         </div>
                     </div>
                 ))}
+                {filteredLiveActivity.length === 0 && (
+                    <div className="text-center py-16">
+                        <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200/70">
+                             <Activity className="w-6 h-6 text-gray-300" />
+                        </div>
+                        <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">No activity to display</p>
+                    </div>
+                )}
             </div>
         </div>
     )

@@ -144,6 +144,43 @@ const GhlCalendarSchema = new mongoose.Schema(
   { _id: false }
 )
 
+const GhlServiceSchema = new mongoose.Schema(
+  {
+    serviceId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    name: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+  },
+  { _id: false }
+)
+
+const GhlBookingSchema = new mongoose.Schema(
+  {
+    schedulingLink: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    permanentLink: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    embedCode: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+  },
+  { _id: false }
+)
+
 const ServiceSchema = new mongoose.Schema(
   {
     name: {
@@ -224,6 +261,16 @@ const ServiceSchema = new mongoose.Schema(
     // Service-specific GHL calendar routing
     ghlCalendar: {
       type: GhlCalendarSchema,
+      default: () => ({}),
+    },
+
+    ghlService: {
+      type: GhlServiceSchema,
+      default: () => ({}),
+    },
+
+    ghlBooking: {
+      type: GhlBookingSchema,
       default: () => ({}),
     },
 

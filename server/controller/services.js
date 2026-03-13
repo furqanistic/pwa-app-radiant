@@ -523,6 +523,8 @@ export const createService = async (req, res, next) => {
       defaultRewardPoints = 100,
       membershipPricing = [],
       ghlCalendar = {},
+      ghlService = {},
+      ghlBooking = {},
     } = req.body
 
     // Validate required fields
@@ -581,6 +583,15 @@ export const createService = async (req, res, next) => {
         timeZone: `${ghlCalendar.timeZone || ''}`.trim(),
         userId: `${ghlCalendar.userId || ''}`.trim(),
         teamId: `${ghlCalendar.teamId || ''}`.trim(),
+      },
+      ghlService: {
+        serviceId: `${ghlService.serviceId || ''}`.trim(),
+        name: `${ghlService.name || ''}`.trim(),
+      },
+      ghlBooking: {
+        schedulingLink: `${ghlBooking.schedulingLink || ''}`.trim(),
+        permanentLink: `${ghlBooking.permanentLink || ''}`.trim(),
+        embedCode: `${ghlBooking.embedCode || ''}`.trim(),
       },
       createdBy: req.user.id,
       // ✅ NEW: Initialize reward fields
@@ -744,6 +755,19 @@ export const updateService = async (req, res, next) => {
         timeZone: `${updateData.ghlCalendar?.timeZone || ''}`.trim(),
         userId: `${updateData.ghlCalendar?.userId || ''}`.trim(),
         teamId: `${updateData.ghlCalendar?.teamId || ''}`.trim(),
+      }
+    }
+    if (updateData.ghlService !== undefined) {
+      updateData.ghlService = {
+        serviceId: `${updateData.ghlService?.serviceId || ''}`.trim(),
+        name: `${updateData.ghlService?.name || ''}`.trim(),
+      }
+    }
+    if (updateData.ghlBooking !== undefined) {
+      updateData.ghlBooking = {
+        schedulingLink: `${updateData.ghlBooking?.schedulingLink || ''}`.trim(),
+        permanentLink: `${updateData.ghlBooking?.permanentLink || ''}`.trim(),
+        embedCode: `${updateData.ghlBooking?.embedCode || ''}`.trim(),
       }
     }
 

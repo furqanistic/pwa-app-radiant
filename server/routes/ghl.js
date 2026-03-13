@@ -3,6 +3,7 @@
 import express from 'express'
 import {
   getCalendarServices,
+  getCalendarServiceById,
   createContact,
   deleteContact,
   getAllContacts,
@@ -35,6 +36,7 @@ router.delete('/contacts/:contactId', deleteContact)
 router.get('/opportunities', getOpportunities)
 router.get('/calendars', getCalendars)
 router.get('/calendar-services', getCalendarServices)
+router.get('/calendar-services/:serviceId', getCalendarServiceById)
 router.get('/bookings', getLocationBookingsByDate)
 router.get('/custom-fields', getCustomFields)
 
