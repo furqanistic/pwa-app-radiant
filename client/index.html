@@ -116,248 +116,400 @@
     <title>RadiantAI</title>
 
     <style>
+      :root {
+        --splash-primary: #ec4899;
+        --splash-primary-rgb: 236, 72, 153;
+        --splash-bg: #ffffff;
+      }
+
       body {
         font-family: 'Roboto', sans-serif;
         margin: 0;
         padding: 0;
-        /* Prevent pull-to-refresh and overscroll */
         overscroll-behavior-y: contain;
-        /* Fix mobile touch issues */
         touch-action: manipulation;
-        /* Prevent text selection issues */
         user-select: none;
         -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        /* Prevent tap highlights */
         -webkit-tap-highlight-color: transparent;
-        /* Ensure proper mobile rendering */
         -webkit-text-size-adjust: 100%;
-        -ms-text-size-adjust: 100%;
       }
 
-      /* ===== MODERN SPLASH SCREEN ===== */
+      /* ===== PREMIUM SPLASH SCREEN ===== */
       .splash-screen {
         position: fixed;
         inset: 0;
-        background: linear-gradient(135deg, #ec4899 0%, #f43f5e 50%, #db2777 100%);
+        background: var(--splash-bg);
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        z-index: 9999;
+        z-index: 99999;
         opacity: 1;
         overflow: hidden;
-        transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s;
-      }
-
-      /* Animated Blobs */
-      .splash-blob {
-        position: absolute;
-        border-radius: 50%;
-        filter: blur(60px);
-        opacity: 0.4;
-        z-index: 0;
-        animation: pulseBlob 8s ease-in-out infinite;
-      }
-
-      .splash-blob-1 {
-        top: -10%;
-        left: -10%;
-        width: 50vw;
-        height: 50vw;
-        background: #ffffff;
-        animation-delay: 0s;
-      }
-
-      .splash-blob-2 {
-        bottom: -10%;
-        right: -10%;
-        width: 50vw;
-        height: 50vw;
-        background: #fbcfe8; /* pink-200 */
-        animation-delay: -4s;
-      }
-
-      @keyframes pulseBlob {
-        0%, 100% {
-          transform: scale(1) translate(0, 0);
-          opacity: 0.3;
-        }
-        50% {
-          transform: scale(1.1) translate(20px, 20px);
-          opacity: 0.5;
-        }
+        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.8s;
       }
 
       .splash-screen.hidden {
         opacity: 0;
         visibility: hidden;
+        transform: scale(1.05);
         pointer-events: none;
       }
 
-      .splash-content {
-        text-align: center;
-        position: relative;
-        z-index: 1;
-        animation: slideInUp 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+      /* Dynamic Background Elements */
+      .splash-aura {
+        position: absolute;
+        inset: -10%;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(var(--splash-primary-rgb), 0.15) 0%,
+          rgba(var(--splash-primary-rgb), 0.05) 30%,
+          transparent 70%
+        );
+        filter: blur(80px);
+        animation: auraPulse 6s ease-in-out infinite alternate;
+        z-index: 0;
       }
 
-      @keyframes slideInUp {
-        from {
-          opacity: 0;
-          transform: translateY(40px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
+      .splash-blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(60px);
+        opacity: 0.12;
+        z-index: 0;
+        animation: blobFloat 12s ease-in-out infinite;
+      }
+
+      .splash-blob-1 {
+        top: -10%;
+        left: -10%;
+        width: 60vw;
+        height: 60vw;
+        background: var(--splash-primary);
+        animation-delay: 0s;
+      }
+
+      .splash-blob-2 {
+        bottom: -5%;
+        right: -5%;
+        width: 50vw;
+        height: 50vw;
+        background: var(--splash-primary);
+        animation-delay: -6s;
+        animation-direction: reverse;
+      }
+
+      @keyframes auraPulse {
+        0% { transform: scale(1) translate(0, 0); opacity: 0.1; }
+        100% { transform: scale(1.2) translate(5%, 5%); opacity: 0.2; }
+      }
+
+      @keyframes blobFloat {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(5%, 10%) scale(1.1); }
+        66% { transform: translate(-5%, -5%) scale(0.9); }
+      }
+
+      /* Content Layout */
+      .splash-content {
+        position: relative;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 40px;
+        will-change: transform, opacity;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+      }
+
+      .splash-content.revealed {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Glass Logo Container */
+      .splash-logo-container {
+        position: relative;
+        margin-bottom: 40px;
+        animation: logoEntrance 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
       }
 
       .splash-logo {
-        width: 100px;
-        height: 100px;
-        margin: 0 auto 30px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 32px;
         display: flex;
         align-items: center;
         justify-content: center;
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1),
-          inset 0 1px 1px rgba(255, 255, 255, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        animation: float 3s ease-in-out infinite;
+        box-shadow: 
+          0 20px 40px -12px rgba(var(--splash-primary-rgb), 0.25),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+          inset 0 2px 4px rgba(255, 255, 255, 0.3);
+        transform: rotate(-5deg);
+        animation: floatLogo 4s ease-in-out infinite;
       }
 
-      @keyframes float {
-        0%,
-        100% {
-          transform: translateY(0px);
-        }
-        50% {
-          transform: translateY(-15px);
-        }
+      .splash-mark {
+        font-size: 42px;
+        font-weight: 900;
+        background: linear-gradient(135deg, var(--splash-primary) 0%, #000000 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -1px;
+        line-height: 1;
       }
 
-      .splash-logo img {
-        width: 60px;
-        height: 60px;
-        object-fit: contain;
-        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+      .logo-ring {
+        position: absolute;
+        inset: -10px;
+        border: 2px solid rgba(var(--splash-primary-rgb), 0.1);
+        border-radius: 40px;
+        animation: ringRotate 10s linear infinite;
       }
 
-      .splash-logo svg {
-        width: 60px;
-        height: 60px;
-        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+      @keyframes floatLogo {
+        0%, 100% { transform: translateY(0) rotate(-5deg); }
+        50% { transform: translateY(-15px) rotate(2deg); }
       }
 
+      @keyframes ringRotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      @keyframes logoEntrance {
+        from { opacity: 0; transform: scale(0.8) translateY(20px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+
+      /* Typography Styles */
       .splash-title {
-        font-size: 28px;
-        font-weight: 700;
-        color: white;
-        margin: 0 0 12px;
-        letter-spacing: -0.5px;
+        font-size: 34px;
+        font-weight: 800;
+        color: #111827;
+        margin: 0 0 8px;
+        letter-spacing: -1px;
       }
 
       .splash-subtitle {
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.8);
-        margin: 0 0 30px;
+        font-size: 15px;
         font-weight: 500;
-        letter-spacing: 0.5px;
+        color: #6b7280;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 48px;
       }
 
-      /* Loading bar */
-      .loading-bar {
-        width: 150px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.3);
-        border-radius: 2px;
-        margin: 0 auto;
-        overflow: hidden;
-        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
       }
 
-      .loading-bar-fill {
-        height: 100%;
-        background: #ffffff;
-        border-radius: 2px;
-        animation: progressBar 2s ease-in-out infinite;
-        box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
-      }
-
-      @keyframes progressBar {
-        0% {
-          width: 0%;
-        }
-        50% {
-          width: 80%;
-        }
-        100% {
-          width: 100%;
-        }
-      }
-
-      /* Ensure root container is properly configured */
-      #root {
+      /* Minimal Loading Indicator */
+      .loader-wrapper {
+        width: 180px;
         position: relative;
-        z-index: 1;
-        min-height: 100vh;
-        width: 100%;
+        opacity: 0;
+        animation: fadeIn 0.5s ease-out forwards 1s;
       }
 
-      /* Fix for mobile viewport issues */
-      html {
+      .loader-track {
+        height: 3px;
+        width: 100%;
+        background: #f3f4f6;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      .loader-bar {
         height: 100%;
-        width: 100%;
-        overflow-x: hidden;
+        width: 50%;
+        background: var(--splash-primary);
+        border-radius: 10px;
+        animation: loaderAnim 2s infinite ease-in-out;
+        box-shadow: 0 0 10px rgba(var(--splash-primary-rgb), 0.3);
       }
 
-      /* Allow text selection within input elements */
-      input,
-      textarea,
-      select {
-        user-select: text;
-        -webkit-user-select: text;
-        -moz-user-select: text;
-        -ms-user-select: text;
+      @keyframes loaderAnim {
+        0% { transform: translateX(-110%); }
+        50% { transform: translateX(50%); width: 30%; }
+        100% { transform: translateX(210%); }
       }
 
-      /* Responsive splash screen */
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      /* Footer Info */
+      .splash-footer {
+        position: absolute;
+        bottom: 40px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        opacity: 0;
+        animation: fadeIn 1s ease-out forwards 1.2s;
+      }
+
+      .splash-footer p {
+        font-size: 11px;
+        font-weight: 600;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      /* Mobile Adjustments */
       @media (max-width: 480px) {
-        .splash-title {
-          font-size: 24px;
-        }
-
-        .splash-subtitle {
-          font-size: 13px;
-        }
-
-        .splash-logo {
-          width: 80px;
-          height: 80px;
-        }
-
-        .splash-logo svg {
-          width: 50px;
-          height: 50px;
-        }
+        .splash-logo { width: 100px; height: 100px; border-radius: 28px; }
+        .splash-mark { font-size: 34px; }
+        .splash-title { font-size: 28px; }
+        .splash-subtitle { font-size: 13px; }
       }
 
-      /* Reduced motion support */
-      @media (prefers-reduced-motion: reduce) {
-        * {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
+      /* Dark Mode Support (Optional, based on branding) */
+      @media (prefers-color-scheme: dark) {
+        :root { --splash-bg: #030712; }
+        .splash-title { color: #f9fafb; }
+        .splash-subtitle { color: #9ca3af; }
+        .splash-logo { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .loader-track { background: #1f2937; }
+        .splash-mark { background: linear-gradient(135deg, var(--splash-primary) 0%, #ffffff 100%); -webkit-background-clip: text; background-clip: text; }
       }
     </style>
 
     <!-- SIMPLIFIED: Minimal Service Worker Registration -->
     <script>
+      const API_ORIGIN =
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:8800'
+          : 'https://api.cxrsystems.com'
+
+      const API_BASE = `${API_ORIGIN}/api`
+
+      const getCurrentSubdomain = () => {
+        const host = window.location.hostname.toLowerCase()
+        const parts = host.split('.')
+        if (parts.length <= 2) return null
+        const sub = parts[0]
+        if (['www', 'app', 'api'].includes(sub)) return null
+        return sub
+      }
+
+      const hexToRgb = (hex) => {
+        if (!hex) return '236, 72, 153'
+        const cleaned = hex.replace('#', '')
+        if (cleaned.length !== 6) return '236, 72, 153'
+        const num = parseInt(cleaned, 16)
+        return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`
+      }
+
+      const applySplashBranding = (branding) => {
+        const primary = branding?.themeColor || '#ec4899'
+        const rgb = hexToRgb(primary)
+        
+        document.documentElement.style.setProperty('--splash-primary', primary)
+        document.documentElement.style.setProperty('--splash-primary-rgb', rgb)
+
+        const titleEl = document.querySelector('.splash-title')
+        const subtitleEl = document.querySelector('.splash-subtitle')
+        const markEl = document.querySelector('.splash-mark')
+        const contentEl = document.querySelector('.splash-content')
+
+        if (titleEl) titleEl.textContent = branding?.name || 'RadiantAI'
+        if (subtitleEl) subtitleEl.textContent = branding?.subtitle || branding?.tagline || 'Beauty & Wellness AI'
+
+        if (markEl) {
+          const source = (branding?.name || 'RadiantAI').trim()
+          const initials = source
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join('')
+            .toUpperCase()
+          markEl.textContent = initials || 'RA'
+        }
+
+        if (contentEl) contentEl.classList.add('revealed')
+      }
+
+      const getSplashBrandingCacheKey = () => {
+        const params = new URLSearchParams(window.location.search)
+        const spaLocationId = params.get('spa')?.trim()
+        const subdomain = getCurrentSubdomain()
+        if (spaLocationId) return `splash-branding:spa:${spaLocationId}`
+        if (subdomain) return `splash-branding:subdomain:${subdomain}`
+        return 'splash-branding:default'
+      }
+
+      // Initialize from cache immediately (Synchronous)
+      const cacheKey = getSplashBrandingCacheKey()
+      let cachedData = null
+      try {
+        const cachedValue = localStorage.getItem(cacheKey)
+        if (cachedValue) {
+          cachedData = JSON.parse(cachedValue)
+          // We can't apply to DOM yet if body isn't parsed, 
+          // but we can set CSS variables immediately
+          if (cachedData?.themeColor) {
+            const rgb = hexToRgb(cachedData.themeColor)
+            document.documentElement.style.setProperty('--splash-primary', cachedData.themeColor)
+            document.documentElement.style.setProperty('--splash-primary-rgb', rgb)
+          }
+        }
+      } catch (e) {
+        console.warn('Splash cache error', e)
+      }
+
+      const loadSplashBranding = async () => {
+        try {
+          const params = new URLSearchParams(window.location.search)
+          const spaLocationId = params.get('spa')?.trim()
+          const subdomain = getCurrentSubdomain()
+          
+          let response
+          if (spaLocationId) {
+            response = await fetch(`${API_BASE}/branding/location/${encodeURIComponent(spaLocationId)}`)
+          } else if (subdomain) {
+            response = await fetch(`${API_BASE}/branding/${encodeURIComponent(subdomain)}`)
+          }
+
+          if (response?.ok) {
+            const payload = await response.json()
+            const branding = payload?.data || null
+            if (branding) {
+              applySplashBranding(branding)
+              localStorage.setItem(cacheKey, JSON.stringify(branding))
+              return
+            }
+          }
+          
+          // Fallback to cache if request fails, or default
+          applySplashBranding(cachedData)
+        } catch {
+          applySplashBranding(cachedData)
+        }
+      }
+
+      // Start the fetch, but also reveal the splash content quickly 
+      // if it's already in cache
+      window.addEventListener('DOMContentLoaded', () => {
+        if (cachedData) {
+          applySplashBranding(cachedData)
+        }
+        loadSplashBranding()
+      })
+
       // Service worker registration with aggressive update checks for PWA users
       if ('serviceWorker' in navigator) {
         let isRefreshing = false
@@ -450,19 +602,31 @@
   <body>
     <!-- MODERN SPLASH SCREEN - Shows until React app is ready -->
     <div id="splash-screen" class="splash-screen">
-      <!-- Decorative Blobs -->
+      <!-- Decorative Background Elements -->
+      <div class="splash-aura"></div>
       <div class="splash-blob splash-blob-1"></div>
       <div class="splash-blob splash-blob-2"></div>
       
       <div class="splash-content">
-        <div class="splash-logo">
-          <img src="/icon2.png" alt="RadiantAI Logo" />
+        <div class="splash-logo-container">
+          <div class="logo-ring"></div>
+          <div class="splash-logo">
+            <span class="splash-mark"></span>
+          </div>
         </div>
-        <h1 class="splash-title">RadiantAI</h1>
-        <p class="splash-subtitle">Beauty & Wellness AI</p>
-        <div class="loading-bar">
-          <div class="loading-bar-fill"></div>
+        
+        <h1 class="splash-title"></h1>
+        <p class="splash-subtitle"></p>
+        
+        <div class="loader-wrapper">
+          <div class="loader-track">
+            <div class="loader-bar"></div>
+          </div>
         </div>
+      </div>
+
+      <div class="splash-footer">
+        <p>Powered by RadiantAI</p>
       </div>
     </div>
 

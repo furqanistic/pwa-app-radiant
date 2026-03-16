@@ -1,7 +1,8 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { useBranding } from '@/context/BrandingContext';
+import { resolveImageUrl } from '@/lib/imageHelpers';
 
 /**
  * AppIconManager dynamically updates the PWA manifest and icons based on the selected spa location.
@@ -9,8 +10,13 @@ import { useBranding } from '@/context/BrandingContext';
  */
 const AppIconManager = () => {
     const { currentUser } = useSelector((state) => state.user);
-    const { branding } = useBranding();
+    const { branding, loading, subdomain, locationId } = useBranding();
     const manifestUrlRef = useRef(null);
+    const spaFromQuery = useMemo(() => {
+        if (typeof window === 'undefined') return null;
+        return new URLSearchParams(window.location.search).get('spa');
+    }, []);
+    const hasScopedSpaContext = Boolean(subdomain || locationId || spaFromQuery);
     
     // Determine the active location based on role
     // Spa owners use spaLocation, regular users use selectedLocation
@@ -18,14 +24,25 @@ const AppIconManager = () => {
         ? currentUser?.spaLocation 
         : currentUser?.selectedLocation;
 
-    const spaLogo = activeLocation?.logo;
-    const spaName = activeLocation?.locationName;
-    const spaThemeColor = activeLocation?.themeColor;
+    const useActiveLocationFallback = !hasScopedSpaContext && !loading;
+    const spaLogo = useActiveLocationFallback ? activeLocation?.logo : null;
+    const spaName = useActiveLocationFallback ? activeLocation?.locationName : null;
+    const spaThemeColor = useActiveLocationFallback ? activeLocation?.themeColor : null;
 
     // Prefer subdomain branding, then selected spa data
     const brandName = branding?.name || spaName;
-    const brandLogo = branding?.logo || spaLogo;
-    const brandFavicon = branding?.favicon || brandLogo;
+    const resolvedBrandLogo = resolveImageUrl(
+        branding?.logo || branding?.logoPublicId || spaLogo,
+        branding?.logo || spaLogo,
+        { width: 512, height: 512 }
+    );
+    const resolvedBrandFavicon = resolveImageUrl(
+        branding?.favicon || branding?.faviconPublicId || branding?.logo || branding?.logoPublicId || spaLogo,
+        branding?.favicon || branding?.logo || spaLogo,
+        { width: 128, height: 128 }
+    );
+    const brandLogo = resolvedBrandLogo;
+    const brandFavicon = resolvedBrandFavicon || resolvedBrandLogo;
     const brandThemeColor = branding?.themeColor || spaThemeColor;
 
     useEffect(() => {

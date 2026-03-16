@@ -888,7 +888,7 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             {/* Sidebar Subtitle */}
             <div className='space-y-2'>
               <Label htmlFor='subtitle' className='text-sm font-semibold text-gray-700'>
-                Sidebar Subtitle (Optional)
+                Location Tagline / Subtitle (Optional)
               </Label>
               <Input
                 id='subtitle'
