@@ -192,7 +192,7 @@ const Layout = ({
     },
     {
       id: 'rewards',
-      label: 'Claim Rewards',
+      label: 'Claim',
       icon: Star,
       href: '/rewards',
       badge: {
@@ -203,7 +203,7 @@ const Layout = ({
     },
     {
       id: 'referrals',
-      label: 'Referral System',
+      label: 'Referrals',
       icon: Gift,
       href: '/referrals',
       badge: null,
@@ -211,7 +211,7 @@ const Layout = ({
     },
     {
       id: 'gamification',
-      label: 'Scratch & Spin',
+      label: 'Games',
       icon: Gamepad2,
       href: '/spin',
       badge: {

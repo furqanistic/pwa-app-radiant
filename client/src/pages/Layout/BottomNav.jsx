@@ -1,3 +1,4 @@
+import QRCodeScanner from '@/components/QRCode/QRCodeScanner';
 import { useBranding } from '@/context/BrandingContext';
 import {
     logout,
@@ -15,6 +16,7 @@ import {
     LayoutDashboard,
     LogOut,
     Menu,
+    QrCode,
     Star,
     User,
     Users,
@@ -36,13 +38,28 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+const darkenHex = (hex, amount = 24) => {
+  if (!hex) return '#b91c5c'
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) return '#b91c5c'
+  const num = parseInt(cleaned, 16)
+  const r = Math.max(0, ((num >> 16) & 255) - amount)
+  const g = Math.max(0, ((num >> 8) & 255) - amount)
+  const b = Math.max(0, (num & 255) - amount)
+  return `#${r.toString(16).padStart(2, '0')}${g
+    .toString(16)
+    .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+}
+
 const BottomNav = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const { branding, locationId } = useBranding()
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const brandColor = branding?.themeColor || '#ec4899'
+  const scanGradientEnd = darkenHex(brandColor, 22)
   
   const brandStyles = useMemo(() => {
     const rgba20 = hexToRgba(brandColor, 0.2)
@@ -95,10 +112,18 @@ const BottomNav = () => {
     },
     {
       id: 'rewards',
-      label: 'Claim Rewards',
+      label: 'Claim',
       icon: Star,
       href: '/rewards',
       inBottomBar: true,
+    },
+    {
+      id: 'scan-qr',
+      label: 'Scan QR',
+      icon: QrCode,
+      isScanner: true,
+      inBottomBar: true,
+      onClick: () => setIsScannerOpen(true),
     },
     {
       id: 'booking',
@@ -115,14 +140,14 @@ const BottomNav = () => {
     },
     {
       id: 'referrals',
-      label: 'Referral System',
+      label: 'Referrals',
       icon: Gift,
       href: '/referrals',
       inBottomBar: true,
     },
     {
       id: 'gamification',
-      label: 'Scratch & Spin',
+      label: 'Games',
       icon: Gamepad2,
       href: '/spin',
       hideForElevated: true,
@@ -194,7 +219,7 @@ const BottomNav = () => {
         url.searchParams.set('spa', spaId)
       }
       return `${url.pathname}${url.search}${url.hash}`
-    } catch (error) {
+    } catch {
       return href
     }
   }
@@ -246,6 +271,30 @@ const BottomNav = () => {
             const Icon = item.icon
             const isActive = item.href ? location.pathname === item.href : false
 
+            if (item.isScanner) {
+              return (
+                <div key={item.id} className='relative -top-6 flex flex-col items-center w-14'>
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.05 }}
+                    onClick={item.onClick}
+                    className='flex items-center justify-center w-14 h-14 rounded-full text-white border-4 border-white shadow-[0_10px_22px_-6px_rgba(0,0,0,0.35)]'
+                    style={{
+                      background: `linear-gradient(135deg, ${brandColor} 0%, ${scanGradientEnd} 100%)`,
+                    }}
+                  >
+                    <Icon className='w-7 h-7' />
+                  </motion.button>
+                  <span
+                    className='absolute -bottom-8 text-[9px] font-medium uppercase tracking-tight w-20 text-center whitespace-nowrap bg-white/70 backdrop-blur-md rounded-full py-0.5 shadow-sm'
+                    style={{ color: brandStyles.primary }}
+                  >
+                    {item.label}
+                  </span>
+                </div>
+              )
+            }
+
             return (
               <motion.button
                 key={item.id}
@@ -268,7 +317,7 @@ const BottomNav = () => {
                   )}
                 </div>
                 <span 
-                  className='text-[10px] font-bold uppercase tracking-tighter'
+                  className='text-[9px] font-medium uppercase tracking-tight'
                   style={{ color: isActive ? brandStyles.primary : '#6b7280' }}
                 >
                   {item.label}
@@ -353,6 +402,11 @@ const BottomNav = () => {
           </>
         )}
       </AnimatePresence>
+
+      <QRCodeScanner
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+      />
     </>
   )
 }
