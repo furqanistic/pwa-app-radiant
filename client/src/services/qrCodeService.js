@@ -11,6 +11,12 @@ export const qrCodeService = {
     return response.data;
   },
 
+  // Resolve QR code to spa location/subdomain (public)
+  resolveQRCodeLocation: async (qrId) => {
+    const response = await axiosInstance.get(`/qr-codes/resolve/${qrId}`);
+    return response.data;
+  },
+
   // Get QR code details for a location
   getLocationQRCode: async (locationId) => {
     const response = await axiosInstance.get(`/qr-codes/${locationId}`);

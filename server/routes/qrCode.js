@@ -5,6 +5,7 @@ import {
   getAllQRCodes,
   getLocationQRCode,
   getQRCodeStats,
+  resolveQRCodeLocation,
   scanQRCode,
   toggleQRCodeStatus,
 } from "../controller/qrCode.js";
@@ -17,6 +18,7 @@ const router = express.Router();
 
 // PUBLIC: Scan QR code (no authentication required for initial scan)
 router.post("/scan", scanQRCode);
+router.get("/resolve/:qrId", resolveQRCodeLocation);
 
 // AUTHENTICATED: Get QR code details for a specific location
 router.get("/:locationId", verifyToken, getLocationQRCode);

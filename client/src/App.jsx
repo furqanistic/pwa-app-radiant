@@ -1,6 +1,6 @@
 // File: client/src/App.jsx
 import { Toaster } from '@/components/ui/sonner'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
     BrowserRouter,
@@ -41,7 +41,9 @@ import RewardsCatalogPage from './pages/Rewards/RewardsCatalogPage'
 import ScratchSpinManagement from './pages/Spin/ScratchSpinManagement'
 import ScratchSpinPage from './pages/Spin/ScratchSpinPage'
 import { loginFailure, loginSuccess, logout } from './redux/userSlice'
+import { brandingService } from './services/brandingService'
 import { authService } from './services/authService'
+import { qrCodeService } from './services/qrCodeService'
 
 // Scroll to top whenever the route changes
 const ScrollToTop = () => {
@@ -162,6 +164,79 @@ const WelcomeRoute = () => {
   return <Navigate to={buildSpaPath(targetPath)} replace />
 }
 
+const LegacySpaSubdomainRedirect = () => {
+  const location = useLocation()
+  const inFlightRef = useRef(false)
+
+  useEffect(() => {
+    const redirectToSpaSubdomain = async () => {
+      if (typeof window === 'undefined' || inFlightRef.current) return
+
+      const hostname = window.location.hostname.toLowerCase()
+      const isCxrHost =
+        hostname === 'cxrsystems.com' || hostname.endsWith('.cxrsystems.com')
+      const isLocalHost =
+        hostname === 'localhost' || hostname === '127.0.0.1'
+      const isSpaSubdomain = /^([a-z0-9-]+)\.cxrsystems\.com$/.test(hostname)
+      const isNonSpaRootHost = ['app', 'www', 'api'].includes(
+        hostname.split('.')[0]
+      )
+
+      // Redirect only for legacy/root hosts, never inside local/dev or already-correct spa subdomains.
+      if (!isCxrHost || isLocalHost || (isSpaSubdomain && !isNonSpaRootHost))
+        return
+
+      const params = new URLSearchParams(location.search)
+      const spaLocationId = params.get('spa')?.trim()
+      const qrId = params.get('qrId')?.trim()
+
+      if (!spaLocationId && !qrId) return
+
+      try {
+        inFlightRef.current = true
+
+        let targetSubdomain = null
+
+        if (spaLocationId) {
+          const brandingResponse =
+            await brandingService.getBrandingByLocationId(spaLocationId)
+          targetSubdomain =
+            brandingResponse?.data?.subdomain?.trim()?.toLowerCase() || null
+        } else if (qrId) {
+          const qrResolution = await qrCodeService.resolveQRCodeLocation(qrId)
+          const resolvedLocationId = qrResolution?.data?.locationId
+          targetSubdomain =
+            qrResolution?.data?.subdomain?.trim()?.toLowerCase() || null
+
+          if (!targetSubdomain && resolvedLocationId) {
+            const brandingResponse =
+              await brandingService.getBrandingByLocationId(resolvedLocationId)
+            targetSubdomain =
+              brandingResponse?.data?.subdomain?.trim()?.toLowerCase() || null
+          }
+        }
+
+        if (!targetSubdomain || ['app', 'www', 'api'].includes(targetSubdomain))
+          return
+
+        const targetHost = `${targetSubdomain}.cxrsystems.com`
+        if (hostname === targetHost) return
+
+        const targetUrl = `${window.location.protocol}//${targetHost}${location.pathname}${location.search}${location.hash}`
+        window.location.replace(targetUrl)
+      } catch {
+        // Keep the user on current host if lookup fails.
+      } finally {
+        inFlightRef.current = false
+      }
+    }
+
+    redirectToSpaSubdomain()
+  }, [location.pathname, location.search, location.hash])
+
+  return null
+}
+
 const App = () => {
   const dispatch = useDispatch()
   const { currentUser } = useSelector((state) => state.user)
@@ -275,6 +350,7 @@ const App = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <LegacySpaSubdomainRedirect />
       <BrandingProvider>
         <Toaster 
           richColors 

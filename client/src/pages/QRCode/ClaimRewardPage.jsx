@@ -21,6 +21,15 @@ const ClaimRewardPage = () => {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
 
+    const redirectToSignup = () => {
+        const signupUrl = result?.data?.signupUrl;
+        if (signupUrl) {
+            window.location.assign(signupUrl);
+            return;
+        }
+        navigate("/auth");
+    };
+
     useEffect(() => {
         if (currentUser?.email) {
             setEmail(currentUser.email);
@@ -134,7 +143,7 @@ const ClaimRewardPage = () => {
                                     required
                                 />
                                 <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                                    Points will be added to your account. If you don't have an account, we'll send you a verification link.
+                                    If an account exists for this email, points are claimed instantly. Otherwise, you'll get a create-account option.
                                 </p>
                             </div>
 
@@ -188,11 +197,21 @@ const ClaimRewardPage = () => {
                             )}
 
                             <button
-                                onClick={() => navigate(currentUser ? "/dashboard" : "/auth")}
+                                onClick={() => {
+                                    if (result.isPending) {
+                                        redirectToSignup();
+                                        return;
+                                    }
+                                    navigate(currentUser ? "/dashboard" : "/auth");
+                                }}
                                 className="w-full py-4 text-white rounded-xl font-bold shadow-lg"
                                 style={{ background: brandColor }}
                             >
-                                {currentUser ? "Go to Dashboard" : "Sign In / Sign Up"}
+                                {result.isPending
+                                    ? "Create Account"
+                                    : currentUser
+                                        ? "Go to Dashboard"
+                                        : "Sign In / Sign Up"}
                             </button>
                         </div>
                     )}

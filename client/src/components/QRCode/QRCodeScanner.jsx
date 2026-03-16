@@ -10,7 +10,7 @@ import {
     MapPin,
     X,
 } from 'lucide-react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { toast } from 'sonner'
 
@@ -27,6 +27,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
+  const autoClaimKeyRef = useRef(null)
   const { currentUser } = useSelector((state) => state.user)
   const dispatch = useDispatch()
   const { branding } = useBranding()
@@ -148,10 +149,9 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
     return () => clearInterval(intervalId)
   }, [scanning])
 
-  // Handle scan submission
- const handleScanSubmit = async (e) => {
-   e.preventDefault();
-   if (!scannedData?.qrId || !email.trim()) {
+  const submitScan = useCallback(async (rawEmail) => {
+   const normalizedEmail = `${rawEmail || ''}`.trim().toLowerCase()
+   if (!scannedData?.qrId || !normalizedEmail) {
      toast.error("Please enter your email");
      return;
    }
@@ -160,7 +160,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
    try {
      const response = await qrCodeService.scanQRCode(
        scannedData.qrId,
-       email.trim().toLowerCase()
+       normalizedEmail
      );
 
      if (response.status === "success" || response.status === "verified") {
@@ -187,6 +187,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
          success: false,
          message: response.message,
          data: response.data,
+         isPending: true,
        });
        toast.info(response.message);
      }
@@ -201,6 +202,12 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
    } finally {
      setLoading(false);
    }
+ }, [dispatch, scannedData?.qrId])
+
+  // Handle scan submission
+ const handleScanSubmit = async (e) => {
+   e.preventDefault();
+   await submitScan(email);
  };
 
   // Close modal
@@ -210,6 +217,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
     setScannedData(null)
     setEmail('')
     setResult(null)
+    autoClaimKeyRef.current = null
     onClose()
   }
 
@@ -219,6 +227,26 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
       setEmail(currentUser.email)
     }
   }, [currentUser])
+
+  // Auto-claim when logged-in user scans from in-app scanner.
+  useEffect(() => {
+    if (
+      !isOpen ||
+      step !== 'email' ||
+      !scannedData?.qrId ||
+      !currentUser?.email ||
+      loading ||
+      result
+    ) {
+      return
+    }
+
+    const key = `${scannedData.qrId}:${currentUser.email.toLowerCase()}`
+    if (autoClaimKeyRef.current === key) return
+    autoClaimKeyRef.current = key
+
+    submitScan(currentUser.email)
+  }, [isOpen, step, scannedData?.qrId, currentUser?.email, loading, result, submitScan])
 
   // Start camera when scanner opens
   useEffect(() => {
@@ -435,6 +463,24 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                         </h3>
                         <p className="text-gray-500 text-sm">{result.message}</p>
                       </div>
+
+                      {result.isPending && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const signupUrl = result.data?.signupUrl
+                            if (signupUrl) {
+                              window.location.assign(signupUrl)
+                              return
+                            }
+                            window.location.assign('/auth')
+                          }}
+                          className="w-full h-14 text-white font-bold rounded-full shadow-lg active:scale-[0.98] transition-all uppercase text-xs tracking-[0.2em]"
+                          style={{ backgroundColor: brandColor }}
+                        >
+                          Create Account
+                        </button>
+                      )}
                     </>
                   )}
 

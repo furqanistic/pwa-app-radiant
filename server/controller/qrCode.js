@@ -15,6 +15,22 @@ const generateQRId = () => {
     .toUpperCase()}`;
 };
 
+const buildSpaSignupUrl = (location) => {
+  const normalizedLocationId = location?.locationId
+    ? encodeURIComponent(location.locationId)
+    : "";
+  const pathWithSpa = normalizedLocationId
+    ? `/auth?spa=${normalizedLocationId}`
+    : "/auth";
+  const subdomain = `${location?.subdomain || ""}`.trim().toLowerCase();
+
+  if (subdomain) {
+    return `https://${subdomain}.cxrsystems.com${pathWithSpa}`;
+  }
+
+  return `https://app.cxrsystems.com${pathWithSpa}`;
+};
+
 // Generate QR Code for a location
 export const generateQRCodeForLocation = async (req, res, next) => {
   try {
@@ -107,6 +123,38 @@ export const getLocationQRCode = async (req, res, next) => {
   }
 };
 
+// Resolve QR code to location/subdomain for legacy URL redirects
+export const resolveQRCodeLocation = async (req, res, next) => {
+  try {
+    const { qrId } = req.params;
+
+    if (!qrId) {
+      return next(createError(400, "QR ID is required"));
+    }
+
+    const location = await Location.findOne({ "qrCode.qrId": qrId }).select(
+      "locationId name subdomain isActive"
+    );
+
+    if (!location || !location.isActive) {
+      return next(createError(404, "Invalid QR code"));
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: {
+        qrId,
+        locationId: location.locationId,
+        locationName: location.name,
+        subdomain: location.subdomain || null,
+      },
+    });
+  } catch (error) {
+    console.error("Error resolving QR location:", error);
+    next(createError(500, "Failed to resolve QR code"));
+  }
+};
+
 // Scan QR Code and award points
 export const scanQRCode = async (req, res, next) => {
   try {
@@ -157,6 +205,8 @@ export const scanQRCode = async (req, res, next) => {
     let user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
+      const signupUrl = buildSpaSignupUrl(location);
+
       // User doesn't exist - create a pending scan record
       const pendingScan = new QRCodeScan({
         qrId,
@@ -176,11 +226,14 @@ export const scanQRCode = async (req, res, next) => {
       return res.status(202).json({
         status: "pending",
         message:
-          "We sent a verification link to your email. Please create an account or verify your email to claim your points.",
+          "No account found for this email. Create an account to claim your points.",
         data: {
           scanId: pendingScan._id,
           email: email.toLowerCase(),
           pointsToEarn: location.qrCode.pointsValue,
+          locationId: location.locationId,
+          subdomain: location.subdomain || null,
+          signupUrl,
         },
       });
     }

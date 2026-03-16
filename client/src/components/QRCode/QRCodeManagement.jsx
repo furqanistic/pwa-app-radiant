@@ -131,7 +131,12 @@ const QRCodeManagement = ({ locationId, locationName }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("QR code downloaded!");
+    toast.success("QR code downloaded!", {
+      style: {
+        zIndex: 2147483647,
+      },
+      className: "!z-[2147483647]",
+    });
   };
 
   // Copy QR ID to clipboard
