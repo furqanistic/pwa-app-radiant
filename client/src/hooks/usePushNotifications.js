@@ -175,7 +175,9 @@ export const usePushNotifications = () => {
       try {
         registration = await navigator.serviceWorker.register('/sw.js', {
           scope: '/',
+          updateViaCache: 'none',
         })
+        await registration.update()
         await navigator.serviceWorker.ready
       } catch (swError) {
         console.error('Service worker registration failed:', swError)

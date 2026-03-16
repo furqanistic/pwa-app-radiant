@@ -358,18 +358,64 @@
 
     <!-- SIMPLIFIED: Minimal Service Worker Registration -->
     <script>
-      // Simple service worker registration - no complex logic
+      // Service worker registration with aggressive update checks for PWA users
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker
-            .register('/sw.js', { scope: '/' })
-            .then(function (registration) {
-              console.log('ServiceWorker registered successfully')
+        let isRefreshing = false
+
+        const triggerPageReload = () => {
+          if (isRefreshing) return
+          isRefreshing = true
+          window.location.reload()
+        }
+
+        const setupRegistration = async () => {
+          try {
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+              scope: '/',
+              updateViaCache: 'none',
             })
-            .catch(function (err) {
-              console.error('ServiceWorker registration failed:', err)
+
+            // Detect a newly downloaded worker and activate it immediately.
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing
+              if (!newWorker) return
+
+              newWorker.addEventListener('statechange', () => {
+                const hasController = Boolean(navigator.serviceWorker.controller)
+                if (newWorker.state === 'installed' && hasController) {
+                  newWorker.postMessage({ type: 'SKIP_WAITING' })
+                }
+              })
             })
-        })
+
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              triggerPageReload()
+            })
+
+            // Check for new versions when app starts and whenever user returns.
+            await registration.update()
+
+            const updateOnReturn = () => registration.update()
+            window.addEventListener('focus', updateOnReturn)
+            window.addEventListener('pageshow', updateOnReturn)
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') {
+                registration.update()
+              }
+            })
+
+            // Periodic check while app stays open.
+            setInterval(() => {
+              registration.update()
+            }, 60 * 1000)
+
+            console.log('ServiceWorker registered and update checks enabled')
+          } catch (err) {
+            console.error('ServiceWorker registration failed:', err)
+          }
+        }
+
+        window.addEventListener('load', setupRegistration)
       }
 
       // iOS PWA Detection (optional)
