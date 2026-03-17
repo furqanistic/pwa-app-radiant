@@ -199,6 +199,116 @@ const autoActivatePendingMembershipForSpa = async (user) => {
   await location.save()
 }
 
+const findStripeReadySpaOwnerByLocation = async (locationId) => {
+  if (!locationId) return null
+
+  return User.findOne({
+    role: 'spa',
+    'spaLocation.locationId': locationId,
+    'stripe.accountId': { $nin: [null, ''] },
+    'stripe.chargesEnabled': true,
+  }).sort({ 'stripe.lastUpdated': -1, updatedAt: -1, createdAt: -1 })
+}
+
+const getActiveMembershipPricingEntries = (service) =>
+  Array.isArray(service?.membershipPricing)
+    ? service.membershipPricing.filter((entry) => entry?.isActive !== false)
+    : []
+
+const isMembershipServicePurchase = (service) => {
+  if (!service) return false
+
+  if (getActiveMembershipPricingEntries(service).length > 0) {
+    return true
+  }
+
+  const text = `${service?.name || ''} ${service?.description || ''}`.toLowerCase()
+  return text.includes('membership') || text.includes('subscription')
+}
+
+const resolvePurchasedMembershipPlan = (service, paidAmount) => {
+  const entries = getActiveMembershipPricingEntries(service)
+  if (entries.length === 0) {
+    return {
+      planName: service?.name || 'Membership',
+      planId: null,
+      planPrice: Number.isFinite(Number(paidAmount)) ? Number(paidAmount) : null,
+      currency: 'usd',
+    }
+  }
+
+  const paid = Number(paidAmount)
+  if (!Number.isFinite(paid)) {
+    const first = entries[0]
+    return {
+      planName: first?.membershipPlanName || service?.name || 'Membership',
+      planId: first?.membershipPlanId || null,
+      planPrice: Number.isFinite(Number(first?.price)) ? Number(first.price) : null,
+      currency: 'usd',
+    }
+  }
+
+  let best = entries[0]
+  let bestDelta = Math.abs(Number(best?.price || 0) - paid)
+  for (let i = 1; i < entries.length; i += 1) {
+    const candidate = entries[i]
+    const delta = Math.abs(Number(candidate?.price || 0) - paid)
+    if (delta < bestDelta) {
+      best = candidate
+      bestDelta = delta
+    }
+  }
+
+  return {
+    planName: best?.membershipPlanName || service?.name || 'Membership',
+    planId: best?.membershipPlanId || null,
+    planPrice: Number.isFinite(Number(best?.price)) ? Number(best.price) : paid,
+    currency: 'usd',
+  }
+}
+
+const activateMembershipForCustomer = async ({ customerId, booking, service }) => {
+  if (!customerId || !booking || !service) return false
+  if (!isMembershipServicePurchase(service)) return false
+
+  const customer = await User.findById(customerId)
+  if (!customer) return false
+
+  const purchasedPlan = resolvePurchasedMembershipPlan(service, booking.finalPrice)
+  const startedAt = new Date()
+  const expiresAt = new Date(startedAt)
+  expiresAt.setMonth(expiresAt.getMonth() + 1)
+
+  customer.membership = {
+    ...(customer.membership || {}),
+    isActive: true,
+    status: 'active',
+    planName: purchasedPlan.planName,
+    planId: purchasedPlan.planId,
+    price: purchasedPlan.planPrice,
+    currency: purchasedPlan.currency || 'usd',
+    serviceId: service._id,
+    locationId: booking.locationId || service.locationId || customer.selectedLocation?.locationId || null,
+    startedAt,
+    expiresAt,
+    lastPaymentAt: startedAt,
+  }
+  customer.membershipStatus = 'active'
+  customer.activeMembership = {
+    ...(customer.activeMembership || {}),
+    isActive: true,
+    status: 'active',
+    planName: purchasedPlan.planName,
+    planId: purchasedPlan.planId,
+    startedAt,
+    expiresAt,
+    locationId: booking.locationId || service.locationId || customer.selectedLocation?.locationId || null,
+  }
+
+  await customer.save()
+  return true
+}
+
 const resolvePurchasePoints = async (locationId, amount, cache = null) => {
   const normalizedAmount = Number(amount) || 0
   if (!locationId || normalizedAmount <= 0) return 0
@@ -506,6 +616,7 @@ export const createCheckoutSession = async (req, res, next) => {
       const lineItems = []
       let totalAmount = 0
       let spaOwnerId = null
+      const spaOwnerCacheByLocation = new Map()
 
       // Apply Reward if provided (Cart Checkout)
       let cartDiscountAmount = 0
@@ -621,26 +732,20 @@ export const createCheckoutSession = async (req, res, next) => {
           )
         }
 
-        // Find the spa owner for this location
-        const spaOwner = await User.findOne({ 
-          'spaLocation.locationId': item.locationId || cartLocationId,
-          role: 'spa' 
-        })
+        const checkoutLocationId = item.locationId || cartLocationId
+        let spaOwner = spaOwnerCacheByLocation.get(checkoutLocationId)
+        if (!spaOwner) {
+          spaOwner = await findStripeReadySpaOwnerByLocation(checkoutLocationId)
+          if (spaOwner) {
+            spaOwnerCacheByLocation.set(checkoutLocationId, spaOwner)
+          }
+        }
 
         if (!spaOwner) {
           return next(
             createError(
               400,
-              `Could not find a valid spa owner for location ${item.locationId || cartLocationId}`
-            )
-          )
-        }
-
-        if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
-          return next(
-            createError(
-              400,
-              `${item.serviceName}'s spa has not connected payment account`
+              `No Stripe-ready spa account found for location ${checkoutLocationId}`
             )
           )
         }
@@ -661,7 +766,7 @@ export const createCheckoutSession = async (req, res, next) => {
         const itemDuration = Number.parseInt(item.duration, 10) || service.duration
 
         await assertSlotAvailable({
-          locationId: item.locationId || cartLocationId,
+          locationId: checkoutLocationId,
           date: item.date,
           time: item.time,
           duration: itemDuration,
@@ -687,7 +792,7 @@ export const createCheckoutSession = async (req, res, next) => {
           date: new Date(item.date),
           time: item.time,
           duration: itemDuration,
-          locationId: item.locationId || cartLocationId,
+          locationId: checkoutLocationId,
           notes: item.notes || '',
           status: 'scheduled',
           paymentStatus: 'pending',
@@ -801,20 +906,10 @@ export const createCheckoutSession = async (req, res, next) => {
     })
 
     // Get spa owner (owner of the location)
-    const spaOwner = await User.findOne({
-      'spaLocation.locationId': locationId,
-      role: 'spa'
-    })
+    const spaOwner = await findStripeReadySpaOwnerByLocation(locationId)
 
     if (!spaOwner) {
-      return next(createError(400, 'Service owner is not a valid spa account for this location'))
-    }
-
-    // Check if spa owner has Stripe connected
-    if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
-      return next(
-        createError(400, 'This spa has not connected their payment account yet')
-      )
+      return next(createError(400, 'No Stripe-ready spa account found for this location'))
     }
 
     // Calculate pricing
@@ -973,17 +1068,14 @@ export const createPaymentIntent = async (req, res, next) => {
       return next(createError(404, 'Service not found or inactive'))
     }
 
-    // Get spa owner (creator of the service)
-    const spaOwner = service.createdBy
+    // Resolve payout owner by location so any Stripe-ready assigned spa can receive payments.
+    const payoutLocationId =
+      service.locationId || req.user.selectedLocation?.locationId || null
+    const spaOwner = await findStripeReadySpaOwnerByLocation(payoutLocationId)
 
-    if (!spaOwner || spaOwner.role !== 'spa') {
-      return next(createError(400, 'Service owner is not a valid spa account'))
-    }
-
-    // Check if spa owner has Stripe connected
-    if (!spaOwner.stripe?.accountId || !spaOwner.stripe?.chargesEnabled) {
+    if (!spaOwner) {
       return next(
-        createError(400, 'This spa has not connected their payment account yet')
+        createError(400, 'No Stripe-ready spa account found for this location')
       )
     }
 
@@ -1140,6 +1232,18 @@ export const confirmPayment = async (req, res, next) => {
             finalPrice: payment.amount / 100,
             pointsEarned: payment.pointsEarned,
           })
+
+          const paidBooking = await Booking.findById(payment.booking)
+          const paidService = paidBooking
+            ? await Service.findById(paidBooking.serviceId)
+            : null
+          if (paidBooking && paidService) {
+            await activateMembershipForCustomer({
+              customerId: payment.customer,
+              booking: paidBooking,
+              service: paidService,
+            })
+          }
         }
       } else {
         payment.failedAt = new Date()
@@ -1512,6 +1616,14 @@ async function handleCheckoutSessionCompleted(session) {
       booking.paymentId = payment._id
       booking.pointsEarned = pointsEarned
       await booking.save()
+
+      // Activate membership on customer profile when a membership product is purchased.
+      const service = await Service.findById(booking.serviceId)
+      await activateMembershipForCustomer({
+        customerId,
+        booking,
+        service,
+      })
       await syncBookingToGhl(booking, customerId)
     }
 
@@ -1600,6 +1712,13 @@ async function handleCheckoutSessionCompleted(session) {
   booking.paymentId = payment._id
   booking.pointsEarned = payment.pointsEarned
   await booking.save()
+
+  const bookingService = await Service.findById(booking.serviceId)
+  await activateMembershipForCustomer({
+    customerId,
+    booking,
+    service: bookingService,
+  })
   await syncBookingToGhl(booking, customerId)
 
   // Award points to customer

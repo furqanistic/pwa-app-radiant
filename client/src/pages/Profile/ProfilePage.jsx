@@ -1,22 +1,31 @@
-import { axiosInstance } from "@/config";
+import { FRONTEND_URL, axiosInstance } from "@/config";
+import { locationService } from "@/services/locationService";
+import { qrCodeService } from "@/services/qrCodeService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
     AlertCircle,
+    Calendar,
     Check,
+    Crown,
+    Download,
     Edit3,
     Loader2,
     Lock,
     Mail,
+    MapPin,
+    QrCode,
     Shield,
     Sparkles,
     User,
     Zap
 } from "lucide-react";
-import React, { useState } from "react";
+import QRCodeLib from "qrcode";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
 import { updateProfile } from "../../redux/userSlice";
+import { Button } from "@/components/ui/button";
 import Layout from "../Layout/Layout";
 import { useBranding } from '@/context/BrandingContext';
 
@@ -76,10 +85,10 @@ const ProfileField = ({
       {!isEditing ? (
         <motion.div
           whileTap={{ scale: disabled ? 1 : 0.98 }}
-          className={`flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all ${
+          className={`group flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all ${
             disabled
               ? "opacity-60 cursor-not-allowed"
-              : "active:bg-[color:var(--brand-primary)/0.08] cursor-pointer shadow-sm hover:shadow-md"
+              : "active:bg-[color:var(--brand-primary)/0.08] cursor-pointer"
           }`}
           onClick={disabled ? undefined : onEdit}
         >
@@ -106,10 +115,10 @@ const ProfileField = ({
         <motion.div
           initial={{ scale: 0.98, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70 shadow-lg"
+          className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70"
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl shadow-lg shadow-[color:var(--brand-primary)/0.3]">
+            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl">
               <Icon className="w-5 h-5 text-white" />
             </div>
             <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
@@ -134,7 +143,7 @@ const ProfileField = ({
               whileTap={{ scale: 0.95 }}
               onClick={onSave}
               disabled={disabled}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-[color:var(--brand-primary)/0.25] transition-all disabled:opacity-70"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold transition-all disabled:opacity-70"
             >
               {disabled ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -219,7 +228,7 @@ const PasswordChangeField = ({
       {!isEditing ? (
         <motion.div
           whileTap={{ scale: 0.98 }}
-          className="flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all active:bg-[color:var(--brand-primary)/0.08] cursor-pointer shadow-sm hover:shadow-md"
+          className="group flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all active:bg-[color:var(--brand-primary)/0.08] cursor-pointer"
           onClick={onEdit}
         >
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
@@ -243,10 +252,10 @@ const PasswordChangeField = ({
         <motion.div
           initial={{ scale: 0.98, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-           className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70 shadow-lg"
+           className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70"
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl shadow-lg shadow-[color:var(--brand-primary)/0.3]">
+            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl">
               <Lock className="w-5 h-5 text-white" />
             </div>
             <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
@@ -319,7 +328,7 @@ const PasswordChangeField = ({
               whileTap={{ scale: 0.95 }}
               onClick={handleSave}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-[color:var(--brand-primary)/0.25] transition-all disabled:opacity-70"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold transition-all disabled:opacity-70"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -402,7 +411,7 @@ const ErrorState = ({ error, retry }) => {
           ['--brand-primary-dark']: brandColorDark,
         }}
       >
-        <div className="text-center p-8 bg-white rounded-3xl shadow-xl max-w-sm w-full border border-gray-200/70">
+        <div className="text-center p-8 bg-white rounded-3xl max-w-sm w-full border border-gray-200/70">
           <AlertCircle className="w-12 h-12 text-[color:var(--brand-primary)] mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">
             Failed to load profile
@@ -488,7 +497,7 @@ const ProfilePage = () => {
 
   const changePasswordMutation = useMutation({
     mutationFn: profileAPI.changePassword,
-    onSuccess: (data) => {
+    onSuccess: () => {
         toastSuccess("Password changed successfully");
     },
     onError: (error) => {
@@ -498,6 +507,7 @@ const ProfilePage = () => {
 
   const [editingField, setEditingField] = useState(null);
   const [tempValues, setTempValues] = useState({});
+  const [spaQrImage, setSpaQrImage] = useState(null);
 
   // Format user data
   const user = userData
@@ -510,10 +520,114 @@ const ProfilePage = () => {
         points: userData.points || 0,
       }
     : null;
+  const isSpaUser = user?.role === "spa";
+
+  const {
+    data: myLocationData,
+    isLoading: isLoadingMyLocation,
+  } = useQuery({
+    queryKey: ["profile-my-location", user?._id],
+    queryFn: () => locationService.getMyLocation(),
+    enabled: isSpaUser,
+    retry: false,
+  });
+
+  const myLocation = myLocationData?.data?.location || null;
+  const spaLocationDbId = myLocation?._id || null;
+  const spaBusinessLocationId = user?.spaLocation?.locationId || null;
+
+  const {
+    data: spaQrData,
+    isLoading: isLoadingSpaQr,
+    error: spaQrError,
+  } = useQuery({
+    queryKey: ["profile-location-qr", spaLocationDbId, spaBusinessLocationId],
+    queryFn: () => {
+      if (spaLocationDbId) {
+        return qrCodeService.getLocationQRCode(spaLocationDbId);
+      }
+      return qrCodeService.getLocationQRCodeByBusinessId(spaBusinessLocationId);
+    },
+    enabled: isSpaUser && (!!spaLocationDbId || !!spaBusinessLocationId),
+    retry: false,
+  });
+
+  const spaQr = spaQrData?.data || null;
+
+  useEffect(() => {
+    const generateSpaQrImage = async () => {
+      if (!spaQr?.qrId) {
+        setSpaQrImage(null);
+        return;
+      }
+
+      try {
+        const claimUrl = `${FRONTEND_URL}/claim-reward?qrId=${spaQr.qrId}`;
+        const image = await QRCodeLib.toDataURL(claimUrl, {
+          width: 280,
+          margin: 2,
+        });
+        setSpaQrImage(image);
+      } catch (qrGenerationError) {
+        console.error("Failed to generate profile QR image:", qrGenerationError);
+        setSpaQrImage(null);
+      }
+    };
+
+    generateSpaQrImage();
+  }, [spaQr?.qrId]);
     
   const getMembershipDisplay = (user) => {
+    const membershipStatus = String(
+      user?.membership?.status ||
+      user?.membershipStatus ||
+      user?.activeMembership?.status ||
+      ''
+    ).toLowerCase();
+    const isMembershipActive =
+      user?.membership?.isActive ||
+      user?.activeMembership?.isActive ||
+      ['active', 'trialing', 'paid', 'current'].includes(membershipStatus);
+
+    if (isMembershipActive) {
+      const activePlanName =
+        user?.membership?.planName ||
+        user?.activeMembership?.planName ||
+        'Active';
+      return `${activePlanName} Plan`;
+    }
+
     const tier = user?.referralStats?.currentTier || 'Bronze';
     return `${tier} Membership`;
+  };
+  const activeLocationName =
+    myLocation?.name ||
+    user?.spaLocation?.locationName ||
+    user?.selectedLocation?.locationName ||
+    "Not assigned";
+  const membershipStatus = String(
+    user?.membership?.status ||
+      user?.membershipStatus ||
+      user?.activeMembership?.status ||
+      "inactive"
+  ).toLowerCase();
+  const isMembershipActive =
+    user?.membership?.isActive ||
+    user?.activeMembership?.isActive ||
+    ["active", "trialing", "paid", "current"].includes(membershipStatus);
+  const membershipPlanName =
+    user?.membership?.planName ||
+    user?.activeMembership?.planName ||
+    "No active plan";
+  const membershipStartDate =
+    user?.membership?.startedAt || user?.activeMembership?.startedAt || null;
+  const membershipEndDate =
+    user?.membership?.expiresAt || user?.activeMembership?.expiresAt || null;
+  const formatMembershipDate = (value) => {
+    if (!value) return "Not set";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Not set";
+    return date.toLocaleDateString();
   };
 
   const handleEdit = (field) => {
@@ -588,6 +702,22 @@ const ProfilePage = () => {
     setTempValues({ ...tempValues, [field]: value });
   };
 
+  const handleDownloadSpaQr = () => {
+    if (!spaQrImage) return;
+
+    const link = document.createElement("a");
+    link.href = spaQrImage;
+    const locationName =
+      myLocation?.name || user?.spaLocation?.locationName || "location";
+    const safeLocationName = locationName.trim().replace(/\s+/g, "-").toLowerCase();
+    link.download = `${safeLocationName}-qr-code.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toastSuccess("QR code downloaded successfully");
+  };
+
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} retry={refetch} />;
   if (!user)
@@ -598,60 +728,127 @@ const ProfilePage = () => {
   return (
     <Layout>
       <div
-        className="min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white pb-20 md:pb-12"
+        className="min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] via-[color:var(--brand-primary)/0.03] to-white pb-20 md:pb-12"
         style={{
           ['--brand-primary']: brandColor,
           ['--brand-primary-dark']: brandColorDark,
         }}
       >
-        <div className="max-w-4xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
-            
-            {/* Expanded Header Section */}
-            <div className="relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-r from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-6 md:p-12 mb-8 shadow-xl shadow-[color:var(--brand-primary)/0.25]">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
-                
-                <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start justify-between gap-8">
-                    <div className="text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-[10px] md:text-xs font-bold tracking-wider uppercase mb-3 text-white shadow-sm capitalize">
-                            <Sparkles size={12} className="text-yellow-300 fill-yellow-300" />
-                            {getMembershipDisplay(user)}
-                        </div>
-                        <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight mb-2">
-                           Hello, <span className="text-white/90">{user.name.split(' ')[0]}</span>
-                        </h1>
-                         <p className="text-white/80 font-medium text-sm md:text-base">
-                            Welcome to your personal dashboard.
-                        </p>
-                    </div>
-
-                    <div className="flex gap-3">
-                         <div className="p-3 md:px-5 md:py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-center min-w-[90px]">
-                            <div className="text-lg md:text-xl font-bold">{user.points}</div>
-                            <div className="text-[10px] md:text-xs text-white/80 font-medium uppercase tracking-wider">Points</div>
-                        </div>
-                         <div className="p-3 md:px-5 md:py-4 bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl text-center min-w-[90px]">
-                            <div className="text-lg md:text-xl font-bold">{user.memberSince}</div>
-                            <div className="text-[10px] md:text-xs text-white/80 font-medium uppercase tracking-wider">Joined</div>
-                        </div>
-                    </div>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative overflow-hidden rounded-3xl border border-[color:var(--brand-primary)/0.25] bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-6 md:p-10"
+          >
+            <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/20" />
+            <div className="pointer-events-none absolute -left-20 -bottom-24 h-64 w-64 rounded-full bg-black/10" />
+            <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">
+                  <Sparkles size={12} className="text-yellow-200 fill-yellow-200" />
+                  {getMembershipDisplay(user)}
                 </div>
+                <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight">
+                  Hello, {user.name.split(" ")[0]}
+                </h1>
+                <p className="text-white/85 font-medium text-sm md:text-base">
+                  Manage your account details and access your location tools.
+                </p>
+                <div className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-black/15 px-3 py-2 text-sm font-semibold">
+                  <MapPin className="h-4 w-4" />
+                  {activeLocationName}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 self-start lg:self-auto">
+                <div className="rounded-2xl border border-white/25 bg-white/10 px-4 py-3 min-w-[112px]">
+                  <p className="text-[10px] uppercase tracking-wider text-white/75 font-bold">Points</p>
+                  <p className="text-2xl font-black">{user.points}</p>
+                </div>
+                <div className="rounded-2xl border border-white/25 bg-white/10 px-4 py-3 min-w-[112px]">
+                  <p className="text-[10px] uppercase tracking-wider text-white/75 font-bold">Joined</p>
+                  <p className="text-lg font-black leading-tight">{user.memberSince}</p>
+                </div>
+              </div>
             </div>
+          </motion.div>
 
-            {/* Main Content - Personal Info */}
+          <div className="mt-6 grid grid-cols-1 xl:grid-cols-12 gap-6">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              transition={{ delay: 0.03 }}
+              className="xl:col-span-12"
             >
-              <div className="bg-white rounded-[2.5rem] p-6 md:p-10 shadow-lg shadow-gray-100 border border-gray-200/70">
-                <div className="flex items-center gap-4 mb-8 border-b border-gray-50 pb-6">
-                  <div className="p-3 bg-[color:var(--brand-primary)/0.08] rounded-2xl text-[color:var(--brand-primary)]">
+              <div className="bg-white rounded-2xl border-2 border-gray-200/70 p-6 lg:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
+                      <Crown className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-gray-900">
+                        Membership Status
+                      </h3>
+                      <p className="text-sm text-gray-500 font-medium">
+                        Plan and billing period details
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                      isMembershipActive
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    {isMembershipActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold">
+                      Plan
+                    </p>
+                    <p className="text-sm font-extrabold text-gray-900 mt-1">
+                      {membershipPlanName}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Start Date
+                    </p>
+                    <p className="text-sm font-extrabold text-gray-900 mt-1">
+                      {formatMembershipDate(membershipStartDate)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      End Date
+                    </p>
+                    <p className="text-sm font-extrabold text-gray-900 mt-1">
+                      {formatMembershipDate(membershipEndDate)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className={`order-2 xl:order-1 ${isSpaUser ? "xl:col-span-7" : "xl:col-span-12"}`}
+            >
+              <div className="bg-white rounded-2xl border-2 border-gray-200/70 p-6 lg:p-8">
+                <div className="flex items-center gap-4 mb-8 border-b border-gray-100 pb-6">
+                  <div className="p-3 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
                     <Zap className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-black text-gray-900">
-                      Personal Settings
-                    </h3>
+                    <h3 className="text-2xl font-black text-gray-900">Personal Settings</h3>
                     <p className="text-sm text-gray-500 font-medium">
                       Update your identity and login credentials
                     </p>
@@ -662,9 +859,7 @@ const ProfilePage = () => {
                   <ProfileField
                     icon={User}
                     label="Full Name"
-                    value={
-                      editingField === "name" ? tempValues.name : user.name
-                    }
+                    value={editingField === "name" ? tempValues.name : user.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
                     isEditing={editingField === "name"}
                     onEdit={() => handleEdit("name")}
@@ -678,9 +873,7 @@ const ProfilePage = () => {
                     icon={Mail}
                     label="Email Address"
                     type="email"
-                    value={
-                      editingField === "email" ? tempValues.email : user.email
-                    }
+                    value={editingField === "email" ? tempValues.email : user.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     isEditing={editingField === "email"}
                     onEdit={() => handleEdit("email")}
@@ -700,7 +893,73 @@ const ProfilePage = () => {
                 </div>
               </div>
             </motion.div>
-        
+
+            {isSpaUser && (
+              <div className="order-1 xl:order-2 xl:col-span-5 space-y-6">
+                <motion.div
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.09 }}
+                  className="bg-white rounded-2xl border-2 border-gray-200/70 p-6"
+                >
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
+                      <QrCode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-gray-900">Location QR</h3>
+                      <p className="text-sm text-gray-500 font-medium">Share or print for in-person scans</p>
+                    </div>
+                  </div>
+
+                  {isLoadingMyLocation || isLoadingSpaQr ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading QR code...
+                    </div>
+                  ) : !myLocation && !spaBusinessLocationId ? (
+                    <p className="text-sm text-gray-500">
+                      No assigned location found for your account.
+                    </p>
+                  ) : spaQr?.qrId && spaQrImage ? (
+                    <div className="space-y-5">
+                      <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 grid place-items-center">
+                        <img
+                          src={spaQrImage}
+                          alt={`QR for ${myLocation?.name || "assigned location"}`}
+                          className="w-52 h-52 object-contain"
+                        />
+                      </div>
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <MapPin className="h-4 w-4 text-[color:var(--brand-primary)]" />
+                        <span className="truncate">{activeLocationName}</span>
+                      </div>
+                      <Button
+                        onClick={handleDownloadSpaQr}
+                        aria-label="Download location QR code"
+                        className="w-full rounded-xl py-3 text-sm font-bold"
+                        style={{
+                          background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                          color: "#fff",
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download QR Code
+                      </Button>
+                    </div>
+                  ) : spaQrError?.response?.status === 404 ? (
+                    <p className="text-sm text-gray-500">
+                      No QR code has been generated for your location yet.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      Could not load your location QR code right now. Please try again.
+                    </p>
+                  )}
+                </motion.div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Layout>

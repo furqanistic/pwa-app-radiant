@@ -23,6 +23,14 @@ export const qrCodeService = {
     return response.data;
   },
 
+  // Get QR code details using business locationId
+  getLocationQRCodeByBusinessId: async (locationId) => {
+    const response = await axiosInstance.get(
+      `/qr-codes/by-location-id/${locationId}`
+    );
+    return response.data;
+  },
+
   // Get QR code statistics (admin only)
   getQRCodeStats: async (locationId) => {
     const response = await axiosInstance.get(`/qr-codes/${locationId}/stats`);

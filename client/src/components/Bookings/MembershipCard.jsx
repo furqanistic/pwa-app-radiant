@@ -14,6 +14,13 @@ const MembershipCard = ({ service, onSelect, membership }) => {
     const membershipName = membership?.name ?? service.name ?? 'Gold Glow Membership';
     const description = membership?.description ?? service.description ?? 'Unlock exclusive perks and premium benefits';
     const isSelectable = typeof onSelect === 'function' && !!service?._id && !service._id.startsWith('location-membership');
+    const ctaLabel = isSelectable
+        ? membership
+            ? 'Buy This Plan'
+            : 'Join Membership'
+        : membership
+            ? 'Not Available Online Yet'
+            : 'Membership Details';
     const handleCardClick = () => {
         if (isSelectable) {
             onSelect(service);
@@ -94,9 +101,12 @@ const MembershipCard = ({ service, onSelect, membership }) => {
 
                     <button 
                         onClick={(e) => e.stopPropagation()} 
+                        type="button"
+                        aria-disabled={!isSelectable}
+                        title={!isSelectable ? 'This plan is not currently linked to online checkout.' : undefined}
                         className="w-full bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 text-amber-950 font-black py-3.5 rounded-xl shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-all active:scale-95 flex items-center justify-center gap-2 tracking-wide uppercase text-xs md:text-sm whitespace-nowrap"
                     >
-                        {isSelectable ? 'Join Exclusive Club' : 'Membership Plan'}
+                        {ctaLabel}
                     </button>
                 </div>
             </div>

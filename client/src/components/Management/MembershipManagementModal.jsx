@@ -77,7 +77,8 @@ const MembershipManagementModal = ({
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
   const isSuperAdmin = currentUser?.role === 'super-admin';
-  const isSpaReadOnly = currentUser?.role === 'spa';
+  const isReadOnly = !isSuperAdmin;
+  const isSpaViewer = currentUser?.role === 'spa';
   const { branding } = useBranding();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = adjustHex(brandColor, -24);
@@ -96,7 +97,7 @@ const MembershipManagementModal = ({
   const { data: spaStripeStatusData } = useQuery({
     queryKey: ['stripe-account-status', 'membership-modal'],
     queryFn: () => stripeService.getAccountStatus(),
-    enabled: isVisible && isSpaReadOnly,
+    enabled: isVisible && isSpaViewer,
   });
 
   const locations = useMemo(
@@ -241,8 +242,8 @@ const MembershipManagementModal = ({
     e.preventDefault();
     const submitIntent = e.nativeEvent?.submitter?.dataset?.intent || 'save';
 
-    if (isSpaReadOnly) {
-      toast.message('Spa accounts can only view membership. Contact super-admin to update plans.');
+    if (isReadOnly) {
+      toast.message('Only super-admin can create or update membership plans.');
       return;
     }
 
@@ -348,7 +349,7 @@ const MembershipManagementModal = ({
         <div className="flex items-center justify-center py-12 flex-1">
           <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div>
         </div>
-      ) : isSpaReadOnly ? (
+      ) : isReadOnly ? (
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-4">
           {!spaHasMembershipPlans && (
             <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-medium text-gray-800">
@@ -389,9 +390,9 @@ const MembershipManagementModal = ({
       ) : (
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
           <div className={`flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-5 ${isPageMode ? 'md:space-y-6' : ''}`}>
-            {isSpaReadOnly && (
+            {isReadOnly && (
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl text-sm font-medium text-blue-800">
-                View only: spa role can see current membership plans, but only super-admin can create or update them.
+                View only: only super-admin can create or update membership plans.
               </div>
             )}
 
@@ -437,7 +438,7 @@ const MembershipManagementModal = ({
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
-                disabled={isSpaReadOnly}
+                disabled={isReadOnly}
                 className={`w-12 h-6 rounded-full transition-colors relative ${
                   formData.isActive ? 'bg-pink-500' : 'bg-gray-300'
                 }`}
@@ -461,7 +462,7 @@ const MembershipManagementModal = ({
                 type="button"
                 variant="outline"
                 onClick={addPlan}
-                disabled={isSpaReadOnly || hasNoLocations}
+                disabled={isReadOnly || hasNoLocations}
                 className="rounded-2xl h-10"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -478,7 +479,7 @@ const MembershipManagementModal = ({
                       type="button"
                       variant="ghost"
                       onClick={() => removePlan(planIndex)}
-                      disabled={isSpaReadOnly || formData.plans.length <= 1 || hasNoLocations}
+                      disabled={isReadOnly || formData.plans.length <= 1 || hasNoLocations}
                       className="text-red-600 hover:text-red-700 rounded-xl border border-red-100 hover:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
@@ -492,7 +493,7 @@ const MembershipManagementModal = ({
                       type="text"
                       value={plan.name}
                       onChange={(e) => handlePlanChange(planIndex, 'name', e.target.value)}
-                      disabled={isSpaReadOnly}
+                      disabled={isReadOnly}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
                       placeholder="e.g. Gold Glow Membership"
                       required
@@ -504,7 +505,7 @@ const MembershipManagementModal = ({
                     <textarea
                       value={plan.description}
                       onChange={(e) => handlePlanChange(planIndex, 'description', e.target.value)}
-                      disabled={isSpaReadOnly}
+                      disabled={isReadOnly}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none resize-none"
                       placeholder="Describe this plan"
                       rows={2}
@@ -518,7 +519,7 @@ const MembershipManagementModal = ({
                       type="number"
                       value={plan.price}
                       onChange={(e) => handlePlanChange(planIndex, 'price', e.target.value)}
-                      disabled={isSpaReadOnly}
+                      disabled={isReadOnly}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
                       placeholder="99"
                       min="0"
@@ -537,7 +538,7 @@ const MembershipManagementModal = ({
                         type="button"
                         variant="outline"
                         onClick={() => addFeaturePoint(planIndex)}
-                        disabled={isSpaReadOnly || hasNoLocations}
+                        disabled={isReadOnly || hasNoLocations}
                         className="rounded-xl h-8 px-3"
                       >
                         <Plus className="w-3.5 h-3.5 mr-1" />
@@ -554,7 +555,7 @@ const MembershipManagementModal = ({
                             onChange={(e) =>
                               handleBenefitChange(planIndex, benefitIndex, e.target.value)
                             }
-                            disabled={isSpaReadOnly}
+                            disabled={isReadOnly}
                             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
                             placeholder={`Feature point ${benefitIndex + 1}`}
                             required
@@ -563,7 +564,7 @@ const MembershipManagementModal = ({
                             type="button"
                             variant="outline"
                             onClick={() => removeFeaturePoint(planIndex, benefitIndex)}
-                            disabled={isSpaReadOnly || plan.benefits.length <= 1 || hasNoLocations}
+                            disabled={isReadOnly || plan.benefits.length <= 1 || hasNoLocations}
                             className="px-3 rounded-2xl"
                           >
                             <Trash2 className="w-4 h-4" />

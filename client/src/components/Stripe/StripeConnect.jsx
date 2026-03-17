@@ -10,7 +10,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
-const StripeConnect = () => {
+const StripeConnect = ({ sharedLocationStripeLinked = false }) => {
   const { currentUser } = useSelector((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
@@ -21,26 +21,33 @@ const StripeConnect = () => {
   const [preparingOnboarding, setPreparingOnboarding] = useState(false);
   const [onboardingUrl, setOnboardingUrl] = useState('');
   const isFullyActive = !!(accountStatus?.account?.chargesEnabled && accountStatus?.account?.payoutsEnabled);
+  const isSharedLinkedWithoutOwnAccount =
+    sharedLocationStripeLinked && !accountStatus?.connected;
 
   const steps = useMemo(
     () => [
       {
         title: 'Connect Stripe account',
         description: 'Create an express account so we can send payouts.',
-        done: accountStatus?.connected ?? false,
+        done: (accountStatus?.connected ?? false) || isSharedLinkedWithoutOwnAccount,
       },
       {
         title: 'Complete onboarding',
         description: 'Share business details and bank info with Stripe.',
-        done: accountStatus?.account?.onboardingCompleted ?? false,
+        done:
+          isSharedLinkedWithoutOwnAccount ||
+          (accountStatus?.account?.onboardingCompleted ?? false),
       },
       {
         title: 'Enable payments',
         description: 'Once charges and payouts are enabled you can accept clients.',
-        done: accountStatus?.account?.chargesEnabled && accountStatus?.account?.payoutsEnabled,
+        done:
+          isSharedLinkedWithoutOwnAccount ||
+          (accountStatus?.account?.chargesEnabled &&
+            accountStatus?.account?.payoutsEnabled),
       },
     ],
-    [accountStatus]
+    [accountStatus, isSharedLinkedWithoutOwnAccount]
   );
 
   useEffect(() => {
@@ -211,7 +218,16 @@ const StripeConnect = () => {
   }
 
   const renderStatusBadge = () => {
-    if (!accountStatus?.connected) return null;
+    if (!accountStatus?.connected && !isSharedLinkedWithoutOwnAccount) return null;
+
+    if (isSharedLinkedWithoutOwnAccount) {
+      return (
+        <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+          <CheckCircle2 className="mr-1 h-3 w-3" />
+          Active
+        </Badge>
+      );
+    }
 
     const { account } = accountStatus;
 
@@ -261,7 +277,9 @@ const StripeConnect = () => {
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
         <div className="text-xs text-muted-foreground">
-          Status applies to the currently signed-in spa. We never store card numbers—Stripe handles all sensitive info.
+          {isSharedLinkedWithoutOwnAccount
+            ? 'Stripe is already linked for this location by another assigned teammate.'
+            : 'Status applies to the currently signed-in spa. We never store card numbers—Stripe handles all sensitive info.'}
         </div>
         <div className="space-y-2">
           {steps.map((step, index) => (
@@ -288,7 +306,7 @@ const StripeConnect = () => {
           ))}
         </div>
         <div className="space-y-2">
-          {!accountStatus?.connected && (
+          {!accountStatus?.connected && !isSharedLinkedWithoutOwnAccount && (
             <Button
               onClick={handleCreateAccount}
               disabled={loading}
@@ -344,6 +362,11 @@ const StripeConnect = () => {
               >
                 Disconnect
               </Button>
+            </div>
+          )}
+          {isSharedLinkedWithoutOwnAccount && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+              Payments are enabled for this location through a teammate's Stripe connection.
             </div>
           )}
         </div>

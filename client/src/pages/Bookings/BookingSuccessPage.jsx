@@ -1,4 +1,5 @@
 import Layout from '@/pages/Layout/Layout'
+import { authService } from '@/services/authService'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ArrowRight, Calendar, CheckCircle, Home, Sparkles } from 'lucide-react'
@@ -7,6 +8,7 @@ import { useDispatch } from 'react-redux'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useBranding } from '@/context/BrandingContext'
 import { clearCart } from '../../redux/cartSlice'
+import { updateProfile } from '../../redux/userSlice'
 
 // ============================================
 // CUSTOM CONFETTI ENGINE (Canvas)
@@ -135,6 +137,21 @@ const BookingSuccessPage = () => {
       dispatch(clearCart())
       // Force fresh data so the latest paid booking appears immediately
       queryClient.invalidateQueries({ queryKey: ['bookings'] })
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+
+      const refreshCurrentUser = async () => {
+        try {
+          const meResponse = await authService.getCurrentUser()
+          const latestUser = meResponse?.data?.user
+          if (latestUser) {
+            dispatch(updateProfile(latestUser))
+          }
+        } catch (error) {
+          console.error('Failed to refresh user after checkout:', error)
+        }
+      }
+
+      refreshCurrentUser()
     }
   }, [dispatch, queryClient, sessionId])
 

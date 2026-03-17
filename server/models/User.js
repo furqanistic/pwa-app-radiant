@@ -261,6 +261,92 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
+    // Membership state for customer accounts
+    membership: {
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      status: {
+        type: String,
+        enum: ['inactive', 'active', 'canceled', 'expired'],
+        default: 'inactive',
+      },
+      planName: {
+        type: String,
+        default: null,
+      },
+      planId: {
+        type: String,
+        default: null,
+      },
+      price: {
+        type: Number,
+        default: null,
+      },
+      currency: {
+        type: String,
+        default: 'usd',
+      },
+      serviceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Service',
+        default: null,
+      },
+      locationId: {
+        type: String,
+        default: null,
+      },
+      startedAt: {
+        type: Date,
+        default: null,
+      },
+      expiresAt: {
+        type: Date,
+        default: null,
+      },
+      lastPaymentAt: {
+        type: Date,
+        default: null,
+      },
+    },
+    membershipStatus: {
+      type: String,
+      enum: ['inactive', 'active', 'canceled', 'expired'],
+      default: 'inactive',
+    },
+    activeMembership: {
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      status: {
+        type: String,
+        enum: ['inactive', 'active', 'canceled', 'expired'],
+        default: 'inactive',
+      },
+      planName: {
+        type: String,
+        default: null,
+      },
+      planId: {
+        type: String,
+        default: null,
+      },
+      startedAt: {
+        type: Date,
+        default: null,
+      },
+      expiresAt: {
+        type: Date,
+        default: null,
+      },
+      locationId: {
+        type: String,
+        default: null,
+      },
+    },
+
     // Profile completion status
     profileCompleted: {
       type: Boolean,

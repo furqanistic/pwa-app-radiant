@@ -193,6 +193,12 @@ const ManagementPage = () => {
   ];
 
   const locations = locationsData?.data?.locations || EMPTY_LOCATIONS;
+  const currentLocation = locations.find(
+    (location) => location?.locationId === currentUserLocationId
+  );
+  const sharedLocationStripeLinked = Boolean(
+    currentLocation?.membershipStripeConnected
+  );
   const activeLocationsCount = locations.filter((location) => location.isActive).length;
   const inactiveLocationsCount = locations.length - activeLocationsCount;
   const roleLabelByKey = {
@@ -274,10 +280,17 @@ const ManagementPage = () => {
             className:
               "border-sky-100 bg-sky-50/70 hover:bg-sky-100/70 text-sky-900",
           },
+        ]
+      : []),
+    ...(["super-admin", "spa"].includes(currentUser?.role)
+      ? [
           {
             key: "membership",
-            title: currentUser?.role === "spa" ? "View Membership" : "Manage Membership",
-            description: "Review and configure membership plans and benefits.",
+            title: currentUser?.role === "super-admin" ? "Manage Membership" : "View Membership",
+            description:
+              currentUser?.role === "super-admin"
+                ? "Create and manage membership plans for each location."
+                : "Review your location membership plans and status.",
             icon: Crown,
             onClick: handleOpenMembership,
             className:
@@ -535,7 +548,7 @@ const ManagementPage = () => {
               <p className="text-sm text-slate-600 mb-4">
                 Connect and monitor Stripe to receive payouts without leaving this dashboard.
               </p>
-              <StripeConnect />
+              <StripeConnect sharedLocationStripeLinked={sharedLocationStripeLinked} />
             </div>
           )}
 

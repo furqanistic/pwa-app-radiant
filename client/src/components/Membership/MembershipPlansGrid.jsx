@@ -16,13 +16,68 @@ const MembershipPlansGrid = ({
 
   if (!hasPlans && !hasMembershipServices) return null
 
+  const normalizeText = (value) => `${value || ''}`.trim().toLowerCase()
+
+  const resolveLinkedServiceForPlan = (plan) => {
+    if (!Array.isArray(membershipServices) || membershipServices.length === 0) {
+      return null
+    }
+
+    const planId = `${plan?._id || plan?.planId || plan?.id || ''}`.trim()
+    const planName = normalizeText(plan?.name)
+
+    const matchedService = membershipServices.find((service) =>
+      Array.isArray(service?.membershipPricing) &&
+      service.membershipPricing.some((entry) => {
+        const entryPlanId = `${entry?.membershipPlanId || ''}`.trim()
+        if (planId && entryPlanId && entryPlanId === planId) {
+          return entry?.isActive !== false
+        }
+
+        return (
+          planName &&
+          normalizeText(entry?.membershipPlanName) === planName &&
+          entry?.isActive !== false
+        )
+      })
+    )
+
+    if (matchedService) {
+      return matchedService
+    }
+
+    if (planName) {
+      const singlePlanServiceMatch = membershipServices.find((service) =>
+        Array.isArray(service?.membershipPricing) &&
+        (() => {
+          const activeEntries = service.membershipPricing.filter(
+            (entry) => entry?.isActive !== false
+          )
+          return (
+            activeEntries.length === 1 &&
+            normalizeText(activeEntries[0]?.membershipPlanName) === planName
+          )
+        })()
+      )
+
+      if (singlePlanServiceMatch) {
+        return singlePlanServiceMatch
+      }
+    }
+
+    return null
+  }
+
   return (
     <div className={className}>
       {hasPlans &&
-        plans.map((plan, index) => (
+        plans.map((plan, index) => {
+          const linkedService = resolveLinkedServiceForPlan(plan)
+
+          return (
           <MembershipCard
             service={{
-              _id: `location-membership-${index}`,
+              _id: linkedService?._id || `location-membership-${index}`,
               name: plan?.name,
               description: plan?.description,
               basePrice: plan?.price,
@@ -31,8 +86,10 @@ const MembershipPlansGrid = ({
             }}
             membership={plan}
             key={`location-membership-plan-${index}`}
+            onSelect={linkedService ? onSelectService : undefined}
           />
-        ))}
+          )
+        })}
 
       {hasMembershipServices &&
         membershipServices.map((service) => (

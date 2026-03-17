@@ -114,14 +114,29 @@ const normalizeMembershipInput = (membershipInput, existingMembershipInput = {})
 };
 
 const resolveSpaOwnerForLocation = async (location, currentUser) => {
-  if (currentUser?.role === 'spa') {
-    return (await User.findById(currentUser.id)) || currentUser;
-  }
+  if (!location?.locationId) return null;
 
-  return User.findOne({
+  const spaUsers = await User.find({
     role: 'spa',
     'spaLocation.locationId': location.locationId,
   });
+
+  if (!spaUsers.length) return null;
+
+  const connectedSpaUser = spaUsers.find(
+    (user) => user?.stripe?.accountId && user?.stripe?.chargesEnabled
+  );
+
+  if (connectedSpaUser) return connectedSpaUser;
+
+  if (currentUser?.role === 'spa' && currentUser?.id) {
+    const currentSpaUser = spaUsers.find(
+      (user) => user?._id?.toString?.() === currentUser.id.toString()
+    );
+    if (currentSpaUser) return currentSpaUser;
+  }
+
+  return spaUsers[0];
 };
 
 const syncMembershipWithStripe = async ({ membership, location, currentUser }) => {
@@ -528,9 +543,16 @@ export const getAllLocations = async (req, res, next) => {
       query.isActive = isActive === 'true'
     }
 
-    // RBAC: Spa owners only see their own locations
+    // RBAC: Spa users should see their assigned location context.
     if (req.user.role === 'spa') {
-      query.addedBy = req.user.id
+      const spaLocationId =
+        req.user.spaLocation?.locationId || req.user.selectedLocation?.locationId
+
+      if (spaLocationId) {
+        query.locationId = spaLocationId
+      } else {
+        query._id = null
+      }
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit)
@@ -550,30 +572,40 @@ export const getAllLocations = async (req, res, next) => {
       'spaLocation.locationId': { $in: locationIds },
     }).select('spaLocation.locationId stripe.accountId stripe.chargesEnabled stripe.detailsSubmitted')
 
-    const spaOwnerByLocationId = new Map()
+    const spaOwnersByLocationId = new Map()
     spaOwners.forEach((owner) => {
       const locId = owner?.spaLocation?.locationId
-      if (locId && !spaOwnerByLocationId.has(locId)) {
-        spaOwnerByLocationId.set(locId, owner)
-      }
+      if (!locId) return
+
+      const owners = spaOwnersByLocationId.get(locId) || []
+      owners.push(owner)
+      spaOwnersByLocationId.set(locId, owners)
     })
+
+    const hasConnectedStripe = (owner) =>
+      Boolean(owner?.stripe?.accountId && owner?.stripe?.chargesEnabled)
+
+    const hasLinkedStripeAccount = (owner) => Boolean(owner?.stripe?.accountId)
+
+    const hasPendingStripeSetup = (owner) =>
+      Boolean(owner?.stripe?.accountId && !owner?.stripe?.chargesEnabled)
 
     const locationsWithStripeStatus = locations.map((locationDoc) => {
       const location = typeof locationDoc.toObject === 'function'
         ? locationDoc.toObject()
         : locationDoc
-      const spaOwner = spaOwnerByLocationId.get(location.locationId)
-      const stripeConnected = Boolean(
-        spaOwner?.stripe?.accountId && spaOwner?.stripe?.chargesEnabled
-      )
+      const spaOwnersForLocation =
+        spaOwnersByLocationId.get(location.locationId) || []
+      const stripeConnected = spaOwnersForLocation.some(hasConnectedStripe)
 
       let membershipStripeMessage = 'Stripe connected.'
-      if (!spaOwner) {
+      if (spaOwnersForLocation.length === 0) {
         membershipStripeMessage = 'No spa account is linked to this location.'
-      } else if (!spaOwner?.stripe?.accountId) {
+      } else if (!spaOwnersForLocation.some(hasLinkedStripeAccount)) {
         membershipStripeMessage = 'Spa user has not connected Stripe.'
-      } else if (!spaOwner?.stripe?.chargesEnabled) {
-        membershipStripeMessage = 'Stripe is connected but charges are not enabled yet.'
+      } else if (spaOwnersForLocation.some(hasPendingStripeSetup)) {
+        membershipStripeMessage =
+          'Stripe is connected but charges are not enabled yet.'
       }
 
       return {

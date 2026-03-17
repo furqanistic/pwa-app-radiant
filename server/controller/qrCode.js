@@ -123,6 +123,55 @@ export const getLocationQRCode = async (req, res, next) => {
   }
 };
 
+// Get QR code details using business locationId (for spa profile fallback)
+export const getLocationQRCodeByLocationId = async (req, res, next) => {
+  try {
+    const { locationId } = req.params;
+    const currentUser = req.user;
+
+    if (!locationId) {
+      return next(createError(400, "Location ID is required"));
+    }
+
+    if (currentUser?.role === "spa") {
+      const spaLocationId = currentUser?.spaLocation?.locationId;
+      if (!spaLocationId || spaLocationId !== locationId) {
+        return next(createError(403, "You can only access your assigned location QR code"));
+      }
+    }
+
+    const location = await Location.findOne({ locationId });
+    if (!location) {
+      return next(createError(404, "Location not found"));
+    }
+
+    if (!location.qrCode?.qrId) {
+      return next(createError(404, "QR code not found for this location"));
+    }
+
+    const qrData = location.qrCode.qrData
+      ? JSON.parse(location.qrCode.qrData)
+      : null;
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        qrId: location.qrCode.qrId,
+        locationId: location.locationId,
+        locationName: location.name,
+        qrData,
+        pointsValue: location.qrCode.pointsValue,
+        isEnabled: location.qrCode.isEnabled,
+        scans: location.qrCode.scans,
+        lastScannedAt: location.qrCode.lastScannedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching QR code by locationId:", error);
+    next(createError(500, "Failed to fetch QR code"));
+  }
+};
+
 // Resolve QR code to location/subdomain for legacy URL redirects
 export const resolveQRCodeLocation = async (req, res, next) => {
   try {

@@ -4,6 +4,7 @@ import {
   generateQRCodeForLocation,
   getAllQRCodes,
   getLocationQRCode,
+  getLocationQRCodeByLocationId,
   getQRCodeStats,
   resolveQRCodeLocation,
   scanQRCode,
@@ -21,6 +22,7 @@ router.post("/scan", scanQRCode);
 router.get("/resolve/:qrId", resolveQRCodeLocation);
 
 // AUTHENTICATED: Get QR code details for a specific location
+router.get("/by-location-id/:locationId", verifyToken, getLocationQRCodeByLocationId);
 router.get("/:locationId", verifyToken, getLocationQRCode);
 
 // ADMIN ONLY: Generate QR code for a location
