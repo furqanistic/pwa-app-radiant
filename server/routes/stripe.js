@@ -4,6 +4,7 @@ import {
     confirmPayment,
     createAccountLink,
     createCheckoutSession,
+    createMembershipCheckoutSession,
     createConnectAccount,
     createPaymentIntent,
     disconnectAccount,
@@ -42,6 +43,11 @@ router.get('/connect/dashboard', verifyToken, checkManagementAccess, getAccountD
 router.post('/payment/create-checkout-session', verifyToken, createCheckoutSession);
 // Backward-compatible alias for older frontend clients
 router.post('/create-checkout-session', verifyToken, createCheckoutSession);
+router.post(
+  '/payment/create-membership-checkout-session',
+  verifyToken,
+  createMembershipCheckoutSession
+);
 
 // Create payment intent (for customers)
 router.post('/payment/create-intent', verifyToken, createPaymentIntent);

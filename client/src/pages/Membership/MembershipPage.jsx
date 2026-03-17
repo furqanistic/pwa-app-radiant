@@ -2,11 +2,13 @@ import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
 import { useBranding } from '@/context/BrandingContext'
 import { useActiveServices } from '@/hooks/useServices'
 import { locationService } from '@/services/locationService'
+import stripeService from '@/services/stripeService'
 import { useQuery } from '@tanstack/react-query'
 import { Crown } from 'lucide-react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
 const normalizeMembershipPlans = (membership) => {
@@ -58,15 +60,55 @@ const MembershipPage = () => {
             (s) =>
                 s.name.toLowerCase().includes('membership') ||
                 s.categoryName?.toLowerCase().includes('membership') ||
-                s.description?.toLowerCase().includes('subscription')
+                s.categoryId?.name?.toLowerCase().includes('membership') ||
+                s.description?.toLowerCase().includes('subscription') ||
+                (Array.isArray(s.membershipPricing) &&
+                    s.membershipPricing.some((entry) => entry?.isActive !== false))
         )
     }, [services])
 
     const withSpaParam = (path) =>
         locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
-    const onServiceSelect = (service) => {
-        navigate(withSpaParam(`/services/${service._id}`))
+    const onServiceSelect = async (service, plan) => {
+        if (!service?._id) {
+            toast.error('This plan is not linked to online checkout yet.')
+            return
+        }
+
+        const checkoutLocationId =
+            locationId ||
+            currentUser?.selectedLocation?.locationId ||
+            currentUser?.spaLocation?.locationId
+
+        if (!checkoutLocationId) {
+            toast.error('Please select a location first.')
+            return
+        }
+
+        try {
+            const response = await stripeService.createMembershipCheckoutSession({
+                serviceId: service._id,
+                locationId: checkoutLocationId,
+                planId: plan?._id || plan?.planId || plan?.id || null,
+                planName: plan?.name || null,
+                planPrice: Number(plan?.price),
+            })
+
+            if (response?.success && response?.sessionUrl) {
+                window.location.href = response.sessionUrl
+                return
+            }
+
+            toast.error('Unable to start Stripe checkout for this plan.')
+        } catch (error) {
+            console.error('Membership checkout error:', error)
+            toast.error(
+                error?.response?.data?.message ||
+                    'Failed to start membership checkout.'
+            )
+            navigate(withSpaParam(`/services/${service._id}`))
+        }
     }
 
     return (
@@ -102,6 +144,7 @@ const MembershipPage = () => {
                                 plans={locationMembershipPlans}
                                 membershipServices={membershipServices}
                                 onSelectService={onServiceSelect}
+                                includeServiceMemberships={false}
                                 className="grid grid-cols-1 gap-6 px-2 w-full max-w-7xl mx-auto"
                             />
                         )}

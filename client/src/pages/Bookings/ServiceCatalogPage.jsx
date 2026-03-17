@@ -7,6 +7,7 @@ import {
 } from '@/hooks/useServices'
 import { resolveImageUrl } from '@/lib/imageHelpers'
 import { locationService } from '@/services/locationService'
+import stripeService from '@/services/stripeService'
 import { useQuery } from '@tanstack/react-query'
 import {
   Clock,
@@ -26,6 +27,7 @@ import {
 import React, { useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
 // ==========================================
@@ -375,7 +377,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
       (s) =>
         s.name.toLowerCase().includes('membership') ||
         s.categoryName?.toLowerCase().includes('membership') ||
-        s.description?.toLowerCase().includes('subscription')
+        s.categoryId?.name?.toLowerCase().includes('membership') ||
+        s.description?.toLowerCase().includes('subscription') ||
+        (Array.isArray(s.membershipPricing) &&
+          s.membershipPricing.some((entry) => entry?.isActive !== false))
     )
   }, [services])
 
@@ -580,6 +585,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
                           plans={locationMembershipPlans}
                           membershipServices={membershipServices}
                           onSelectService={onServiceSelect}
+                          includeServiceMemberships={false}
                           className='grid grid-cols-1 gap-6 md:px-8'
                         />
                     }
@@ -622,12 +628,50 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
 const ServiceCatalogPage = () => {
   const navigate = useNavigate()
+  const { currentUser } = useSelector((state) => state.user)
   const { locationId } = useBranding()
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+
+  const handleServiceSelect = async (service, plan) => {
+    if (plan && service?._id) {
+      const checkoutLocationId =
+        locationId ||
+        currentUser?.selectedLocation?.locationId ||
+        currentUser?.spaLocation?.locationId
+
+      if (!checkoutLocationId) {
+        toast.error('Please select a location first.')
+        return
+      }
+
+      try {
+        const response = await stripeService.createMembershipCheckoutSession({
+          serviceId: service._id,
+          locationId: checkoutLocationId,
+          planId: plan?._id || plan?.planId || plan?.id || null,
+          planName: plan?.name || null,
+          planPrice: Number(plan?.price),
+        })
+
+        if (response?.success && response?.sessionUrl) {
+          window.location.href = response.sessionUrl
+          return
+        }
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message ||
+            'Failed to start membership checkout.'
+        )
+      }
+    }
+
+    navigate(withSpaParam(`/services/${service._id}`))
+  }
+
   return (
     <ServiceCatalog
-      onServiceSelect={(s) => navigate(withSpaParam(`/services/${s._id}`))}
+      onServiceSelect={handleServiceSelect}
     />
   )
 }

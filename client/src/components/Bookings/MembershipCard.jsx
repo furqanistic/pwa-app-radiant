@@ -23,7 +23,7 @@ const MembershipCard = ({ service, onSelect, membership }) => {
             : 'Membership Details';
     const handleCardClick = () => {
         if (isSelectable) {
-            onSelect(service);
+            onSelect(service, membership);
         }
     };
 
@@ -100,7 +100,10 @@ const MembershipCard = ({ service, onSelect, membership }) => {
                     </ul>
 
                     <button 
-                        onClick={(e) => e.stopPropagation()} 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleCardClick();
+                        }} 
                         type="button"
                         aria-disabled={!isSelectable}
                         title={!isSelectable ? 'This plan is not currently linked to online checkout.' : undefined}

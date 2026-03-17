@@ -69,6 +69,17 @@ const stripeService = {
   },
 
   /**
+   * Create a direct checkout session for membership plan purchase
+   */
+  createMembershipCheckoutSession: async (sessionData) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/create-membership-checkout-session',
+      sessionData
+    )
+    return response.data
+  },
+
+  /**
    * Create a payment intent
    */
   createPaymentIntent: async (

@@ -92,7 +92,7 @@ const MembershipManagementModal = ({
   const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
     queryKey: ['locations', 'membership-modal'],
     queryFn: () => locationService.getAllLocations(),
-    enabled: isVisible && isSuperAdmin,
+    enabled: isVisible && (isSuperAdmin || isSpaViewer),
   });
   const { data: spaStripeStatusData } = useQuery({
     queryKey: ['stripe-account-status', 'membership-modal'],
@@ -105,6 +105,17 @@ const MembershipManagementModal = ({
     [locationsData]
   );
   const [selectedLocationId, setSelectedLocationId] = useState('');
+  const spaViewerLocation = useMemo(() => {
+    if (!isSpaViewer || locations.length === 0) return null;
+    const spaLocationId =
+      currentUser?.spaLocation?.locationId || currentUser?.selectedLocation?.locationId;
+    if (!spaLocationId) return locations[0] || null;
+    return (
+      locations.find((item) => item?.locationId === spaLocationId) ||
+      locations[0] ||
+      null
+    );
+  }, [currentUser?.selectedLocation?.locationId, currentUser?.spaLocation?.locationId, isSpaViewer, locations]);
 
   useEffect(() => {
     if (isSuperAdmin && isVisible && locations.length > 0 && !selectedLocationId) {
@@ -303,11 +314,20 @@ const MembershipManagementModal = ({
     updateMembership.mutate(payload);
   };
 
-  const isLoading = isSuperAdmin ? isLoadingLocations : isLoadingMyLocation;
+  const isLoading = isSuperAdmin
+    ? isLoadingLocations
+    : isLoadingMyLocation || (isSpaViewer && isLoadingLocations);
   const hasNoLocations = isSuperAdmin && !isLoading && locations.length === 0;
-  const spaStripeConnected = Boolean(
+  const locationLevelSpaStripeConnected = Boolean(
+    spaViewerLocation?.membershipStripeConnected
+  );
+  const personalSpaStripeConnected = Boolean(
     spaStripeStatusData?.connected && spaStripeStatusData?.account?.chargesEnabled
   );
+  const spaStripeConnected = locationLevelSpaStripeConnected || personalSpaStripeConnected;
+  const spaStripeMessage =
+    spaViewerLocation?.membershipStripeMessage ||
+    'Stripe is not connected for this location yet.';
   const spaMembershipPlans = Array.isArray(formData?.plans) ? formData.plans : [];
   const spaHasMembershipPlans = spaMembershipPlans.length > 0;
   const spaHasActiveMembership = Boolean(formData?.isActive && spaMembershipPlans.length > 0);
@@ -359,7 +379,7 @@ const MembershipManagementModal = ({
 
           {spaHasMembershipPlans && !spaStripeConnected && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
-              Membership is not activated because Stripe is not connected. Please connect Stripe first.
+              Membership is not activated because Stripe is not connected. {spaStripeMessage}
             </div>
           )}
 
@@ -605,25 +625,27 @@ const MembershipManagementModal = ({
                   ? 'Saving...'
                   : 'Save Draft / Changes'}
               </Button>
-              <Button
-                type="submit"
-                disabled={
-                  updateMembership.isPending ||
-                  hasNoLocations ||
-                  (isSuperAdmin && !isSelectedLocationStripeConnected)
-                }
-                data-intent="activate"
-                className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
-                style={{
-                  background: `linear-gradient(90deg, ${brandColorDark}, ${brandColor})`,
-                }}
-              >
-                {updateMembership.isPending
-                  ? 'Activating...'
-                  : isSuperAdmin && !isSelectedLocationStripeConnected
-                  ? 'Activate (Stripe Required)'
-                  : 'Activate Membership'}
-              </Button>
+              {!formData.isActive && (
+                <Button
+                  type="submit"
+                  disabled={
+                    updateMembership.isPending ||
+                    hasNoLocations ||
+                    (isSuperAdmin && !isSelectedLocationStripeConnected)
+                  }
+                  data-intent="activate"
+                  className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
+                  style={{
+                    background: `linear-gradient(90deg, ${brandColorDark}, ${brandColor})`,
+                  }}
+                >
+                  {updateMembership.isPending
+                    ? 'Activating...'
+                    : isSuperAdmin && !isSelectedLocationStripeConnected
+                    ? 'Activate (Stripe Required)'
+                    : 'Activate Membership'}
+                </Button>
+              )}
             </div>
           </div>
         </form>

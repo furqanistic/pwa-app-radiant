@@ -1054,6 +1054,172 @@ export const createCheckoutSession = async (req, res, next) => {
 }
 
 /**
+ * Create a Stripe Checkout session for direct membership purchase
+ */
+export const createMembershipCheckoutSession = async (req, res, next) => {
+  try {
+    const customerId = req.user.id
+    const { serviceId, locationId, planId, planName } = req.body
+
+    if (!serviceId || !locationId) {
+      return next(createError(400, 'serviceId and locationId are required'))
+    }
+
+    const service = await Service.findById(serviceId)
+    if (!service || service.status !== 'active' || service.isDeleted) {
+      return next(createError(404, 'Membership service not found or inactive'))
+    }
+    if (!isMembershipServicePurchase(service)) {
+      return next(createError(400, 'Selected service is not a membership offering'))
+    }
+    if (!service.locationId || `${service.locationId}`.trim() !== `${locationId}`.trim()) {
+      return next(
+        createError(400, 'Selected membership service is not available for this location')
+      )
+    }
+
+    const location = await Location.findOne({ locationId })
+    if (!location) {
+      return next(createError(404, 'Location not found'))
+    }
+
+    if (!location?.membership?.isActive) {
+      return next(
+        createError(
+          400,
+          'Membership is not active for this location yet.'
+        )
+      )
+    }
+
+    const spaOwner = await findStripeReadySpaOwnerByLocation(locationId)
+    if (!spaOwner) {
+      return next(createError(400, 'No Stripe-ready spa account found for this location'))
+    }
+
+    const activeEntries = getActiveMembershipPricingEntries(service)
+    let selectedEntry = null
+    if (activeEntries.length > 0) {
+      selectedEntry =
+        activeEntries.find((entry) => {
+          const entryPlanId = `${entry?.membershipPlanId || ''}`.trim()
+          const requestedPlanId = `${planId || ''}`.trim()
+          if (requestedPlanId && entryPlanId && entryPlanId === requestedPlanId) {
+            return true
+          }
+          return (
+            planName &&
+            `${entry?.membershipPlanName || ''}`.trim().toLowerCase() ===
+              `${planName}`.trim().toLowerCase()
+          )
+        }) || activeEntries[0]
+    }
+
+    const amountDollars = Number(selectedEntry?.price ?? service.basePrice ?? 0)
+    if (!Number.isFinite(amountDollars) || amountDollars <= 0) {
+      return next(createError(400, 'Invalid membership price configured'))
+    }
+
+    const resolvedPlanName =
+      selectedEntry?.membershipPlanName ||
+      planName ||
+      service.name ||
+      'Membership Plan'
+    const resolvedPlanId = selectedEntry?.membershipPlanId || planId || null
+
+    const locationPlans =
+      Array.isArray(location?.membership?.plans) && location.membership.plans.length > 0
+        ? location.membership.plans
+        : [location.membership]
+    const requestedPlanId = `${planId || ''}`.trim()
+    const requestedPlanName = `${planName || ''}`.trim().toLowerCase()
+
+    const matchedLocationPlan = locationPlans.find((plan) => {
+      const locationPlanId = `${plan?._id || plan?.planId || plan?.id || ''}`.trim()
+      if (requestedPlanId && locationPlanId && locationPlanId === requestedPlanId) {
+        return true
+      }
+
+      if (requestedPlanName) {
+        return `${plan?.name || ''}`.trim().toLowerCase() === requestedPlanName
+      }
+
+      return false
+    })
+
+    const amountFromLocationPlan = Number(matchedLocationPlan?.price)
+    const resolvedAmountDollars =
+      Number.isFinite(amountFromLocationPlan) && amountFromLocationPlan > 0
+        ? amountFromLocationPlan
+        : amountDollars
+    const finalPlanName = matchedLocationPlan?.name || resolvedPlanName
+    const finalPlanId =
+      `${matchedLocationPlan?._id || matchedLocationPlan?.planId || ''}`.trim() ||
+      resolvedPlanId
+
+    const amount = Math.round(resolvedAmountDollars * 100)
+
+    const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
+    const cancelUrl = `${process.env.CLIENT_URL}/membership`
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'afterpay_clearpay'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: finalPlanName,
+              description: `Membership plan for location ${locationId}`,
+            },
+            unit_amount: amount,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: req.user.email,
+      payment_intent_data: {
+        transfer_data: {
+          destination: spaOwner.stripe.accountId,
+        },
+        metadata: {
+          customerId: customerId.toString(),
+          spaOwnerId: spaOwner._id.toString(),
+          serviceId: service._id.toString(),
+          locationId: `${locationId}`,
+          planId: finalPlanId ? `${finalPlanId}` : '',
+          planName: `${finalPlanName}`,
+          planPrice: `${resolvedAmountDollars}`,
+          isMembershipCheckout: 'true',
+        },
+      },
+      metadata: {
+        customerId: customerId.toString(),
+        spaOwnerId: spaOwner._id.toString(),
+        serviceId: service._id.toString(),
+        locationId: `${locationId}`,
+        planId: finalPlanId ? `${finalPlanId}` : '',
+        planName: `${finalPlanName}`,
+        planPrice: `${resolvedAmountDollars}`,
+        isMembershipCheckout: 'true',
+      },
+    })
+
+    res.status(201).json({
+      success: true,
+      sessionId: session.id,
+      sessionUrl: session.url,
+    })
+  } catch (error) {
+    console.error('Error creating membership checkout session:', error)
+    next(error)
+  }
+}
+
+/**
  * Create a payment intent for a service booking
  */
 export const createPaymentIntent = async (req, res, next) => {
@@ -1539,11 +1705,77 @@ async function handleCheckoutSessionCompleted(session) {
   const customerId = session.metadata.customerId
   const userRewardId = session.metadata.userRewardId
   const isCartCheckout = session.metadata.isCartCheckout === 'true'
+  const isMembershipCheckout = session.metadata.isMembershipCheckout === 'true'
 
   // Get payment intent details
   const paymentIntentId = session.payment_intent
   const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
   const purchaseMethodCache = new Map()
+
+  if (isMembershipCheckout) {
+    const serviceId = session.metadata.serviceId
+    const locationId = session.metadata.locationId
+    const service = await Service.findById(serviceId)
+
+    if (!service) {
+      console.error('Membership service not found for checkout session:', serviceId)
+      return
+    }
+
+    const amount = Number(session.amount_total || 0)
+    const amountDollars = amount / 100
+    const pointsEarned = await resolvePurchasePoints(
+      locationId || service.locationId,
+      amountDollars,
+      purchaseMethodCache
+    )
+
+    await Payment.create({
+      stripePaymentIntentId: paymentIntentId,
+      customer: customerId,
+      spaOwner: paymentIntent.metadata.spaOwnerId,
+      stripeAccountId: paymentIntent.transfer_data.destination,
+      service: service._id,
+      booking: null,
+      amount,
+      currency: session.currency,
+      subtotal: amount,
+      discount: { amount: 0, type: null, code: null, description: null },
+      tax: { amount: 0, rate: 0 },
+      platformFee: { amount: 0, percentage: 0 },
+      status: 'succeeded',
+      livemode: paymentIntent.livemode,
+      processedAt: new Date(),
+      pointsEarned,
+      paymentMethod: {
+        type: paymentIntent.payment_method_types[0] || 'card',
+        brand:
+          paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand ||
+          null,
+        last4:
+          paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
+          null,
+      },
+    })
+
+    await activateMembershipForCustomer({
+      customerId,
+      booking: {
+        finalPrice: amountDollars,
+        locationId: locationId || service.locationId,
+      },
+      service,
+    })
+
+    const customer = await User.findById(customerId)
+    if (customer) {
+      customer.points += pointsEarned
+      await customer.save()
+    }
+
+    console.log(`Membership checkout completed for customer ${customerId}`)
+    return
+  }
 
   if (isCartCheckout && bookingIds) {
     // === HANDLE MULTIPLE BOOKINGS (CART CHECKOUT) ===
