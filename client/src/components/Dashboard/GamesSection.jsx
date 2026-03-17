@@ -20,6 +20,8 @@ import {
 import React, { useState } from 'react'
 import { toast } from 'sonner'
 
+const Motion = motion
+
 // Compact Game Card for Dashboard
 const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brandColorDark }) => {
   const playsRemaining = game.eligibility?.playsRemaining ?? 0
@@ -38,7 +40,7 @@ const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brand
   }
 
   return (
-    <motion.div
+    <Motion.div
       layout
       whileHover={canPlay ? { y: -3 } : {}}
       whileTap={canPlay ? { scale: 0.98 } : {}}
@@ -92,7 +94,7 @@ const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brand
           </div>
         </div>
 
-        <motion.div
+        <Motion.div
            initial={false}
            animate={canPlay ? { x: 0, opacity: 1 } : { x: 5, opacity: 0.5 }}
           className={`p-1.5 rounded-lg flex items-center justify-center ${
@@ -100,13 +102,13 @@ const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brand
            }`}
         >
           <Zap className={`w-3.5 h-3.5 ${canPlay ? 'text-[color:var(--brand-primary)] fill-[color:var(--brand-primary)]' : ''}`} />
-        </motion.div>
+        </Motion.div>
       </div>
 
       {!canPlay && (
         <div className='absolute inset-0 bg-white/10 backdrop-blur-[1px] pointer-events-none'></div>
       )}
-    </motion.div>
+    </Motion.div>
   )
 }
 
@@ -116,14 +118,14 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
   const isPointsPrize = winningItem.valueType === 'points'
 
   return (
-    <motion.div
+    <Motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className='fixed inset-0 bg-black/5 flex items-center justify-center z-[70] px-4'
       onClick={onClose}
     >
-      <motion.div
+      <Motion.div
         initial={{ scale: 0.8, y: 40, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.8, y: 40, opacity: 0 }}
@@ -138,7 +140,7 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
         {/* Animated Background Confetti */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
            {[...Array(15)].map((_, i) => (
-             <motion.div
+             <Motion.div
                key={i}
                initial={{ y: -20, x: Math.random() * 100 + '%', opacity: 0 }}
                animate={{ 
@@ -160,7 +162,7 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
         </div>
 
         <div className="relative z-10">
-          <motion.div
+          <Motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
@@ -171,7 +173,7 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
             ) : (
               <Trophy className='w-10 h-10 sm:w-12 sm:h-12 text-white' />
             )}
-          </motion.div>
+          </Motion.div>
 
           <h2 className='text-3xl sm:text-4xl font-black text-slate-900 mb-2 tracking-tight'>
             BINGO! 🎁
@@ -198,20 +200,21 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
             )}
           </div>
 
-          <motion.button
+          <Motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            type='button'
             onClick={(e) => {
               e.preventDefault()
               onClose()
             }}
-            className='w-full py-5 text-white rounded-[28px] font-black shadow-xl shadow-slate-200 transition-all cursor-pointer relative z-20 bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] hover:brightness-105'
+            className='w-full py-5 text-white rounded-[28px] font-black shadow-xl shadow-slate-200 transition-all cursor-pointer relative z-20 bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
           >
             Claim Reward
-          </motion.button>
+          </Motion.button>
         </div>
-      </motion.div>
-    </motion.div>
+      </Motion.div>
+    </Motion.div>
   )
 }
 
@@ -244,14 +247,14 @@ const GamePlayModal = ({
 
   return (
     <>
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50 px-4 pb-4'
         onClick={onClose}
       >
-        <motion.div
+        <Motion.div
           initial={{ y: '100%', opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
@@ -281,8 +284,10 @@ const GamePlayModal = ({
               </div>
             </div>
             <button 
+              type='button'
               onClick={onClose}
-              className='p-2 hover:bg-[color:var(--brand-primary)/0.08] rounded-xl transition-colors'
+              className='p-2 hover:bg-[color:var(--brand-primary)/0.08] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+              aria-label='Close game modal'
             >
               <Loader2 className={`w-5 h-5 text-gray-400 ${isPlaying ? 'animate-spin' : ''}`} />
             </button>
@@ -320,14 +325,15 @@ const GamePlayModal = ({
 
           <div className='p-4 border-t border-gray-200/70'>
             <button
+              type='button'
               onClick={onClose}
-              className='w-full py-2 bg-[color:var(--brand-primary)/0.1] text-[color:var(--brand-primary)] rounded-lg font-semibold hover:bg-[color:var(--brand-primary)/0.16] transition-all'
+              className='w-full py-2 bg-[color:var(--brand-primary)/0.1] text-[color:var(--brand-primary)] rounded-lg font-semibold hover:bg-[color:var(--brand-primary)/0.16] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
             >
               Close
             </button>
           </div>
-        </motion.div>
-      </motion.div>
+        </Motion.div>
+      </Motion.div>
 
       <AnimatePresence>
         {showResult && gameResult && (
@@ -374,7 +380,7 @@ const GamesSection = () => {
     },
   }
 
-  const { data: gamesData, isLoading, isFetching, error, refetch } =
+  const { data: gamesData, isLoading, isFetching, refetch } =
     useAvailableGames()
 
   const playGameMutation = usePlayGame({
@@ -427,7 +433,7 @@ const GamesSection = () => {
 
   if (isInitialLoading) {
     return (
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className='bg-white rounded-2xl sm:rounded-3xl border border-gray-200/70 p-4 sm:p-6'
@@ -443,7 +449,7 @@ const GamesSection = () => {
             <div className='h-24 bg-[color:var(--brand-primary)/0.12] rounded-xl'></div>
           </div>
         </div>
-      </motion.div>
+      </Motion.div>
     )
   }
 
@@ -453,7 +459,7 @@ const GamesSection = () => {
 
   return (
     <>
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className='relative overflow-hidden bg-gradient-to-br from-[color:var(--brand-primary)/0.12] via-white to-[color:var(--brand-primary)/0.04] rounded-[2rem] border border-gray-200/70 p-5 sm:p-6 shadow-xl shadow-[color:var(--brand-primary)/0.12] group'
@@ -483,16 +489,19 @@ const GamesSection = () => {
           </div>
           <div className='flex items-center gap-2 self-end sm:self-auto'>
             <button
+              type='button'
               onClick={() => refetch()}
-              className={`text-[color:var(--brand-primary)] p-2 rounded-xl bg-white/50 backdrop-blur-sm border border-gray-200/70 hover:bg-[color:var(--brand-primary)/0.08] transition-all ${isFetching ? 'opacity-50' : ''}`}
+              className={`text-[color:var(--brand-primary)] p-2 rounded-xl bg-white/50 backdrop-blur-sm border border-gray-200/70 hover:bg-[color:var(--brand-primary)/0.08] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${isFetching ? 'opacity-50' : ''}`}
+              aria-label='Refresh games'
             >
               <RefreshCw
                 className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`}
               />
             </button>
             <button
+              type='button'
               onClick={() => (window.location.href = '/spin')}
-              className='bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all hover:scale-105 flex items-center gap-2'
+              className='bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all hover:scale-105 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
             >
               Full Games
               <Trophy className='w-3 h-3 text-white/80' />
@@ -525,7 +534,7 @@ const GamesSection = () => {
             />
           )}
         </div>
-      </motion.div>
+      </Motion.div>
 
       <AnimatePresence>
         {activeGame && (

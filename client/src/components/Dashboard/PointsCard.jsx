@@ -4,6 +4,8 @@ import { Crown, Sparkles } from 'lucide-react'
 import { useSelector } from 'react-redux'
 import { useBranding } from '@/context/BrandingContext'
 
+const Motion = motion
+
 const clampChannel = (value) => Math.max(0, Math.min(255, value))
 
 const hexToRgb = (hex) => {
@@ -50,7 +52,7 @@ const PointsCard = () => {
   }
 
   return (
-    <motion.div
+    <Motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
@@ -64,7 +66,7 @@ const PointsCard = () => {
         }}
       ></div>
 
-      <motion.div
+      <Motion.div
         whileHover={{ y: -8, rotateX: 2, rotateY: -2 }}
         className='relative aspect-video sm:aspect-[1.6/1] md:aspect-auto md:min-h-64 rounded-[2rem] overflow-hidden border border-white/30 shadow-2xl'
         style={{
@@ -81,7 +83,7 @@ const PointsCard = () => {
           ></div>
           
           {/* Animated Mesh Blobs */}
-          <motion.div
+          <Motion.div
             animate={{
               scale: [1, 1.3, 1],
               x: [0, 50, 0],
@@ -93,7 +95,7 @@ const PointsCard = () => {
               background: `radial-gradient(circle, ${brandSoft} 0%, transparent 60%)`,
             }}
           />
-          <motion.div
+          <Motion.div
             animate={{
               scale: [1.3, 1, 1.3],
               x: [0, -50, 0],
@@ -105,7 +107,7 @@ const PointsCard = () => {
               background: `radial-gradient(circle, ${brandSoftAlt} 0%, transparent 60%)`,
             }}
           />
-          <motion.div
+          <Motion.div
             animate={{
               opacity: [0.3, 0.6, 0.3],
             }}
@@ -115,7 +117,7 @@ const PointsCard = () => {
         </div>
 
         {/* Reflective Shine Effect */}
-        <motion.div
+        <Motion.div
           initial={{ x: '-150%' }}
           animate={{ x: '150%' }}
           transition={{
@@ -165,14 +167,14 @@ const PointsCard = () => {
           <div className='flex flex-col relative mt-2'>
 
             <div className='flex items-baseline gap-1.5 sm:gap-2'>
-              <motion.span 
+              <Motion.span 
                 key={currentUser?.points}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className='text-3xl sm:text-5xl md:text-6xl font-black text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.1)] tracking-tighter'
               >
                 {currentUser?.points?.toLocaleString() || '0'}
-              </motion.span>
+              </Motion.span>
               <span className='text-[10px] sm:text-sm font-bold text-white/90 tracking-[0.15em] sm:tracking-[0.2em] uppercase drop-shadow-sm'>Points</span>
             </div>
             <div className='flex items-center gap-3 mt-1'>
@@ -200,7 +202,7 @@ const PointsCard = () => {
               <div className='w-[1px] h-6 sm:h-8 bg-white/20' />
               <div className='flex gap-1 sm:gap-1.5'>
                 {[...Array(3)].map((_, i) => (
-                  <motion.div 
+                  <Motion.div 
                     key={i} 
                     animate={{ scale: [1, 1.2, 1] }}
                     transition={{ duration: 2, delay: i * 0.3, repeat: Infinity }}
@@ -214,8 +216,8 @@ const PointsCard = () => {
 
         {/* Decorative corner accent */}
         <div className='absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 blur-[80px] rounded-full' />
-      </motion.div>
-    </motion.div>
+      </Motion.div>
+    </Motion.div>
   )
 }
 

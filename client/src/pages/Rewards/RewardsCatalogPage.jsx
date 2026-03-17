@@ -9,12 +9,11 @@ import {
     Filter,
     Gift,
     Heart,
+    ArrowUpRight,
     Pause,
     Percent,
-    Play,
     Search,
     SortAsc,
-    Sparkles,
     Star,
     Plus,
     Users,
@@ -23,9 +22,7 @@ import {
     Zap,
 } from 'lucide-react'
 import React, { useRef, useState } from 'react'
-import { useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
 import { useBranding } from '@/context/BrandingContext'
@@ -66,12 +63,13 @@ const PremiumDropdown = ({
   return (
     <div className={`relative ${className}`}>
       <button
+        type='button'
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full h-11 bg-white/50 backdrop-blur-sm border transition-all duration-300 rounded-xl px-4 flex items-center justify-between group
         ${
           isOpen
-            ? 'border-pink-400 shadow-[0_0_20px_rgba(236,72,153,0.15)] bg-white'
-            : 'border-white/60 hover:border-pink-300 hover:bg-white/80'
+            ? 'border-[#f9f9fa] shadow-md bg-white'
+            : 'border-[#f9f9fa] hover:border-[#f9f9fa] hover:bg-white/80'
         }
         `}
       >
@@ -79,7 +77,9 @@ const PremiumDropdown = ({
           {Icon && (
             <div
               className={`p-1.5 rounded-lg transition-colors ${
-                isOpen ? 'bg-pink-100 text-pink-600' : 'bg-pink-50 text-pink-500'
+                isOpen
+                  ? 'bg-[color:var(--brand-primary)/0.14] text-[color:var(--brand-primary)]'
+                  : 'bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary)]'
               }`}
             >
               <Icon className='w-3.5 h-3.5' />
@@ -91,7 +91,9 @@ const PremiumDropdown = ({
         </div>
         <ChevronDown
           className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${
-            isOpen ? 'rotate-180 text-pink-500' : 'group-hover:text-pink-400'
+            isOpen
+              ? 'rotate-180 text-[color:var(--brand-primary)]'
+              : 'group-hover:text-[color:var(--brand-primary)]'
           }`}
         />
       </button>
@@ -102,14 +104,15 @@ const PremiumDropdown = ({
             className='fixed inset-0 z-40 cursor-default'
             onClick={() => setIsOpen(false)}
           />
-          <div className='absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl border border-pink-100 rounded-2xl z-50 max-h-60 overflow-y-auto shadow-[0_10px_40px_rgba(0,0,0,0.1)] p-1.5 animate-in fade-in zoom-in-95 duration-200'>
+          <div className='absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl border border-[#f9f9fa] rounded-2xl z-50 max-h-60 overflow-y-auto shadow-[0_10px_40px_rgba(0,0,0,0.1)] p-1.5 animate-in fade-in zoom-in-95 duration-200'>
             {options.map((option) => (
               <button
+                type='button'
                 key={option.value}
                 onClick={() => handleSelect(option)}
                 className={`w-full px-3 py-2.5 text-left rounded-xl transition-all flex items-center gap-3 text-sm mb-0.5 last:mb-0 ${
                   selectedOption?.value === option.value
-                    ? 'bg-pink-50 text-pink-700 font-semibold'
+                    ? 'bg-[color:var(--brand-primary)/0.1] text-[color:var(--brand-primary)] font-semibold'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
@@ -117,14 +120,14 @@ const PremiumDropdown = ({
                   <option.icon
                     className={`w-4 h-4 ${
                       selectedOption?.value === option.value
-                        ? 'text-pink-500'
+                        ? 'text-[color:var(--brand-primary)]'
                         : 'text-gray-400'
                     }`}
                   />
                 )}
                 <span className='truncate flex-1'>{option.label}</span>
                 {selectedOption?.value === option.value && (
-                  <Check className='w-4 h-4 text-pink-600' />
+                  <Check className='w-4 h-4 text-[color:var(--brand-primary)]' />
                 )}
               </button>
             ))}
@@ -152,59 +155,37 @@ const RewardCard = ({ reward, onClaim }) => {
     if (isPlaying) {
       audioRef.current.pause()
     } else {
-      audioRef.current.play()
+      audioRef.current.play().catch(() => {
+        setIsPlaying(false)
+      })
     }
-    setIsPlaying(!isPlaying)
+    setIsPlaying((prev) => !prev)
   }
 
   const canAfford = reward.canClaim
-  const isAffordable = reward.isAffordable
 
   const getRewardIcon = (type) => {
+    const iconClassName = 'w-4 h-4 text-white drop-shadow-sm'
     switch (type) {
       case 'add_on':
-        return <Plus className='w-4 h-4 text-indigo-500' />
+        return <Plus className={iconClassName} />
       case 'upgrade':
-        return <Sparkles className='w-4 h-4 text-violet-500' />
+        return <ArrowUpRight className={iconClassName} />
       case 'credit':
-        return <DollarSign className='w-4 h-4 text-green-500' />
+        return <DollarSign className={iconClassName} />
       case 'discount':
-        return <Percent className='w-4 h-4 text-pink-500' />
+        return <Percent className={iconClassName} />
       case 'experience':
-        return <Star className='w-4 h-4 text-amber-500' />
+        return <Star className={iconClassName} />
       case 'free_service':
       case 'service':
-        return <Gift className='w-4 h-4 text-purple-500' />
+        return <Gift className={iconClassName} />
       case 'combo':
-        return <Star className='w-4 h-4 text-yellow-500' />
+        return <Star className={iconClassName} />
       case 'referral':
-        return <Users className='w-4 h-4 text-blue-500' />
+        return <Users className={iconClassName} />
       default:
-        return <Award className='w-4 h-4 text-gray-500' />
-    }
-  }
-
-  const getRewardColor = (type) => {
-    switch (type) {
-      case 'add_on':
-        return 'from-indigo-400 to-blue-400'
-      case 'upgrade':
-        return 'from-violet-400 to-purple-400'
-      case 'credit':
-        return 'from-green-400 to-emerald-400'
-      case 'discount':
-        return 'from-pink-400 to-rose-400'
-      case 'experience':
-        return 'from-amber-400 to-orange-400'
-      case 'free_service':
-      case 'service':
-        return 'from-purple-400 to-violet-400'
-      case 'combo':
-        return 'from-yellow-400 to-orange-400'
-      case 'referral':
-        return 'from-blue-400 to-cyan-400'
-      default:
-        return 'from-gray-400 to-slate-400'
+        return <Award className={iconClassName} />
     }
   }
 
@@ -217,7 +198,7 @@ const RewardCard = ({ reward, onClaim }) => {
     try {
       await onClaim(reward._id)
       setTimeout(() => setShowConfetti(false), 2000)
-    } catch (error) {
+    } catch {
       setShowConfetti(false)
     } finally {
       setIsClaiming(false)
@@ -226,7 +207,7 @@ const RewardCard = ({ reward, onClaim }) => {
 
   const getButtonText = () => {
     if (isClaiming) return 'Claiming...'
-    if (canAfford) return 'Tap card to claim & use'
+    if (canAfford) return 'Claim Reward'
     if (!reward.canClaimMoreInWindow) return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
   }
@@ -234,10 +215,10 @@ const RewardCard = ({ reward, onClaim }) => {
   return (
     <div
       onClick={handleClaim}
-      className={`relative bg-white rounded-2xl overflow-hidden transition-all border ${
+      className={`relative h-full bg-white rounded-2xl overflow-hidden transition-all border flex flex-col ${
         canAfford
-          ? 'hover:border-pink-300 cursor-pointer group border-pink-100'
-          : 'opacity-60 grayscale border-gray-100 cursor-not-allowed'
+          ? 'hover:border-[#f9f9fa] cursor-pointer group border-[#f9f9fa]'
+          : 'opacity-60 grayscale border-[#f9f9fa] cursor-not-allowed'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
       {/* Confetti Animation */}
@@ -246,7 +227,7 @@ const RewardCard = ({ reward, onClaim }) => {
           {[...Array(8)].map((_, i) => (
             <div
               key={i}
-              className='absolute w-2 h-2 bg-pink-400 rounded-full animate-ping'
+              className='absolute w-2 h-2 bg-[color:var(--brand-primary)] rounded-full animate-ping'
               style={{
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
@@ -258,7 +239,7 @@ const RewardCard = ({ reward, onClaim }) => {
           {[...Array(6)].map((_, i) => (
             <div
               key={`heart-${i}`}
-              className='absolute text-pink-500 animate-bounce'
+              className='absolute text-[color:var(--brand-primary)] animate-bounce'
               style={{
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
@@ -285,9 +266,8 @@ const RewardCard = ({ reward, onClaim }) => {
         {/* Badges */}
         <div className='absolute top-3 left-3'>
           <span
-            className={`bg-gradient-to-r ${getRewardColor(
-              reward.type
-            )} text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1`}
+            className='text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-white/25 shadow-sm'
+            style={{ background: brandGradient }}
           >
             {getRewardIcon(reward.type)}
             <span className='hidden sm:inline'>
@@ -310,11 +290,13 @@ const RewardCard = ({ reward, onClaim }) => {
           <div className='absolute bottom-3 right-3 z-30'>
             <button
               onClick={toggleVoiceNote}
+              type='button'
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${
                 isPlaying 
-                  ? 'bg-pink-500 text-white animate-pulse' 
-                  : 'bg-white/90 text-pink-500 hover:bg-white hover:scale-110'
+                  ? 'text-white animate-pulse' 
+                  : 'bg-white/90 text-[color:var(--brand-primary)] hover:bg-white hover:scale-110'
               }`}
+              style={isPlaying ? { background: brandGradient } : undefined}
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
             </button>
@@ -341,7 +323,7 @@ const RewardCard = ({ reward, onClaim }) => {
         </div>
       </div>
 
-      <div className='p-4 md:p-5'>
+      <div className='p-4 md:p-5 flex flex-1 flex-col'>
         <h3 className='text-base md:text-lg font-bold mb-2 text-gray-900 line-clamp-1'>
           {reward.name}
         </h3>
@@ -351,7 +333,7 @@ const RewardCard = ({ reward, onClaim }) => {
         </p>
 
         {/* Reward Value */}
-        <div className='bg-pink-50 p-3 rounded-xl mb-3'>
+        <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-xl mb-3'>
           <div className='flex items-center justify-between'>
             <span className='text-sm font-semibold text-gray-700'>Value:</span>
             <span className='font-bold text-base text-gray-900'>
@@ -384,11 +366,12 @@ const RewardCard = ({ reward, onClaim }) => {
             e.stopPropagation()
             handleClaim()
           }}
+          type='button'
           disabled={!canAfford || isClaiming}
           style={canAfford && !isClaiming ? { background: brandGradient } : undefined}
-          className={`w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`mt-auto w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
             isClaiming
-              ? 'bg-pink-400 text-white cursor-wait'
+              ? 'bg-[color:var(--brand-primary)] text-white cursor-wait'
               : canAfford
               ? 'text-white hover:brightness-105 hover:scale-105 transform'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
@@ -416,13 +399,12 @@ const RewardsCatalogPage = () => {
   const [selectedType, setSelectedType] = useState('all')
   const [sortBy, setSortBy] = useState('pointCost-low')
 
-  const { currentUser } = useSelector((state) => state.user)
-
   const withSpaParam = (path) => {
     if (!locationId) return path
     const separator = path.includes('?') ? '&' : '?'
     return `${path}${separator}spa=${encodeURIComponent(locationId)}`
   }
+  const pageBrandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
 
   const getLinkedServiceId = (reward) => {
     if (!reward) return null
@@ -439,8 +421,6 @@ const RewardsCatalogPage = () => {
   // API calls using React Query hooks
   const {
     rewards = [],
-    userPoints = 0,
-    stats = {},
     isLoading,
     error,
   } = useEnhancedRewardsCatalog({
@@ -463,7 +443,7 @@ const RewardsCatalogPage = () => {
         })
       }
     },
-    onError: (error) => {
+    onError: () => {
       // Toast handled by hook
     },
   })
@@ -472,7 +452,7 @@ const RewardsCatalogPage = () => {
   const rewardTypeOptions = [
     { value: 'all', label: 'All', icon: Award },
     { value: 'add_on', label: 'Add-On', icon: Plus },
-    { value: 'upgrade', label: 'Upgrade', icon: Sparkles },
+    { value: 'upgrade', label: 'Upgrade', icon: ArrowUpRight },
     { value: 'credit', label: 'Credits', icon: DollarSign },
     { value: 'discount', label: 'Discounts', icon: Percent },
     { value: 'experience', label: 'Experiences', icon: Star },
@@ -494,7 +474,7 @@ const RewardsCatalogPage = () => {
     return (
       <Layout>
         <div className='flex flex-col items-center justify-center min-h-[50vh] px-4'>
-          <div className='animate-spin rounded-full h-12 w-12 border-4 border-pink-200 border-t-pink-500 mb-4'></div>
+          <div className='animate-spin rounded-full h-12 w-12 border-4 border-[color:var(--brand-primary)/0.16] border-t-[color:var(--brand-primary)] mb-4'></div>
           <span className='text-gray-600'>Loading rewards...</span>
         </div>
       </Layout>
@@ -507,7 +487,7 @@ const RewardsCatalogPage = () => {
       <Layout>
         <div className='flex items-center justify-center min-h-[50vh] px-4'>
           <div className='text-center'>
-            <div className='text-pink-500 text-3xl mb-3'>💔</div>
+            <div className='text-[color:var(--brand-primary)] text-3xl mb-3'>💔</div>
             <h3 className='text-xl font-semibold text-gray-900 mb-2'>
               Oops! Something went wrong
             </h3>
@@ -521,8 +501,6 @@ const RewardsCatalogPage = () => {
   }
 
   const filteredRewards = rewards || []
-  const affordableRewards = filteredRewards.filter((r) => r.canClaim)
-
   const handleClaimReward = async (reward) => {
     claimRewardMutation.mutate(reward._id)
   }
@@ -537,19 +515,19 @@ const RewardsCatalogPage = () => {
         </div>
 
         {/* Premium Search & Filter Bar */}
-        <div className='bg-white/60 backdrop-blur-2xl border border-white/50 rounded-[2rem] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] mb-8 transition-all hover:shadow-[0_8px_32px_rgba(236,72,153,0.06)] relative z-20'>
+        <div className='bg-white/60 backdrop-blur-2xl border border-[#f9f9fa] rounded-[2rem] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.04)] mb-8 transition-all hover:shadow-md relative z-20'>
           <div className='flex flex-col lg:flex-row gap-4'>
             {/* Search Input */}
             <div className='relative flex-1 group'>
               <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
-                <Search className='h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors duration-300' />
+                <Search className='h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors duration-300' />
               </div>
               <input
                 type='text'
                 placeholder='Search rewards...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='block w-full pl-11 pr-4 py-3.5 bg-white border border-white/50 shadow-sm rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-400/20 focus:border-pink-400 transition-all duration-300 hover:bg-white/80 hover:shadow-md'
+                className='block w-full pl-11 pr-4 py-3.5 bg-white border border-[#f9f9fa] shadow-sm rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)/0.2] focus:border-[#f9f9fa] transition-all duration-300 hover:bg-white/80 hover:shadow-md'
               />
               {searchTerm && (
                 <div className='absolute inset-y-0 right-0 pr-3 flex items-center'>
@@ -592,12 +570,12 @@ const RewardsCatalogPage = () => {
               </div>
               
               {searchTerm && (
-                <span className='inline-flex items-center gap-1.5 bg-pink-50 border border-pink-100 text-pink-700 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-pink-100 transition-colors'>
+                <span className='inline-flex items-center gap-1.5 bg-[color:var(--brand-primary)/0.1] border border-[#f9f9fa] text-[color:var(--brand-primary)] px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-[color:var(--brand-primary)/0.16] transition-colors'>
                   <Search className="w-3 h-3" />
                   "{searchTerm}"
                   <button 
                     onClick={() => setSearchTerm('')}
-                    className='ml-1 p-0.5 hover:bg-pink-200 rounded-full transition-colors'
+                    className='ml-1 p-0.5 hover:bg-[color:var(--brand-primary)/0.2] rounded-full transition-colors'
                   >
                     <X className='w-3 h-3' />
                   </button>
@@ -605,12 +583,12 @@ const RewardsCatalogPage = () => {
               )}
 
               {selectedType !== 'all' && (
-                <span className='inline-flex items-center gap-1.5 bg-purple-50 border border-purple-100 text-purple-700 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-purple-100 transition-colors'>
+                <span className='inline-flex items-center gap-1.5 bg-[color:var(--brand-primary)/0.1] border border-[#f9f9fa] text-[color:var(--brand-primary)] px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-[color:var(--brand-primary)/0.16] transition-colors'>
                   <Filter className="w-3 h-3" />
                   {rewardTypeOptions.find((opt) => opt.value === selectedType)?.label}
                   <button 
                     onClick={() => setSelectedType('all')}
-                    className='ml-1 p-0.5 hover:bg-purple-200 rounded-full transition-colors'
+                    className='ml-1 p-0.5 hover:bg-[color:var(--brand-primary)/0.2] rounded-full transition-colors'
                   >
                     <X className='w-3 h-3' />
                   </button>
@@ -622,7 +600,7 @@ const RewardsCatalogPage = () => {
                   setSearchTerm('')
                   setSelectedType('all')
                 }}
-                className='text-xs text-gray-500 hover:text-pink-600 font-semibold underline decoration-pink-300/50 hover:decoration-pink-500 decoration-2 transition-all ml-auto'
+                className='text-xs text-gray-500 hover:text-[color:var(--brand-primary)] font-semibold underline decoration-[color:var(--brand-primary)/0.35] hover:decoration-[color:var(--brand-primary)] decoration-2 transition-all ml-auto'
               >
                 Clear all filters
               </button>
@@ -655,7 +633,7 @@ const RewardsCatalogPage = () => {
             ))}
           </div>
         ) : (
-          <div className='text-center py-12 md:py-16 bg-white rounded-2xl border border-pink-100 mb-8'>
+          <div className='text-center py-12 md:py-16 bg-white rounded-2xl border border-[#f9f9fa] mb-8'>
             <div className='text-4xl md:text-6xl mb-4'>💝</div>
             <h3 className='text-xl md:text-2xl font-bold text-gray-800 mb-3'>
               No rewards found
@@ -666,11 +644,13 @@ const RewardsCatalogPage = () => {
                 : 'No rewards available right now'}
             </p>
             <button
+              type='button'
               onClick={() => {
                 setSearchTerm('')
                 setSelectedType('all')
               }}
-              className='bg-gradient-to-r from-pink-500 to-rose-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-pink-600 hover:to-rose-600'
+              style={{ background: pageBrandGradient }}
+              className='text-white px-6 py-3 rounded-xl font-semibold hover:brightness-110'
             >
               Clear Filters
             </button>
@@ -678,13 +658,13 @@ const RewardsCatalogPage = () => {
         )}
 
         {/* Compact How to Earn Points */}
-        <div className='bg-gradient-to-br from-pink-50 via-purple-50 to-rose-50 rounded-2xl p-4 md:p-6 border border-pink-100'>
+        <div className='bg-gradient-to-br from-[color:var(--brand-primary)/0.06] via-white to-[color:var(--brand-primary)/0.12] rounded-2xl p-4 md:p-6 border border-[#f9f9fa]'>
           <h3 className='text-lg md:text-xl font-bold text-gray-900 mb-4 text-center'>
             How to Earn Points
           </h3>
           <div className='grid grid-cols-3 md:grid-cols-3 gap-3 md:gap-6'>
             <div className='text-center'>
-              <div className='bg-gradient-to-br from-pink-400 to-rose-500 text-white w-10 h-10 md:w-14 md:h-14 rounded-xl flex items-center justify-center mx-auto mb-2 md:mb-3'>
+              <div style={{ background: pageBrandGradient }} className='text-white w-10 h-10 md:w-14 md:h-14 rounded-xl flex items-center justify-center mx-auto mb-2 md:mb-3'>
                 <Award className='w-5 h-5 md:w-7 md:h-7' />
               </div>
               <h4 className='font-bold text-gray-900 mb-1 text-xs md:text-base'>
@@ -695,7 +675,7 @@ const RewardsCatalogPage = () => {
               </p>
             </div>
             <div className='text-center'>
-              <div className='bg-gradient-to-br from-purple-400 to-violet-500 text-white w-10 h-10 md:w-14 md:h-14 rounded-xl flex items-center justify-center mx-auto mb-2 md:mb-3'>
+              <div style={{ background: pageBrandGradient }} className='text-white w-10 h-10 md:w-14 md:h-14 rounded-xl flex items-center justify-center mx-auto mb-2 md:mb-3'>
                 <Users className='w-5 h-5 md:w-7 md:h-7' />
               </div>
               <h4 className='font-bold text-gray-900 mb-1 text-xs md:text-base'>

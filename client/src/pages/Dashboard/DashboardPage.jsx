@@ -21,11 +21,8 @@ import {
   DollarSign,
   Gift,
   Heart,
-  Lock,
-  MapPin,
   Pause,
   Percent,
-  Play,
   Plus,
   RefreshCw,
   Share2,
@@ -34,7 +31,6 @@ import {
   Star,
   Target,
   TrendingUp,
-  Unlock,
   UserPlus,
   Users,
   Volume2,
@@ -46,6 +42,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
+
+const Motion = motion
 
 // Icon mapping for string icon names from backend
 const iconMap = {
@@ -74,7 +72,6 @@ const iconMap = {
 const RewardCard = ({
   reward,
   onClaim,
-  userPoints,
   isOptimisticUpdate = false,
 }) => {
   const [isClaiming, setIsClaiming] = useState(false)
@@ -90,13 +87,14 @@ const RewardCard = ({
     if (isPlaying) {
       audioRef.current.pause()
     } else {
-      audioRef.current.play()
+      audioRef.current.play().catch(() => {
+        setIsPlaying(false)
+      })
     }
-    setIsPlaying(!isPlaying)
+    setIsPlaying((prev) => !prev)
   }
 
   const canAfford = reward.canClaim && !isOptimisticUpdate
-  const isAffordable = reward.isAffordable
 
   const getRewardIcon = (type) => {
     switch (type) {
@@ -148,7 +146,7 @@ const RewardCard = ({
         setShowConfetti(false)
         setClaimStatus(null)
       }, 3000)
-    } catch (error) {
+    } catch {
       setShowConfetti(false)
       setClaimStatus('error')
 
@@ -187,7 +185,7 @@ const RewardCard = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: canAfford ? -2 : 0 }}
-      className={`relative bg-white rounded-2xl overflow-hidden transition-all border ${
+      className={`relative h-full bg-white rounded-2xl overflow-hidden transition-all border flex flex-col ${
         canAfford && !isOptimisticUpdate
           ? 'border-gray-200/70 cursor-pointer group hover:shadow-lg'
           : isOptimisticUpdate
@@ -287,8 +285,10 @@ const RewardCard = ({
         {reward.voiceNoteUrl && (
           <div className='absolute bottom-3 right-3 z-30'>
             <button
+              type='button'
               onClick={toggleVoiceNote}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg ${
+              aria-label={isPlaying ? 'Pause voice note' : 'Play voice note'}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
                 isPlaying 
                   ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white animate-pulse' 
                   : 'bg-white/90 text-[color:var(--brand-primary)] hover:bg-white hover:scale-110'
@@ -319,7 +319,7 @@ const RewardCard = ({
         </div>
       </div>
 
-      <div className='p-4 md:p-5'>
+      <div className='p-4 md:p-5 flex flex-1 flex-col'>
         <h3 className='text-base md:text-lg font-bold mb-2 text-gray-900 line-clamp-1'>
           {reward.name}
         </h3>
@@ -356,10 +356,11 @@ const RewardCard = ({
 
         {/* Claim Button */}
         <motion.button
+          type='button'
           onClick={handleClaim}
           disabled={!canAfford || isClaiming || isOptimisticUpdate}
           whileTap={{ scale: canAfford ? 0.98 : 1 }}
-          className={`w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`mt-auto w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
             isClaiming
               ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white cursor-wait'
               : claimStatus === 'success'
@@ -387,8 +388,6 @@ const DashboardCard = ({
   className = '',
   gradient = 'default',
   isLoading = false,
-  title = '',
-  description = '',
 }) => {
   const gradients = {
     default: 'bg-white border border-gray-200/70 shadow-sm',
@@ -437,15 +436,12 @@ const SpaRewardsSection = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const { locationId } = useBranding()
-  const { currentUser } = useSelector((state) => state.user)
   const [optimisticRewards, setOptimisticRewards] = useState(new Set())
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   const {
     rewards = [],
-    userPoints = 0,
-    stats = {},
     isLoading,
     error,
     refetch,
@@ -517,7 +513,7 @@ const SpaRewardsSection = () => {
     try {
       await refetch()
       toast.success('Rewards refreshed!')
-    } catch (error) {
+    } catch {
       toast.error('Failed to refresh')
     } finally {
       setIsRefreshing(false)
@@ -579,8 +575,9 @@ const SpaRewardsSection = () => {
               Unable to load rewards at this time
             </p>
             <button
+              type='button'
               onClick={handleRefresh}
-              className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-4 py-2 rounded-lg hover:brightness-95 transition-colors'
+              className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-4 py-2 rounded-lg hover:brightness-95 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
             >
               Try Again
             </button>
@@ -598,8 +595,9 @@ const SpaRewardsSection = () => {
             <Gift className='w-12 h-12 text-gray-400 mx-auto mb-3' />
             <p className='text-gray-600 mb-4'>New rewards coming soon!</p>
             <button
+              type='button'
               onClick={handleRefresh}
-              className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-4 py-2 rounded-lg hover:brightness-95 transition-colors flex items-center gap-2 mx-auto'
+              className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-4 py-2 rounded-lg hover:brightness-95 transition-colors flex items-center gap-2 mx-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
             >
               <RefreshCw className='w-4 h-4' />
               Refresh
@@ -637,17 +635,20 @@ const SpaRewardsSection = () => {
               Available
             </span>
             <button
+              type='button'
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className='text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] p-2 rounded-lg hover:bg-[color:var(--brand-primary)/0.06] transition-colors'
+              aria-label='Refresh rewards'
+              className='text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] p-2 rounded-lg hover:bg-[color:var(--brand-primary)/0.06] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
             >
               <RefreshCw
                 className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
               />
             </button>
             <button
+              type='button'
               onClick={() => navigate(withSpaParam('/rewards'))}
-              className='text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] flex items-center gap-1 text-sm font-semibold hover:bg-[color:var(--brand-primary)/0.06] px-3 py-2 rounded-lg transition-colors'
+              className='text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] flex items-center gap-1 text-sm font-semibold hover:bg-[color:var(--brand-primary)/0.06] px-3 py-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
             >
               View All
               <ChevronRight className='w-4 h-4' />
@@ -662,7 +663,6 @@ const SpaRewardsSection = () => {
                 key={reward._id}
                 reward={reward}
                 onClaim={handleClaimReward}
-                userPoints={currentUser?.points || userPoints}
                 isOptimisticUpdate={optimisticRewards.has(reward._id)}
               />
             ))}
@@ -830,15 +830,17 @@ const NeedMorePointsSection = ({ methods = [] }) => {
               {isReview ? (
                 <div className='mt-auto flex flex-col gap-2 w-full'>
                   <button
+                    type='button'
                     onClick={handleInAppReview}
-                    className='w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2'
+                    className='w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
                   >
                     In-App Review
                   </button>
                   <button
+                    type='button'
                     onClick={handleExternalReview}
                     disabled={!reviewLink}
-                    className='w-full rounded-lg bg-gray-900 text-white text-xs font-bold py-2 disabled:opacity-50'
+                    className='w-full rounded-lg bg-gray-900 text-white text-xs font-bold py-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2'
                   >
                     Google Review
                   </button>
@@ -850,8 +852,9 @@ const NeedMorePointsSection = ({ methods = [] }) => {
                 <>
                   {hasNavigateAction ? (
                     <button
+                      type='button'
                       onClick={() => handleAction(method)}
-                      className='mt-auto w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2'
+                      className='mt-auto w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
                     >
                       {method.action}
                     </button>
@@ -926,8 +929,9 @@ const DashboardPage = () => {
                 Failed to load dashboard data
               </p>
               <button
+                type='button'
                 onClick={() => refetch()}
-                className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-6 py-3 rounded-lg hover:brightness-95 transition-colors flex items-center gap-2 mx-auto'
+                className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-6 py-3 rounded-lg hover:brightness-95 transition-colors flex items-center gap-2 mx-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
               >
                 <RefreshCw className='w-4 h-4' />
                 Retry
@@ -993,8 +997,9 @@ const DashboardPage = () => {
                           </div>
                         </div>
                         <button
+                          type='button'
                           onClick={() => navigate(withSpaParam('/services'))}
-                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline'
+                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 rounded'
                         >
                           Book More
                         </button>
@@ -1027,8 +1032,9 @@ const DashboardPage = () => {
                           <Calendar className='w-12 h-12 text-gray-400 mx-auto mb-4' />
                           <p className='text-gray-600 mb-4'>No upcoming appointments</p>
                           <button
+                            type='button'
                             onClick={() => navigate(withSpaParam('/services'))}
-                            className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-6 py-3 rounded-xl hover:brightness-95 transition-all'
+                            className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white px-6 py-3 rounded-xl hover:brightness-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
                           >
                             Book Now
                           </button>
@@ -1053,8 +1059,9 @@ const DashboardPage = () => {
                           </div>
                         </div>
                         <button
+                          type='button'
                           onClick={() => navigate(withSpaParam('/referrals'))}
-                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline'
+                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 rounded'
                         >
                           Share Now
                         </button>
@@ -1156,8 +1163,9 @@ const DashboardPage = () => {
                       )}
 
                       <button
+                        type='button'
                         onClick={() => navigate(withSpaParam('/rewards'))}
-                        className='w-full rounded-lg bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white py-2.5 text-sm font-semibold'
+                        className='w-full rounded-lg bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white py-2.5 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
                       >
                         Redeem Credits
                       </button>
@@ -1180,8 +1188,9 @@ const DashboardPage = () => {
                           </div>
                         </div>
                         <button
+                          type='button'
                           onClick={() => navigate(withSpaParam('/Booking'))}
-                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline'
+                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 rounded'
                         >
                           See History
                         </button>

@@ -6,17 +6,14 @@ import {
     BarChart3,
     Calendar,
     CheckCircle,
-    Clock,
     DollarSign,
     History,
     LayoutDashboard,
-    PieChart as PieIcon,
-    RefreshCw,
     TrendingUp,
     UserCheck,
     Users
 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
     Area,
     AreaChart,
@@ -30,8 +27,9 @@ import {
     YAxis
 } from 'recharts'
 
+const Motion = motion
+
 const SpaDashboard = ({ data, refetch }) => {
-    const [isRefreshing, setIsRefreshing] = useState(false)
     const [activeTab, setActiveTab] = useState('overview') 
     const {
         stats = {},
@@ -69,23 +67,18 @@ const SpaDashboard = ({ data, refetch }) => {
 
     const COLORS = [brandColor, brandColorDark, brandColorLight, '#9ca3af', '#d1d5db']
 
+    const handleRefresh = useCallback(async () => {
+        if (typeof refetch === 'function') {
+            await refetch()
+        }
+    }, [refetch])
+
     useEffect(() => {
         const interval = setInterval(() => {
             handleRefresh()
         }, 5 * 60 * 1000)
         return () => clearInterval(interval)
-    }, [])
-
-    const handleRefresh = async () => {
-        setIsRefreshing(true)
-        try {
-            if (typeof refetch === 'function') {
-                await refetch()
-            }
-        } finally {
-            setIsRefreshing(false)
-        }
-    }
+    }, [handleRefresh])
 
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -283,14 +276,14 @@ const SpaDashboard = ({ data, refetch }) => {
         </div>
     )
 
-    const StatCard = ({ title, value, icon: Icon, growth }) => (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow group">
+    const StatCard = ({ title, value, icon, growth }) => (
+        <Motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow group">
             <div className="flex items-center gap-3 mb-4">
                 <div 
                   className="p-2 sm:p-3 rounded-xl text-white"
                   style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
                 >
-                    <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                    {React.createElement(icon, { className: 'w-4 h-4 sm:w-5 sm:h-5' })}
                 </div>
                 <p className="text-xs sm:text-sm font-bold text-gray-500 truncate">{title}</p>
             </div>
@@ -303,16 +296,20 @@ const SpaDashboard = ({ data, refetch }) => {
                     </div>
                 )}
             </div>
-        </motion.div>
+        </Motion.div>
     )
 
-    const TabButton = ({ id, label, icon: Icon }) => (
+    const TabButton = ({ id, label, icon }) => (
         <button 
+          type="button"
           onClick={() => setActiveTab(id)} 
-          className={`flex-1 flex flex-col items-center justify-center py-3 px-1 transition-all relative ${activeTab === id ? 'text-gray-900 bg-gray-50' : 'text-gray-400'}`}
+          className={`flex-1 flex flex-col items-center justify-center py-3 px-1 transition-all relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-inset ${activeTab === id ? 'text-gray-900 bg-gray-50' : 'text-gray-400'}`}
           style={activeTab === id ? { borderBottom: `3px solid ${brandColor}` } : {}}
         >
-            <Icon className={`w-5 h-5 mb-1 ${activeTab === id ? 'text-gray-900' : 'text-gray-400'}`} style={activeTab === id ? { color: brandColor } : {}} />
+            {React.createElement(icon, {
+                className: `w-5 h-5 mb-1 ${activeTab === id ? 'text-gray-900' : 'text-gray-400'}`,
+                style: activeTab === id ? { color: brandColor } : {}
+            })}
             <span className={`text-[10px] font-black uppercase tracking-tighter ${activeTab === id ? 'text-gray-900' : 'text-gray-400'}`}>{label}</span>
         </button>
     )
@@ -340,10 +337,10 @@ const SpaDashboard = ({ data, refetch }) => {
                     </div>
 
                     <AnimatePresence mode="wait">
-                        {activeTab === 'overview' && <motion.div key="ov" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}><StatsGrid /></motion.div>}
-                        {activeTab === 'analytics' && <motion.div key="an" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><AnalyticsSection /></motion.div>}
-                        {activeTab === 'activity' && <motion.div key="ac" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><ActivityFeed /></motion.div>}
-                        {activeTab === 'schedule' && <motion.div key="sc" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><ScheduleList /></motion.div>}
+                        {activeTab === 'overview' && <Motion.div key="ov" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}><StatsGrid /></Motion.div>}
+                        {activeTab === 'analytics' && <Motion.div key="an" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}><AnalyticsSection /></Motion.div>}
+                        {activeTab === 'activity' && <Motion.div key="ac" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><ActivityFeed /></Motion.div>}
+                        {activeTab === 'schedule' && <Motion.div key="sc" initial={{ opacity: 0 }} animate={{ opacity: 1 }}><ScheduleList /></Motion.div>}
                     </AnimatePresence>
                 </div>
 

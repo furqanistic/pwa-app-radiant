@@ -16,6 +16,8 @@ import {
 import React, { useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 
+const Motion = motion
+
 const hexToRgba = (hex, alpha) => {
   if (!hex) return `rgba(236, 72, 153, ${alpha})`
   const cleaned = hex.replace('#', '')
@@ -78,7 +80,7 @@ const ClinicCard = ({ clinic }) => {
   }, [brandColor])
 
   return (
-    <motion.div 
+    <Motion.div 
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -151,8 +153,9 @@ const ClinicCard = ({ clinic }) => {
           {/* Hours Section */}
           <div className="bg-gray-50 rounded-xl p-3">
             <button 
+              type="button"
               onClick={() => setShowAllHours(!showAllHours)}
-              className="flex items-center justify-between w-full"
+              className="flex items-center justify-between w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 rounded-lg"
             >
               <div className="flex items-center gap-3">
                 <Clock className="w-4 h-4 text-gray-500" />
@@ -163,7 +166,7 @@ const ClinicCard = ({ clinic }) => {
             
             <AnimatePresence>
               {showAllHours && (
-                <motion.div 
+                <Motion.div 
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
@@ -185,7 +188,7 @@ const ClinicCard = ({ clinic }) => {
                       )
                     })}
                   </div>
-                </motion.div>
+                </Motion.div>
               )}
             </AnimatePresence>
           </div>
@@ -195,7 +198,7 @@ const ClinicCard = ({ clinic }) => {
         <div className="flex gap-2">
           <Button 
             onClick={handleDirections}
-            className="flex-1 text-white rounded-full h-12 text-xs font-black gap-2 uppercase tracking-wider"
+            className="flex-1 text-white rounded-full h-12 text-xs font-black gap-2 uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2"
             style={{ backgroundColor: brandColor }}
           >
             <Navigation className="w-4 h-4" />
@@ -204,7 +207,7 @@ const ClinicCard = ({ clinic }) => {
           <Button 
             asChild
             variant="outline"
-            className="flex-1 bg-gray-100 border-transparent text-gray-700 hover:bg-gray-200 rounded-full h-12 text-xs font-black gap-2 uppercase tracking-wider"
+            className="flex-1 bg-gray-100 border-transparent text-gray-700 hover:bg-gray-200 rounded-full h-12 text-xs font-black gap-2 uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-700 focus-visible:ring-offset-2"
           >
             <a href={`tel:${clinic.phone}`}>
               <Phone className="w-4 h-4" />
@@ -213,7 +216,7 @@ const ClinicCard = ({ clinic }) => {
           </Button>
         </div>
       </div>
-    </motion.div>
+    </Motion.div>
   )
 }
 
