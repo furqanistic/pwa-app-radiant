@@ -328,6 +328,10 @@ const ServiceDetailPage = () => {
   const birthdayNotificationId = location.state?.notificationId;
   const giftType = location.state?.giftType || 'free';
   const giftValue = location.state?.giftValue || 0;
+  const autoApplyRewardId = location.state?.autoApplyRewardId
+    ? String(location.state.autoApplyRewardId)
+    : null;
+  const autoApplyRewardName = location.state?.autoApplyRewardName || "Reward";
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
   const { branding, locationId: brandedLocationId, subdomain: brandingSubdomain } = useBranding();
@@ -356,6 +360,9 @@ const ServiceDetailPage = () => {
     toast.success(message, { ...toastStyle, ...options });
   const toastError = (message, options = {}) =>
     toast.error(message, { ...toastStyle, ...options });
+  const appliedReward = autoApplyRewardId
+    ? { id: autoApplyRewardId, name: autoApplyRewardName }
+    : null;
   // ✅ GET CART FROM REDUX
   const { items: cartItems } = useSelector((state) => state.cart);
 
@@ -531,6 +538,39 @@ const ServiceDetailPage = () => {
     return Math.min(...activePrices)
   }
 
+  const getMemberPriceForUserPlan = (svc, user) => {
+    if (!Array.isArray(svc?.membershipPricing) || !user) return null
+
+    const userPlanId =
+      user?.membership?.planId ||
+      user?.membership?.plan?._id ||
+      user?.activeMembership?.planId ||
+      user?.activeMembership?.plan?._id ||
+      null
+    const userPlanName =
+      user?.membership?.planName || user?.activeMembership?.planName || ''
+
+    const normalize = (value) => String(value || '').trim().toLowerCase()
+    const matchingEntry = svc.membershipPricing.find((entry) => {
+      if (entry?.isActive === false) return false
+      const entryPlanId = entry?.membershipPlanId || null
+      const entryPlanName = entry?.membershipPlanName || ''
+
+      const planIdMatch =
+        userPlanId && entryPlanId && String(userPlanId) === String(entryPlanId)
+      const planNameMatch =
+        normalize(userPlanName) &&
+        normalize(entryPlanName) &&
+        normalize(userPlanName) === normalize(entryPlanName)
+
+      return planIdMatch || planNameMatch
+    })
+
+    const numericPrice = Number(matchingEntry?.price)
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) return null
+    return numericPrice
+  }
+
   const isMembershipEligible = (user) => {
     if (!user) return false
     if (['super-admin', 'admin', 'spa', 'enterprise'].includes(user.role)) {
@@ -599,7 +639,17 @@ const ServiceDetailPage = () => {
 
   const calculateTotalPrice = () => {
     const treatmentsPrice = selectedTreatments.reduce((sum, t) => sum + (t.price || 0), 0);
-    const basePrice = treatmentsPrice > 0 ? treatmentsPrice : service.basePrice;
+    const planBasedMemberPrice = getMemberPriceForUserPlan(service, currentUser);
+    const shouldUseMemberPrice =
+      isMembershipEligible(currentUser) &&
+      Number.isFinite(planBasedMemberPrice) &&
+      planBasedMemberPrice >= 0;
+    const basePrice =
+      treatmentsPrice > 0
+        ? treatmentsPrice
+        : shouldUseMemberPrice
+        ? planBasedMemberPrice
+        : service.basePrice;
     const discountedBasePrice = calculateDiscountedPrice(basePrice);
 
     const addOnsTotal = selectedAddOns.reduce((total, addOn) => {
@@ -681,6 +731,9 @@ const ServiceDetailPage = () => {
         price: addon.finalPrice || addon.customPrice || addon.basePrice,
         duration: addon.finalDuration || addon.customDuration || addon.duration,
       })),
+      rewardUsed: appliedReward?.id || null,
+      rewardName: appliedReward?.name || null,
+      pointsUsed: 0,
       isBirthdayGift: isBirthdayGift,
       notificationId: birthdayNotificationId,
     };
@@ -729,7 +782,8 @@ const ServiceDetailPage = () => {
         duration: totalDuration,
         locationId: activeLocationId,
         notes: "",
-        rewardUsed: null,
+        rewardUsed: appliedReward?.id || null,
+        userRewardId: appliedReward?.id || null,
         pointsUsed: 0,
         treatments: selectedTreatments.map(t => ({
             id: t._id || t.id,
@@ -782,7 +836,11 @@ const ServiceDetailPage = () => {
   const totalPrice = calculateTotalPrice();
   const totalDuration = calculateTotalDuration();
   const regularServicePrice = Number(service?.basePrice) || 0
-  const memberDealPrice = getBestMemberDealPrice(service)
+  const currentPlanMemberPrice = getMemberPriceForUserPlan(service, currentUser)
+  const lowestMemberDealPrice = getBestMemberDealPrice(service)
+  const memberDealPrice = Number.isFinite(currentPlanMemberPrice)
+    ? currentPlanMemberPrice
+    : lowestMemberDealPrice
   const hasMemberDeal =
     Number.isFinite(memberDealPrice) &&
     memberDealPrice >= 0 &&
@@ -792,6 +850,36 @@ const ServiceDetailPage = () => {
     hasMemberDeal && regularServicePrice > 0
       ? Math.round(((regularServicePrice - memberDealPrice) / regularServicePrice) * 100)
       : 0
+  const currentMembershipPlanName =
+    currentUser?.membership?.planName || currentUser?.activeMembership?.planName || ''
+  const currentMembershipPlanId =
+    currentUser?.membership?.planId ||
+    currentUser?.membership?.plan?._id ||
+    currentUser?.activeMembership?.planId ||
+    currentUser?.activeMembership?.plan?._id ||
+    null
+  const membershipPlans = Array.isArray(branding?.membership?.plans)
+    ? branding.membership.plans
+    : []
+  const highestMembershipPlan = membershipPlans
+    .map((plan) => ({
+      ...plan,
+      numericPrice: Number(plan?.price ?? plan?.monthlyPrice ?? 0),
+    }))
+    .filter((plan) => Number.isFinite(plan.numericPrice))
+    .sort((a, b) => b.numericPrice - a.numericPrice)[0]
+  const normalizePlanValue = (value) => String(value || '').trim().toLowerCase()
+  const isOnHighestMembershipPlan = Boolean(
+    highestMembershipPlan &&
+      ((currentMembershipPlanId &&
+        String(currentMembershipPlanId) ===
+          String(highestMembershipPlan?._id || highestMembershipPlan?.id)) ||
+        (normalizePlanValue(currentMembershipPlanName) &&
+          normalizePlanValue(currentMembershipPlanName) ===
+            normalizePlanValue(highestMembershipPlan?.name)))
+  )
+  const shouldShowMembershipUpsell =
+    hasMemberDeal && !isEligibleForMemberDeal && !isOnHighestMembershipPlan
   const membershipJoinPrice = Number(branding?.membership?.plans?.[0]?.price ?? branding?.membership?.price)
   const membershipPath = activeLocationId
     ? `/membership?spa=${encodeURIComponent(activeLocationId)}`
@@ -842,6 +930,11 @@ const ServiceDetailPage = () => {
                     {isBirthdayGift && (
                         <div className="bg-white text-[color:var(--brand-primary)] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm animate-pulse">
                             🎉 Birthday Gift Applied
+                        </div>
+                    )}
+                    {appliedReward && (
+                        <div className="bg-white text-[color:var(--brand-primary)] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                            Reward Applied: {appliedReward.name}
                         </div>
                     )}
                     <div className="flex items-center gap-1.5">
@@ -1166,6 +1259,14 @@ const ServiceDetailPage = () => {
                               <span className="font-medium text-gray-900">+${selectedAddOns.reduce((acc, curr) => acc + (curr.finalPrice || curr.basePrice), 0)}</span>
                           </div>
                       )}
+                      {appliedReward && (
+                          <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Reward</span>
+                              <span className="font-medium text-[color:var(--brand-primary)] text-right">
+                                {appliedReward.name}
+                              </span>
+                          </div>
+                      )}
 
                       {hasMemberDeal && (
                         <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3">
@@ -1186,7 +1287,7 @@ const ServiceDetailPage = () => {
                           <div className="rounded-lg bg-white/85 px-2 py-1 text-xs font-semibold text-gray-600">
                             Regular price <span className="font-black text-gray-800">{formatPrice(regularServicePrice)}</span>
                           </div>
-                          {!isEligibleForMemberDeal && (
+                          {shouldShowMembershipUpsell && (
                             <div className="mt-2 rounded-lg bg-emerald-900 p-2">
                               <p className="text-[11px] font-medium leading-snug text-white/90">
                                 <Lock className="mr-1 inline-block w-3 h-3" />

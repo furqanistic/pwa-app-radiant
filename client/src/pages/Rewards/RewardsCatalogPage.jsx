@@ -78,8 +78,8 @@ const PremiumDropdown = ({
             <div
               className={`p-1.5 rounded-lg transition-colors ${
                 isOpen
-                  ? 'bg-[color:var(--brand-primary)/0.14] text-[color:var(--brand-primary)]'
-                  : 'bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary)]'
+                  ? 'bg-[#f5f5f7] text-[color:var(--brand-primary)]'
+                  : 'bg-[#fafafb] text-[color:var(--brand-primary)]'
               }`}
             >
               <Icon className='w-3.5 h-3.5' />
@@ -112,7 +112,7 @@ const PremiumDropdown = ({
                 onClick={() => handleSelect(option)}
                 className={`w-full px-3 py-2.5 text-left rounded-xl transition-all flex items-center gap-3 text-sm mb-0.5 last:mb-0 ${
                   selectedOption?.value === option.value
-                    ? 'bg-[color:var(--brand-primary)/0.1] text-[color:var(--brand-primary)] font-semibold'
+                    ? 'bg-[#fafafb] text-[color:var(--brand-primary)] font-semibold'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
@@ -333,7 +333,7 @@ const RewardCard = ({ reward, onClaim }) => {
         </p>
 
         {/* Reward Value */}
-        <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-xl mb-3'>
+        <div className='bg-[#fafafb] p-3 rounded-xl mb-3'>
           <div className='flex items-center justify-between'>
             <span className='text-sm font-semibold text-gray-700'>Value:</span>
             <span className='font-bold text-base text-gray-900'>
@@ -408,13 +408,21 @@ const RewardsCatalogPage = () => {
 
   const getLinkedServiceId = (reward) => {
     if (!reward) return null
+    const linkedServices = Array.isArray(reward.linkedServices)
+      ? reward.linkedServices
+      : []
+    const firstLinkedService = linkedServices[0] || null
     const value =
       reward.serviceId?._id ||
       reward.serviceId ||
       reward.linkedServiceId?._id ||
       reward.linkedServiceId ||
       reward.service?._id ||
-      reward.linkedService?._id
+      reward.linkedService?._id ||
+      reward.linkedService?.serviceId ||
+      firstLinkedService?.serviceId?._id ||
+      firstLinkedService?.serviceId ||
+      firstLinkedService?._id
     return value ? String(value) : null
   }
 
@@ -433,12 +441,21 @@ const RewardsCatalogPage = () => {
     onSuccess: (data, rewardId) => {
       // Toast handled by hook
       const claimedReward = rewards.find((reward) => reward._id === rewardId)
-      const linkedServiceId = getLinkedServiceId(claimedReward)
+      const claimedPayload =
+        data?.data?.claimedReward ||
+        data?.data?.reward ||
+        data?.data?.userReward ||
+        data?.claimedReward ||
+        data?.reward ||
+        null
+      const linkedServiceId =
+        getLinkedServiceId(claimedPayload) || getLinkedServiceId(claimedReward)
       if (linkedServiceId) {
         navigate(withSpaParam(`/services/${linkedServiceId}`), {
           state: {
             autoApplyRewardId: rewardId,
-            autoApplyRewardName: claimedReward?.name || 'Reward',
+            autoApplyRewardName:
+              claimedPayload?.name || claimedReward?.name || 'Reward',
           },
         })
       }
@@ -474,7 +491,7 @@ const RewardsCatalogPage = () => {
     return (
       <Layout>
         <div className='flex flex-col items-center justify-center min-h-[50vh] px-4'>
-          <div className='animate-spin rounded-full h-12 w-12 border-4 border-[color:var(--brand-primary)/0.16] border-t-[color:var(--brand-primary)] mb-4'></div>
+          <div className='animate-spin rounded-full h-12 w-12 border-4 border-[#f1f1f3] border-t-[color:var(--brand-primary)] mb-4'></div>
           <span className='text-gray-600'>Loading rewards...</span>
         </div>
       </Layout>
@@ -501,8 +518,8 @@ const RewardsCatalogPage = () => {
   }
 
   const filteredRewards = rewards || []
-  const handleClaimReward = async (reward) => {
-    claimRewardMutation.mutate(reward._id)
+  const handleClaimReward = async (rewardId) => {
+    claimRewardMutation.mutate(rewardId)
   }
 
   return (
@@ -527,7 +544,7 @@ const RewardsCatalogPage = () => {
                 placeholder='Search rewards...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='block w-full pl-11 pr-4 py-3.5 bg-white border border-[#f9f9fa] shadow-sm rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)/0.2] focus:border-[#f9f9fa] transition-all duration-300 hover:bg-white/80 hover:shadow-md'
+                className='block w-full pl-11 pr-4 py-3.5 bg-white border border-[#f9f9fa] shadow-sm rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:border-[#f9f9fa] transition-all duration-300 hover:bg-white/80 hover:shadow-md'
               />
               {searchTerm && (
                 <div className='absolute inset-y-0 right-0 pr-3 flex items-center'>
@@ -570,12 +587,12 @@ const RewardsCatalogPage = () => {
               </div>
               
               {searchTerm && (
-                <span className='inline-flex items-center gap-1.5 bg-[color:var(--brand-primary)/0.1] border border-[#f9f9fa] text-[color:var(--brand-primary)] px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-[color:var(--brand-primary)/0.16] transition-colors'>
+                <span className='inline-flex items-center gap-1.5 bg-[#fafafb] border border-[#f9f9fa] text-[color:var(--brand-primary)] px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-[#f3f3f5] transition-colors'>
                   <Search className="w-3 h-3" />
                   "{searchTerm}"
                   <button 
                     onClick={() => setSearchTerm('')}
-                    className='ml-1 p-0.5 hover:bg-[color:var(--brand-primary)/0.2] rounded-full transition-colors'
+                    className='ml-1 p-0.5 hover:bg-[#f3f3f5] rounded-full transition-colors'
                   >
                     <X className='w-3 h-3' />
                   </button>
@@ -583,12 +600,12 @@ const RewardsCatalogPage = () => {
               )}
 
               {selectedType !== 'all' && (
-                <span className='inline-flex items-center gap-1.5 bg-[color:var(--brand-primary)/0.1] border border-[#f9f9fa] text-[color:var(--brand-primary)] px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-[color:var(--brand-primary)/0.16] transition-colors'>
+                <span className='inline-flex items-center gap-1.5 bg-[#fafafb] border border-[#f9f9fa] text-[color:var(--brand-primary)] px-3 py-1.5 rounded-full text-xs font-medium shadow-sm cursor-default hover:bg-[#f3f3f5] transition-colors'>
                   <Filter className="w-3 h-3" />
                   {rewardTypeOptions.find((opt) => opt.value === selectedType)?.label}
                   <button 
                     onClick={() => setSelectedType('all')}
-                    className='ml-1 p-0.5 hover:bg-[color:var(--brand-primary)/0.2] rounded-full transition-colors'
+                    className='ml-1 p-0.5 hover:bg-[#f3f3f5] rounded-full transition-colors'
                   >
                     <X className='w-3 h-3' />
                   </button>
@@ -600,7 +617,7 @@ const RewardsCatalogPage = () => {
                   setSearchTerm('')
                   setSelectedType('all')
                 }}
-                className='text-xs text-gray-500 hover:text-[color:var(--brand-primary)] font-semibold underline decoration-[color:var(--brand-primary)/0.35] hover:decoration-[color:var(--brand-primary)] decoration-2 transition-all ml-auto'
+                className='text-xs text-gray-500 hover:text-[color:var(--brand-primary)] font-semibold underline decoration-[color:var(--brand-primary)] hover:decoration-[color:var(--brand-primary)] decoration-2 transition-all ml-auto'
               >
                 Clear all filters
               </button>
@@ -658,7 +675,7 @@ const RewardsCatalogPage = () => {
         )}
 
         {/* Compact How to Earn Points */}
-        <div className='bg-gradient-to-br from-[color:var(--brand-primary)/0.06] via-white to-[color:var(--brand-primary)/0.12] rounded-2xl p-4 md:p-6 border border-[#f9f9fa]'>
+        <div className='bg-[#fafafb] rounded-2xl p-4 md:p-6 border border-[#f9f9fa]'>
           <h3 className='text-lg md:text-xl font-bold text-gray-900 mb-4 text-center'>
             How to Earn Points
           </h3>

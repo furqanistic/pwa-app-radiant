@@ -439,6 +439,25 @@ const SpaRewardsSection = () => {
   const [optimisticRewards, setOptimisticRewards] = useState(new Set())
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+  const getLinkedServiceId = (reward) => {
+    if (!reward) return null
+    const linkedServices = Array.isArray(reward.linkedServices)
+      ? reward.linkedServices
+      : []
+    const firstLinkedService = linkedServices[0] || null
+    const value =
+      reward.serviceId?._id ||
+      reward.serviceId ||
+      reward.linkedServiceId?._id ||
+      reward.linkedServiceId ||
+      reward.service?._id ||
+      reward.linkedService?._id ||
+      reward.linkedService?.serviceId ||
+      firstLinkedService?.serviceId?._id ||
+      firstLinkedService?.serviceId ||
+      firstLinkedService?._id
+    return value ? String(value) : null
+  }
 
   const {
     rewards = [],
@@ -467,6 +486,26 @@ const SpaRewardsSection = () => {
         description: `You spent ${data.data.pointsSpent} points. New balance: ${data.data.newPointBalance}`,
         duration: 4000,
       })
+
+      const claimedPayload =
+        data?.data?.claimedReward ||
+        data?.data?.reward ||
+        data?.data?.userReward ||
+        data?.claimedReward ||
+        data?.reward ||
+        null
+      const fallbackReward = rewards.find((reward) => reward._id === rewardId)
+      const linkedServiceId =
+        getLinkedServiceId(claimedPayload) || getLinkedServiceId(fallbackReward)
+      if (linkedServiceId) {
+        navigate(withSpaParam(`/services/${linkedServiceId}`), {
+          state: {
+            autoApplyRewardId: rewardId,
+            autoApplyRewardName:
+              claimedPayload?.name || fallbackReward?.name || 'Reward',
+          },
+        })
+      }
 
       // Refresh rewards data
       refetch()
