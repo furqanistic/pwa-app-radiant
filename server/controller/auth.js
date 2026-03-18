@@ -1667,18 +1667,22 @@ export const deleteUser = async (req, res, next) => {
 export const getUserProfile = async (req, res, next) => {
   try {
     const userId = req.params.id
-
-    if (
-      req.user.id !== userId &&
-      !['admin', 'super-admin'].includes(req.user.role)
-    ) {
-      return next(createError(403, 'You can only view your own profile'))
-    }
-
     const user = await User.findById(userId)
 
     if (!user || user.isDeleted) {
       return next(createError(404, 'No user found with that ID'))
+    }
+
+    const isOwnProfile = req.user.id === userId
+    const isAdminOrAbove = ['admin', 'super-admin'].includes(req.user.role)
+    const isSpaViewingOwnClient =
+      req.user.role === 'spa' &&
+      user.role === 'user' &&
+      !!req.user.spaLocation?.locationId &&
+      user.selectedLocation?.locationId === req.user.spaLocation.locationId
+
+    if (!isOwnProfile && !isAdminOrAbove && !isSpaViewingOwnClient) {
+      return next(createError(403, 'You can only view allowed client profiles'))
     }
 
     res.status(200).json({

@@ -76,6 +76,10 @@ const QRCodeScanSchema = new mongoose.Schema(
 );
 
 // Indexes for performance
+QRCodeScanSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 60 * 60 * 24 * 3 }
+);
 QRCodeScanSchema.index({ locationId: 1, createdAt: -1 });
 QRCodeScanSchema.index({ spaOwnerId: 1, createdAt: -1 });
 QRCodeScanSchema.index({ scannedByUser: 1, createdAt: -1 });

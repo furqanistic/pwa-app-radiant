@@ -58,15 +58,12 @@ router.get(
   '/user/:userId/rewards',
   checkManagementAccess,
   async (req, res, next) => {
-    // Temporarily set req.user.id to the target user ID for the controller
-    const originalUserId = req.user.id
-    req.user.id = req.params.userId
+    req.targetUserId = req.params.userId
 
     try {
       await getUserRewards(req, res, next)
     } finally {
-      // Restore original user ID
-      req.user.id = originalUserId
+      delete req.targetUserId
     }
   }
 )
@@ -76,13 +73,12 @@ router.get(
   '/user/:userId/transactions',
   checkManagementAccess,
   async (req, res, next) => {
-    const originalUserId = req.user.id
-    req.user.id = req.params.userId
+    req.targetUserId = req.params.userId
 
     try {
       await getUserPointTransactions(req, res, next)
     } finally {
-      req.user.id = originalUserId
+      delete req.targetUserId
     }
   }
 )
@@ -92,13 +88,12 @@ router.get(
   '/user/:userId/game-stats',
   checkManagementAccess,
   async (req, res, next) => {
-    const originalUserId = req.user.id
-    req.user.id = req.params.userId
+    req.targetUserId = req.params.userId
 
     try {
       await getUserGameStats(req, res, next)
     } finally {
-      req.user.id = originalUserId
+      delete req.targetUserId
     }
   }
 )

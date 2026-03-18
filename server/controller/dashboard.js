@@ -3,11 +3,68 @@ import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Location from '../models/Location.js'
+import QRCodeScan from '../models/QRCodeScan.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 import { mergePointsMethodsWithDefaults } from '../utils/pointsSettings.js'
+
+const RECENT_QR_CLAIMS_WINDOW_DAYS = 3
+const RECENT_QR_CLAIMS_LIMIT = 250
+
+const getRewardPreviewLabel = (reward) => {
+  const snapshot = reward?.rewardSnapshot || {}
+  const rewardType = snapshot?.type
+  const rewardValue = snapshot?.value
+  const winningItem = snapshot?.winningItem || {}
+
+  if (rewardType === 'discount' && rewardValue) {
+    return `${rewardValue}% off`
+  }
+
+  if (winningItem?.valueType === 'discount' && winningItem?.value) {
+    return `${winningItem.value}% off`
+  }
+
+  return (
+    snapshot?.name ||
+    winningItem?.title ||
+    winningItem?.value ||
+    rewardType ||
+    'Active reward'
+  )
+}
+
+const buildRewardSummary = (rewards = []) => {
+  if (!Array.isArray(rewards) || rewards.length === 0) {
+    return {
+      totalActiveRewards: 0,
+      labels: [],
+      nextExpiryAt: null,
+    }
+  }
+
+  const nextExpiryAt =
+    rewards
+      .map((reward) => reward?.expiresAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(a) - new Date(b))[0] || null
+
+  const labels = [
+    ...new Set(
+      rewards
+        .map((reward) => getRewardPreviewLabel(reward))
+        .filter((label) => typeof label === 'string' && label.trim())
+    ),
+  ].slice(0, 3)
+
+  return {
+    totalActiveRewards: rewards.length,
+    labels,
+    nextExpiryAt,
+  }
+}
 
 // Get all dashboard data in one request
 export const getDashboardData = async (req, res, next) => {
@@ -76,11 +133,16 @@ export const getDashboardData = async (req, res, next) => {
     }
 
     // Branch based on user role
-    if (user.role === 'spa') {
-      const locationId = user.spaLocation?.locationId
+    if (['spa', 'admin'].includes(user.role)) {
+      const locationId =
+        user.role === 'spa'
+          ? user.spaLocation?.locationId
+          : user.selectedLocation?.locationId || user.spaLocation?.locationId
       
       if (!locationId) {
-        return next(createError(400, 'Spa location not configured for this account'))
+        return next(
+          createError(400, 'Spa location not configured for this account')
+        )
       }
 
       // 1. Get stats
@@ -126,6 +188,104 @@ export const getDashboardData = async (req, res, next) => {
         const payment = activity?.paymentId
         return !(payment && payment.livemode === false)
       })
+
+      const recentClaimsStart = new Date()
+      recentClaimsStart.setDate(
+        recentClaimsStart.getDate() - RECENT_QR_CLAIMS_WINDOW_DAYS
+      )
+
+      const recentQrScans = await QRCodeScan.find({
+        locationId,
+        status: 'verified',
+        scannedByUser: { $ne: null },
+        createdAt: { $gte: recentClaimsStart },
+      })
+        .sort({ createdAt: -1 })
+        .limit(RECENT_QR_CLAIMS_LIMIT)
+        .populate('scannedByUser', 'name email avatar points')
+        .lean()
+
+      const scannedUserIds = [
+        ...new Set(
+          recentQrScans
+            .map((scan) => scan?.scannedByUser?._id?.toString())
+            .filter(Boolean)
+        ),
+      ]
+
+      const activeRewardsByUser = new Map()
+
+      if (scannedUserIds.length > 0) {
+        const activeRewards = await UserReward.find({
+          userId: { $in: scannedUserIds },
+          locationId,
+          status: 'active',
+          $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+        })
+          .select('userId rewardSnapshot expiresAt')
+          .sort({ claimedAt: -1 })
+          .lean()
+
+        activeRewards.forEach((reward) => {
+          const rewardUserId = reward?.userId?.toString()
+          if (!rewardUserId) return
+
+          if (!activeRewardsByUser.has(rewardUserId)) {
+            activeRewardsByUser.set(rewardUserId, [])
+          }
+
+          activeRewardsByUser.get(rewardUserId).push(reward)
+        })
+      }
+
+      const recentQrClaims = recentQrScans.map((scan) => {
+        const scannedByUser = scan?.scannedByUser
+        const scannedByUserId = scannedByUser?._id?.toString()
+        const rewardSummary = buildRewardSummary(
+          scannedByUserId ? activeRewardsByUser.get(scannedByUserId) || [] : []
+        )
+
+        return {
+          _id: scan._id,
+          claimedAt: scan.createdAt,
+          pointsAwarded: scan.pointsAwarded || 0,
+          scannedByEmail: scan.scannedByEmail,
+          customer: scannedByUser
+            ? {
+                _id: scannedByUser._id,
+                name: scannedByUser.name,
+                email: scannedByUser.email,
+                avatar: scannedByUser.avatar,
+                points: scannedByUser.points || 0,
+              }
+            : null,
+          activeRewardSummary: rewardSummary,
+        }
+      })
+
+      const [recentQrClaimsTotal, recentQrClaimVisitorRows] = await Promise.all([
+        QRCodeScan.countDocuments({
+          locationId,
+          status: 'verified',
+          scannedByUser: { $ne: null },
+          createdAt: { $gte: recentClaimsStart },
+        }),
+        QRCodeScan.aggregate([
+          {
+            $match: {
+              locationId,
+              status: 'verified',
+              scannedByUser: { $ne: null },
+              createdAt: { $gte: recentClaimsStart },
+            },
+          },
+          {
+            $group: {
+              _id: '$scannedByUser',
+            },
+          },
+        ]),
+      ])
 
       // 3. Get Upcoming Bookings
       const currentBookings = await Booking.find({
@@ -207,7 +367,7 @@ export const getDashboardData = async (req, res, next) => {
       return res.status(200).json({
         status: 'success',
         data: {
-          role: 'spa',
+          role: user.role,
           stats: {
             totalClients,
             totalVisits,
@@ -222,6 +382,13 @@ export const getDashboardData = async (req, res, next) => {
             topServices
           },
           liveActivity: filteredLiveActivity,
+          recentQrClaims,
+          recentQrClaimsSummary: {
+            days: RECENT_QR_CLAIMS_WINDOW_DAYS,
+            totalClaims: recentQrClaimsTotal,
+            uniqueVisitors: recentQrClaimVisitorRows.length,
+            latestClaimAt: recentQrClaims[0]?.claimedAt || null,
+          },
           currentBookings,
           spaLocation: user.spaLocation,
           automatedGifts

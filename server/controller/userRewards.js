@@ -5,10 +5,12 @@ import PointTransaction from '../models/PointTransaction.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 
+const getRequestedUserId = (req) => req.targetUserId || req.user.id
+
 // Get user's active rewards (for profile display)
 export const getUserRewards = async (req, res, next) => {
   try {
-    const userId = req.user.id
+    const userId = getRequestedUserId(req)
     const { status = 'all', type = 'all', page = 1, limit = 20 } = req.query
 
     // Build filter
@@ -103,7 +105,7 @@ export const getUserRewards = async (req, res, next) => {
 // Get user's point transaction history
 export const getUserPointTransactions = async (req, res, next) => {
   try {
-    const userId = req.user.id
+    const userId = getRequestedUserId(req)
     const { type = 'all', page = 1, limit = 20 } = req.query
 
     // Build filter
@@ -320,7 +322,7 @@ export const getSpaRedemptionQueue = async (req, res, next) => {
 // Get user's game statistics for profile
 export const getUserGameStats = async (req, res, next) => {
   try {
-    const userId = req.user.id
+    const userId = getRequestedUserId(req)
 
     // Get all game rewards for this user
     const gameRewards = await UserReward.find({
