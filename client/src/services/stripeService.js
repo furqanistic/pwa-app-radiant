@@ -79,6 +79,90 @@ const stripeService = {
     return response.data
   },
 
+  getMembershipBillingSummary: async (locationId = null) => {
+    const response = await axiosInstance.get(
+      'stripe/payment/membership/billing-summary',
+      {
+        params: locationId ? { locationId } : {},
+      }
+    )
+    return response.data
+  },
+
+  createMembershipSetupIntent: async (locationId) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/setup-intent',
+      { locationId }
+    )
+    return response.data
+  },
+
+  createMembershipBillingPortalSession: async ({ locationId, returnUrl }) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/billing-portal',
+      {
+        locationId,
+        returnUrl,
+      }
+    )
+    return response.data
+  },
+
+  getMembershipPaymentMethods: async (locationId = null) => {
+    const response = await axiosInstance.get(
+      'stripe/payment/membership/payment-methods',
+      {
+        params: locationId ? { locationId } : {},
+      }
+    )
+    return response.data
+  },
+
+  setMembershipDefaultPaymentMethod: async ({ locationId, paymentMethodId }) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/default-payment-method',
+      {
+        locationId,
+        paymentMethodId,
+      }
+    )
+    return response.data
+  },
+
+  removeMembershipPaymentMethod: async ({ locationId, paymentMethodId }) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/remove-payment-method',
+      {
+        locationId,
+        paymentMethodId,
+      }
+    )
+    return response.data
+  },
+
+  createMembershipSubscription: async (payload) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/subscription',
+      payload
+    )
+    return response.data
+  },
+
+  changeMembershipSubscriptionPlan: async (payload) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/subscription/change-plan',
+      payload
+    )
+    return response.data
+  },
+
+  getMembershipInvoices: async (locationId = null) => {
+    const response = await axiosInstance.get('stripe/payment/membership/invoices', {
+      params: locationId ? { locationId } : {},
+    })
+    return response.data
+  },
+
   /**
    * Create a payment intent
    */

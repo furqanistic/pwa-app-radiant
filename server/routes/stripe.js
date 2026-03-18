@@ -4,17 +4,26 @@ import {
     confirmPayment,
     createAccountLink,
     createCheckoutSession,
+    createMembershipSetupIntent,
+    createMembershipBillingPortalSession,
     createMembershipCheckoutSession,
+    createMembershipSubscription,
     createConnectAccount,
     createPaymentIntent,
+    changeMembershipSubscriptionPlan,
     disconnectAccount,
     getAccountDashboard,
     getAccountStatus,
     getClientRevenueAnalytics,
+    getMembershipBillingSummary,
+    getMembershipInvoices,
+    getMembershipPaymentMethods,
     getPaymentHistory,
     getRevenueAnalytics,
     handleWebhook,
     processRefund,
+    removeMembershipPaymentMethod,
+    setMembershipDefaultPaymentMethod,
 } from '../controller/stripeController.js';
 import { checkManagementAccess, verifyToken } from '../middleware/authMiddleware.js';
 
@@ -48,6 +57,31 @@ router.post(
   verifyToken,
   createMembershipCheckoutSession
 );
+router.get('/payment/membership/billing-summary', verifyToken, getMembershipBillingSummary);
+router.post('/payment/membership/setup-intent', verifyToken, createMembershipSetupIntent);
+router.post(
+  '/payment/membership/billing-portal',
+  verifyToken,
+  createMembershipBillingPortalSession
+);
+router.get('/payment/membership/payment-methods', verifyToken, getMembershipPaymentMethods);
+router.post(
+  '/payment/membership/default-payment-method',
+  verifyToken,
+  setMembershipDefaultPaymentMethod
+);
+router.post(
+  '/payment/membership/remove-payment-method',
+  verifyToken,
+  removeMembershipPaymentMethod
+);
+router.post('/payment/membership/subscription', verifyToken, createMembershipSubscription);
+router.post(
+  '/payment/membership/subscription/change-plan',
+  verifyToken,
+  changeMembershipSubscriptionPlan
+);
+router.get('/payment/membership/invoices', verifyToken, getMembershipInvoices);
 
 // Create payment intent (for customers)
 router.post('/payment/create-intent', verifyToken, createPaymentIntent);

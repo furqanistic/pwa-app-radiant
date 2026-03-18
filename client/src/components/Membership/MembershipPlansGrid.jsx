@@ -6,6 +6,7 @@ const MembershipPlansGrid = ({
   membershipServices = [],
   onSelectService,
   includeServiceMemberships = true,
+  getPlanActionProps,
   className = 'grid grid-cols-1 gap-6 md:px-8',
 }) => {
   const hasPlans = Array.isArray(plans) && plans.length > 0
@@ -73,6 +74,9 @@ const MembershipPlansGrid = ({
       {hasPlans &&
         plans.map((plan, index) => {
           const linkedService = resolveLinkedServiceForPlan(plan)
+          const actionProps = getPlanActionProps
+            ? getPlanActionProps(plan, linkedService)
+            : {}
 
           return (
           <MembershipCard
@@ -87,6 +91,10 @@ const MembershipPlansGrid = ({
             membership={plan}
             key={`location-membership-plan-${index}`}
             onSelect={linkedService ? onSelectService : undefined}
+            ctaLabel={actionProps?.ctaLabel}
+            disabled={Boolean(actionProps?.disabled)}
+            statusBadge={actionProps?.statusBadge}
+            helperText={actionProps?.helperText}
           />
           )
         })}

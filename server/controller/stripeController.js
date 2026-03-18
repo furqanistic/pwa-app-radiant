@@ -335,6 +335,485 @@ const resolvePurchasePoints = async (locationId, amount, cache = null) => {
   return Math.max(0, Math.floor(pointsValue))
 }
 
+const MEMBERSHIP_ACTIVE_STATUSES = new Set(['active', 'trialing'])
+const MEMBERSHIP_VISIBLE_STATUSES = new Set([
+  'active',
+  'trialing',
+  'past_due',
+  'incomplete',
+  'unpaid',
+])
+
+const toDateFromUnix = (value) =>
+  Number.isFinite(Number(value)) ? new Date(Number(value) * 1000) : null
+
+const getEmptyMembershipDefaultPaymentMethod = () => ({
+  paymentMethodId: null,
+  brand: null,
+  last4: null,
+  expMonth: null,
+  expYear: null,
+})
+
+const getEmptyMembershipPendingPlan = () => ({
+  planId: null,
+  planName: null,
+  price: null,
+  currency: 'usd',
+  effectiveAt: null,
+})
+
+const ensureMembershipBillingShape = (user) => {
+  if (!user.membershipBilling?.defaultPaymentMethod) {
+    user.set(
+      'membershipBilling.defaultPaymentMethod',
+      getEmptyMembershipDefaultPaymentMethod()
+    )
+  }
+
+  if (!user.membershipBilling?.pendingPlan) {
+    user.set('membershipBilling.pendingPlan', getEmptyMembershipPendingPlan())
+  }
+}
+
+const buildMembershipPlanId = (plan, fallback = null) =>
+  `${plan?._id || plan?.planId || plan?.id || fallback || ''}`.trim() || null
+
+const getLocationMembershipPlans = (location) => {
+  const membership = normalizeMembershipForStripe(location?.membership || {})
+  return Array.isArray(membership.plans) ? membership.plans : []
+}
+
+const getMembershipLocationIdFromRequest = (req) =>
+  req.body?.locationId ||
+  req.query?.locationId ||
+  req.user?.membershipBilling?.locationId ||
+  req.user?.membership?.locationId ||
+  req.user?.selectedLocation?.locationId ||
+  req.user?.spaLocation?.locationId ||
+  null
+
+const resolveMembershipLocationAndOwner = async (locationId) => {
+  if (!locationId) {
+    throw createError(400, 'Location ID is required for membership billing.')
+  }
+
+  const [location, spaOwner] = await Promise.all([
+    Location.findOne({ locationId }),
+    findStripeReadySpaOwnerByLocation(locationId),
+  ])
+
+  if (!location) {
+    throw createError(404, 'Location not found')
+  }
+
+  if (!spaOwner) {
+    throw createError(400, 'No Stripe-ready spa account found for this location')
+  }
+
+  if (!location?.membership?.isActive) {
+    throw createError(400, 'Membership is not active for this location yet.')
+  }
+
+  return { location, spaOwner, stripeAccountId: spaOwner.stripe.accountId }
+}
+
+const findMembershipServiceForLocation = async ({ locationId, serviceId, planName = null }) => {
+  if (serviceId) {
+    const service = await Service.findById(serviceId)
+    if (service && !service.isDeleted && service.status === 'active') {
+      return service
+    }
+  }
+
+  const services = await Service.find({
+    locationId,
+    isDeleted: { $ne: true },
+    status: 'active',
+  })
+
+  return (
+    services.find((service) => {
+      if (!isMembershipServicePurchase(service)) return false
+      if (!planName) return true
+      return getActiveMembershipPricingEntries(service).some(
+        (entry) =>
+          `${entry?.membershipPlanName || ''}`.trim().toLowerCase() ===
+          `${planName}`.trim().toLowerCase()
+      )
+    }) || null
+  )
+}
+
+const resolveMembershipPlanForLocation = ({ location, planId, planName }) => {
+  const plans = getLocationMembershipPlans(location)
+  const requestedPlanId = `${planId || ''}`.trim()
+  const requestedPlanName = `${planName || ''}`.trim().toLowerCase()
+  const hasRequestedPlan = Boolean(requestedPlanId || requestedPlanName)
+
+  const matchedPlan = hasRequestedPlan
+    ? plans.find((plan, index) => {
+        const candidatePlanId = buildMembershipPlanId(plan, `membership-plan-${index}`)
+        if (requestedPlanId && candidatePlanId && candidatePlanId === requestedPlanId) {
+          return true
+        }
+
+        if (requestedPlanName) {
+          return `${plan?.name || ''}`.trim().toLowerCase() === requestedPlanName
+        }
+
+        return false
+      })
+    : plans[0]
+
+  if (!matchedPlan) {
+    throw createError(
+      404,
+      hasRequestedPlan
+        ? 'Requested membership plan not found for this location'
+        : 'Membership plan not found for this location'
+    )
+  }
+
+  if (!matchedPlan.stripePriceId) {
+    throw createError(
+      400,
+      'This membership plan is not connected to recurring Stripe billing yet.'
+    )
+  }
+
+  return {
+    ...matchedPlan,
+    resolvedPlanId: buildMembershipPlanId(matchedPlan, matchedPlan.name),
+    numericPrice: Number(matchedPlan.price || 0),
+    currency: `${matchedPlan.currency || 'usd'}`.toLowerCase(),
+  }
+}
+
+const mapCardPaymentMethod = (paymentMethod, defaultPaymentMethodId = null) => ({
+  id: paymentMethod.id,
+  brand: paymentMethod.card?.brand || null,
+  last4: paymentMethod.card?.last4 || null,
+  expMonth: paymentMethod.card?.exp_month || null,
+  expYear: paymentMethod.card?.exp_year || null,
+  isDefault: Boolean(defaultPaymentMethodId && paymentMethod.id === defaultPaymentMethodId),
+})
+
+const syncMembershipDefaultPaymentMethodOnUser = async ({
+  user,
+  stripeAccountId,
+  paymentMethod,
+  locationId = null,
+}) => {
+  ensureMembershipBillingShape(user)
+  user.set(
+    'membershipBilling.stripeAccountId',
+    stripeAccountId || user.membershipBilling?.stripeAccountId || null
+  )
+  user.set(
+    'membershipBilling.locationId',
+    locationId || user.membershipBilling?.locationId || null
+  )
+  user.set(
+    'membershipBilling.defaultPaymentMethod',
+    paymentMethod
+      ? {
+          paymentMethodId: paymentMethod.id,
+          brand: paymentMethod.card?.brand || null,
+          last4: paymentMethod.card?.last4 || null,
+          expMonth: paymentMethod.card?.exp_month || null,
+          expYear: paymentMethod.card?.exp_year || null,
+        }
+      : getEmptyMembershipDefaultPaymentMethod()
+  )
+
+  await user.save()
+}
+
+const ensureMembershipCustomer = async ({
+  user,
+  stripeAccountId,
+  locationId,
+}) => {
+  const existingCustomerId = user.membershipBilling?.stripeCustomerId
+  const existingStripeAccountId = user.membershipBilling?.stripeAccountId
+
+  if (existingCustomerId && existingStripeAccountId === stripeAccountId) {
+    return existingCustomerId
+  }
+
+  const customer = await stripe.customers.create(
+    {
+      email: user.email,
+      name: user.name || user.email,
+      metadata: {
+        userId: user._id.toString(),
+        locationId: `${locationId || ''}`,
+      },
+    },
+    { stripeAccount: stripeAccountId }
+  )
+
+  ensureMembershipBillingShape(user)
+  user.set('membershipBilling.stripeCustomerId', customer.id)
+  user.set('membershipBilling.stripeAccountId', stripeAccountId)
+  user.set('membershipBilling.locationId', locationId)
+  await user.save()
+
+  return customer.id
+}
+
+const listMembershipPaymentMethods = async ({
+  customerId,
+  stripeAccountId,
+}) => {
+  const customer = await stripe.customers.retrieve(
+    customerId,
+    {},
+    {
+      stripeAccount: stripeAccountId,
+    }
+  )
+  const defaultPaymentMethodId =
+    customer?.invoice_settings?.default_payment_method || null
+  const paymentMethodsResponse = await stripe.paymentMethods.list(
+    {
+      customer: customerId,
+      type: 'card',
+    },
+    { stripeAccount: stripeAccountId }
+  )
+
+  return {
+    defaultPaymentMethodId,
+    paymentMethods: (paymentMethodsResponse?.data || []).map((paymentMethod) =>
+      mapCardPaymentMethod(paymentMethod, defaultPaymentMethodId)
+    ),
+  }
+}
+
+const findMembershipUserByCustomer = async ({ customerId, stripeAccountId }) =>
+  User.findOne({
+    'membershipBilling.stripeCustomerId': customerId,
+    'membershipBilling.stripeAccountId': stripeAccountId,
+  })
+
+const findMembershipUserBySubscription = async ({
+  subscriptionId,
+  stripeAccountId,
+}) =>
+  User.findOne({
+    'membershipBilling.subscriptionId': subscriptionId,
+    'membershipBilling.stripeAccountId': stripeAccountId,
+  })
+
+const resolveMembershipPlanFromPriceId = ({ location, priceId }) => {
+  if (!location || !priceId) return null
+  const plans = getLocationMembershipPlans(location)
+  const matchedPlan = plans.find(
+    (plan) => `${plan?.stripePriceId || ''}`.trim() === `${priceId}`.trim()
+  )
+
+  if (!matchedPlan) return null
+
+  return {
+    ...matchedPlan,
+    resolvedPlanId: buildMembershipPlanId(matchedPlan, matchedPlan.name),
+    numericPrice: Number(matchedPlan.price || 0),
+    currency: `${matchedPlan.currency || 'usd'}`.toLowerCase(),
+  }
+}
+
+const applyMembershipStateToUser = async ({
+  user,
+  locationId,
+  serviceId = null,
+  subscription = null,
+  plan = null,
+  invoice = null,
+  stripeAccountId = null,
+  defaultPaymentMethod = null,
+  preserveCurrentPlan = false,
+  clearPendingPlan = false,
+}) => {
+  ensureMembershipBillingShape(user)
+  const subscriptionStatus = `${subscription?.status || user.membershipBilling?.subscriptionStatus || 'inactive'}`
+    .trim()
+    .toLowerCase()
+  const currentPeriodStart =
+    toDateFromUnix(subscription?.current_period_start) ||
+    user.membershipBilling?.currentPeriodStart ||
+    null
+  const currentPeriodEnd =
+    toDateFromUnix(subscription?.current_period_end) ||
+    user.membershipBilling?.currentPeriodEnd ||
+    null
+  const isActiveMembership = MEMBERSHIP_ACTIVE_STATUSES.has(subscriptionStatus)
+  const shouldShowMembership = MEMBERSHIP_VISIBLE_STATUSES.has(subscriptionStatus)
+  const nextPlan = preserveCurrentPlan ? null : plan
+  const membershipPlan =
+    preserveCurrentPlan && user.membership?.planName ? null : plan
+
+  user.set(
+    'membershipBilling.stripeAccountId',
+    stripeAccountId || user.membershipBilling?.stripeAccountId || null
+  )
+  user.set(
+    'membershipBilling.locationId',
+    locationId || user.membershipBilling?.locationId || null
+  )
+  user.set(
+    'membershipBilling.serviceId',
+    serviceId || user.membershipBilling?.serviceId || null
+  )
+  user.set(
+    'membershipBilling.subscriptionId',
+    subscription?.id || user.membershipBilling?.subscriptionId || null
+  )
+  user.set(
+    'membershipBilling.subscriptionItemId',
+    subscription?.items?.data?.[0]?.id ||
+      user.membershipBilling?.subscriptionItemId ||
+      null
+  )
+  user.set('membershipBilling.subscriptionStatus', subscriptionStatus)
+  user.set('membershipBilling.currentPeriodStart', currentPeriodStart)
+  user.set('membershipBilling.currentPeriodEnd', currentPeriodEnd)
+  user.set(
+    'membershipBilling.cancelAtPeriodEnd',
+    Boolean(subscription?.cancel_at_period_end ?? user.membershipBilling?.cancelAtPeriodEnd)
+  )
+  user.set(
+    'membershipBilling.lastInvoiceId',
+    invoice?.id || user.membershipBilling?.lastInvoiceId || null
+  )
+  user.set(
+    'membershipBilling.lastInvoiceUrl',
+    invoice?.hosted_invoice_url || user.membershipBilling?.lastInvoiceUrl || null
+  )
+  user.set(
+    'membershipBilling.lastPaymentAt',
+    (invoice?.status_transitions?.paid_at
+      ? toDateFromUnix(invoice.status_transitions.paid_at)
+      : null) ||
+      user.membershipBilling?.lastPaymentAt ||
+      null
+  )
+  user.set(
+    'membershipBilling.defaultPaymentMethod',
+    defaultPaymentMethod
+      ? {
+          paymentMethodId: defaultPaymentMethod.id,
+          brand: defaultPaymentMethod.card?.brand || null,
+          last4: defaultPaymentMethod.card?.last4 || null,
+          expMonth: defaultPaymentMethod.card?.exp_month || null,
+          expYear: defaultPaymentMethod.card?.exp_year || null,
+        }
+      : user.membershipBilling?.defaultPaymentMethod ||
+          getEmptyMembershipDefaultPaymentMethod()
+  )
+  user.set(
+    'membershipBilling.pendingPlan',
+    clearPendingPlan
+      ? getEmptyMembershipPendingPlan()
+      : user.membershipBilling?.pendingPlan || getEmptyMembershipPendingPlan()
+  )
+
+  const currentPlanName = membershipPlan?.name || user.membership?.planName || null
+  const currentPlanId =
+    membershipPlan?.resolvedPlanId || user.membership?.planId || null
+  const currentPrice =
+    membershipPlan && Number.isFinite(Number(membershipPlan.numericPrice))
+      ? Number(membershipPlan.numericPrice)
+      : user.membership?.price ?? null
+  const currentCurrency =
+    membershipPlan?.currency || user.membership?.currency || 'usd'
+
+  user.membership = {
+    ...(user.membership || {}),
+    isActive: isActiveMembership,
+    status: shouldShowMembership ? subscriptionStatus : 'inactive',
+    planName: currentPlanName,
+    planId: currentPlanId,
+    price: currentPrice,
+    currency: currentCurrency,
+    serviceId: serviceId || user.membership?.serviceId || null,
+    locationId: locationId || user.membership?.locationId || null,
+    startedAt: currentPeriodStart || user.membership?.startedAt || null,
+    expiresAt: currentPeriodEnd || user.membership?.expiresAt || null,
+    lastPaymentAt:
+      user.membershipBilling?.lastPaymentAt || user.membership?.lastPaymentAt || null,
+  }
+  user.membershipStatus = shouldShowMembership ? subscriptionStatus : 'inactive'
+  user.activeMembership = {
+    ...(user.activeMembership || {}),
+    isActive: isActiveMembership,
+    status: shouldShowMembership ? subscriptionStatus : 'inactive',
+    planName: currentPlanName,
+    planId: currentPlanId,
+    startedAt: currentPeriodStart || user.activeMembership?.startedAt || null,
+    expiresAt: currentPeriodEnd || user.activeMembership?.expiresAt || null,
+    locationId: locationId || user.activeMembership?.locationId || null,
+  }
+
+  await user.save()
+}
+
+const buildMembershipSummaryResponse = async ({
+  user,
+  locationId,
+  stripeAccountId = null,
+  paymentMethods = [],
+}) => {
+  const membership = user.membership || {}
+  const billing = user.membershipBilling || {}
+  const resolvedDefaultMethod =
+    paymentMethods.find(
+      (method) =>
+        method.id === billing?.defaultPaymentMethod?.paymentMethodId && method.isDefault
+    ) ||
+    (billing?.defaultPaymentMethod?.paymentMethodId
+      ? {
+          id: billing.defaultPaymentMethod.paymentMethodId,
+          brand: billing.defaultPaymentMethod.brand,
+          last4: billing.defaultPaymentMethod.last4,
+          expMonth: billing.defaultPaymentMethod.expMonth,
+          expYear: billing.defaultPaymentMethod.expYear,
+          isDefault: true,
+        }
+      : null)
+
+  return {
+    locationId: locationId || billing.locationId || membership.locationId || null,
+    stripeAccountId: stripeAccountId || billing.stripeAccountId || null,
+    customerId: billing.stripeCustomerId || null,
+    paymentMethods,
+    defaultPaymentMethod: resolvedDefaultMethod,
+    hasPaymentMethod: paymentMethods.length > 0 || Boolean(resolvedDefaultMethod),
+    membership: {
+      isActive: Boolean(membership.isActive),
+      status: membership.status || 'inactive',
+      planName: membership.planName || null,
+      planId: membership.planId || null,
+      price: membership.price ?? null,
+      currency: membership.currency || 'usd',
+      startedAt: membership.startedAt || null,
+      expiresAt: membership.expiresAt || null,
+      lastPaymentAt: membership.lastPaymentAt || billing.lastPaymentAt || null,
+    },
+    subscription: {
+      id: billing.subscriptionId || null,
+      status: billing.subscriptionStatus || 'inactive',
+      currentPeriodStart: billing.currentPeriodStart || null,
+      currentPeriodEnd: billing.currentPeriodEnd || null,
+      cancelAtPeriodEnd: Boolean(billing.cancelAtPeriodEnd),
+      lastInvoiceId: billing.lastInvoiceId || null,
+      lastInvoiceUrl: billing.lastInvoiceUrl || null,
+      pendingPlan: billing.pendingPlan || null,
+    },
+  }
+}
+
 // ==================== STRIPE CONNECT FUNCTIONS ====================
 
 /**
@@ -593,6 +1072,704 @@ export const getAccountDashboard = async (req, res, next) => {
 }
 
 // ==================== PAYMENT FUNCTIONS ====================
+
+export const getMembershipBillingSummary = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    if (!locationId) {
+      return res.status(200).json({
+        success: true,
+        summary: await buildMembershipSummaryResponse({ user, locationId: null }),
+      })
+    }
+
+    let paymentMethods = []
+    const billingLocationMatches =
+      user.membershipBilling?.locationId &&
+      `${user.membershipBilling.locationId}`.trim() === `${locationId}`.trim()
+    const stripeAccountId = billingLocationMatches
+      ? user.membershipBilling?.stripeAccountId
+      : null
+
+    if (user.membershipBilling?.stripeCustomerId && stripeAccountId) {
+      try {
+        const paymentMethodState = await listMembershipPaymentMethods({
+          customerId: user.membershipBilling.stripeCustomerId,
+          stripeAccountId,
+        })
+        paymentMethods = paymentMethodState.paymentMethods
+      } catch (paymentMethodError) {
+        console.error('Failed to load membership payment methods:', paymentMethodError)
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      summary: await buildMembershipSummaryResponse({
+        user,
+        locationId,
+        stripeAccountId,
+        paymentMethods,
+      }),
+    })
+  } catch (error) {
+    console.error('Error fetching membership billing summary:', error)
+    next(error)
+  }
+}
+
+export const createMembershipSetupIntent = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const { stripeAccountId } = await resolveMembershipLocationAndOwner(locationId)
+    const customerId = await ensureMembershipCustomer({
+      user,
+      stripeAccountId,
+      locationId,
+    })
+
+    const setupIntent = await stripe.setupIntents.create(
+      {
+        customer: customerId,
+        payment_method_types: ['card'],
+        usage: 'off_session',
+        metadata: {
+          userId: user._id.toString(),
+          locationId: `${locationId}`,
+          membershipSetup: 'true',
+        },
+      },
+      { stripeAccount: stripeAccountId }
+    )
+
+    res.status(201).json({
+      success: true,
+      clientSecret: setupIntent.client_secret,
+      customerId,
+      stripeAccountId,
+    })
+  } catch (error) {
+    console.error('Error creating membership setup intent:', error)
+    next(error)
+  }
+}
+
+export const getMembershipPaymentMethods = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const billingLocationMatches =
+      locationId &&
+      user.membershipBilling?.locationId &&
+      `${user.membershipBilling.locationId}`.trim() === `${locationId}`.trim()
+
+    if (
+      !user.membershipBilling?.stripeCustomerId ||
+      !user.membershipBilling?.stripeAccountId ||
+      !billingLocationMatches
+    ) {
+      return res.status(200).json({
+        success: true,
+        paymentMethods: [],
+        defaultPaymentMethodId: null,
+      })
+    }
+
+    const paymentMethodState = await listMembershipPaymentMethods({
+      customerId: user.membershipBilling.stripeCustomerId,
+      stripeAccountId: user.membershipBilling.stripeAccountId,
+    })
+
+    res.status(200).json({
+      success: true,
+      ...paymentMethodState,
+    })
+  } catch (error) {
+    console.error('Error fetching membership payment methods:', error)
+    next(error)
+  }
+}
+
+export const setMembershipDefaultPaymentMethod = async (req, res, next) => {
+  try {
+    const { paymentMethodId } = req.body
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (!paymentMethodId) {
+      return next(createError(400, 'paymentMethodId is required'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const billingLocationMatches =
+      locationId &&
+      user.membershipBilling?.locationId &&
+      `${user.membershipBilling.locationId}`.trim() === `${locationId}`.trim()
+
+    if (
+      !user.membershipBilling?.stripeCustomerId ||
+      !user.membershipBilling?.stripeAccountId ||
+      !billingLocationMatches
+    ) {
+      return next(createError(400, 'No saved membership billing profile found'))
+    }
+
+    const stripeAccountId = user.membershipBilling.stripeAccountId
+
+    await stripe.customers.update(
+      user.membershipBilling.stripeCustomerId,
+      {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      },
+      { stripeAccount: stripeAccountId }
+    )
+
+    if (user.membershipBilling?.subscriptionId) {
+      await stripe.subscriptions.update(
+        user.membershipBilling.subscriptionId,
+        {
+          default_payment_method: paymentMethodId,
+        },
+        { stripeAccount: stripeAccountId }
+      )
+    }
+
+    const paymentMethod = await stripe.paymentMethods.retrieve(
+      paymentMethodId,
+      {},
+      {
+        stripeAccount: stripeAccountId,
+      }
+    )
+    await syncMembershipDefaultPaymentMethodOnUser({
+      user,
+      stripeAccountId,
+      paymentMethod,
+      locationId,
+    })
+
+    const paymentMethodState = await listMembershipPaymentMethods({
+      customerId: user.membershipBilling.stripeCustomerId,
+      stripeAccountId,
+    })
+
+    res.status(200).json({
+      success: true,
+      message: 'Default payment method updated successfully',
+      ...paymentMethodState,
+    })
+  } catch (error) {
+    console.error('Error setting membership default payment method:', error)
+    next(error)
+  }
+}
+
+export const removeMembershipPaymentMethod = async (req, res, next) => {
+  try {
+    const { paymentMethodId } = req.body
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (!paymentMethodId) {
+      return next(createError(400, 'paymentMethodId is required'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const billingLocationMatches =
+      locationId &&
+      user.membershipBilling?.locationId &&
+      `${user.membershipBilling.locationId}`.trim() === `${locationId}`.trim()
+
+    if (
+      !user.membershipBilling?.stripeCustomerId ||
+      !user.membershipBilling?.stripeAccountId ||
+      !billingLocationMatches
+    ) {
+      return next(createError(400, 'No saved membership billing profile found'))
+    }
+
+    const stripeAccountId = user.membershipBilling.stripeAccountId
+    const paymentMethodState = await listMembershipPaymentMethods({
+      customerId: user.membershipBilling.stripeCustomerId,
+      stripeAccountId,
+    })
+    const paymentMethods = paymentMethodState.paymentMethods || []
+    const targetMethod = paymentMethods.find((method) => method.id === paymentMethodId)
+
+    if (!targetMethod) {
+      return next(createError(404, 'Saved card not found'))
+    }
+
+    const visibleSubscriptionStatuses = ['active', 'trialing', 'past_due', 'incomplete', 'unpaid']
+    const hasSubscriptionRequiringCard =
+      user.membershipBilling?.subscriptionId &&
+      visibleSubscriptionStatuses.includes(
+        `${user.membershipBilling?.subscriptionStatus || ''}`.toLowerCase()
+      )
+
+    if (hasSubscriptionRequiringCard && paymentMethods.length === 1) {
+      return next(
+        createError(
+          400,
+          'You cannot remove the only saved card while your membership subscription is active.'
+        )
+      )
+    }
+
+    const fallbackDefaultMethod = paymentMethods.find(
+      (method) => method.id !== paymentMethodId
+    )
+
+    if (targetMethod.isDefault) {
+      const nextDefaultMethodId = fallbackDefaultMethod?.id || null
+
+      await stripe.customers.update(
+        user.membershipBilling.stripeCustomerId,
+        {
+          invoice_settings: {
+            default_payment_method: nextDefaultMethodId,
+          },
+        },
+        { stripeAccount: stripeAccountId }
+      )
+
+      if (user.membershipBilling?.subscriptionId) {
+        await stripe.subscriptions.update(
+          user.membershipBilling.subscriptionId,
+          {
+            default_payment_method: nextDefaultMethodId,
+          },
+          { stripeAccount: stripeAccountId }
+        )
+      }
+
+      if (nextDefaultMethodId) {
+        const nextDefaultMethod = await stripe.paymentMethods.retrieve(
+          nextDefaultMethodId,
+          {},
+          {
+            stripeAccount: stripeAccountId,
+          }
+        )
+        await syncMembershipDefaultPaymentMethodOnUser({
+          user,
+          stripeAccountId,
+          paymentMethod: nextDefaultMethod,
+          locationId,
+        })
+      } else {
+        await syncMembershipDefaultPaymentMethodOnUser({
+          user,
+          stripeAccountId,
+          paymentMethod: null,
+          locationId,
+        })
+      }
+    }
+
+    await stripe.paymentMethods.detach(paymentMethodId, {
+      stripeAccount: stripeAccountId,
+    })
+
+    const refreshedPaymentMethodState = await listMembershipPaymentMethods({
+      customerId: user.membershipBilling.stripeCustomerId,
+      stripeAccountId,
+    })
+
+    if ((refreshedPaymentMethodState.paymentMethods || []).length === 0) {
+      await syncMembershipDefaultPaymentMethodOnUser({
+        user,
+        stripeAccountId,
+        paymentMethod: null,
+        locationId,
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Saved card removed successfully',
+      ...refreshedPaymentMethodState,
+    })
+  } catch (error) {
+    console.error('Error removing membership payment method:', error)
+    next(error)
+  }
+}
+
+export const createMembershipSubscription = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+    const { serviceId, planId, planName } = req.body
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const { location, stripeAccountId } =
+      await resolveMembershipLocationAndOwner(locationId)
+    const service = await findMembershipServiceForLocation({
+      locationId,
+      serviceId,
+      planName,
+    })
+
+    if (!service || !isMembershipServicePurchase(service)) {
+      return next(createError(404, 'Membership service not found for this location'))
+    }
+
+    const plan = resolveMembershipPlanForLocation({
+      location,
+      planId,
+      planName,
+    })
+    const customerId = await ensureMembershipCustomer({
+      user,
+      stripeAccountId,
+      locationId,
+    })
+    const paymentMethodState = await listMembershipPaymentMethods({
+      customerId,
+      stripeAccountId,
+    })
+
+    if (paymentMethodState.paymentMethods.length === 0) {
+      return next(createError(400, 'Add a card before buying a membership plan.'))
+    }
+
+    const defaultPaymentMethodId =
+      paymentMethodState.defaultPaymentMethodId ||
+      paymentMethodState.paymentMethods[0]?.id ||
+      null
+
+    if (!defaultPaymentMethodId) {
+      return next(createError(400, 'No default card found for membership billing.'))
+    }
+
+    if (
+      user.membershipBilling?.subscriptionId &&
+      MEMBERSHIP_VISIBLE_STATUSES.has(
+        `${user.membershipBilling.subscriptionStatus || ''}`.toLowerCase()
+      )
+    ) {
+      return next(
+        createError(
+          409,
+          'You already have a membership subscription. Use upgrade or downgrade instead.'
+        )
+      )
+    }
+
+    const subscription = await stripe.subscriptions.create(
+      {
+        customer: customerId,
+        items: [{ price: plan.stripePriceId }],
+        default_payment_method: defaultPaymentMethodId,
+        collection_method: 'charge_automatically',
+        payment_behavior: 'error_if_incomplete',
+        metadata: {
+          userId: user._id.toString(),
+          locationId: `${locationId}`,
+          serviceId: service._id.toString(),
+          planId: `${plan.resolvedPlanId || ''}`,
+          planName: `${plan.name || ''}`,
+        },
+        expand: ['default_payment_method', 'items.data.price'],
+      },
+      { stripeAccount: stripeAccountId }
+    )
+
+    const defaultPaymentMethod = await stripe.paymentMethods.retrieve(
+      defaultPaymentMethodId,
+      {},
+      {
+        stripeAccount: stripeAccountId,
+      }
+    )
+
+    await applyMembershipStateToUser({
+      user,
+      locationId,
+      serviceId: service._id,
+      subscription,
+      plan,
+      stripeAccountId,
+      defaultPaymentMethod,
+      clearPendingPlan: true,
+    })
+
+    res.status(201).json({
+      success: true,
+      message: 'Membership subscription created successfully',
+      subscriptionId: subscription.id,
+    })
+  } catch (error) {
+    console.error('Error creating membership subscription:', error)
+    next(error)
+  }
+}
+
+export const changeMembershipSubscriptionPlan = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+    const { planId, planName } = req.body
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (
+      !user.membershipBilling?.subscriptionId ||
+      !user.membershipBilling?.stripeAccountId
+    ) {
+      return next(createError(400, 'No active membership subscription found'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const { location } = await resolveMembershipLocationAndOwner(locationId)
+    const plan = resolveMembershipPlanForLocation({ location, planId, planName })
+    const stripeAccountId = user.membershipBilling.stripeAccountId
+
+    const subscription = await stripe.subscriptions.retrieve(
+      user.membershipBilling.subscriptionId,
+      {
+        expand: ['items.data.price'],
+      },
+      {
+        stripeAccount: stripeAccountId,
+      }
+    )
+
+    const currentPriceId = subscription?.items?.data?.[0]?.price?.id || null
+    if (!currentPriceId) {
+      return next(
+        createError(
+          400,
+          'Current membership plan pricing could not be resolved for this subscription.'
+        )
+      )
+    }
+    if (currentPriceId && currentPriceId === plan.stripePriceId) {
+      return next(createError(400, 'You are already on this membership plan'))
+    }
+
+    const currentPeriodEndUnix = Number(subscription?.current_period_end || 0)
+    if (!Number.isFinite(currentPeriodEndUnix) || currentPeriodEndUnix <= 0) {
+      return next(
+        createError(
+          400,
+          'Unable to schedule this membership change because the current billing period is unknown.'
+        )
+      )
+    }
+
+    const subscriptionQuantity = Number(subscription?.items?.data?.[0]?.quantity || 1)
+    const currentPeriodStartUnix = Number(
+      subscription?.current_period_start || Math.floor(Date.now() / 1000)
+    )
+
+    let scheduleId =
+      typeof subscription.schedule === 'string'
+        ? subscription.schedule
+        : subscription.schedule?.id || null
+
+    if (!scheduleId) {
+      const createdSchedule = await stripe.subscriptionSchedules.create(
+        {
+          from_subscription: user.membershipBilling.subscriptionId,
+        },
+        { stripeAccount: stripeAccountId }
+      )
+      scheduleId = createdSchedule.id
+    }
+
+    const schedule = await stripe.subscriptionSchedules.retrieve(
+      scheduleId,
+      {},
+      { stripeAccount: stripeAccountId }
+    )
+    const currentPhaseStartUnix = Number(
+      schedule?.current_phase?.start_date || currentPeriodStartUnix
+    )
+
+    await stripe.subscriptionSchedules.update(
+      scheduleId,
+      {
+        end_behavior: 'release',
+        phases: [
+          {
+            start_date: currentPhaseStartUnix,
+            end_date: currentPeriodEndUnix,
+            items: [
+              {
+                price: currentPriceId,
+                quantity: Number.isFinite(subscriptionQuantity) ? subscriptionQuantity : 1,
+              },
+            ],
+            proration_behavior: 'none',
+          },
+          {
+            start_date: currentPeriodEndUnix,
+            items: [
+              {
+                price: plan.stripePriceId,
+                quantity: Number.isFinite(subscriptionQuantity) ? subscriptionQuantity : 1,
+              },
+            ],
+            proration_behavior: 'none',
+          },
+        ],
+      },
+      { stripeAccount: stripeAccountId }
+    )
+
+    ensureMembershipBillingShape(user)
+    user.set('membershipBilling.pendingPlan', {
+      planId: plan.resolvedPlanId,
+      planName: plan.name,
+      price: plan.numericPrice,
+      currency: plan.currency,
+      effectiveAt: toDateFromUnix(currentPeriodEndUnix),
+    })
+    await user.save()
+
+    res.status(200).json({
+      success: true,
+      message: 'Membership plan update scheduled for your next renewal',
+      pendingPlan: user.membershipBilling.pendingPlan,
+    })
+  } catch (error) {
+    console.error('Error changing membership subscription plan:', error)
+    next(error)
+  }
+}
+
+export const getMembershipInvoices = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const billingLocationMatches =
+      locationId &&
+      user.membershipBilling?.locationId &&
+      `${user.membershipBilling.locationId}`.trim() === `${locationId}`.trim()
+
+    if (
+      !user.membershipBilling?.stripeCustomerId ||
+      !user.membershipBilling?.stripeAccountId ||
+      !billingLocationMatches
+    ) {
+      return res.status(200).json({
+        success: true,
+        invoices: [],
+      })
+    }
+
+    const invoices = await stripe.invoices.list(
+      {
+        customer: user.membershipBilling.stripeCustomerId,
+        limit: 20,
+        subscription: user.membershipBilling.subscriptionId || undefined,
+      },
+      { stripeAccount: user.membershipBilling.stripeAccountId }
+    )
+
+    res.status(200).json({
+      success: true,
+      invoices: (invoices?.data || []).map((invoice) => ({
+        id: invoice.id,
+        amountPaid: invoice.amount_paid,
+        amountDue: invoice.amount_due,
+        currency: invoice.currency,
+        status: invoice.status,
+        hostedInvoiceUrl: invoice.hosted_invoice_url || null,
+        invoicePdf: invoice.invoice_pdf || null,
+        paidAt: invoice.status_transitions?.paid_at
+          ? toDateFromUnix(invoice.status_transitions.paid_at)
+          : null,
+        createdAt: invoice.created ? toDateFromUnix(invoice.created) : null,
+        billingReason: invoice.billing_reason || null,
+      })),
+    })
+  } catch (error) {
+    console.error('Error fetching membership invoices:', error)
+    next(error)
+  }
+}
+
+export const createMembershipBillingPortalSession = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const billingLocationMatches =
+      locationId &&
+      user.membershipBilling?.locationId &&
+      `${user.membershipBilling.locationId}`.trim() === `${locationId}`.trim()
+
+    if (
+      !user.membershipBilling?.stripeCustomerId ||
+      !user.membershipBilling?.stripeAccountId ||
+      !billingLocationMatches
+    ) {
+      return next(createError(400, 'No membership billing profile found for this location'))
+    }
+
+    const returnUrl =
+      req.body?.returnUrl || `${process.env.CLIENT_URL || ''}/membership`
+
+    const session = await stripe.billingPortal.sessions.create(
+      {
+        customer: user.membershipBilling.stripeCustomerId,
+        return_url: returnUrl,
+      },
+      {
+        stripeAccount: user.membershipBilling.stripeAccountId,
+      }
+    )
+
+    res.status(201).json({
+      success: true,
+      url: session.url,
+    })
+  } catch (error) {
+    console.error('Error creating membership billing portal session:', error)
+    next(error)
+  }
+}
 
 /**
  * Create a Stripe Checkout session for service booking (with redirect)
@@ -1604,6 +2781,35 @@ export const handleWebhook = async (req, res, next) => {
         await handleCheckoutSessionCompleted(event.data.object)
         break
 
+      case 'setup_intent.succeeded':
+        await handleSetupIntentSucceeded(event.data.object, event.account || null)
+        break
+
+      case 'invoice.paid':
+        await handleMembershipInvoicePaid(event.data.object, event.account || null)
+        break
+
+      case 'invoice.payment_failed':
+        await handleMembershipInvoicePaymentFailed(
+          event.data.object,
+          event.account || null
+        )
+        break
+
+      case 'customer.subscription.updated':
+        await handleMembershipSubscriptionUpdated(
+          event.data.object,
+          event.account || null
+        )
+        break
+
+      case 'customer.subscription.deleted':
+        await handleMembershipSubscriptionDeleted(
+          event.data.object,
+          event.account || null
+        )
+        break
+
       case 'payment_intent.succeeded':
         await handlePaymentSucceeded(event.data.object)
         break
@@ -1967,6 +3173,420 @@ async function handleCheckoutSessionCompleted(session) {
   }
 
   console.log(`Booking ${bookingId} payment completed successfully`)
+}
+
+async function handleSetupIntentSucceeded(setupIntent, stripeAccountId) {
+  if (!stripeAccountId || !setupIntent?.customer) return
+
+  const user =
+    (setupIntent.metadata?.userId
+      ? await User.findById(setupIntent.metadata.userId)
+      : null) ||
+    (await findMembershipUserByCustomer({
+      customerId: setupIntent.customer,
+      stripeAccountId,
+    }))
+
+  if (!user) return
+
+  const paymentMethodState = await listMembershipPaymentMethods({
+    customerId: setupIntent.customer,
+    stripeAccountId,
+  })
+  const nextDefaultPaymentMethodId =
+    paymentMethodState.defaultPaymentMethodId ||
+    paymentMethodState.paymentMethods[0]?.id ||
+    null
+
+  if (!nextDefaultPaymentMethodId) {
+    return
+  }
+
+  if (!paymentMethodState.defaultPaymentMethodId) {
+    await stripe.customers.update(
+      setupIntent.customer,
+      {
+        invoice_settings: {
+          default_payment_method: nextDefaultPaymentMethodId,
+        },
+      },
+      { stripeAccount: stripeAccountId }
+    )
+  }
+
+  const paymentMethod = await stripe.paymentMethods.retrieve(
+    nextDefaultPaymentMethodId,
+    {},
+    {
+      stripeAccount: stripeAccountId,
+    }
+  )
+
+  if (user.membershipBilling?.subscriptionId) {
+    await stripe.subscriptions.update(
+      user.membershipBilling.subscriptionId,
+      {
+        default_payment_method: nextDefaultPaymentMethodId,
+      },
+      { stripeAccount: stripeAccountId }
+    )
+  }
+
+  await syncMembershipDefaultPaymentMethodOnUser({
+    user,
+    stripeAccountId,
+    paymentMethod,
+    locationId:
+      setupIntent.metadata?.locationId || user.membershipBilling?.locationId || null,
+  })
+}
+
+async function resolveMembershipWebhookContext({
+  stripeAccountId,
+  customerId,
+  subscriptionId = null,
+}) {
+  if (!stripeAccountId) return {}
+
+  const user =
+    (subscriptionId
+      ? await findMembershipUserBySubscription({ subscriptionId, stripeAccountId })
+      : null) ||
+    (customerId
+      ? await findMembershipUserByCustomer({ customerId, stripeAccountId })
+      : null)
+
+  if (!user) return {}
+
+  const locationId = user.membershipBilling?.locationId || user.membership?.locationId || null
+  const [location, spaOwner, service] = await Promise.all([
+    locationId ? Location.findOne({ locationId }) : null,
+    User.findOne({ 'stripe.accountId': stripeAccountId }),
+    user.membershipBilling?.serviceId
+      ? Service.findById(user.membershipBilling.serviceId)
+      : findMembershipServiceForLocation({
+          locationId,
+          serviceId: null,
+          planName: user.membership?.planName || null,
+        }),
+  ])
+
+  return { user, location, spaOwner, service, locationId }
+}
+
+async function upsertMembershipInvoicePayment({
+  invoice,
+  subscription,
+  user,
+  locationId,
+  spaOwner,
+  service,
+  plan,
+  status,
+  errorMessage = null,
+}) {
+  if (!invoice || !user || !spaOwner || !service) return null
+
+  const existingPayment = await Payment.findOne({ stripeInvoiceId: invoice.id })
+    .select('status')
+    .lean()
+
+  const paidAmount = Number(invoice.amount_paid)
+  const dueAmount = Number(invoice.amount_due)
+  const amount =
+    status === 'failed'
+      ? Number.isFinite(dueAmount)
+        ? dueAmount
+        : Number.isFinite(paidAmount)
+          ? paidAmount
+          : 0
+      : Number.isFinite(paidAmount)
+        ? paidAmount
+        : Number.isFinite(dueAmount)
+          ? dueAmount
+          : 0
+  const amountDollars = amount / 100
+  const pointsEarned =
+    status === 'succeeded'
+      ? await resolvePurchasePoints(locationId, amountDollars)
+      : 0
+  const paymentIntentId =
+    typeof invoice.payment_intent === 'string'
+      ? invoice.payment_intent
+      : invoice.payment_intent?.id || `invoice_${invoice.id}`
+
+  const payment = await Payment.findOneAndUpdate(
+    { stripeInvoiceId: invoice.id },
+    {
+      stripePaymentIntentId: paymentIntentId,
+      stripeChargeId:
+        typeof invoice.charge === 'string' ? invoice.charge : invoice.charge?.id || null,
+      stripeInvoiceId: invoice.id,
+      stripeSubscriptionId:
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id || subscription?.id || null,
+      customer: user._id,
+      spaOwner: spaOwner._id,
+      stripeAccountId: user.membershipBilling?.stripeAccountId || spaOwner.stripe.accountId,
+      service: service._id,
+      booking: null,
+      paymentCategory: 'membership',
+      amount,
+      currency: invoice.currency || 'usd',
+      subtotal: amount,
+      discount: { amount: 0, type: null, code: null, description: null },
+      tax: { amount: 0, rate: 0 },
+      platformFee: { amount: 0, percentage: 0 },
+      status,
+      livemode: invoice.livemode,
+      processedAt:
+        status === 'succeeded' && invoice.status_transitions?.paid_at
+          ? toDateFromUnix(invoice.status_transitions.paid_at)
+          : null,
+      failedAt: status === 'failed' ? new Date() : null,
+      pointsEarned,
+      paymentMethod: {
+        type: 'card',
+        brand: user.membershipBilling?.defaultPaymentMethod?.brand || null,
+        last4: user.membershipBilling?.defaultPaymentMethod?.last4 || null,
+        expMonth: user.membershipBilling?.defaultPaymentMethod?.expMonth || null,
+        expYear: user.membershipBilling?.defaultPaymentMethod?.expYear || null,
+      },
+      membershipDetails: {
+        locationId,
+        planId: plan?.resolvedPlanId || user.membership?.planId || null,
+        planName: plan?.name || user.membership?.planName || null,
+        invoiceUrl: invoice.hosted_invoice_url || null,
+        billingReason: invoice.billing_reason || null,
+        invoiceStatus: invoice.status || status,
+      },
+      errorMessage,
+      errorCode: status === 'failed' ? invoice.last_finalization_error?.code || null : null,
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    }
+  )
+
+  const shouldAwardPoints =
+    status === 'succeeded' &&
+    pointsEarned > 0 &&
+    (!existingPayment || existingPayment.status !== 'succeeded')
+
+  if (shouldAwardPoints) {
+    user.points += pointsEarned
+    await user.save()
+  }
+
+  return payment
+}
+
+async function handleMembershipInvoicePaid(invoice, stripeAccountId) {
+  if (!stripeAccountId || !invoice?.customer || !invoice?.subscription) return
+
+  const { user, location, spaOwner, service, locationId } =
+    await resolveMembershipWebhookContext({
+      stripeAccountId,
+      customerId: invoice.customer,
+      subscriptionId:
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id || null,
+    })
+
+  if (!user || !spaOwner || !service) return
+
+  const subscription = await stripe.subscriptions.retrieve(
+    invoice.subscription,
+    {
+      expand: ['default_payment_method', 'items.data.price'],
+    },
+    {
+      stripeAccount: stripeAccountId,
+    }
+  )
+  const priceId = subscription?.items?.data?.[0]?.price?.id || null
+  const plan =
+    resolveMembershipPlanFromPriceId({ location, priceId }) ||
+    resolveMembershipPlanForLocation({
+      location,
+      planId: user.membershipBilling?.pendingPlan?.planId || user.membership?.planId,
+      planName: user.membershipBilling?.pendingPlan?.planName || user.membership?.planName,
+    })
+
+  await upsertMembershipInvoicePayment({
+    invoice,
+    subscription,
+    user,
+    locationId,
+    spaOwner,
+    service,
+    plan,
+    status: 'succeeded',
+  })
+
+  await applyMembershipStateToUser({
+    user,
+    locationId,
+    serviceId: service._id,
+    subscription,
+    plan,
+    invoice,
+    stripeAccountId,
+    defaultPaymentMethod:
+      subscription.default_payment_method &&
+      typeof subscription.default_payment_method !== 'string'
+        ? subscription.default_payment_method
+        : null,
+    clearPendingPlan: true,
+  })
+}
+
+async function handleMembershipInvoicePaymentFailed(invoice, stripeAccountId) {
+  if (!stripeAccountId || !invoice?.customer || !invoice?.subscription) return
+
+  const { user, location, spaOwner, service, locationId } =
+    await resolveMembershipWebhookContext({
+      stripeAccountId,
+      customerId: invoice.customer,
+      subscriptionId:
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id || null,
+    })
+
+  if (!user || !spaOwner || !service) return
+
+  const subscription = await stripe.subscriptions.retrieve(
+    invoice.subscription,
+    {
+      expand: ['default_payment_method', 'items.data.price'],
+    },
+    {
+      stripeAccount: stripeAccountId,
+    }
+  )
+  const plan = resolveMembershipPlanFromPriceId({
+    location,
+    priceId: subscription?.items?.data?.[0]?.price?.id || null,
+  })
+
+  await upsertMembershipInvoicePayment({
+    invoice,
+    subscription,
+    user,
+    locationId,
+    spaOwner,
+    service,
+    plan,
+    status: 'failed',
+    errorMessage: 'Membership renewal payment failed',
+  })
+
+  await applyMembershipStateToUser({
+    user,
+    locationId,
+    serviceId: service._id,
+    subscription: {
+      ...subscription,
+      status: invoice.attempt_count > 0 ? 'past_due' : subscription.status,
+    },
+    plan,
+    invoice,
+    stripeAccountId,
+    defaultPaymentMethod:
+      subscription.default_payment_method &&
+      typeof subscription.default_payment_method !== 'string'
+        ? subscription.default_payment_method
+        : null,
+    preserveCurrentPlan: true,
+  })
+}
+
+async function handleMembershipSubscriptionUpdated(subscription, stripeAccountId) {
+  if (!stripeAccountId || !subscription?.customer) return
+
+  const { user, location, service, locationId } =
+    await resolveMembershipWebhookContext({
+      stripeAccountId,
+      customerId: subscription.customer,
+      subscriptionId: subscription.id,
+    })
+
+  if (!user) return
+
+  const expandedSubscription = await stripe.subscriptions.retrieve(
+    subscription.id,
+    {
+      expand: ['default_payment_method', 'items.data.price'],
+    },
+    {
+      stripeAccount: stripeAccountId,
+    }
+  )
+  const plan = resolveMembershipPlanFromPriceId({
+    location,
+    priceId: expandedSubscription?.items?.data?.[0]?.price?.id || null,
+  })
+  const pendingPlanId = user.membershipBilling?.pendingPlan?.planId || null
+  const preserveCurrentPlan = Boolean(
+    pendingPlanId &&
+      pendingPlanId !== buildMembershipPlanId(plan, plan?.name) &&
+      MEMBERSHIP_VISIBLE_STATUSES.has(`${expandedSubscription.status || ''}`.toLowerCase())
+  )
+
+  await applyMembershipStateToUser({
+    user,
+    locationId,
+    serviceId: service?._id || user.membershipBilling?.serviceId || null,
+    subscription: expandedSubscription,
+    plan,
+    stripeAccountId,
+    defaultPaymentMethod:
+      expandedSubscription.default_payment_method &&
+      typeof expandedSubscription.default_payment_method !== 'string'
+        ? expandedSubscription.default_payment_method
+        : null,
+    preserveCurrentPlan,
+  })
+}
+
+async function handleMembershipSubscriptionDeleted(subscription, stripeAccountId) {
+  if (!stripeAccountId || !subscription?.customer) return
+
+  const { user, locationId, service } = await resolveMembershipWebhookContext({
+    stripeAccountId,
+    customerId: subscription.customer,
+    subscriptionId: subscription.id,
+  })
+
+  if (!user) return
+
+  await applyMembershipStateToUser({
+    user,
+    locationId,
+    serviceId: service?._id || user.membershipBilling?.serviceId || null,
+    subscription: {
+      ...subscription,
+      status: 'canceled',
+    },
+    plan: null,
+    stripeAccountId,
+    preserveCurrentPlan: true,
+    clearPendingPlan: true,
+  })
+
+  user.membership.isActive = false
+  user.membership.status = 'canceled'
+  user.activeMembership.isActive = false
+  user.activeMembership.status = 'canceled'
+  user.membershipStatus = 'canceled'
+  user.membershipBilling.subscriptionId = null
+  user.membershipBilling.subscriptionItemId = null
+  await user.save()
 }
 
 async function handlePaymentSucceeded(paymentIntent) {

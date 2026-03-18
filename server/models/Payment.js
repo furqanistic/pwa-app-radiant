@@ -13,6 +13,16 @@ const PaymentSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    stripeInvoiceId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    stripeSubscriptionId: {
+      type: String,
+      default: null,
+      index: true,
+    },
 
     // Transaction parties
     customer: {
@@ -44,6 +54,12 @@ const PaymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Service',
       required: true,
+    },
+    paymentCategory: {
+      type: String,
+      enum: ['booking', 'membership'],
+      default: 'booking',
+      index: true,
     },
 
     // Amount details (in cents)
@@ -188,6 +204,32 @@ const PaymentSchema = new mongoose.Schema(
       type: Map,
       of: String,
       default: {},
+    },
+    membershipDetails: {
+      locationId: {
+        type: String,
+        default: null,
+      },
+      planId: {
+        type: String,
+        default: null,
+      },
+      planName: {
+        type: String,
+        default: null,
+      },
+      invoiceUrl: {
+        type: String,
+        default: null,
+      },
+      billingReason: {
+        type: String,
+        default: null,
+      },
+      invoiceStatus: {
+        type: String,
+        default: null,
+      },
     },
 
     // Error handling

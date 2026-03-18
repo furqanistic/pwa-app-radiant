@@ -269,7 +269,16 @@ const UserSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ['inactive', 'active', 'canceled', 'expired'],
+        enum: [
+          'inactive',
+          'active',
+          'trialing',
+          'past_due',
+          'incomplete',
+          'unpaid',
+          'canceled',
+          'expired',
+        ],
         default: 'inactive',
       },
       planName: {
@@ -312,7 +321,16 @@ const UserSchema = new mongoose.Schema(
     },
     membershipStatus: {
       type: String,
-      enum: ['inactive', 'active', 'canceled', 'expired'],
+      enum: [
+        'inactive',
+        'active',
+        'trialing',
+        'past_due',
+        'incomplete',
+        'unpaid',
+        'canceled',
+        'expired',
+      ],
       default: 'inactive',
     },
     activeMembership: {
@@ -322,7 +340,16 @@ const UserSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ['inactive', 'active', 'canceled', 'expired'],
+        enum: [
+          'inactive',
+          'active',
+          'trialing',
+          'past_due',
+          'incomplete',
+          'unpaid',
+          'canceled',
+          'expired',
+        ],
         default: 'inactive',
       },
       planName: {
@@ -344,6 +371,105 @@ const UserSchema = new mongoose.Schema(
       locationId: {
         type: String,
         default: null,
+      },
+    },
+    membershipBilling: {
+      stripeCustomerId: {
+        type: String,
+        default: null,
+      },
+      stripeAccountId: {
+        type: String,
+        default: null,
+      },
+      locationId: {
+        type: String,
+        default: null,
+      },
+      serviceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Service',
+        default: null,
+      },
+      subscriptionId: {
+        type: String,
+        default: null,
+      },
+      subscriptionItemId: {
+        type: String,
+        default: null,
+      },
+      subscriptionStatus: {
+        type: String,
+        default: 'inactive',
+      },
+      currentPeriodStart: {
+        type: Date,
+        default: null,
+      },
+      currentPeriodEnd: {
+        type: Date,
+        default: null,
+      },
+      cancelAtPeriodEnd: {
+        type: Boolean,
+        default: false,
+      },
+      lastInvoiceId: {
+        type: String,
+        default: null,
+      },
+      lastInvoiceUrl: {
+        type: String,
+        default: null,
+      },
+      lastPaymentAt: {
+        type: Date,
+        default: null,
+      },
+      defaultPaymentMethod: {
+        paymentMethodId: {
+          type: String,
+          default: null,
+        },
+        brand: {
+          type: String,
+          default: null,
+        },
+        last4: {
+          type: String,
+          default: null,
+        },
+        expMonth: {
+          type: Number,
+          default: null,
+        },
+        expYear: {
+          type: Number,
+          default: null,
+        },
+      },
+      pendingPlan: {
+        planId: {
+          type: String,
+          default: null,
+        },
+        planName: {
+          type: String,
+          default: null,
+        },
+        price: {
+          type: Number,
+          default: null,
+        },
+        currency: {
+          type: String,
+          default: 'usd',
+        },
+        effectiveAt: {
+          type: Date,
+          default: null,
+        },
       },
     },
 
