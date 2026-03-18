@@ -923,8 +923,15 @@ const DashboardPage = () => {
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
+  const isSpaManagementView = ['spa', 'admin'].includes(currentUser?.role)
+
   // Fetch dashboard data
-  const { data: dashboardData, isLoading, error, refetch } = useDashboardData()
+  const { data: dashboardData, isLoading, error, refetch } = useDashboardData({
+    refetchInterval: isSpaManagementView ? 30000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  })
   // Prefetch games in parallel so GamesSection appears faster.
   useAvailableGames({}, { enabled: currentUser?.role === 'user' })
 

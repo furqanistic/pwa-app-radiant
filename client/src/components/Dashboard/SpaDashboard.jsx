@@ -1,4 +1,15 @@
 import { useBranding } from '@/context/BrandingContext'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { dashboardQueryKeys } from '@/hooks/useDashboard'
+import { dashboardService } from '@/services/dashboardService'
+import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity,
@@ -10,6 +21,8 @@ import {
   DollarSign,
   History,
   LayoutDashboard,
+  RefreshCw,
+  RotateCcw,
   ScanLine,
   TrendingUp,
   UserCheck,
@@ -29,6 +42,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { toast } from 'sonner'
 
 const Motion = motion
 
@@ -36,6 +50,9 @@ const SpaDashboard = ({ data, refetch }) => {
   const [activeTab, setActiveTab] = useState('overview')
   const [currentCheckInPage, setCurrentCheckInPage] = useState(1)
   const [checkInRowsPerPage, setCheckInRowsPerPage] = useState(10)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+  const [isResettingCheckIns, setIsResettingCheckIns] = useState(false)
+  const [isRefreshingCheckIns, setIsRefreshingCheckIns] = useState(false)
   const {
     stats = {},
     analytics = {},
@@ -52,6 +69,7 @@ const SpaDashboard = ({ data, refetch }) => {
     : []
 
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { branding, locationId } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
@@ -104,21 +122,14 @@ const SpaDashboard = ({ data, refetch }) => {
 
   const handleRefresh = useCallback(async () => {
     if (typeof refetch === 'function') {
-      await refetch()
+      try {
+        setIsRefreshingCheckIns(true)
+        await refetch()
+      } finally {
+        setIsRefreshingCheckIns(false)
+      }
     }
   }, [refetch])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) {
-        return
-      }
-
-      handleRefresh()
-    }, 30 * 1000)
-
-    return () => clearInterval(interval)
-  }, [handleRefresh])
 
   useEffect(() => {
     setCurrentCheckInPage(1)
@@ -158,6 +169,51 @@ const SpaDashboard = ({ data, refetch }) => {
     const value = Math.round(diffMs / 1000 / unit.seconds)
 
     return formatter.format(value, unit.label)
+  }
+
+  const handleResetRecentCheckIns = async () => {
+    try {
+      setIsResettingCheckIns(true)
+      const response = await dashboardService.resetRecentCheckIns()
+      const resetPayload = response?.data || {}
+
+      queryClient.setQueryData(dashboardQueryKeys.data(), (currentData) => {
+        if (!currentData?.data) return currentData
+
+        return {
+          ...currentData,
+          data: {
+            ...currentData.data,
+            recentQrClaims: [],
+            recentQrClaimsSummary: {
+              ...(currentData.data.recentQrClaimsSummary || {}),
+              totalClaims: 0,
+              uniqueVisitors: 0,
+              latestClaimAt: null,
+              lastResetAt:
+                resetPayload.lastResetAt ||
+                currentData.data.recentQrClaimsSummary?.lastResetAt ||
+                null,
+            },
+          },
+        }
+      })
+
+      toast.success(
+        resetPayload.deletedScans
+          ? `Cleared ${resetPayload.deletedScans} recent check-ins.`
+          : 'Recent check-ins cleared.'
+      )
+      setIsResetDialogOpen(false)
+      setCurrentCheckInPage(1)
+      await refetch?.()
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || 'Could not clear recent check-ins.'
+      )
+    } finally {
+      setIsResettingCheckIns(false)
+    }
   }
 
   const getClaimedCustomerName = (claim) => {
@@ -295,32 +351,67 @@ const SpaDashboard = ({ data, refetch }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                Claims
-              </p>
-              <p className="text-2xl font-black text-gray-900 mt-1">
-                {recentQrClaimsSummary?.totalClaims || 0}
-              </p>
+          <div className="flex flex-col gap-3 lg:items-end">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                  Claims
+                </p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
+                  {recentQrClaimsSummary?.totalClaims || 0}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                  Visitors
+                </p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
+                  {recentQrClaimsSummary?.uniqueVisitors || 0}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                  Latest
+                </p>
+                <p className="text-sm font-black text-gray-900 mt-2 leading-tight">
+                  {recentQrClaimsSummary?.latestClaimAt
+                    ? formatRelativeTime(recentQrClaimsSummary.latestClaimAt)
+                    : 'No scans'}
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                Visitors
+
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
+              <p className="text-xs font-bold text-gray-400">
+                Last reset:{' '}
+                <span className="text-gray-700">
+                  {recentQrClaimsSummary?.lastResetAt
+                    ? formatDate(recentQrClaimsSummary.lastResetAt)
+                    : 'Never'}
+                </span>
               </p>
-              <p className="text-2xl font-black text-gray-900 mt-1">
-                {recentQrClaimsSummary?.uniqueVisitors || 0}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                Latest
-              </p>
-              <p className="text-sm font-black text-gray-900 mt-2 leading-tight">
-                {recentQrClaimsSummary?.latestClaimAt
-                  ? formatRelativeTime(recentQrClaimsSummary.latestClaimAt)
-                  : 'No scans'}
-              </p>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={isResettingCheckIns || isRefreshingCheckIns}
+                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${
+                    isRefreshingCheckIns ? 'animate-spin' : ''
+                  }`}
+                />
+                {isRefreshingCheckIns ? 'Refreshing...' : 'Refresh'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsResetDialogOpen(true)}
+                disabled={isResettingCheckIns || recentQrClaims.length === 0}
+                className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Reset Last 3 Days
+              </button>
             </div>
           </div>
         </div>
@@ -932,6 +1023,54 @@ const SpaDashboard = ({ data, refetch }) => {
           </div>
         </div>
       </div>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="max-w-md rounded-[28px] border-gray-200 bg-white p-0 overflow-hidden">
+          <div className="bg-red-50 border-b border-red-100 px-6 py-5">
+            <DialogHeader className="text-left">
+              <DialogTitle className="text-xl font-black text-gray-900">
+                Clear recent check-ins?
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-600 leading-6">
+                This will remove the check-ins from the last 3 days for this spa.
+                It also deletes those scan records from the database.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-bold text-amber-900">
+                Please be sure before you continue.
+              </p>
+              <p className="text-sm text-amber-800 mt-1">
+                You cannot undo this action. Your customers will keep their total
+                points, but the recent scan history from the last 3 days will be
+                cleared.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => setIsResetDialogOpen(false)}
+                disabled={isResettingCheckIns}
+                className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-black text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleResetRecentCheckIns}
+                disabled={isResettingCheckIns}
+                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isResettingCheckIns ? 'Clearing...' : 'Yes, clear check-ins'}
+              </button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

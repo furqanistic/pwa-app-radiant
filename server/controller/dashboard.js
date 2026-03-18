@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Location from '../models/Location.js'
+import PointTransaction from '../models/PointTransaction.js'
 import QRCodeScan from '../models/QRCodeScan.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
@@ -64,6 +65,18 @@ const buildRewardSummary = (rewards = []) => {
     labels,
     nextExpiryAt,
   }
+}
+
+const getDashboardLocationId = (user) => {
+  if (user?.role === 'spa') {
+    return user.spaLocation?.locationId
+  }
+
+  if (['admin', 'super-admin'].includes(user?.role)) {
+    return user.selectedLocation?.locationId || user.spaLocation?.locationId
+  }
+
+  return null
 }
 
 // Get all dashboard data in one request
@@ -134,16 +147,17 @@ export const getDashboardData = async (req, res, next) => {
 
     // Branch based on user role
     if (['spa', 'admin'].includes(user.role)) {
-      const locationId =
-        user.role === 'spa'
-          ? user.spaLocation?.locationId
-          : user.selectedLocation?.locationId || user.spaLocation?.locationId
+      const locationId = getDashboardLocationId(user)
       
       if (!locationId) {
         return next(
           createError(400, 'Spa location not configured for this account')
         )
       }
+
+      const dashboardLocation = await Location.findOne({ locationId })
+        .select('qrCode.lastResetAt')
+        .lean()
 
       // 1. Get stats
       // Total Clients: users who have selected this spa
@@ -388,6 +402,7 @@ export const getDashboardData = async (req, res, next) => {
             totalClaims: recentQrClaimsTotal,
             uniqueVisitors: recentQrClaimVisitorRows.length,
             latestClaimAt: recentQrClaims[0]?.claimedAt || null,
+            lastResetAt: dashboardLocation?.qrCode?.lastResetAt || null,
           },
           currentBookings,
           spaLocation: user.spaLocation,
@@ -538,6 +553,161 @@ export const getDashboardData = async (req, res, next) => {
   } catch (error) {
     console.error('Error fetching dashboard data:', error)
     next(createError(500, 'Failed to fetch dashboard data'))
+  }
+}
+
+export const resetRecentCheckIns = async (req, res, next) => {
+  try {
+    const user = req.user
+
+    if (!['spa', 'admin', 'super-admin'].includes(user?.role)) {
+      return next(createError(403, 'Management access required'))
+    }
+
+    const locationId = getDashboardLocationId(user)
+
+    if (!locationId) {
+      return next(createError(400, 'Spa location not configured for this account'))
+    }
+
+    const resetWindowStart = new Date()
+    resetWindowStart.setDate(
+      resetWindowStart.getDate() - RECENT_QR_CLAIMS_WINDOW_DAYS
+    )
+
+    const lastResetAt = new Date()
+    const recentVerifiedScans = await QRCodeScan.find({
+      locationId,
+      status: 'verified',
+      createdAt: { $gte: resetWindowStart },
+    })
+      .select(
+        'scannedByUser spaOwnerId pointsAwarded pointsAwardedToSpaOwner createdAt'
+      )
+      .lean()
+
+    const userPointAdjustments = new Map()
+    const spaPointAdjustments = new Map()
+
+    recentVerifiedScans.forEach((scan) => {
+      const scannedByUserId = scan?.scannedByUser?.toString()
+      const spaOwnerId = scan?.spaOwnerId?.toString()
+      const userPoints = Number(scan?.pointsAwarded || 0)
+      const spaPoints = Number(scan?.pointsAwardedToSpaOwner || 0)
+
+      if (scannedByUserId && userPoints > 0) {
+        userPointAdjustments.set(
+          scannedByUserId,
+          (userPointAdjustments.get(scannedByUserId) || 0) + userPoints
+        )
+      }
+
+      if (spaOwnerId && spaPoints > 0) {
+        spaPointAdjustments.set(
+          spaOwnerId,
+          (spaPointAdjustments.get(spaOwnerId) || 0) + spaPoints
+        )
+      }
+    })
+
+    const location = await Location.findOne({ locationId })
+
+    for (const [userId, pointsToReverse] of userPointAdjustments.entries()) {
+      const account = await User.findById(userId).select('points')
+      if (!account) continue
+
+      const previousBalance = account.points || 0
+      const newBalance = previousBalance - pointsToReverse
+
+      account.points = newBalance
+      await account.save()
+
+      await PointTransaction.create({
+        user: account._id,
+        type: 'adjustment',
+        points: -pointsToReverse,
+        balance: newBalance,
+        description: `QR reset on ${lastResetAt.toISOString()} for recent check-ins`,
+        processedBy: user._id,
+        locationId,
+        metadata: {
+          resetType: 'recent_check_ins',
+          previousBalance,
+          newBalance,
+          pointsReversed: pointsToReverse,
+          resetWindowDays: RECENT_QR_CLAIMS_WINDOW_DAYS,
+          resetAt: lastResetAt,
+          transactionType: 'debit',
+        },
+      })
+    }
+
+    for (const [spaOwnerId, pointsToReverse] of spaPointAdjustments.entries()) {
+      const account = await User.findById(spaOwnerId).select('points')
+      if (!account) continue
+
+      const previousBalance = account.points || 0
+      const newBalance = previousBalance - pointsToReverse
+
+      account.points = newBalance
+      await account.save()
+
+      await PointTransaction.create({
+        user: account._id,
+        type: 'adjustment',
+        points: -pointsToReverse,
+        balance: newBalance,
+        description: `QR reset on ${lastResetAt.toISOString()} for recent check-ins`,
+        processedBy: user._id,
+        locationId,
+        metadata: {
+          resetType: 'recent_check_ins',
+          previousBalance,
+          newBalance,
+          pointsReversed: pointsToReverse,
+          resetWindowDays: RECENT_QR_CLAIMS_WINDOW_DAYS,
+          resetAt: lastResetAt,
+          transactionType: 'debit',
+          appliesTo: 'spa_owner',
+        },
+      })
+    }
+
+    const deletedScansResult = await QRCodeScan.deleteMany({
+      locationId,
+      createdAt: { $gte: resetWindowStart },
+    })
+
+    if (location) {
+      location.qrCode = {
+        ...(location.qrCode || {}),
+        lastResetAt,
+      }
+      await location.save()
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Recent check-ins were cleared successfully.',
+      data: {
+        days: RECENT_QR_CLAIMS_WINDOW_DAYS,
+        deletedScans: deletedScansResult.deletedCount || 0,
+        reversedUserCount:
+          userPointAdjustments.size + spaPointAdjustments.size,
+        reversedUserPoints: [...userPointAdjustments.values()].reduce(
+          (sum, value) => sum + value,
+          0
+        ),
+        reversedSpaPoints: [...spaPointAdjustments.values()].reduce(
+          (sum, value) => sum + value,
+          0
+        ),
+        lastResetAt,
+      },
+    })
+  } catch (error) {
+    console.error('Error resetting recent check-ins:', error)
+    next(createError(500, 'Failed to reset recent check-ins'))
   }
 }
 

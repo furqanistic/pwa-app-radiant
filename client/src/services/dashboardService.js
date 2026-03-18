@@ -4,6 +4,7 @@ import { axiosInstance } from '@/config'
 export const dashboardService = {
   // Get complete dashboard data
   getDashboardData: () => axiosInstance.get('/dashboard/data'),
+  resetRecentCheckIns: () => axiosInstance.post('/dashboard/recent-checkins/reset'),
 
   // Bookings endpoints
   getUpcomingAppointments: (limit = 10) =>

@@ -269,6 +269,11 @@ const LocationSchema = new mongoose.Schema(
         type: Date,
         default: null,
       },
+      // Last time recent check-ins were manually cleared
+      lastResetAt: {
+        type: Date,
+        default: null,
+      },
     },
     // ==================== END QR CODE FIELDS ====================
 

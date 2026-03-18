@@ -13,7 +13,7 @@ export const dashboardQueryKeys = {
 }
 
 // Get complete dashboard data
-export const useDashboardData = () => {
+export const useDashboardData = (options = {}) => {
   return useQuery({
     queryKey: dashboardQueryKeys.data(),
     queryFn: async () => {
@@ -21,6 +21,7 @@ export const useDashboardData = () => {
       return response.data
     },
     staleTime: 2 * 60 * 1000, // 2 minutes
+    ...options,
   })
 }
 
