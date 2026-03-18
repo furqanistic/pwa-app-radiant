@@ -3,6 +3,7 @@ import ClinicLocations from '@/components/Dashboard/ClinicLocations'
 import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
 import SpaDashboard from '@/components/Dashboard/SpaDashboard'
+import BrandLottieLoader from '@/components/Common/BrandLottieLoader'
 import { useBranding } from '@/context/BrandingContext'
 import { useDashboardData } from '@/hooks/useDashboard'
 import { useAvailableGames } from '@/hooks/useGameWheel'
@@ -76,9 +77,9 @@ const RewardCard = ({
 }) => {
   const [isClaiming, setIsClaiming] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
-  const [claimStatus, setClaimStatus] = useState(null) // 'success', 'error', null
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef(null)
+  const brandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
 
   const toggleVoiceNote = (e) => {
     e.stopPropagation()
@@ -97,36 +98,27 @@ const RewardCard = ({
   const canAfford = reward.canClaim && !isOptimisticUpdate
 
   const getRewardIcon = (type) => {
+    const iconClassName = 'w-4 h-4 text-white drop-shadow-sm'
     switch (type) {
+      case 'add_on':
+        return <Plus className={iconClassName} />
+      case 'upgrade':
+        return <TrendingUp className={iconClassName} />
       case 'credit':
-        return <DollarSign className='w-4 h-4 text-green-500' />
+        return <DollarSign className={iconClassName} />
       case 'discount':
-        return <Percent className='w-4 h-4 text-[color:var(--brand-primary)]' />
+        return <Percent className={iconClassName} />
+      case 'experience':
+        return <Star className={iconClassName} />
+      case 'free_service':
       case 'service':
-        return <Gift className='w-4 h-4 text-[color:var(--brand-primary)]' />
+        return <Gift className={iconClassName} />
       case 'combo':
-        return <Star className='w-4 h-4 text-yellow-500' />
+        return <Star className={iconClassName} />
       case 'referral':
-        return <Users className='w-4 h-4 text-blue-500' />
+        return <Users className={iconClassName} />
       default:
-        return <Award className='w-4 h-4 text-gray-500' />
-    }
-  }
-
-  const getRewardColor = (type) => {
-    switch (type) {
-      case 'credit':
-        return 'from-green-400 to-emerald-400'
-      case 'discount':
-        return 'from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)]'
-      case 'service':
-        return 'from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)]'
-      case 'combo':
-        return 'from-yellow-400 to-orange-400'
-      case 'referral':
-        return 'from-blue-400 to-cyan-400'
-      default:
-        return 'from-gray-400 to-slate-400'
+        return <Award className={iconClassName} />
     }
   }
 
@@ -134,24 +126,16 @@ const RewardCard = ({
     if (!canAfford || isClaiming) return
 
     setIsClaiming(true)
-    setClaimStatus(null)
 
     try {
       await onClaim(reward._id)
       setShowConfetti(true)
-      setClaimStatus('success')
 
-      // Auto-hide confetti
       setTimeout(() => {
         setShowConfetti(false)
-        setClaimStatus(null)
       }, 3000)
     } catch {
       setShowConfetti(false)
-      setClaimStatus('error')
-
-      // Auto-hide error status
-      setTimeout(() => setClaimStatus(null), 3000)
     } finally {
       setIsClaiming(false)
     }
@@ -159,23 +143,10 @@ const RewardCard = ({
 
   const getButtonText = () => {
     if (isClaiming) return 'Claiming...'
-    if (claimStatus === 'success') return 'Claimed!'
-    if (claimStatus === 'error') return 'Failed - Retry'
     if (isOptimisticUpdate) return 'Processing...'
-    if (canAfford) return 'Claim'
-    if (!reward.canClaimMoreThisMonth) return 'Limit Reached'
+    if (canAfford) return 'Claim Reward'
+    if (!(reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth)) return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
-  }
-
-  const getButtonIcon = () => {
-    if (isClaiming)
-      return (
-        <div className='w-4 h-4 border border-white border-t-transparent rounded-full animate-spin' />
-      )
-    if (claimStatus === 'success') return <CheckCircle className='w-4 h-4' />
-    if (claimStatus === 'error') return <XCircle className='w-4 h-4' />
-    if (isOptimisticUpdate) return <Clock className='w-4 h-4' />
-    return null
   }
 
   return (
@@ -184,12 +155,12 @@ const RewardCard = ({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: canAfford ? -2 : 0 }}
-      className={`relative h-full bg-white rounded-2xl overflow-hidden transition-all border flex flex-col ${
+      whileHover={{ y: canAfford && !isOptimisticUpdate ? -2 : 0 }}
+      className={`relative h-full bg-white rounded-[1.35rem] overflow-hidden transition-all border flex flex-col shadow-[0_12px_34px_-28px_rgba(15,23,42,0.28)] ${
         canAfford && !isOptimisticUpdate
-          ? 'border-gray-200/70 cursor-pointer group hover:shadow-lg'
+          ? 'hover:border-[#f9f9fa] hover:-translate-y-0.5 cursor-pointer group border-[#f9f9fa]'
           : isOptimisticUpdate
-          ? 'border-blue-200 opacity-75'
+          ? 'border-[#f9f9fa] opacity-75'
           : 'opacity-60 border-gray-100'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
@@ -221,30 +192,7 @@ const RewardCard = ({
         )}
       </AnimatePresence>
 
-      {/* Status Indicator */}
-      {(claimStatus || isOptimisticUpdate) && (
-        <div className='absolute top-2 right-2 z-40'>
-          <div
-            className={`p-2 rounded-full ${
-              claimStatus === 'success'
-                ? 'bg-green-500 text-white'
-                : claimStatus === 'error'
-                ? 'bg-red-500 text-white'
-                : 'bg-blue-500 text-white'
-            }`}
-          >
-            {claimStatus === 'success' ? (
-              <CheckCircle className='w-4 h-4' />
-            ) : claimStatus === 'error' ? (
-              <XCircle className='w-4 h-4' />
-            ) : (
-              <Clock className='w-4 h-4' />
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className='relative h-40 md:h-48 overflow-hidden'>
+      <div className='relative h-32 sm:h-36 md:h-40 overflow-hidden'>
         <img
           src={resolveImageUrl(
             reward.image,
@@ -260,11 +208,10 @@ const RewardCard = ({
         />
 
         {/* Badges */}
-        <div className='absolute top-3 left-3'>
+        <div className='absolute top-2.5 left-2.5'>
           <span
-            className={`bg-gradient-to-r ${getRewardColor(
-              reward.type
-            )} text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 backdrop-blur-sm`}
+            className='text-white px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 border border-white/25 shadow-sm'
+            style={{ background: brandGradient }}
           >
             {getRewardIcon(reward.type)}
             <span className='hidden sm:inline'>
@@ -274,8 +221,8 @@ const RewardCard = ({
         </div>
 
         {/* Point Cost */}
-        <div className='absolute top-3 right-3'>
-          <span className='bg-black/70 backdrop-blur-sm text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
+        <div className='absolute top-2.5 right-2.5'>
+          <span className='bg-black/70 text-white px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1'>
             <Zap className='w-3 h-3' />
             {reward.pointCost}
           </span>
@@ -283,18 +230,18 @@ const RewardCard = ({
 
         {/* Voice Note Button */}
         {reward.voiceNoteUrl && (
-          <div className='absolute bottom-3 right-3 z-30'>
+          <div className='absolute bottom-2.5 right-2.5 z-30'>
             <button
               type='button'
               onClick={toggleVoiceNote}
-              aria-label={isPlaying ? 'Pause voice note' : 'Play voice note'}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-lg ${
                 isPlaying 
-                  ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white animate-pulse' 
+                  ? 'text-white animate-pulse' 
                   : 'bg-white/90 text-[color:var(--brand-primary)] hover:bg-white hover:scale-110'
               }`}
+              style={isPlaying ? { background: brandGradient } : undefined}
             >
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              {isPlaying ? <Pause className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
             <audio 
               ref={audioRef} 
@@ -306,12 +253,12 @@ const RewardCard = ({
         )}
 
         {/* Status Badge */}
-        <div className='absolute bottom-3 left-3'>
+        <div className='absolute bottom-2.5 left-2.5'>
           <span
-            className={`px-2 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${
+            className={`px-2 py-1 rounded-full text-[10px] font-semibold ${
               reward.status === 'active'
-                ? 'bg-green-500/90 text-white'
-                : 'bg-gray-500/90 text-white'
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-500 text-white'
             }`}
           >
             {reward.status}
@@ -319,37 +266,39 @@ const RewardCard = ({
         </div>
       </div>
 
-      <div className='p-4 md:p-5 flex flex-1 flex-col'>
-        <h3 className='text-base md:text-lg font-bold mb-2 text-gray-900 line-clamp-1'>
+      <div className='p-3.5 md:p-4 flex flex-1 flex-col'>
+        <h3 className='text-[0.95rem] md:text-[1rem] font-semibold mb-1.5 text-gray-900 line-clamp-1 tracking-[-0.015em]'>
           {reward.name}
         </h3>
 
-        <p className='text-sm mb-3 line-clamp-2 text-gray-600'>
+        <p className='text-[0.78rem] md:text-[0.82rem] mb-2.5 line-clamp-2 text-gray-600 leading-[1.4]'>
           {reward.description}
         </p>
 
         {/* Reward Value */}
-        <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-xl mb-3'>
+        <div className='bg-[#fafafb] p-2.5 rounded-[0.8rem] mb-2.5 border border-[#f1f1f3]'>
           <div className='flex items-center justify-between'>
-            <span className='text-sm font-semibold text-gray-700'>Value:</span>
-            <span className='font-bold text-base text-gray-900'>
+            <span className='text-[0.72rem] font-medium text-gray-700'>Value</span>
+            <span className='font-semibold text-[0.9rem] text-gray-900'>
               {reward.displayValue}
             </span>
           </div>
         </div>
 
         {/* Details Grid */}
-        <div className='grid grid-cols-2 gap-3 mb-4'>
-          <div className='text-center bg-gray-50 rounded-xl p-3'>
-            <div className='text-xs text-gray-500 mb-1'>Valid For</div>
-            <div className='font-semibold text-sm text-gray-900'>
-              {reward.validDays} days
+        <div className='grid grid-cols-2 gap-2 mb-3'>
+          <div className='text-center bg-gray-50 rounded-[0.8rem] p-2.5 border border-[#f3f3f5]'>
+            <div className='text-[0.64rem] text-gray-500 mb-1 uppercase tracking-[0.08em]'>Valid For</div>
+            <div className='font-medium text-[0.75rem] text-gray-900 leading-tight'>
+              {reward.validDays && reward.validDays > 0
+                ? `${reward.validDays} days`
+                : 'No expiry'}
             </div>
           </div>
-          <div className='text-center bg-gray-50 rounded-xl p-3'>
-            <div className='text-xs text-gray-500 mb-1'>Monthly Limit</div>
-            <div className='font-semibold text-sm text-gray-900'>
-              {reward.limit} ({reward.userClaimsThisMonth || 0} used)
+          <div className='text-center bg-gray-50 rounded-[0.8rem] p-2.5 border border-[#f3f3f5]'>
+            <div className='text-[0.64rem] text-gray-500 mb-1 uppercase tracking-[0.08em]'>Claim Limit</div>
+            <div className='font-medium text-[0.75rem] text-gray-900 leading-tight'>
+              {(reward.limitCount || reward.limit || 1)} per {(reward.limitDays || 30)} days
             </div>
           </div>
         </div>
@@ -360,22 +309,25 @@ const RewardCard = ({
           onClick={handleClaim}
           disabled={!canAfford || isClaiming || isOptimisticUpdate}
           whileTap={{ scale: canAfford ? 0.98 : 1 }}
-          className={`mt-auto w-full py-3 md:py-3.5 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
+          style={canAfford && !isClaiming && !isOptimisticUpdate ? { background: brandGradient } : undefined}
+          className={`mt-auto w-full min-h-[2.5rem] py-2.5 rounded-[0.9rem] font-medium text-[0.82rem] transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
             isClaiming
-              ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white cursor-wait'
-              : claimStatus === 'success'
-              ? 'bg-green-500 text-white'
-              : claimStatus === 'error'
-              ? 'bg-red-500 text-white hover:bg-red-600'
+              ? 'bg-[color:var(--brand-primary)] text-white cursor-wait'
               : isOptimisticUpdate
-              ? 'bg-blue-400 text-white cursor-not-allowed'
+              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
               : canAfford
-              ? 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white hover:brightness-95 hover:scale-[1.02] transform'
+              ? 'text-white hover:brightness-105'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
           }`}
         >
-          {getButtonIcon()}
-          {getButtonText()}
+          {isClaiming ? (
+            <>
+              <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
+              Claiming...
+            </>
+          ) : (
+            getButtonText()
+          )}
         </motion.button>
       </div>
     </motion.div>
@@ -542,7 +494,7 @@ const SpaRewardsSection = () => {
     claimRewardMutation.mutate(rewardId)
   }
 
-  const lastThreeRewards = rewards.slice(-3).reverse()
+  const recentRewards = rewards.slice(-4).reverse()
 
   // Pull to refresh handler for PWA
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -599,7 +551,30 @@ const SpaRewardsSection = () => {
   if (isLoading) {
     return (
       <div className='mb-4 sm:mb-6 lg:mb-8'>
-        <DashboardCard isLoading={true} />
+        <DashboardCard>
+          <div className='mb-4 sm:mb-6'>
+            <div className='h-8 w-44 rounded-xl bg-gray-100 animate-pulse' />
+            <div className='mt-2 h-4 w-56 rounded-lg bg-gray-100 animate-pulse' />
+          </div>
+          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6'>
+            {[...Array(4)].map((_, index) => (
+              <div key={index} className={index === 3 ? 'hidden xl:block' : ''}>
+                <div className='rounded-[1.35rem] border border-gray-100 bg-white p-3.5 shadow-[0_12px_34px_-28px_rgba(15,23,42,0.18)]'>
+                  <div className='h-32 sm:h-36 md:h-40 rounded-[1rem] bg-gray-100 animate-pulse mb-3' />
+                  <div className='h-4 w-3/4 rounded-lg bg-gray-100 animate-pulse mb-2' />
+                  <div className='h-3 w-full rounded-lg bg-gray-100 animate-pulse mb-1.5' />
+                  <div className='h-3 w-5/6 rounded-lg bg-gray-100 animate-pulse mb-3' />
+                  <div className='h-10 rounded-[0.8rem] bg-gray-100 animate-pulse mb-3' />
+                  <div className='grid grid-cols-2 gap-2 mb-3'>
+                    <div className='h-14 rounded-[0.8rem] bg-gray-100 animate-pulse' />
+                    <div className='h-14 rounded-[0.8rem] bg-gray-100 animate-pulse' />
+                  </div>
+                  <div className='h-10 rounded-[0.9rem] bg-gray-100 animate-pulse' />
+                </div>
+              </div>
+            ))}
+          </div>
+        </DashboardCard>
       </div>
     )
   }
@@ -667,7 +642,7 @@ const SpaRewardsSection = () => {
           <div className='flex items-center gap-2'>
             <span className='bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold'>
               {
-                lastThreeRewards.filter(
+                recentRewards.filter(
                   (r) => r.canClaim && !optimisticRewards.has(r._id)
                 ).length
               }{' '}
@@ -695,15 +670,19 @@ const SpaRewardsSection = () => {
           </div>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6'>
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6'>
           <AnimatePresence mode='wait'>
-            {lastThreeRewards.map((reward) => (
-              <RewardCard
+            {recentRewards.map((reward, index) => (
+              <div
                 key={reward._id}
-                reward={reward}
-                onClaim={handleClaimReward}
-                isOptimisticUpdate={optimisticRewards.has(reward._id)}
-              />
+                className={index === 3 ? 'hidden xl:block' : ''}
+              >
+                <RewardCard
+                  reward={reward}
+                  onClaim={handleClaimReward}
+                  isOptimisticUpdate={optimisticRewards.has(reward._id)}
+                />
+              </div>
             ))}
           </AnimatePresence>
         </div>
@@ -947,17 +926,8 @@ const DashboardPage = () => {
     return (
       <Layout>
         <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
-          <div className='max-w-7xl mx-auto space-y-6'>
-            <DashboardCard isLoading={true} />
-            <DashboardCard isLoading={true} />
-            <div className='grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8'>
-              <div className='lg:col-span-7'>
-                <DashboardCard isLoading={true} />
-              </div>
-              <div className='lg:col-span-5'>
-                <DashboardCard isLoading={true} />
-              </div>
-            </div>
+          <div className='max-w-7xl mx-auto'>
+            <BrandLottieLoader label='Loading dashboard...' className='min-h-[65vh]' />
           </div>
         </div>
       </Layout>

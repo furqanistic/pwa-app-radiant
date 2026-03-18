@@ -1,5 +1,6 @@
 // client/src/pages/Bookings/ServiceCatalogPage.jsx - HIGH-END PREMIUM DESIGN
 import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
+import BrandLottieLoader from '@/components/Common/BrandLottieLoader'
 import { useBranding } from '@/context/BrandingContext'
 import {
   useActiveServices,
@@ -347,46 +348,6 @@ const ServiceCard = ({
   )
 }
 
-const CategorySkeleton = () => (
-  <div className='aspect-square rounded-[1.5rem] border border-gray-200/70 bg-white p-3'>
-    <div className='mb-6 h-9 w-9 animate-pulse rounded-2xl bg-gray-100' />
-    <div className='h-3 w-16 animate-pulse rounded bg-gray-100' />
-    <div className='mt-2 h-2 w-10 animate-pulse rounded bg-gray-100' />
-  </div>
-)
-
-const ServiceCardSkeleton = () => (
-  <div className='rounded-[1.35rem] border border-gray-200/70 bg-white p-2.5 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.16)] sm:p-3'>
-    <div className='mb-3.5 aspect-[16/9] w-full animate-pulse rounded-[1.05rem] bg-gray-100' />
-    <div className='mb-2 h-6 w-2/3 animate-pulse rounded-xl bg-gray-100' />
-    <div className='mb-1.5 h-3 w-full animate-pulse rounded-full bg-gray-100' />
-    <div className='mb-3 h-3 w-5/6 animate-pulse rounded-full bg-gray-100' />
-    <div className='mb-2 h-20 w-full animate-pulse rounded-[1.05rem] bg-gray-100' />
-    <div className='mb-2.5 h-28 w-full animate-pulse rounded-[1.1rem] bg-gray-100' />
-    <div className='flex items-center gap-2'>
-      <div className='h-9 flex-1 animate-pulse rounded-full bg-gray-100' />
-      <div className='h-9 flex-[1.15] animate-pulse rounded-full bg-gray-100' />
-    </div>
-  </div>
-)
-
-const CatalogSkeleton = ({ showCategories = true, cards = 6 }) => (
-  <div className='animate-fadeIn'>
-    {showCategories && (
-      <div className='grid grid-cols-3 gap-3 sm:grid-cols-4 md:flex md:flex-wrap md:justify-center md:gap-4 mb-8'>
-        {[...Array(8)].map((_, idx) => (
-          <CategorySkeleton key={idx} />
-        ))}
-      </div>
-    )}
-    <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
-      {[...Array(cards)].map((_, idx) => (
-        <ServiceCardSkeleton key={idx} />
-      ))}
-    </div>
-  </div>
-)
-
 // ==========================================
 // 3. MAIN PAGE
 // ==========================================
@@ -618,7 +579,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             
             {activeTab === 'browse' && (
                 isLoading && (!services || services.length === 0) ? (
-                    <CatalogSkeleton showCategories cards={6} />
+                    <BrandLottieLoader label='Loading services...' className='min-h-[45vh]' />
                 ) : (
                 <div className='animate-fadeIn'>
                     {renderCategories()}
@@ -646,7 +607,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
             {activeTab === 'membership' && (
                 isLoading && (!services || services.length === 0) ? (
-                    <CatalogSkeleton showCategories={false} cards={3} />
+                    <BrandLottieLoader label='Loading memberships...' className='min-h-[45vh]' />
                 ) : (
                 <div className='animate-fadeIn'>
                     {
@@ -664,7 +625,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
             {activeTab === 'treatment' && (
                 isLoading && (!services || services.length === 0) ? (
-                    <CatalogSkeleton showCategories={false} cards={6} />
+                    <BrandLottieLoader label='Loading treatments...' className='min-h-[45vh]' />
                 ) : (
                 <div className='animate-fadeIn'>
                      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>

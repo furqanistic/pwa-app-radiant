@@ -8,7 +8,6 @@ import {
     rollbackPoints,
     setPoints,
     subtractPoints,
-    updatePoints,
 } from '@/redux/userSlice'
 
 // ===============================================
@@ -79,6 +78,7 @@ export const useEnhancedRewardsCatalog = (filters = {}) => {
   const { data: catalogData, ...queryResult } = useQuery({
     queryKey: rewardQueryKeys.catalogList(filters),
     queryFn: () => rewardsService.getRewardsCatalog(filters),
+    placeholderData: (previousData) => previousData,
     staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
