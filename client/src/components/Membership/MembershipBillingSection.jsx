@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CreditCard, FileText, Loader2, RefreshCw } from 'lucide-react'
+import { CheckCircle2, ChevronDown, CreditCard, FileText, Loader2, RefreshCw } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import MembershipAddCardDialog from '@/components/Membership/MembershipAddCardDialog'
 import MembershipInvoicesDialog from '@/components/Membership/MembershipInvoicesDialog'
@@ -32,7 +32,6 @@ const MembershipBillingSection = ({
   invoices = [],
   invoicesLoading = false,
   onRefresh,
-  onRequestInvoices,
   onMakeDefault,
   onRemoveCard,
   onOpenInvoicePortal,
@@ -41,6 +40,7 @@ const MembershipBillingSection = ({
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false)
   const [makingDefaultId, setMakingDefaultId] = useState(null)
   const [removingCardId, setRemovingCardId] = useState(null)
+  const [showDetails, setShowDetails] = useState(false)
 
   const paymentMethods = summary?.paymentMethods || []
   const membership = summary?.membership || {}
@@ -76,14 +76,14 @@ const MembershipBillingSection = ({
 
   return (
     <>
-      <section className="w-full max-w-6xl mb-8 rounded-[1.75rem] border border-[color:var(--brand-primary)]/16 bg-white overflow-hidden shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
-        <div className="h-1.5 bg-[color:var(--brand-primary)]" />
+      <section className="w-full max-w-6xl mb-6 rounded-[1.35rem] border border-[color:var(--brand-primary)]/14 bg-white overflow-hidden shadow-[0_14px_32px_rgba(15,23,42,0.05)] sm:mb-8 sm:rounded-[1.75rem] sm:shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
+        <div className="h-1 bg-[color:var(--brand-primary)] sm:h-1.5" />
 
-        <div className="px-5 py-5 md:px-7 md:py-6">
+        <div className="px-4 py-4 md:px-7 md:py-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-[color:var(--brand-primary)]">
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--brand-primary)]">
                   Membership
                 </span>
                 <Badge className="border-0 bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary-dark)] shadow-none">
@@ -91,158 +91,197 @@ const MembershipBillingSection = ({
                 </Badge>
               </div>
 
-              <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900 md:text-[2rem]">
+              <h2 className="mt-2 text-[1.15rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl md:text-[2rem]">
                 {membership?.planName || 'Choose a monthly membership'}
               </h2>
 
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-[13px] sm:text-sm text-slate-600">
                 {membership?.price
                   ? `${formatMoney(membership.price, membership.currency)} / month`
                   : 'Add a card, then pick a plan below.'}
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:w-auto sm:flex-wrap">
               <Button
-                onClick={() => setCardDialogOpen(true)}
+                onClick={() => {
+                  setCardDialogOpen(true)
+                }}
                 disabled={!locationId}
-                className="bg-[color:var(--brand-primary)] text-white hover:bg-[color:var(--brand-primary-dark)]"
+                className={`h-10 ${
+                  hasPaymentMethod
+                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'bg-[color:var(--brand-primary)] text-white hover:bg-[color:var(--brand-primary-dark)]'
+                }`}
               >
-                <CreditCard className="h-4 w-4" />
-                Add card
+                {hasPaymentMethod ? <CheckCircle2 className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+                {hasPaymentMethod ? 'Add another card' : 'Add card'}
               </Button>
               <Button
                 variant="outline"
-                className="border-slate-200"
+                className="h-10 border-slate-200"
                 onClick={onOpenInvoicePortal}
               >
                 <FileText className="h-4 w-4" />
                 Invoices
               </Button>
-              <Button variant="ghost" className="text-slate-500" onClick={onRefresh} disabled={loading}>
+              <Button variant="ghost" className="h-10 px-3 text-slate-500 sm:px-4" onClick={onRefresh} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-3">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                Last payment
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                {formatDate(membership?.lastPaymentAt)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                Next payment
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                {formatDate(subscription?.currentPeriodEnd)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                Auto-pay card
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{defaultCardLabel}</p>
-            </div>
-          </div>
-
-          {pendingPlan?.planName ? (
-            <p className="mt-4 rounded-2xl bg-[color:var(--brand-primary)]/6 px-4 py-3 text-sm text-slate-700">
-              Next change: <span className="font-semibold">{pendingPlan.planName}</span> on{' '}
-              {formatDate(pendingPlan.effectiveAt)}.
-            </p>
-          ) : null}
-
-          <div className="mt-5 border-t border-slate-100 pt-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-slate-900">Saved cards</p>
-              {!hasPaymentMethod ? (
-                <span className="text-xs text-slate-500">
-                  Add a card before buying a plan.
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 sm:px-4 sm:py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Card Status
+                </p>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    hasPaymentMethod
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  {hasPaymentMethod ? 'Card added' : 'Card needed'}
                 </span>
-              ) : null}
+              </div>
+              <p className="mt-1 text-[13px] font-medium text-slate-800">{defaultCardLabel}</p>
             </div>
 
-            <div className="mt-3 space-y-2">
-              {loading ? (
-                <div className="flex items-center gap-2 py-3 text-sm text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading billing details...
-                </div>
-              ) : paymentMethods.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-sm text-slate-500">
-                  No saved cards yet.
-                </div>
-              ) : (
-                paymentMethods.map((method) => (
-                  <div
-                    key={method.id}
-                    className="flex flex-col gap-3 rounded-2xl border border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {method.brand || 'Card'} •••• {method.last4}
-                        </p>
-                        {method.isDefault ? (
-                          <Badge className="border-0 bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary-dark)] shadow-none">
-                            Default
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Expires {method.expMonth}/{method.expYear}
-                      </p>
-                    </div>
-
-                    {!method.isDefault ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          className="justify-start text-[color:var(--brand-primary)] md:justify-center"
-                          disabled={makingDefaultId === method.id || removingCardId === method.id}
-                          onClick={() => handleMakeDefault(method.id)}
-                        >
-                          {makingDefaultId === method.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : null}
-                          Make default
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="justify-start text-rose-600 hover:text-rose-700 md:justify-center"
-                          disabled={removingCardId === method.id || makingDefaultId === method.id}
-                          onClick={() => handleRemoveCard(method.id)}
-                        >
-                          {removingCardId === method.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : null}
-                          Remove
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        className="justify-start text-rose-600 hover:text-rose-700 md:justify-center"
-                        disabled={removingCardId === method.id}
-                        onClick={() => handleRemoveCard(method.id)}
-                      >
-                        {removingCardId === method.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : null}
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowDetails((prev) => !prev)}
+              className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--brand-primary)]"
+            >
+              {showDetails ? 'Hide details' : 'More info'}
+              <ChevronDown className={`h-4 w-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+            </button>
           </div>
+
+          {showDetails && (
+            <>
+              <div className="mt-4 grid gap-2 md:grid-cols-3 md:gap-3">
+                <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Last payment
+                  </p>
+                  <p className="mt-1 text-[13px] font-semibold text-slate-900">
+                    {formatDate(membership?.lastPaymentAt)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Next payment
+                  </p>
+                  <p className="mt-1 text-[13px] font-semibold text-slate-900">
+                    {formatDate(subscription?.currentPeriodEnd)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Auto-pay card
+                  </p>
+                  <p className="mt-1 text-[13px] font-semibold text-slate-900">{defaultCardLabel}</p>
+                </div>
+              </div>
+
+              {pendingPlan?.planName ? (
+                <p className="mt-3 rounded-xl bg-[color:var(--brand-primary)]/6 px-3 py-2.5 text-[13px] text-slate-700 sm:mt-4 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm">
+                  Next change: <span className="font-semibold">{pendingPlan.planName}</span> on{' '}
+                  {formatDate(pendingPlan.effectiveAt)}.
+                </p>
+              ) : null}
+
+              <div className="mt-4 border-t border-slate-100 pt-3 sm:mt-5 sm:pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[15px] font-semibold text-slate-900 sm:text-sm">Saved cards</p>
+                  {!hasPaymentMethod ? (
+                    <span className="text-[11px] text-slate-500">
+                      Add a card before buying a plan.
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {loading ? (
+                    <div className="flex items-center gap-2 py-3 text-sm text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading billing details...
+                    </div>
+                  ) : paymentMethods.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 px-3 py-3 text-[13px] text-slate-500 sm:rounded-2xl sm:px-4 sm:py-4 sm:text-sm">
+                      No saved cards yet.
+                    </div>
+                  ) : (
+                    paymentMethods.map((method) => (
+                      <div
+                        key={method.id}
+                        className="flex flex-col gap-2.5 rounded-xl border border-slate-200 px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-3 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-[15px] font-semibold text-slate-900 sm:text-sm">
+                              {method.brand || 'Card'} •••• {method.last4}
+                            </p>
+                            {method.isDefault ? (
+                              <Badge className="border-0 bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary-dark)] shadow-none">
+                                Default
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 text-[12px] text-slate-500">
+                            Expires {method.expMonth}/{method.expYear}
+                          </p>
+                        </div>
+
+                        {!method.isDefault ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              className="h-8 px-2.5 justify-start text-[color:var(--brand-primary)] md:justify-center"
+                              disabled={makingDefaultId === method.id || removingCardId === method.id}
+                              onClick={() => handleMakeDefault(method.id)}
+                            >
+                              {makingDefaultId === method.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : null}
+                              Make default
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="h-8 px-2.5 justify-start text-rose-600 hover:text-rose-700 md:justify-center"
+                              disabled={removingCardId === method.id || makingDefaultId === method.id}
+                              onClick={() => handleRemoveCard(method.id)}
+                            >
+                              {removingCardId === method.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : null}
+                              Remove
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            className="h-8 px-2.5 justify-start text-rose-600 hover:text-rose-700 md:justify-center"
+                            disabled={removingCardId === method.id}
+                            onClick={() => handleRemoveCard(method.id)}
+                          >
+                            {removingCardId === method.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : null}
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </section>
 

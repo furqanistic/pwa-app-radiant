@@ -55,11 +55,11 @@ const SetupCardForm = ({ onSuccess, onCancel }) => {
   return (
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <div className="rounded-[1.4rem] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+        <div className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3 shadow-sm sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
             Payment Method
           </label>
-          <div className="rounded-[1rem] border border-slate-200 bg-slate-50 px-4 py-4">
+          <div className="rounded-[0.8rem] border border-slate-200 bg-slate-50 px-3 py-3 sm:rounded-[1rem] sm:px-4 sm:py-4">
             <PaymentElement
               options={{
                 wallets: {
@@ -69,16 +69,16 @@ const SetupCardForm = ({ onSuccess, onCancel }) => {
               }}
             />
           </div>
-          <p className="mt-3 text-xs text-slate-500">
-            Apple Wallet is available on supported devices when account and domain settings are enabled.
+          <p className="mt-2 text-[11px] leading-4 text-slate-500">
+            Secure Stripe checkout. Apple Wallet appears automatically on supported devices.
           </p>
         </div>
       </div>
-      <div className="mt-4 flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+      <div className="mt-3 flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:mt-4 sm:flex-row sm:justify-end sm:pt-4">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting} className="h-10">
           Cancel
         </Button>
-        <Button type="submit" disabled={!stripe || submitting}>
+        <Button type="submit" disabled={!stripe || submitting} className="h-10 bg-[color:var(--brand-primary)] text-white hover:bg-[color:var(--brand-primary-dark)]">
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Save card
         </Button>
@@ -153,28 +153,28 @@ const MembershipAddCardDialog = ({ open, onOpenChange, locationId, onSuccess }) 
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
         showCloseButton={false}
-        className="p-0 overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] w-full max-w-none sm:max-w-xl rounded-t-[2.5rem] sm:rounded-[2rem] fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 border-0 shadow-2xl bg-white"
+        className="p-0 overflow-hidden flex flex-col max-h-[84vh] sm:max-h-[88vh] w-full max-w-none sm:max-w-xl rounded-t-[1.6rem] sm:rounded-[1.8rem] fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 border-0 shadow-2xl bg-white"
       >
         <div className="flex max-h-[inherit] min-h-0 flex-col">
-          <div className="shrink-0 flex items-center justify-between px-5 pt-3 pb-2 sm:hidden">
-            <div className="mx-auto h-1.5 w-14 rounded-full bg-slate-200" />
+          <div className="shrink-0 flex items-center justify-between px-4 pt-2.5 pb-1.5 sm:hidden">
+            <div className="mx-auto h-1 w-12 rounded-full bg-slate-200" />
             <DialogClose asChild>
               <button
                 type="button"
-                className="absolute right-5 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                className="absolute right-4 top-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
               >
                 <XIcon className="h-4 w-4" />
               </button>
             </DialogClose>
           </div>
 
-          <div className="shrink-0 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5">
+          <div className="shrink-0 border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex items-start justify-between gap-4">
               <DialogHeader className="text-left">
-                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 md:text-2xl">
+                <DialogTitle className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
                   Add Payment Method
                 </DialogTitle>
-                <DialogDescription className="text-slate-600">
+                <DialogDescription className="text-sm text-slate-600">
                   Save a payment method for monthly membership renewals.
                 </DialogDescription>
               </DialogHeader>
@@ -190,15 +190,15 @@ const MembershipAddCardDialog = ({ open, onOpenChange, locationId, onSuccess }) 
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col px-5 py-4 sm:px-6 sm:py-5">
-            <div className="mb-4 shrink-0 flex items-start gap-3 rounded-[1.25rem] bg-slate-50 p-4 text-sm text-slate-600">
-              <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--brand-primary)]" />
-              <p>The first card you add becomes your default automatically.</p>
+          <div className="flex min-h-0 flex-1 flex-col px-4 py-3 sm:px-6 sm:py-4">
+            <div className="mb-3 shrink-0 flex items-start gap-2.5 rounded-[0.95rem] border border-[color:var(--brand-primary)]/14 bg-[color:var(--brand-primary)]/6 p-2.5 text-[12px] text-slate-600 sm:mb-4 sm:rounded-[1.1rem] sm:p-3 sm:text-sm">
+              <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[color:var(--brand-primary)] sm:h-4 sm:w-4" />
+              <p>Your first card is set as default automatically.</p>
             </div>
 
             {loading ? (
-              <div className="flex flex-1 items-center justify-center py-10 text-slate-500">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <div className="flex flex-1 items-center justify-center py-6 text-sm text-slate-500">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Preparing secure card setup...
               </div>
             ) : clientSecret ? (

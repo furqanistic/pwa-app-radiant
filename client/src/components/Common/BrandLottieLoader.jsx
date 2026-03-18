@@ -43,7 +43,7 @@ const BrandLottieLoader = ({
   return (
     <Motion.div
       {...reveal}
-      className={`relative flex w-full flex-col items-center justify-center overflow-hidden ${compact ? 'py-8' : 'py-14'} ${className}`}
+      className={`relative flex h-full w-full flex-col items-center justify-center overflow-hidden ${compact ? 'min-h-[32vh]' : 'min-h-[56vh]'} ${className}`}
     >
       <div className='pointer-events-none absolute -top-24 h-56 w-56 rounded-full bg-[color:var(--brand-primary)/0.12] blur-3xl' />
       <div className='pointer-events-none absolute -bottom-24 h-56 w-56 rounded-full bg-[color:var(--brand-primary)/0.09] blur-3xl' />
@@ -90,7 +90,7 @@ const BrandLottieLoader = ({
               animate: { opacity: 1, y: 0 },
               transition: { duration: 0.35, delay: 0.14, ease: [0.22, 1, 0.36, 1] },
             })}
-        className='mt-3 w-[min(92vw,22rem)] rounded-2xl bg-white/85 px-4 py-3 shadow-[0_14px_34px_-24px_color-mix(in_srgb,var(--brand-primary)_30%,transparent)] backdrop-blur-sm'
+        className='mt-3 w-[min(92vw,22rem)] px-1'
       >
         <div className='mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500'>
           Preparing your experience

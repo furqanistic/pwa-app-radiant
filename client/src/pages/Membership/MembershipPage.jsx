@@ -296,7 +296,6 @@ const MembershipPage = () => {
                         invoices={membershipInvoices}
                         invoicesLoading={isLoadingInvoices}
                         onRefresh={refreshMembershipState}
-                        onRequestInvoices={refetchMembershipInvoices}
                         onOpenInvoicePortal={async () => {
                             try {
                                 const response =

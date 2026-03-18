@@ -17,6 +17,8 @@ import {
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
+const Motion = motion
+
 const STORAGE_KEYS = {
   DISMISSED: 'radiant-install-dismissed',
   SUCCESS_SHOWN: 'radiant-install-success-shown',
@@ -282,27 +284,36 @@ const InstallPrompt = () => {
   if (isInstalled && showSuccessMessage) {
     return (
       <AnimatePresence>
-        <motion.div
+        <Motion.div
           initial={{ opacity: 0, scale: 0.9, y: 50 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 50 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className='fixed bottom-4 right-4 bg-green-50 border border-green-200 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-[100] max-w-sm'
+          className='fixed bottom-4 right-4 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-[100] max-w-sm border'
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--brand-primary) 10%, white)',
+            borderColor: 'color-mix(in srgb, var(--brand-primary) 22%, #d1d5db)',
+            ['--brand-primary']: brandColor,
+            ['--brand-primary-dark']: brandColorDark,
+          }}
         >
           <div className='flex items-center space-x-3'>
-            <div className='w-10 h-10 bg-green-100 rounded-full flex items-center justify-center'>
-              <CheckCircle className='w-6 h-6 text-green-600' />
+            <div
+              className='w-10 h-10 rounded-full flex items-center justify-center'
+              style={{ backgroundColor: 'color-mix(in srgb, var(--brand-primary) 18%, white)' }}
+            >
+              <CheckCircle className='w-6 h-6 text-[color:var(--brand-primary)]' />
             </div>
             <div>
-              <h3 className='text-sm font-bold text-green-800'>
+              <h3 className='text-sm font-bold text-[color:var(--brand-primary-dark)]'>
                 App Installed Successfully! 🎉
               </h3>
-              <p className='text-xs text-green-600 mt-0.5 font-medium'>
+              <p className='text-xs mt-0.5 font-medium text-[color:var(--brand-primary)]'>
                 Launch RadiantAI from your home screen
               </p>
             </div>
           </div>
-        </motion.div>
+        </Motion.div>
       </AnimatePresence>
     )
   }
@@ -314,7 +325,7 @@ const InstallPrompt = () => {
 
   return (
     <AnimatePresence mode='wait'>
-      <motion.div
+      <Motion.div
         key={promptState}
         initial={{ opacity: 0, y: 100, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -346,7 +357,7 @@ const InstallPrompt = () => {
 
           {/* Content based on state */}
           {promptState === PROMPT_STATES.INITIAL && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className='space-y-4'
@@ -390,11 +401,11 @@ const InstallPrompt = () => {
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </Motion.div>
           )}
 
           {promptState === PROMPT_STATES.IOS_INSTRUCTIONS && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className='space-y-4'
@@ -440,14 +451,15 @@ const InstallPrompt = () => {
                 </div>
                 <button
                   onClick={() => handleDismiss(false)}
-                  className='w-full py-3 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-colors'
+                  className='w-full py-3 text-white font-bold rounded-2xl hover:brightness-105 transition-all'
+                  style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
                 >
                   Got It
                 </button>
               </div>
 
               {/* Indicator pointing to share button on mobile */}
-              <motion.div 
+              <Motion.div 
                 animate={{ y: [0, 10, 0] }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
                 className='fixed bottom-[80px] left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 z-[101] lg:hidden'
@@ -456,12 +468,12 @@ const InstallPrompt = () => {
                   Tap here!
                 </div>
                 <ArrowUp className='w-6 h-6 text-blue-500 rotate-180 drop-shadow-lg' />
-              </motion.div>
-            </motion.div>
+              </Motion.div>
+            </Motion.div>
           )}
 
           {promptState === PROMPT_STATES.ANDROID_INSTRUCTIONS && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className='space-y-4'
@@ -499,16 +511,17 @@ const InstallPrompt = () => {
                 </div>
                 <button
                   onClick={() => handleDismiss(false)}
-                  className='w-full py-3 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-colors'
+                  className='w-full py-3 text-white font-bold rounded-2xl hover:brightness-105 transition-all'
+                  style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
                 >
                   Got It
                 </button>
               </div>
-            </motion.div>
+            </Motion.div>
           )}
 
           {promptState === PROMPT_STATES.GENERAL_INSTRUCTIONS && (
-            <motion.div
+            <Motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               className='space-y-4'
@@ -541,11 +554,12 @@ const InstallPrompt = () => {
 
               <button
                 onClick={() => handleDismiss(false)}
-                className='w-full py-3 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-colors'
+                className='w-full py-3 text-white font-bold rounded-2xl hover:brightness-105 transition-all'
+                style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
               >
                 Understood
               </button>
-            </motion.div>
+            </Motion.div>
           )}
 
           {/* Browser Info Footer */}
@@ -559,7 +573,7 @@ const InstallPrompt = () => {
             )}
           </div>
         </div>
-      </motion.div>
+      </Motion.div>
     </AnimatePresence>
   )
 }
