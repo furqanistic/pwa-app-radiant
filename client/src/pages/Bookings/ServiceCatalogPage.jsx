@@ -149,13 +149,6 @@ const ServiceCard = ({
   locationMembershipPlans = [],
   onViewMembership,
 }) => {
-  // Specific styles for membership vs standard service
-  const containerClasses = isMembership
-    ? 'border-amber-100 from-amber-50/50 to-white'
-    : 'border-[color:var(--brand-primary)/0.2] from-[color:var(--brand-primary)/0.08] to-white'
-  
-  const accentColor = isMembership ? 'text-amber-500' : 'text-[color:var(--brand-primary)]'
-
   const regularPrice = Number(service?.basePrice) || 0
   const memberDealPrice = getBestMemberDealPrice(service)
   const hasMemberDeal =
@@ -168,14 +161,67 @@ const ServiceCard = ({
       ? Math.round(((regularPrice - memberDealPrice) / regularPrice) * 100)
       : 0
   const membershipJoinPrice = Number(locationMembershipPlans?.[0]?.price)
+  const description = service?.description || 'Personalized treatment tailored to your wellness goals.'
+  const categoryLabel = service.categoryId?.name || 'Service'
+  const durationLabel = service?.duration ? `${service.duration} mins` : 'Flexible time'
+  const bookLabel = regularPrice > 0 ? `Book for ${formatPrice(regularPrice)}` : 'Book now'
+  const saveLabel =
+    savePercent > 0 ? `Save ${savePercent}%` : 'Member deal'
+  const cardStyle = isMembership
+    ? {
+        background:
+          'linear-gradient(180deg, color-mix(in srgb, #f59e0b 4%, #ffffff) 0%, #ffffff 35%)',
+        borderColor: 'color-mix(in srgb, #f59e0b 16%, #e5e7eb)',
+      }
+    : {
+        background:
+          'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 4%, #ffffff) 0%, #ffffff 35%)',
+        borderColor: 'color-mix(in srgb, var(--brand-primary) 14%, #e5e7eb)',
+      }
+  const regularPriceStyle = {
+    borderColor: 'rgba(15, 23, 42, 0.08)',
+    boxShadow: '0 10px 22px -24px rgba(15, 23, 42, 0.42)',
+  }
+  const memberPanelStyle = isMembership
+    ? {
+        background:
+          'linear-gradient(135deg, color-mix(in srgb, #f59e0b 10%, #ffffff) 0%, #ffffff 65%)',
+        borderColor: 'color-mix(in srgb, #f59e0b 18%, #d1d5db)',
+        boxShadow: '0 18px 36px -30px rgba(245, 158, 11, 0.3)',
+      }
+    : {
+        background:
+          'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 12%, #ffffff) 0%, #ffffff 70%)',
+        borderColor: 'color-mix(in srgb, var(--brand-primary) 18%, #d1d5db)',
+        boxShadow: '0 18px 36px -30px color-mix(in srgb, var(--brand-primary) 26%, transparent)',
+      }
+  const memberBadgeStyle = isMembership
+    ? {
+        backgroundColor: 'color-mix(in srgb, #f59e0b 14%, #ffffff)',
+        color: '#b45309',
+      }
+    : {
+        backgroundColor: 'color-mix(in srgb, var(--brand-primary) 14%, #ffffff)',
+        color: 'color-mix(in srgb, var(--brand-primary) 84%, #12372d)',
+      }
+  const memberButtonStyle = isMembership
+    ? {
+        background: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+        boxShadow: '0 16px 28px -22px rgba(180, 83, 9, 0.45)',
+      }
+    : {
+        background:
+          'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 88%, #0f172a) 0%, color-mix(in srgb, var(--brand-primary-dark) 82%, #052e2b) 100%)',
+        boxShadow: '0 16px 28px -22px color-mix(in srgb, var(--brand-primary) 36%, transparent)',
+      }
 
   return (
     <div
       onClick={() => onSelect(service)}
-      className={`relative group cursor-pointer bg-gradient-to-br ${containerClasses} rounded-[1.5rem] border border-gray-200/70 p-3 transition-all duration-300 hover:scale-[1.01] hover:shadow-lg hover:shadow-[color:var(--brand-primary)/0.14] hover:border-gray-200/70`}
+      className='group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[1.35rem] border p-2.5 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_42px_-32px_rgba(15,23,42,0.24)] sm:rounded-[1.55rem] sm:p-3'
+      style={cardStyle}
     >
-      {/* Image Container */}
-      <div className='relative h-40 rounded-[1.25rem] overflow-hidden mb-3 shadow-sm bg-gray-100'>
+      <div className='relative mb-3 overflow-hidden rounded-[1.05rem] bg-slate-100 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.22)] sm:mb-3.5 sm:rounded-[1.15rem]'>
         <img
           src={resolveImageUrl(
             getServiceImageSource(service),
@@ -183,60 +229,82 @@ const ServiceCard = ({
             { width: 800, height: 600 }
           )}
           alt={service.name}
-          className='w-full h-full object-cover transition-transform duration-700 group-hover:scale-110'
+          className='aspect-[16/9] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]'
           loading='lazy'
           decoding='async'
         />
-        
-        {/* Clean Top-Left Badge */}
-        <div className='absolute top-3 left-3'>
-           <div className='bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/50 shadow-sm'>
-              <span className={`text-xs font-bold ${accentColor} uppercase tracking-wide flex items-center gap-1.5`}>
-                 {isMembership && <Crown size={12} />}
-                 {service.categoryId?.name || 'Service'}
-              </span>
-           </div>
+        <div className='absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-950/18 via-slate-950/4 to-transparent opacity-70' />
+        <div className='absolute left-3 top-3'>
+          <div className='rounded-full border border-white/70 bg-white/92 px-2 py-1 shadow-sm backdrop-blur-md'>
+            <span className='flex items-center gap-1 text-[8px] font-semibold uppercase tracking-[0.16em] text-slate-700 sm:text-[9px]'>
+              {isMembership && <Crown size={12} />}
+              {categoryLabel}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className='px-1 pb-1'>
-        <div className='flex justify-between items-start mb-1.5'>
-          <h3 className='text-lg font-black text-gray-900 leading-tight group-hover:text-[color:var(--brand-primary)] transition-colors'>
+      <div className='flex flex-1 flex-col'>
+        <div className='mb-2 px-1 sm:mb-2.5'>
+          <h3 className='text-[1.08rem] font-semibold leading-[1.1] tracking-[-0.035em] text-slate-950 transition-colors group-hover:text-[color:var(--brand-primary)] sm:text-[1.18rem]'>
             {service.name}
           </h3>
+          <p className='mt-1.5 line-clamp-3 text-[0.74rem] font-normal leading-[1.42] text-slate-500 sm:text-[0.78rem]'>
+            {description}
+          </p>
         </div>
 
-        <p className='text-sm text-gray-500 font-medium mb-3 line-clamp-2 leading-relaxed'>
-          {service.description}
-        </p>
+        <div
+          className='mb-2 rounded-[1.05rem] border bg-white px-3 py-2.5 sm:mb-2.5 sm:rounded-[1.15rem] sm:px-3.5 sm:py-3'
+          style={regularPriceStyle}
+        >
+          <p className='text-[0.7rem] font-medium tracking-[-0.01em] text-slate-500 sm:text-[0.74rem]'>
+            Regular Price
+          </p>
+          <p className='mt-1 text-[1.95rem] font-semibold leading-none tracking-[-0.05em] text-slate-950 sm:text-[2.15rem]'>
+            {formatPrice(regularPrice)}
+          </p>
+        </div>
 
-        {hasMemberDeal ? (
-          <div className='mb-3 rounded-2xl bg-gradient-to-br from-emerald-50 to-white p-3'>
-            <div className='mb-2 flex items-start justify-between gap-2'>
-              <div>
-                <p className='text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700'>
-                  Member Price
-                </p>
-                <p className='text-3xl font-black leading-none text-emerald-700'>
+        {hasMemberDeal && (
+          <div
+            className='mb-2.5 rounded-[1.1rem] border px-3 py-2.5 sm:rounded-[1.2rem] sm:px-3.5 sm:py-3'
+            style={memberPanelStyle}
+          >
+            <div className='mb-1.5 flex flex-wrap items-center gap-1.5 text-[0.66rem] font-semibold uppercase tracking-[0.12em] sm:text-[0.7rem]'>
+              <span className='inline-flex items-center gap-1.5' style={{ color: memberBadgeStyle.color }}>
+                <Crown size={14} className='shrink-0' />
+                Member Price
+              </span>
+            </div>
+            <div className='mb-2.5 flex items-center justify-between gap-2 sm:mb-3'>
+              <div className='min-w-0'>
+                <p
+                  className='text-[1.8rem] font-semibold leading-none tracking-[-0.05em] sm:text-[1.95rem]'
+                  style={{ color: memberBadgeStyle.color }}
+                >
                   {formatPrice(memberDealPrice)}
                 </p>
               </div>
-              <div className='inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white'>
-                <Crown size={12} />
-                Save {savePercent}%
+              <div
+                className='inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[0.68rem] font-semibold tracking-[-0.02em] sm:text-[0.72rem]'
+                style={memberBadgeStyle}
+              >
+                {saveLabel}
               </div>
             </div>
-            <div className='rounded-lg bg-white/85 px-2.5 py-1.5 text-xs font-semibold text-gray-600'>
-              Regular price <span className='font-black text-gray-800'>{formatPrice(regularPrice)}</span>
-            </div>
             {!isEligible && (
-              <div className='mt-2 rounded-xl bg-emerald-900 p-2'>
-                <p className='mb-2 text-xs font-bold uppercase tracking-[0.12em] text-emerald-100'>
-                  <Lock size={12} className='mr-1 inline-block' />
-                  Member Access
-                </p>
-                <p className='text-xs font-medium leading-snug text-white/90'>
+              <>
+                <p className='mb-2 flex items-start gap-2 text-[0.72rem] font-normal leading-[1.38] text-slate-700 sm:text-[0.76rem]'>
+                  <span
+                    className='mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full'
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--brand-primary) 10%, #ffffff)',
+                      color: 'color-mix(in srgb, var(--brand-primary) 88%, #0f172a)',
+                    }}
+                  >
+                    <Lock size={12} />
+                  </span>
                   {Number.isFinite(membershipJoinPrice)
                     ? `Join from ${formatPrice(membershipJoinPrice)}/month and unlock this deal instantly.`
                     : 'Join membership to unlock this member deal instantly.'}
@@ -247,31 +315,31 @@ const ServiceCard = ({
                     e.stopPropagation()
                     onViewMembership?.()
                   }}
-                  className='mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-extrabold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-100'
+                  className='inline-flex min-h-[2.45rem] w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-[0.76rem] font-semibold tracking-[-0.02em] text-white transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99] sm:text-[0.8rem]'
+                  style={memberButtonStyle}
                 >
-                  <Crown size={14} />
-                  Save Now
+                  <Crown size={14} className='fill-current' />
+                  Join & Save {savePercent}%
                 </button>
-              </div>
+              </>
             )}
-          </div>
-        ) : (
-          <div className='mb-3 rounded-2xl border border-gray-200 bg-white p-3'>
-            <p className='text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500'>
-              Price
-            </p>
-            <p className='text-3xl font-black leading-none text-gray-900'>{formatPrice(regularPrice)}</p>
           </div>
         )}
 
-        {/* Bottom Action Row */}
-        <div className='mt-auto flex items-center justify-between gap-2 pt-1'>
-          <div className='inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider'>
-            <Clock size={12} />
-            {service.duration} mins
+        <div className='mt-auto flex items-center gap-2 pt-0.5'>
+          <div className='inline-flex min-h-[2.35rem] shrink-0 items-center justify-center gap-1.5 self-start rounded-full border border-slate-200/80 bg-slate-100/85 px-2.5 text-[0.68rem] font-medium uppercase tracking-[0.08em] text-slate-500 sm:min-w-[7.25rem] sm:px-3 sm:text-[0.72rem]'>
+            <Clock size={14} />
+            {durationLabel}
           </div>
-          <button className='inline-flex min-w-[118px] items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-extrabold text-white transition-transform active:scale-95 group-hover:bg-[color:var(--brand-primary)]'>
-            Book now
+          <button
+            type='button'
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelect(service)
+            }}
+            className='inline-flex min-h-[2.35rem] flex-1 items-center justify-center rounded-full bg-slate-950 px-3.5 text-[0.74rem] font-semibold tracking-[-0.02em] text-white transition-all duration-300 hover:bg-[color:var(--brand-primary)] active:scale-[0.99] sm:text-[0.78rem]'
+          >
+            {bookLabel}
           </button>
         </div>
       </div>
@@ -288,15 +356,16 @@ const CategorySkeleton = () => (
 )
 
 const ServiceCardSkeleton = () => (
-  <div className='rounded-[1.5rem] border border-gray-200/70 bg-white p-3'>
-    <div className='mb-3 h-40 w-full animate-pulse rounded-[1.25rem] bg-gray-100' />
-    <div className='mb-2 h-5 w-2/3 animate-pulse rounded bg-gray-100' />
-    <div className='mb-1.5 h-3 w-full animate-pulse rounded bg-gray-100' />
-    <div className='mb-3 h-3 w-1/2 animate-pulse rounded bg-gray-100' />
-    <div className='mb-3 h-14 w-full animate-pulse rounded-2xl bg-gray-100' />
-    <div className='flex items-center justify-between gap-2'>
-      <div className='h-7 w-24 animate-pulse rounded-full bg-gray-100' />
-      <div className='h-9 w-28 animate-pulse rounded-xl bg-gray-100' />
+  <div className='rounded-[1.35rem] border border-gray-200/70 bg-white p-2.5 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.16)] sm:p-3'>
+    <div className='mb-3.5 aspect-[16/9] w-full animate-pulse rounded-[1.05rem] bg-gray-100' />
+    <div className='mb-2 h-6 w-2/3 animate-pulse rounded-xl bg-gray-100' />
+    <div className='mb-1.5 h-3 w-full animate-pulse rounded-full bg-gray-100' />
+    <div className='mb-3 h-3 w-5/6 animate-pulse rounded-full bg-gray-100' />
+    <div className='mb-2 h-20 w-full animate-pulse rounded-[1.05rem] bg-gray-100' />
+    <div className='mb-2.5 h-28 w-full animate-pulse rounded-[1.1rem] bg-gray-100' />
+    <div className='flex items-center gap-2'>
+      <div className='h-9 flex-1 animate-pulse rounded-full bg-gray-100' />
+      <div className='h-9 flex-[1.15] animate-pulse rounded-full bg-gray-100' />
     </div>
   </div>
 )
