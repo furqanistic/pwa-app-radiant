@@ -1,6 +1,5 @@
 // client/src/pages/Rewards/RewardsCatalogPage.jsx
 import PointsCard from '@/components/Dashboard/PointsCard'
-import BrandLottieLoader from '@/components/Common/BrandLottieLoader'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import {
     Award,
@@ -489,10 +488,13 @@ const RewardsCatalogPage = () => {
   ]
 
   // Loading state
-  if (isLoading && rewards.length === 0) {
+  if (isLoading) {
     return (
       <Layout>
-        <BrandLottieLoader label='Loading rewards...' className='min-h-[55vh] px-4' />
+        <div className='flex flex-col items-center justify-center min-h-[50vh] px-4'>
+          <div className='animate-spin rounded-full h-12 w-12 border-4 border-[#f1f1f3] border-t-[color:var(--brand-primary)] mb-4'></div>
+          <span className='text-gray-600'>Loading rewards...</span>
+        </div>
       </Layout>
     )
   }

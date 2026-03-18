@@ -3,7 +3,6 @@ import ClinicLocations from '@/components/Dashboard/ClinicLocations'
 import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
 import SpaDashboard from '@/components/Dashboard/SpaDashboard'
-import BrandLottieLoader from '@/components/Common/BrandLottieLoader'
 import { useBranding } from '@/context/BrandingContext'
 import { useDashboardData } from '@/hooks/useDashboard'
 import { useAvailableGames } from '@/hooks/useGameWheel'
@@ -926,8 +925,17 @@ const DashboardPage = () => {
     return (
       <Layout>
         <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
-          <div className='max-w-7xl mx-auto'>
-            <BrandLottieLoader label='Loading dashboard...' className='min-h-[65vh]' />
+          <div className='max-w-7xl mx-auto space-y-6'>
+            <DashboardCard isLoading={true} />
+            <DashboardCard isLoading={true} />
+            <div className='grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8'>
+              <div className='lg:col-span-7'>
+                <DashboardCard isLoading={true} />
+              </div>
+              <div className='lg:col-span-5'>
+                <DashboardCard isLoading={true} />
+              </div>
+            </div>
           </div>
         </div>
       </Layout>

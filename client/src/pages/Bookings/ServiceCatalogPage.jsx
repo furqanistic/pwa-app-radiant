@@ -1,6 +1,5 @@
 // client/src/pages/Bookings/ServiceCatalogPage.jsx - HIGH-END PREMIUM DESIGN
 import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
-import BrandLottieLoader from '@/components/Common/BrandLottieLoader'
 import { useBranding } from '@/context/BrandingContext'
 import {
   useActiveServices,
@@ -579,7 +578,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
             
             {activeTab === 'browse' && (
                 isLoading && (!services || services.length === 0) ? (
-                    <BrandLottieLoader label='Loading services...' className='min-h-[45vh]' />
+                    <div className='flex flex-col items-center justify-center min-h-[48vh]'>
+                      <div className='w-12 h-12 rounded-full border-4 border-gray-200 border-t-[color:var(--brand-primary)] animate-spin' />
+                      <span className='mt-4 text-base text-gray-700 font-medium'>Loading services...</span>
+                    </div>
                 ) : (
                 <div className='animate-fadeIn'>
                     {renderCategories()}
@@ -607,7 +609,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
             {activeTab === 'membership' && (
                 isLoading && (!services || services.length === 0) ? (
-                    <BrandLottieLoader label='Loading memberships...' className='min-h-[45vh]' />
+                    <div className='flex flex-col items-center justify-center min-h-[48vh]'>
+                      <div className='w-12 h-12 rounded-full border-4 border-gray-200 border-t-[color:var(--brand-primary)] animate-spin' />
+                      <span className='mt-4 text-base text-gray-700 font-medium'>Loading memberships...</span>
+                    </div>
                 ) : (
                 <div className='animate-fadeIn'>
                     {
@@ -625,7 +630,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
             {activeTab === 'treatment' && (
                 isLoading && (!services || services.length === 0) ? (
-                    <BrandLottieLoader label='Loading treatments...' className='min-h-[45vh]' />
+                    <div className='flex flex-col items-center justify-center min-h-[48vh]'>
+                      <div className='w-12 h-12 rounded-full border-4 border-gray-200 border-t-[color:var(--brand-primary)] animate-spin' />
+                      <span className='mt-4 text-base text-gray-700 font-medium'>Loading treatments...</span>
+                    </div>
                 ) : (
                 <div className='animate-fadeIn'>
                      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>

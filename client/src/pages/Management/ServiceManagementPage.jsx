@@ -2600,7 +2600,7 @@ const ServiceManagementPage = () => {
     return (
       <Layout>
         <div className='flex items-center justify-center min-h-[50vh]'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600'></div>
+          <div className='animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-[color:var(--brand-primary)]'></div>
           <span className='ml-3 text-lg'>Loading services...</span>
         </div>
       </Layout>
