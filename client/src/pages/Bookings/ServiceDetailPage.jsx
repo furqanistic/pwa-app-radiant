@@ -5,38 +5,47 @@ import BNPLBanner from "@/components/Common/BNPLBanner";
 import MembershipAddCardDialog from "@/components/Membership/MembershipAddCardDialog";
 import EmbeddedStripeCheckoutDialog from "@/components/Stripe/EmbeddedStripeCheckoutDialog";
 import { Button } from "@/components/ui/button";
+import { Calendar as BookingCalendar } from "@/components/ui/calendar";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useBranding } from '@/context/BrandingContext';
 import { useAvailability } from "@/hooks/useAvailability";
 import { useUserRewards } from "@/hooks/useRewards";
 import { useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
-import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft,
-  Calendar,
-  Check,
-  CheckCircle,
-  Clock,
-  Crown,
-  DollarSign,
-  Info,
-  Lock,
-  MapPin,
-  Percent,
-  Plus,
-  CreditCard,
-  Star,
-  User,
-  X,
-  Zap,
+    calculateRewardDiscount,
+    getApplicableRewardsForService,
+    getRewardDisplayValue,
+} from "@/utils/rewardFlow";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import {
+    ArrowLeft,
+    Calendar,
+    Check,
+    CheckCircle,
+    Clock,
+    CreditCard,
+    Crown,
+    DollarSign,
+    Info,
+    Lock,
+    Loader2,
+    MapPin,
+    Percent,
+    Plus,
+    Star,
+    User,
+    X,
+    Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -45,11 +54,6 @@ import { toast } from 'sonner';
 import { addToCart } from "../../redux/cartSlice";
 import ghlService from "../../services/ghlService";
 import stripeService from "../../services/stripeService";
-import {
-  calculateRewardDiscount,
-  getApplicableRewardsForService,
-  getRewardDisplayValue,
-} from "@/utils/rewardFlow";
 
 const ServiceDetailSkeleton = () => (
   <Layout>
@@ -399,6 +403,8 @@ const ServiceDetailPage = () => {
   const [checkoutError, setCheckoutError] = useState("");
   const [cardRecommendationOpen, setCardRecommendationOpen] = useState(false);
   const [addCardDialogOpen, setAddCardDialogOpen] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const {
     data: service,
@@ -509,6 +515,46 @@ const ServiceDetailPage = () => {
   };
 
   const availableTimes = getFinalAvailableTimes();
+  const selectedDateObject = selectedDate ? new Date(`${selectedDate}T00:00:00`) : undefined;
+  const minBookableDate = new Date();
+  minBookableDate.setHours(0, 0, 0, 0);
+
+  const getSlotHour = (timeLabel = "") => {
+    const normalized = `${timeLabel}`.trim();
+    if (!normalized) return null;
+
+    const ampmMatch = normalized.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i);
+    if (ampmMatch) {
+      let hour = Number(ampmMatch[1]);
+      const meridiem = ampmMatch[3].toUpperCase();
+      if (meridiem === "PM" && hour < 12) hour += 12;
+      if (meridiem === "AM" && hour === 12) hour = 0;
+      return hour;
+    }
+
+    const twentyFourHourMatch = normalized.match(/^(\d{1,2})(?::\d{2})?$/);
+    if (twentyFourHourMatch) {
+      const hour = Number(twentyFourHourMatch[1]);
+      return Number.isFinite(hour) ? hour : null;
+    }
+
+    return null;
+  };
+
+  const groupedAvailableTimes = availableTimes.reduce(
+    (groups, time) => {
+      const hour = getSlotHour(time);
+      if (hour === null) {
+        groups.anytime.push(time);
+        return groups;
+      }
+      if (hour < 12) groups.morning.push(time);
+      else if (hour < 17) groups.afternoon.push(time);
+      else groups.evening.push(time);
+      return groups;
+    },
+    { morning: [], afternoon: [], evening: [], anytime: [] }
+  );
 
   useEffect(() => {
     if (!selectedTime) return;
@@ -526,6 +572,10 @@ const ServiceDetailPage = () => {
        setSelectedTreatments(service.subTreatments);
     }
   }, [service]);
+
+  useEffect(() => {
+    setIsDescriptionExpanded(false);
+  }, [serviceId]);
 
   // Auto-select single treatment if strict match
 
@@ -996,6 +1046,8 @@ const ServiceDetailPage = () => {
       const bClaimed = new Date(b?.claimedAt || b?.createdAt || 0).getTime()
       return bClaimed - aClaimed
     })[0]
+  const serviceDescription = `${service?.description || "No description available."}`.trim();
+  const canExpandDescription = serviceDescription.length > 180;
 
   return (
     <Layout>
@@ -1097,30 +1149,50 @@ const ServiceDetailPage = () => {
               {/* Description Card */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
                  <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <Info className="w-5 h-5 text-gray-400" /> About this service
+                    <Info className="w-5 h-5 text-gray-400" /> About service
                  </h2>
-                 <p className="text-gray-600 leading-relaxed">
-                   {service.description}
+                 <p
+                   className={`text-gray-600 leading-relaxed text-[0.95rem] ${!isDescriptionExpanded ? "overflow-hidden" : ""}`}
+                   style={
+                     !isDescriptionExpanded
+                       ? {
+                           display: "-webkit-box",
+                           WebkitBoxOrient: "vertical",
+                           WebkitLineClamp: 3,
+                         }
+                       : undefined
+                   }
+                 >
+                   {serviceDescription}
                  </p>
+                 {canExpandDescription && (
+                   <button
+                     type="button"
+                     onClick={() => setIsDescriptionExpanded((prev) => !prev)}
+                     className="mt-2 text-sm font-semibold text-[color:var(--brand-primary)] hover:opacity-80 transition-opacity"
+                   >
+                     {isDescriptionExpanded ? "Read less" : "Read more"}
+                   </button>
+                 )}
                  
                  {/* Quick Stats Grid */}
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-200/70">
-                    <div className="text-center p-3 rounded-xl bg-blue-50/50">
-                       <User className="w-5 h-5 mx-auto text-blue-600 mb-1.5" />
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-gray-200/70">
+                    <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+                       <User className="w-5 h-5 mx-auto text-slate-500 mb-1.5" />
                        <div className="text-xs text-gray-500">Practitioner</div>
                        <div className="font-semibold text-gray-900 text-sm">{service.practitioner || "Staff"}</div>
                     </div>
-                    <div className="text-center p-3 rounded-xl bg-green-50/50">
-                       <DollarSign className="w-5 h-5 mx-auto text-green-600 mb-1.5" />
+                    <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+                       <DollarSign className="w-5 h-5 mx-auto text-slate-500 mb-1.5" />
                        <div className="text-xs text-gray-500">Starts at</div>
                        <div className="font-semibold text-gray-900 text-sm">${service.basePrice}</div>
                     </div>
-                    <div className="text-center p-3 rounded-xl bg-orange-50/50">
-                       <Calendar className="w-5 h-5 mx-auto text-orange-600 mb-1.5" />
+                    <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
+                       <Calendar className="w-5 h-5 mx-auto text-slate-500 mb-1.5" />
                        <div className="text-xs text-gray-500">Availability</div>
                        <div className="font-semibold text-gray-900 text-sm">Mon-Sun</div>
                     </div>
-                     <div className="text-center p-3 rounded-xl bg-[color:var(--brand-primary)/0.08]">
+                     <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
                        <Zap className="w-5 h-5 mx-auto text-[color:var(--brand-primary)] mb-1.5" />
                        <div className="text-xs text-gray-500">Instant</div>
                        <div className="font-semibold text-gray-900 text-sm">Booking</div>
@@ -1306,18 +1378,65 @@ const ServiceDetailPage = () => {
                     
                     <div className="space-y-6">
                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Pick a Date</label>
-                          <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => {
-                               setSelectedDate(e.target.value);
-                               setSelectedTime(""); 
-                            }}
-                            min={new Date().toISOString().split("T")[0]}
-                            className="w-full h-12 px-4 bg-gray-50 border border-gray-200/70 rounded-xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:border-[color:var(--brand-primary)] outline-none transition-all appearance-none text-base"
-                            style={{ WebkitAppearance: 'none' }} 
-                          />
+                          <label htmlFor="service-date-picker" className="block text-sm font-medium text-gray-700 mb-2">
+                            Pick a Date
+                          </label>
+                          <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                            <PopoverTrigger asChild>
+                              <button
+                                id="service-date-picker"
+                                type="button"
+                                className="w-full min-h-12 px-4 bg-[color:var(--brand-primary)/0.04] border border-[color:var(--brand-primary)/0.18] rounded-xl text-left flex items-center justify-between gap-3 hover:bg-[color:var(--brand-primary)/0.08] focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-colors"
+                              >
+                                <span className={`text-base ${selectedDateObject ? "text-gray-900 font-medium" : "text-gray-500"}`}>
+                                  {selectedDateObject
+                                    ? format(selectedDateObject, "EEEE, MMM d, yyyy")
+                                    : "Choose your appointment date"}
+                                </span>
+                                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[color:var(--brand-primary)/0.12]">
+                                  <Calendar className="w-5 h-5 text-[color:var(--brand-primary)]" />
+                                </span>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="z-[80] w-auto max-w-[calc(100vw-1.5rem)] rounded-xl border border-[color:var(--brand-primary)/0.18] bg-white p-1 shadow-[0_18px_45px_-24px_color-mix(in_srgb,var(--brand-primary)_30%,transparent)]"
+                              align="start"
+                              sideOffset={8}
+                              onEscapeKeyDown={() => setIsDatePickerOpen(false)}
+                              onFocusOutside={() => setIsDatePickerOpen(false)}
+                              onPointerDownOutside={() => setIsDatePickerOpen(false)}
+                              onInteractOutside={() => setIsDatePickerOpen(false)}
+                            >
+                              <BookingCalendar
+                                mode="single"
+                                selected={selectedDateObject}
+                                className="border-0 shadow-none p-1"
+                                classNames={{
+                                  caption_label: "text-[0.95rem] font-semibold tracking-tight text-[color:var(--brand-primary-dark)]",
+                                  button_previous:
+                                    "inline-flex size-8 items-center justify-center rounded-lg text-[color:var(--brand-primary-dark)] hover:bg-[color:var(--brand-primary)/0.12]",
+                                  button_next:
+                                    "inline-flex size-8 items-center justify-center rounded-lg text-[color:var(--brand-primary-dark)] hover:bg-[color:var(--brand-primary)/0.12]",
+                                  day_button:
+                                    "inline-flex h-8 w-8 items-center justify-center rounded-md p-0 text-[0.92rem] font-medium text-slate-700 hover:bg-[color:var(--brand-primary)/0.1] hover:text-[color:var(--brand-primary-dark)]",
+                                  selected:
+                                    "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white hover:from-[color:var(--brand-primary)] hover:to-[color:var(--brand-primary-dark)]",
+                                  today:
+                                    "ring-1 ring-[color:var(--brand-primary)/0.35] bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary-dark)]",
+                                }}
+                                onSelect={(date) => {
+                                  if (!date) return;
+                                  const localDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                                  const dateValue = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, "0")}-${String(localDate.getDate()).padStart(2, "0")}`;
+                                  setSelectedDate(dateValue);
+                                  setSelectedTime("");
+                                  setIsDatePickerOpen(false);
+                                }}
+                                disabled={(date) => date < minBookableDate}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
                        </div>
 
                        <div>
@@ -1333,35 +1452,128 @@ const ServiceDetailPage = () => {
                                      : `GHL booked: ${externalBookingsCount}`}
                                  </span>
                                )}
-                               {loadingAvailability && <span className="text-xs text-[color:var(--brand-primary)] animate-pulse">Checking availability...</span>}
+                              {loadingAvailability && (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--brand-primary)/0.10] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-primary)]">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  Loading slots...
+                                </span>
+                              )}
                              </div>
                           </div>
                           
                           {selectedDate ? (
-                             availableTimes.length > 0 ? (
-                               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
-                                 {availableTimes.map((time) => (
-                                   <button
-                                     key={time}
-                                     onClick={() => setSelectedTime(time)}
-                                     className={`py-2 px-1 text-sm font-medium rounded-lg border transition-all ${
-                                       selectedTime === time
-                                         ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
-                                         : "bg-white text-gray-700 border-gray-200/70 hover:border-gray-200/70 hover:bg-gray-50"
-                                     }`}
-                                   >
-                                     {time}
-                                   </button>
-                                 ))}
+                             loadingAvailability ? (
+                               <div className="space-y-3">
+                                 <div className="h-4 w-28 rounded-md bg-slate-200/80 animate-pulse" />
+                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                   {Array.from({ length: 8 }).map((_, idx) => (
+                                     <div
+                                       key={`slot-loading-${idx}`}
+                                       className="min-h-11 rounded-xl bg-slate-200/75 animate-pulse"
+                                     />
+                                   ))}
+                                 </div>
+                               </div>
+                             ) : availableTimes.length > 0 ? (
+                               <div className="space-y-4">
+                                 {groupedAvailableTimes.morning.length > 0 && (
+                                   <div>
+                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Morning</p>
+                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                       {groupedAvailableTimes.morning.map((time) => (
+                                         <button
+                                           key={time}
+                                           onClick={() => setSelectedTime(time)}
+                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
+                                             selectedTime === time
+                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
+                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
+                                           }`}
+                                         >
+                                           {time}
+                                         </button>
+                                       ))}
+                                     </div>
+                                   </div>
+                                 )}
+                                 {groupedAvailableTimes.afternoon.length > 0 && (
+                                   <div>
+                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Afternoon</p>
+                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                       {groupedAvailableTimes.afternoon.map((time) => (
+                                         <button
+                                           key={time}
+                                           onClick={() => setSelectedTime(time)}
+                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
+                                             selectedTime === time
+                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
+                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
+                                           }`}
+                                         >
+                                           {time}
+                                         </button>
+                                       ))}
+                                     </div>
+                                   </div>
+                                 )}
+                                 {groupedAvailableTimes.evening.length > 0 && (
+                                   <div>
+                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Evening</p>
+                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                       {groupedAvailableTimes.evening.map((time) => (
+                                         <button
+                                           key={time}
+                                           onClick={() => setSelectedTime(time)}
+                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
+                                             selectedTime === time
+                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
+                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
+                                           }`}
+                                         >
+                                           {time}
+                                         </button>
+                                       ))}
+                                     </div>
+                                   </div>
+                                 )}
+                                 {groupedAvailableTimes.anytime.length > 0 && (
+                                   <div>
+                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Other Times</p>
+                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                       {groupedAvailableTimes.anytime.map((time) => (
+                                         <button
+                                           key={time}
+                                           onClick={() => setSelectedTime(time)}
+                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
+                                             selectedTime === time
+                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
+                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
+                                           }`}
+                                         >
+                                           {time}
+                                         </button>
+                                       ))}
+                                     </div>
+                                   </div>
+                                 )}
+                                 {selectedTime && (
+                                   <div className="rounded-xl border border-[color:var(--brand-primary)/0.25] bg-[color:var(--brand-primary)/0.06] px-3 py-2">
+                                     <p className="text-sm font-medium text-gray-800">
+                                       Selected time: <span className="font-bold text-[color:var(--brand-primary)]">{selectedTime}</span>
+                                     </p>
+                                   </div>
+                                 )}
                                </div>
                              ) : (
                                <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
-                                  <p className="text-gray-500">No time slots available for this date.</p>
+                                  <p className="text-gray-700 font-medium">No slots available for this date.</p>
+                                  <p className="text-sm text-gray-500 mt-1">Try another day for more availability.</p>
                                </div>
                              )
                           ) : (
                              <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
-                                <p className="text-gray-500">Please select a date to view times.</p>
+                                <p className="text-gray-700 font-medium">Choose a date to see available times.</p>
+                                <p className="text-sm text-gray-500 mt-1">Available slots will appear here instantly.</p>
                              </div>
                           )}
                        </div>
