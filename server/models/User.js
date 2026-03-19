@@ -482,6 +482,26 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    onboardingRewards: {
+      profileCompletion: {
+        awarded: {
+          type: Boolean,
+          default: false,
+        },
+        awardedAt: {
+          type: Date,
+          default: null,
+        },
+        pointsAwarded: {
+          type: Number,
+          default: 0,
+        },
+        locationId: {
+          type: String,
+          default: null,
+        },
+      },
+    },
     isDeleted: {
       type: Boolean,
       default: false,

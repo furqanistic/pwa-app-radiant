@@ -1,21 +1,33 @@
 // File: server/models/ReferralConfig.js
 import mongoose from 'mongoose'
 
+const LEGACY_TO_CURRENT_POINTS = new Map([
+  [4000, 400],
+  [2000, 200],
+  [6000, 600],
+  [3000, 300],
+])
+
+const normalizeLegacyPointsValue = (value) => {
+  if (typeof value !== 'number') return value
+  return LEGACY_TO_CURRENT_POINTS.get(value) ?? value
+}
+
 const ReferralConfigSchema = new mongoose.Schema(
   {
     // Signup rewards
     signupReward: {
       enabled: { type: Boolean, default: true },
-      referrerPoints: { type: Number, default: 4000 },
-      referredPoints: { type: Number, default: 2000 },
+      referrerPoints: { type: Number, default: 400 },
+      referredPoints: { type: Number, default: 200 },
       description: { type: String, default: 'Signup bonus' },
     },
 
     // First purchase rewards
     firstPurchaseReward: {
       enabled: { type: Boolean, default: true },
-      referrerPoints: { type: Number, default: 6000 },
-      referredPoints: { type: Number, default: 3000 },
+      referrerPoints: { type: Number, default: 600 },
+      referredPoints: { type: Number, default: 300 },
       description: { type: String, default: 'First purchase bonus' },
     },
 
@@ -117,6 +129,100 @@ ReferralConfigSchema.statics.getActiveConfig = async function () {
     })
   }
 
+  // One-time compatibility migration for old configs stored with inflated values
+  // (e.g. 4000/2000 instead of 400/200).
+  let hasChanges = false
+
+  const normalizedSignupReferrer = normalizeLegacyPointsValue(
+    config.signupReward?.referrerPoints
+  )
+  if (normalizedSignupReferrer !== config.signupReward?.referrerPoints) {
+    config.signupReward.referrerPoints = normalizedSignupReferrer
+    hasChanges = true
+  }
+
+  const normalizedSignupReferred = normalizeLegacyPointsValue(
+    config.signupReward?.referredPoints
+  )
+  if (normalizedSignupReferred !== config.signupReward?.referredPoints) {
+    config.signupReward.referredPoints = normalizedSignupReferred
+    hasChanges = true
+  }
+
+  const normalizedFirstPurchaseReferrer = normalizeLegacyPointsValue(
+    config.firstPurchaseReward?.referrerPoints
+  )
+  if (
+    normalizedFirstPurchaseReferrer !== config.firstPurchaseReward?.referrerPoints
+  ) {
+    config.firstPurchaseReward.referrerPoints = normalizedFirstPurchaseReferrer
+    hasChanges = true
+  }
+
+  const normalizedFirstPurchaseReferred = normalizeLegacyPointsValue(
+    config.firstPurchaseReward?.referredPoints
+  )
+  if (
+    normalizedFirstPurchaseReferred !== config.firstPurchaseReward?.referredPoints
+  ) {
+    config.firstPurchaseReward.referredPoints = normalizedFirstPurchaseReferred
+    hasChanges = true
+  }
+
+  if (Array.isArray(config.spaConfigs) && config.spaConfigs.length > 0) {
+    for (const spaConfig of config.spaConfigs) {
+      if (!spaConfig) continue
+
+      const normalizedSpaSignupReferrer = normalizeLegacyPointsValue(
+        spaConfig.signupReward?.referrerPoints
+      )
+      if (
+        normalizedSpaSignupReferrer !== spaConfig.signupReward?.referrerPoints
+      ) {
+        spaConfig.signupReward.referrerPoints = normalizedSpaSignupReferrer
+        hasChanges = true
+      }
+
+      const normalizedSpaSignupReferred = normalizeLegacyPointsValue(
+        spaConfig.signupReward?.referredPoints
+      )
+      if (
+        normalizedSpaSignupReferred !== spaConfig.signupReward?.referredPoints
+      ) {
+        spaConfig.signupReward.referredPoints = normalizedSpaSignupReferred
+        hasChanges = true
+      }
+
+      const normalizedSpaFirstPurchaseReferrer = normalizeLegacyPointsValue(
+        spaConfig.firstPurchaseReward?.referrerPoints
+      )
+      if (
+        normalizedSpaFirstPurchaseReferrer !==
+        spaConfig.firstPurchaseReward?.referrerPoints
+      ) {
+        spaConfig.firstPurchaseReward.referrerPoints =
+          normalizedSpaFirstPurchaseReferrer
+        hasChanges = true
+      }
+
+      const normalizedSpaFirstPurchaseReferred = normalizeLegacyPointsValue(
+        spaConfig.firstPurchaseReward?.referredPoints
+      )
+      if (
+        normalizedSpaFirstPurchaseReferred !==
+        spaConfig.firstPurchaseReward?.referredPoints
+      ) {
+        spaConfig.firstPurchaseReward.referredPoints =
+          normalizedSpaFirstPurchaseReferred
+        hasChanges = true
+      }
+    }
+  }
+
+  if (hasChanges) {
+    await config.save()
+  }
+
   return config
 }
 
@@ -213,14 +319,14 @@ ReferralConfigSchema.methods.calculateSpaReward = function (
   let baseReferredPoints = 0
 
   if (rewardType === 'signup' && spaConfig.signupReward.enabled) {
-    baseReferrerPoints = spaConfig.signupReward.referrerPoints || 40
-    baseReferredPoints = spaConfig.signupReward.referredPoints || 20
+    baseReferrerPoints = spaConfig.signupReward.referrerPoints || 400
+    baseReferredPoints = spaConfig.signupReward.referredPoints || 200
   } else if (
     rewardType === 'first_purchase' &&
     spaConfig.firstPurchaseReward.enabled
   ) {
-    baseReferrerPoints = spaConfig.firstPurchaseReward.referrerPoints || 60
-    baseReferredPoints = spaConfig.firstPurchaseReward.referredPoints || 30
+    baseReferrerPoints = spaConfig.firstPurchaseReward.referrerPoints || 600
+    baseReferredPoints = spaConfig.firstPurchaseReward.referredPoints || 300
   } else if (rewardType === 'milestone') {
     // For milestone rewards, use purchase amount percentage
     baseReferrerPoints = Math.round(purchaseAmount * 0.1) // 10% of purchase

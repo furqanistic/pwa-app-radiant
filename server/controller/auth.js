@@ -1771,6 +1771,27 @@ export const selectSpa = async (req, res, next) => {
 
     console.log('Found location:', location)
 
+    const alreadyAwardedProfileCompletion = Boolean(
+      user.onboardingRewards?.profileCompletion?.awarded
+    )
+    const legacyProfileCompletionWithoutFlag =
+      !alreadyAwardedProfileCompletion && Boolean(user.profileCompleted)
+
+    // For users that already completed onboarding before this fix, mark as claimed
+    // so they don't receive profile completion points again.
+    if (legacyProfileCompletionWithoutFlag) {
+      user.onboardingRewards = user.onboardingRewards || {}
+      user.onboardingRewards.profileCompletion = {
+        awarded: true,
+        awardedAt: user.lastLogin || user.updatedAt || user.createdAt || new Date(),
+        pointsAwarded: user.onboardingRewards?.profileCompletion?.pointsAwarded || 0,
+        locationId:
+          user.onboardingRewards?.profileCompletion?.locationId ||
+          user.selectedLocation?.locationId ||
+          null,
+      }
+    }
+
     // Update user's selected location with actual data
     const locationData = {
       locationId: location.locationId,
@@ -1821,10 +1842,26 @@ export const selectSpa = async (req, res, next) => {
       }
     }
 
-    // Award profile completion points
-    if (rewardResponse.profileCompletion > 0) {
+    const shouldAwardProfileCompletion =
+      rewardResponse.profileCompletion > 0 &&
+      !alreadyAwardedProfileCompletion &&
+      !legacyProfileCompletionWithoutFlag
+
+    // Award profile completion points once only
+    if (shouldAwardProfileCompletion) {
       user.points = (user.points || 0) + rewardResponse.profileCompletion
+      user.onboardingRewards = user.onboardingRewards || {}
+      user.onboardingRewards.profileCompletion = {
+        awarded: true,
+        awardedAt: new Date(),
+        pointsAwarded: rewardResponse.profileCompletion,
+        locationId: location.locationId,
+      }
       await user.save()
+    } else if (legacyProfileCompletionWithoutFlag) {
+      rewardResponse.profileCompletion = 0
+    } else {
+      rewardResponse.profileCompletion = 0
     }
 
     res.status(200).json({
