@@ -11,6 +11,21 @@ const isJwtValidationError = (error) => {
   )
 }
 
+const isTransientAuthInfraError = (error) => {
+  const code = error?.code || ''
+  const name = error?.name || ''
+  const message = error?.message || ''
+
+  return (
+    code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNREFUSED' ||
+    name === 'MongoNetworkError' ||
+    name === 'MongooseServerSelectionError' ||
+    message.includes('ECONNRESET')
+  )
+}
+
 // Verify JWT token and attach user to request
 export const verifyToken = async (req, res, next) => {
   try {
@@ -40,16 +55,29 @@ export const verifyToken = async (req, res, next) => {
     req.user = currentUser
     next()
   } catch (error) {
-    console.error('Token verification error:', error)
-
     if (isJwtValidationError(error)) {
       return next(createError(401, 'Invalid or expired token'))
     }
 
+    if (isTransientAuthInfraError(error)) {
+      console.error('Auth infrastructure transient error:', {
+        name: error?.name,
+        code: error?.code,
+        message: error?.message,
+      })
+      return next(
+        createError(
+          503,
+          'Authentication service temporarily unavailable. Please try again.'
+        )
+      )
+    }
+
+    console.error('Unexpected auth verification error:', error)
     return next(
       createError(
-        503,
-        'Authentication service temporarily unavailable. Please try again.'
+        500,
+        'Failed to verify authentication token. Please try again.'
       )
     )
   }

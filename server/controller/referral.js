@@ -172,11 +172,6 @@ export const processReferralRewards = async (referredUser, locationId) => {
     // Complete the referral
     await pendingReferral.complete()
 
-    // Update conversion stats
-    await User.findByIdAndUpdate(referrer._id, {
-      $inc: { 'referralStats.convertedReferrals': 1 },
-    })
-
     // Check for tier upgrade after conversion
     await updateUserTier(referrer._id)
 
@@ -456,11 +451,7 @@ export const completeReferral = async (req, res, next) => {
     // Complete the referral
     await referral.complete()
 
-    // Update stats and check tier
-    await User.findByIdAndUpdate(referral.referrer._id, {
-      $inc: { 'referralStats.convertedReferrals': 1 },
-    })
-
+    // Check tier after conversion
     await updateUserTier(referral.referrer._id)
 
     // Send notification

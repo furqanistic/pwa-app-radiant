@@ -7,9 +7,7 @@ import { motion } from 'framer-motion'
 import {
     Check,
     Copy,
-    Facebook,
     Gift,
-    Link2,
     Loader2,
     Mail,
     MessageSquare,
@@ -94,7 +92,19 @@ const ReferralPage = () => {
         currentTier = 'bronze',
         shareUrl,
         nextTierProgress,
+        totalEarnings = 0,
+        recentReferrals = [],
+        tierRewards = {},
     } = computedStats || {}
+    const currentTierKey = currentTier?.toLowerCase() || 'bronze'
+    const pointsPerReferral = tierRewards?.[currentTierKey]?.points || 0
+    const successfulReferrals = recentReferrals.filter(
+        (referral) => referral?.status === 'completed'
+    )
+    const uniqueLink = shareUrl || ''
+    const uniqueLinkDisplay = uniqueLink.replace(/^https?:\/\//, '')
+    const formatPoints = (value) => `${Number(value || 0).toLocaleString()} pts`
+    const brandName = branding?.name || 'RadiantAI'
 
     const copyToClipboard = async (text, setter) => {
         if (!text) return
@@ -111,22 +121,31 @@ const ReferralPage = () => {
         if (!shareUrl) return
         const text = 'Join me on RadiantAI and start your beauty transformation!'
         const urls = {
-            facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
-            twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
+            sms: `sms:?&body=${encodeURIComponent(text + ' ' + shareUrl)}`,
             whatsapp: `https://wa.me/?text=${encodeURIComponent(text + ' ' + shareUrl)}`,
             email: `mailto:?subject=${encodeURIComponent('Join RadiantAI with me!')}&body=${encodeURIComponent(text + '\n\n' + shareUrl)}`,
         }
         if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400')
     }
-
-    const tierColors = {
-        bronze: 'from-amber-600 to-orange-400',
-        silver: 'from-gray-400 to-gray-200', 
-        gold: 'from-yellow-400 to-amber-500',
-        platinum: 'from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)]',
+    const handleNativeShare = async () => {
+        if (!shareUrl) return
+        const text = 'Join me on RadiantAI and start your beauty transformation!'
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: 'Refer & Earn',
+                    text,
+                    url: shareUrl,
+                })
+            } else {
+                await copyToClipboard(shareUrl, setLinkCopied)
+            }
+        } catch (err) {
+            console.error('Share failed', err)
+        }
     }
-    
-    const activeGradient = tierColors[currentTier?.toLowerCase()] || tierColors.bronze
+
+    const MotionDiv = motion.div
 
     return (
         <Layout>
@@ -137,164 +156,342 @@ const ReferralPage = () => {
                     ['--brand-primary-dark']: brandColorDark,
                 }}
             >
-                <div className='max-w-7xl mx-auto px-3 py-4 md:px-6 md:py-8'>
-                    
-                    {/* Compact Header Section */}
-                    <div className='relative overflow-hidden rounded-3xl md:rounded-[2.5rem] bg-gradient-to-r from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-5 md:p-12 mb-4 md:mb-8 shadow-xl shadow-[color:var(--brand-primary)/0.25]'>
-                        <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-10 mix-blend-overlay' />
-                        
-                        <div className='relative z-10 flex flex-col md:flex-row items-center md:items-start justify-between gap-6'>
-                            <div className='text-center md:text-left space-y-3 max-w-xl w-full'>
-                                <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-[10px] md:text-xs font-semibold tracking-wider uppercase mx-auto md:mx-0'>
-                                    <Sparkles size={10} className='text-yellow-300' />
-                                    Referral Program
+                <div className='md:hidden max-w-md mx-auto min-h-screen bg-[color:var(--brand-primary)/0.06] shadow-sm overflow-hidden border border-gray-200/70'>
+                    <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] px-6 pt-10 pb-8 text-center'>
+                        <p className='text-[11px] tracking-[0.2em] uppercase text-white font-semibold mb-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/20 border border-white/25'>
+                            <Sparkles size={12} />
+                            Refer & Earn
+                        </p>
+                        <h1 className='text-[34px] leading-[1.08] font-semibold text-[#f7f7f7]'>Share Your Link</h1>
+                    </div>
+
+                    <div className='-mt-4 rounded-t-[30px] bg-white/95 px-4 pb-8 pt-5 space-y-4'>
+                        <div className='rounded-2xl border border-[color:var(--brand-primary)/0.2] bg-white px-4 py-3 flex items-center justify-between gap-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+                            <div className='flex items-center gap-3'>
+                                <div className='w-10 h-10 rounded-full bg-[color:var(--brand-primary)/0.18] grid place-items-center text-[color:var(--brand-primary)]'>
+                                    <Gift size={18} />
                                 </div>
-                                <h1 className='text-3xl md:text-5xl font-black tracking-tight leading-tight'>
-                                    Share the <span className='text-white/90'>Magic</span>
-                                </h1>
-                                <p className='text-sm md:text-lg text-white/90 font-medium leading-relaxed max-w-xs mx-auto md:mx-0'>
-                                    Invite friends and unlock exclusive rewards instantly.
+                                <div>
+                                    <p className='text-xs text-[#8a8a8a]'>Total Earned</p>
+                                    <p className='text-[29px] leading-none font-semibold text-[color:var(--brand-primary-dark)]'>{formatPoints(totalEarnings)}</p>
+                                </div>
+                            </div>
+                            <div className='text-right'>
+                                <p className='text-xs text-[#8a8a8a]'>Per Referral</p>
+                                <p className='text-[30px] leading-none font-semibold text-[color:var(--brand-primary)]'>+{formatPoints(pointsPerReferral)}</p>
+                            </div>
+                        </div>
+
+                        <div className='rounded-2xl bg-white border border-gray-200/70 p-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+                            <p className='text-xs text-[#8a8a8a] mb-2'>Your unique link</p>
+                            <div className='flex items-center gap-2'>
+                                <code className='flex-1 block truncate text-[13px] text-[#2f2f2f]'>{uniqueLinkDisplay || 'Generate your code to get your unique link'}</code>
+                                <button
+                                    onClick={() => copyToClipboard(uniqueLink, setLinkCopied)}
+                                    disabled={!uniqueLink}
+                                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                        linkCopied
+                                            ? 'bg-[color:var(--brand-primary-dark)] text-white'
+                                            : 'bg-[color:var(--brand-primary)] text-white disabled:opacity-45 disabled:cursor-not-allowed'
+                                    }`}
+                                >
+                                    {linkCopied ? 'Copied!' : 'Copy'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className='rounded-2xl bg-white border border-gray-200/70 p-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+                            <p className='text-xs text-[#8a8a8a] mb-2'>Your referral code</p>
+                            {referralCode ? (
+                                <button
+                                    onClick={() => copyToClipboard(referralCode, setCopied)}
+                                    className='w-full rounded-xl bg-white border border-gray-200/70 px-3 py-2.5 flex items-center justify-between text-left'
+                                >
+                                    <span className='font-semibold tracking-wide text-[#1d1d1d]'>{referralCode}</span>
+                                    <span className='text-[color:var(--brand-primary)]'>
+                                        {copied ? <Check size={18} /> : <Copy size={18} />}
+                                    </span>
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => generateCodeMutation.mutate()}
+                                    disabled={generateCodeMutation.isPending}
+                                    className='w-full py-3 bg-[color:var(--brand-primary)] text-white rounded-xl font-semibold flex items-center justify-center gap-2'
+                                >
+                                    {generateCodeMutation.isPending && <Loader2 className='animate-spin' size={16} />}
+                                    Generate Code
+                                </button>
+                            )}
+                        </div>
+
+                        <div className='grid grid-cols-3 gap-2.5'>
+                                <button
+                                    onClick={() => handleShare('sms')}
+                                    className='rounded-xl border border-gray-200/70 bg-white py-2.5 text-[#4d4d4d] text-sm font-medium flex items-center justify-center gap-1.5 active:scale-95 transition-transform'
+                                >
+                                <MessageSquare size={16} />
+                                SMS
+                            </button>
+                                <button
+                                    onClick={() => handleShare('email')}
+                                    className='rounded-xl border border-gray-200/70 bg-white py-2.5 text-[#4d4d4d] text-sm font-medium flex items-center justify-center gap-1.5 active:scale-95 transition-transform'
+                                >
+                                <Mail size={16} />
+                                Email
+                            </button>
+                                <button
+                                    onClick={handleNativeShare}
+                                    className='rounded-xl border border-gray-200/70 bg-white py-2.5 text-[#4d4d4d] text-sm font-medium flex items-center justify-center gap-1.5 active:scale-95 transition-transform'
+                                >
+                                <Share2 size={16} />
+                                Share
+                            </button>
+                        </div>
+
+                        <div>
+                            <p className='text-xs font-medium tracking-[0.14em] text-[#979797] uppercase mb-2'>Friends Joined</p>
+                            <div className='space-y-2.5'>
+                                {successfulReferrals.length > 0 ? (
+                                    successfulReferrals.map((referral) => {
+                                        const referralName =
+                                            referral?.referred?.name ||
+                                            referral?.referred?.email ||
+                                            'New Friend'
+                                        const awardedPoints = referral?.referrerReward?.points || pointsPerReferral
+
+                                        return (
+                                            <div
+                                                key={referral?._id}
+                                                className='rounded-2xl border border-gray-200/70 bg-white px-3 py-3 flex items-center justify-between shadow-[0_1px_0_rgba(0,0,0,0.02)]'
+                                            >
+                                                <div className='flex items-center gap-2.5 min-w-0'>
+                                                    <div className='w-8 h-8 rounded-full bg-[color:var(--brand-primary)/0.15] text-[color:var(--brand-primary)] grid place-items-center'>
+                                                        <User size={14} />
+                                                    </div>
+                                                    <p className='text-[17px] font-medium text-[#252525] truncate'>{referralName}</p>
+                                                </div>
+                                                <p className='text-[25px] font-semibold text-[color:var(--brand-primary)]'>+{formatPoints(awardedPoints)}</p>
+                                            </div>
+                                        )
+                                    })
+                                ) : (
+                                    <div className='rounded-2xl border border-dashed border-gray-200/90 bg-[#f8f8f8] p-4 text-sm text-[#7a7a7a]'>
+                                        No successful referrals yet.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {nextTierProgress && (
+                            <div className='rounded-2xl bg-[#f8f8f9] border border-gray-200/70 p-3'>
+                                <div className='flex items-center justify-between mb-2'>
+                                    <div>
+                                        <p className='text-sm font-semibold text-[#1f1f1f]'>Tier: {currentTier}</p>
+                                        <p className='text-xs text-[#7d7d7d]'>Refer {nextTierProgress.referralsNeeded} more friends</p>
+                                    </div>
+                                    <div className='text-xs font-semibold text-[color:var(--brand-primary)]'>
+                                        {totalReferrals || 0} total
+                                    </div>
+                                </div>
+                                <div className='relative h-2.5 bg-[color:var(--brand-primary)/0.12] rounded-full overflow-hidden'>
+                                    <MotionDiv
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${nextTierProgress.progress}%` }}
+                                        transition={{ duration: 0.9, ease: 'easeOut' }}
+                                        className='absolute top-0 bottom-0 left-0 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-full'
+                                    />
+                                </div>
+                                <div className='mt-2 text-right'>
+                                    <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>
+                                        {nextTierProgress.progress.toFixed(0)}% to {nextTierProgress.nextTier}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                            <div className='rounded-2xl bg-white border border-gray-200/70 p-3 flex items-start gap-2.5 shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+                            <div className='w-8 h-8 rounded-full bg-white border border-gray-200/70 grid place-items-center text-[color:var(--brand-primary)] mt-0.5'>
+                                <Zap size={14} />
+                            </div>
+                            <div>
+                                <p className='text-sm font-semibold text-[#2a2a2a]'>How it works</p>
+                                <p className='text-xs text-[#777] mt-1'>Send your link. When friends join successfully, points are added to your earned total and shown in this history.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className='hidden md:block max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8'>
+                    <div className='rounded-[2.25rem] bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-8 lg:p-10 shadow-xl shadow-[color:var(--brand-primary)/0.25] mb-6'>
+                        <div className='flex items-start justify-between gap-4'>
+                            <div>
+                                <p className='text-xs tracking-[0.16em] uppercase text-white/80 mb-2 inline-flex items-center gap-1'>
+                                    <Sparkles size={12} />
+                                    Referral Program
+                                </p>
+                                <h1 className='text-4xl lg:text-5xl font-black leading-tight'>Share Your Link</h1>
+                                <p className='text-white/85 mt-2 text-sm lg:text-base'>
+                                    {brandName} referral tracking with points and successful referral history.
                                 </p>
                             </div>
-                            
-                            {/* Stats Pills - Compact Mobile Grid */}
-                            <div className='grid grid-cols-2 gap-3 w-full md:w-auto'>
-                                <div className='p-3 md:px-6 md:py-4 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl text-center md:min-w-[100px]'>
-                                    <div className='text-xl md:text-2xl font-bold'>{totalReferrals || 0}</div>
-                                    <div className='text-[10px] md:text-xs text-white/80 font-medium uppercase tracking-wider'>Referrals</div>
+                            <div className='grid grid-cols-2 gap-3 min-w-[260px]'>
+                                <div className='rounded-2xl bg-white/15 border border-white/30 px-4 py-3 text-center'>
+                                    <p className='text-2xl font-black'>{totalReferrals || 0}</p>
+                                    <p className='text-[11px] tracking-wider uppercase text-white/80'>Referrals</p>
                                 </div>
-                                <div className='p-3 md:px-6 md:py-4 bg-white text-[color:var(--brand-primary)] rounded-2xl text-center md:min-w-[100px] shadow-lg'>
-                                    <div className='text-xl md:text-2xl font-bold'>${computedStats?.totalEarningsValue || 0}</div>
-                                    <div className='text-[10px] md:text-xs text-[color:var(--brand-primary)] font-bold uppercase tracking-wider'>Earned</div>
+                                <div className='rounded-2xl bg-white text-[color:var(--brand-primary)] px-4 py-3 text-center'>
+                                    <p className='text-2xl font-black'>{formatPoints(totalEarnings)}</p>
+                                    <p className='text-[11px] tracking-wider uppercase font-bold'>Earned</p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className='grid lg:grid-cols-3 gap-4 md:gap-8'>
-                        {/* Main Content Column */}
-                        <div className='lg:col-span-2 space-y-4 md:space-y-8'>
-                            
-                            {/* Referral Code Card */}
-                            <div className='bg-white rounded-3xl md:rounded-[2rem] p-1 shadow-sm border border-gray-200/70'>
-                                <div className='bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white rounded-[1.4rem] md:rounded-[1.8rem] p-5 md:p-8 border border-white'>
-                                    <div className='flex flex-col gap-5 md:gap-6'>
-                                        <div className='w-full'>
-                                            <h3 className='text-base md:text-lg font-bold text-gray-900 mb-2 flex items-center gap-2'>
-                                                <Zap className='text-[color:var(--brand-primary)]' size={18} />
-                                                Your Magic Code
-                                            </h3>
-                                            
-                                            {referralCode ? (
-                                                <div className='relative group cursor-pointer mt-3' onClick={() => copyToClipboard(referralCode, setCopied)}>
-                                                    <div className='absolute inset-0 bg-[color:var(--brand-primary)/0.1] blur-xl group-hover:blur-2xl transition-all opacity-0 group-hover:opacity-100' />
-                                                    <div className='relative flex items-center justify-between bg-white border border-dashed border-gray-200/70 rounded-2xl p-3 md:p-4 transition-all group-hover:shadow-lg active:scale-[0.98]'>
-                                                        <code className='text-2xl md:text-3xl font-mono font-black text-gray-800 tracking-wider'>{referralCode}</code>
-                                                        <button 
-                                                            className={`p-2 rounded-xl transition-all ${copied ? 'bg-green-100 text-green-600' : 'bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary)] group-hover:bg-[color:var(--brand-primary)/0.12]'}`}
-                                                        >
-                                                            {copied ? <Check size={18} /> : <Copy size={18} />}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => generateCodeMutation.mutate()}
-                                                    disabled={generateCodeMutation.isPending}
-                                                    className='w-full py-3.5 md:py-4 mt-2 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-2xl font-bold hover:brightness-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[color:var(--brand-primary)/0.3] active:scale-[0.98]'
-                                                >
-                                                    {generateCodeMutation.isPending && <Loader2 className='animate-spin' size={18} />}
-                                                    Generate Code
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {/* Share Links - Horizontal Scroll on Mobile */}
-                                        <div className='md:border-t md:border-gray-200/70 md:pt-6'>
-                                             <p className='text-gray-500 text-xs md:text-sm mb-3 md:mb-4'>Share quickly via:</p>
-                                            <div className='grid grid-cols-4 gap-2 md:grid-cols-4 md:gap-3'>
-                                                {[
-                                                    { icon: MessageSquare, color: 'bg-[#25D366]', id: 'whatsapp' },
-                                                    { icon: Facebook, color: 'bg-[#1877F2]', id: 'facebook' },
-                                                    { icon: Mail, color: 'bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)]', id: 'email' }
-                                                ].map((item) => (
-                                                    <button
-                                                        key={item.id}
-                                                        onClick={() => handleShare(item.id)}
-                                                        className={`${item.color} p-3 md:p-4 rounded-2xl text-white shadow-md shadow-gray-200 active:scale-90 transition-transform flex items-center justify-center`}
-                                                    >
-                                                        <item.icon size={20} />
-                                                    </button>
-                                                ))}
-                                                <button
-                                                    onClick={() => copyToClipboard(shareUrl, setLinkCopied)}
-                                                    className='bg-gray-800 p-3 md:p-4 rounded-2xl text-white shadow-md shadow-gray-200 active:scale-90 transition-transform flex items-center justify-center'
-                                                >
-                                                    {linkCopied ? <Check size={20} /> : <Link2 size={20} />}
-                                                </button>
-                                            </div>
-                                        </div>
+                    <div className='grid lg:grid-cols-3 gap-6'>
+                        <div className='lg:col-span-2 space-y-6'>
+                            <div className='rounded-[1.8rem] bg-white border border-gray-200/70 p-6 shadow-sm'>
+                                <div className='grid sm:grid-cols-2 gap-4 mb-5'>
+                                    <div className='rounded-2xl border border-[color:var(--brand-primary)/0.2] bg-[color:var(--brand-primary)/0.06] p-4'>
+                                        <p className='text-xs uppercase tracking-wider text-gray-500'>Total Earned</p>
+                                        <p className='text-2xl font-black text-gray-900 mt-1'>{formatPoints(totalEarnings)}</p>
                                     </div>
+                                    <div className='rounded-2xl border border-[color:var(--brand-primary)/0.2] bg-[color:var(--brand-primary)/0.06] p-4'>
+                                        <p className='text-xs uppercase tracking-wider text-gray-500'>Per Referral</p>
+                                        <p className='text-2xl font-black text-[color:var(--brand-primary)] mt-1'>+{formatPoints(pointsPerReferral)}</p>
+                                    </div>
+                                </div>
+
+                                <div className='rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 mb-4'>
+                                    <p className='text-xs text-gray-500 mb-2'>Your unique link</p>
+                                    <div className='flex items-center gap-3'>
+                                        <code className='flex-1 truncate text-sm text-gray-800'>{uniqueLinkDisplay || 'Generate your code to get your unique link'}</code>
+                                        <button
+                                            onClick={() => copyToClipboard(uniqueLink, setLinkCopied)}
+                                            disabled={!uniqueLink}
+                                            className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                                                linkCopied
+                                                    ? 'bg-[color:var(--brand-primary-dark)] text-white'
+                                                    : 'bg-[color:var(--brand-primary)] text-white disabled:opacity-45 disabled:cursor-not-allowed'
+                                            }`}
+                                        >
+                                            {linkCopied ? 'Copied!' : 'Copy'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className='rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 mb-4'>
+                                    <p className='text-xs text-gray-500 mb-2'>Your referral code</p>
+                                    {referralCode ? (
+                                        <button
+                                            onClick={() => copyToClipboard(referralCode, setCopied)}
+                                            className='w-full rounded-xl bg-white border border-gray-200 px-3 py-2.5 flex items-center justify-between'
+                                        >
+                                            <span className='font-semibold tracking-wide text-gray-900'>{referralCode}</span>
+                                            <span className='text-[color:var(--brand-primary)]'>{copied ? <Check size={18} /> : <Copy size={18} />}</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => generateCodeMutation.mutate()}
+                                            disabled={generateCodeMutation.isPending}
+                                            className='w-full py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-semibold flex items-center justify-center gap-2'
+                                        >
+                                            {generateCodeMutation.isPending && <Loader2 className='animate-spin' size={16} />}
+                                            Generate Code
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className='grid grid-cols-4 gap-2.5'>
+                                    <button onClick={() => handleShare('sms')} className='rounded-xl border border-gray-200 bg-white py-2.5 text-gray-700 text-sm font-medium flex items-center justify-center gap-1.5'>
+                                        <MessageSquare size={16} />
+                                        SMS
+                                    </button>
+                                    <button onClick={() => handleShare('email')} className='rounded-xl border border-gray-200 bg-white py-2.5 text-gray-700 text-sm font-medium flex items-center justify-center gap-1.5'>
+                                        <Mail size={16} />
+                                        Email
+                                    </button>
+                                    <button onClick={() => handleShare('whatsapp')} className='rounded-xl border border-gray-200 bg-white py-2.5 text-gray-700 text-sm font-medium flex items-center justify-center gap-1.5'>
+                                        <MessageSquare size={16} />
+                                        WhatsApp
+                                    </button>
+                                    <button onClick={handleNativeShare} className='rounded-xl border border-gray-200 bg-white py-2.5 text-gray-700 text-sm font-medium flex items-center justify-center gap-1.5'>
+                                        <Share2 size={16} />
+                                        Share
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* Tiers Progress - Compact */}
-                            {nextTierProgress && (
-                                <div className='bg-white rounded-3xl md:rounded-[2rem] p-5 md:p-8 border border-gray-200/70 shadow-sm'>
-                                    <div className='flex items-center justify-between mb-4 md:mb-6'>
-                                        <div>
-                                            <h3 className='text-base md:text-lg font-bold text-gray-900'>Your Tier</h3>
-                                            <p className='text-xs md:text-sm text-gray-500'>Refer {nextTierProgress.referralsNeeded} more friends!</p>
-                                        </div>
-                                        <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${activeGradient} text-white text-xs md:text-sm font-bold shadow-sm capitalize`}>
-                                            {currentTier}
-                                        </div>
-                                    </div>
+                            <div className='rounded-[1.8rem] bg-white border border-gray-200/70 p-6 shadow-sm'>
+                                <p className='text-xs font-medium tracking-[0.14em] text-gray-500 uppercase mb-3'>Friends Joined</p>
+                                <div className='space-y-3'>
+                                    {successfulReferrals.length > 0 ? (
+                                        successfulReferrals.map((referral) => {
+                                            const referralName =
+                                                referral?.referred?.name ||
+                                                referral?.referred?.email ||
+                                                'New Friend'
+                                            const awardedPoints = referral?.referrerReward?.points || pointsPerReferral
 
-                                    <div className='relative h-3 md:h-4 bg-[color:var(--brand-primary)/0.12] rounded-full overflow-hidden'>
-                                        <motion.div 
+                                            return (
+                                                <div key={referral?._id} className='rounded-2xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between'>
+                                                    <div className='flex items-center gap-2.5 min-w-0'>
+                                                        <div className='w-8 h-8 rounded-full bg-[color:var(--brand-primary)/0.15] text-[color:var(--brand-primary)] grid place-items-center'>
+                                                            <User size={14} />
+                                                        </div>
+                                                        <p className='text-base font-semibold text-gray-900 truncate'>{referralName}</p>
+                                                    </div>
+                                                    <p className='text-base font-bold text-[color:var(--brand-primary)]'>+{formatPoints(awardedPoints)}</p>
+                                                </div>
+                                            )
+                                        })
+                                    ) : (
+                                        <div className='rounded-2xl border border-dashed border-gray-200 p-4 text-sm text-gray-500'>
+                                            No successful referrals yet.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className='space-y-6'>
+                            {nextTierProgress && (
+                                <div className='rounded-[1.8rem] bg-white border border-gray-200/70 p-6 shadow-sm'>
+                                    <div className='flex items-center justify-between mb-2'>
+                                        <div>
+                                            <p className='text-base font-bold text-gray-900 capitalize'>Tier: {currentTier}</p>
+                                            <p className='text-xs text-gray-500'>Refer {nextTierProgress.referralsNeeded} more friends</p>
+                                        </div>
+                                        <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>
+                                            {nextTierProgress.progress.toFixed(0)}%
+                                        </span>
+                                    </div>
+                                    <div className='relative h-2.5 bg-[color:var(--brand-primary)/0.12] rounded-full overflow-hidden'>
+                                        <MotionDiv
                                             initial={{ width: 0 }}
                                             animate={{ width: `${nextTierProgress.progress}%` }}
-                                            transition={{ duration: 1, ease: 'easeOut' }}
+                                            transition={{ duration: 0.9, ease: 'easeOut' }}
                                             className='absolute top-0 bottom-0 left-0 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-full'
                                         />
                                     </div>
-                                    <div className='mt-2 text-right'>
-                                       <span className='text-xs font-bold text-[color:var(--brand-primary)]'>{nextTierProgress.progress.toFixed(0)}% to {nextTierProgress.nextTier}</span>
-                                    </div>
+                                    <p className='text-xs font-semibold text-[color:var(--brand-primary)] mt-2 text-right'>
+                                        to {nextTierProgress.nextTier}
+                                    </p>
                                 </div>
                             )}
 
-                        </div>
-
-                        {/* Sidebar Column - Optimized for Mobile Flow */}
-                        <div className='space-y-4 md:space-y-8'>
-                            
-                            {/* How it Works - Minimal horizontal on desktop, maybe vertical on mobile? Keeping vertical consistent but tighter. */}
-                            <div className='bg-white rounded-3xl md:rounded-[2.5rem] p-5 md:p-8 border border-gray-200/70 shadow-sm'>
-                                <h3 className='font-bold text-lg md:text-xl text-gray-900 mb-4 md:mb-6 border-b border-gray-200/70 pb-2'>How it works</h3>
-                                <div className='space-y-4 md:space-y-6 relative'>
-                                    {/* Vertical Line */}
-                                    <div className='absolute left-[19px] top-2 bottom-6 w-0.5 bg-gray-200/70' />
-                                    
-                                    {[
-                                        { title: 'Send Invite', desc: 'Share code w/ friends', icon: Share2 },
-                                        { title: 'They Join', desc: 'Friends sign up', icon: User },
-                                        { title: 'You Earn', desc: 'Get rewards cash', icon: Gift }
-                                    ].map((step, i) => (
-                                        <div key={i} className='relative flex items-center gap-4'>
-                                            <div className='relative z-10 w-10 h-10 rounded-2xl bg-white border border-gray-200/70 flex items-center justify-center text-[color:var(--brand-primary)] shadow-sm flex-shrink-0'>
-                                                <step.icon size={18} />
-                                            </div>
-                                            <div>
-                                                <h4 className='font-bold text-sm md:text-base text-gray-900'>{step.title}</h4>
-                                                <p className='text-xs text-gray-500'>{step.desc}</p>
-                                            </div>
-                                        </div>
-                                    ))}
+                            <div className='rounded-[1.8rem] bg-white border border-gray-200/70 p-6 shadow-sm'>
+                                <div className='flex items-start gap-3'>
+                                    <div className='w-9 h-9 rounded-xl bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] grid place-items-center'>
+                                        <Zap size={16} />
+                                    </div>
+                                    <div>
+                                        <p className='text-base font-bold text-gray-900'>How it works</p>
+                                        <p className='text-sm text-gray-600 mt-1'>
+                                            Share your link, friends sign up, successful referrals are tracked here, and points are added to your total.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>
