@@ -1052,6 +1052,11 @@ const ServiceDetailPage = () => {
       const bClaimed = new Date(b?.claimedAt || b?.createdAt || 0).getTime()
       return bClaimed - aClaimed
     })[0]
+  const serviceRatingValue = Number(service?.rating);
+  const hasServiceRating = Number.isFinite(serviceRatingValue) && serviceRatingValue > 0;
+  const serviceReviewCount = Number(service?.totalReviews);
+  const hasServiceReviewCount = Number.isFinite(serviceReviewCount) && serviceReviewCount > 0;
+  const shouldShowServiceRating = hasServiceRating && hasServiceReviewCount;
   const serviceDescription = `${service?.description || "No description available."}`.trim();
   const canExpandDescription = serviceDescription.length > 180;
 
@@ -1117,11 +1122,18 @@ const ServiceDetailPage = () => {
                       <Clock className="w-4 h-4 text-[color:var(--brand-primary)]" />
                       <span>{service.duration} mins</span>
                     </div>
-                    <div className="w-1 h-1 rounded-full bg-white/40" />
-                    <div className="flex items-center gap-1.5">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span>{service.rating?.toFixed(1) || "5.0"} ({service.totalReviews || 12} reviews)</span>
-                    </div>
+                    {shouldShowServiceRating && (
+                      <>
+                        <div className="w-1 h-1 rounded-full bg-white/40" />
+                        <div className="flex items-center gap-1.5">
+                          <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                          <span>
+                            {serviceRatingValue.toFixed(1)}
+                            {` (${serviceReviewCount} reviews)`}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                   {(topAvailableServiceReward || appliedReward) && (
                     <div className="rounded-xl bg-white/90 backdrop-blur-sm border border-white/70 px-3 py-2 text-[11px] font-semibold text-gray-700 inline-flex flex-col gap-0.5">

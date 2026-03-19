@@ -872,6 +872,125 @@ const NeedMorePointsSection = ({ methods = [] }) => {
   )
 }
 
+const NextRewardProgressSection = () => {
+  const navigate = useNavigate()
+  const { locationId } = useBranding()
+  const { currentUser } = useSelector((state) => state.user)
+  const { rewards = [], userPoints, isLoading } = useEnhancedRewardsCatalog({})
+  const withSpaParam = (path) =>
+    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+
+  const rewardPool = rewards
+    .filter(
+      (reward) =>
+        reward?.status === 'active' &&
+        Number.isFinite(Number(reward?.pointCost)) &&
+        (reward.canClaimMoreInWindow ?? true)
+    )
+    .sort((a, b) => Number(a.pointCost) - Number(b.pointCost))
+
+  if (!isLoading && rewardPool.length === 0) return null
+
+  const pointsFromCatalog = Number(userPoints)
+  const pointsFromUser = Number(currentUser?.points)
+  const currentPoints = Number.isFinite(pointsFromCatalog)
+    ? pointsFromCatalog
+    : Number.isFinite(pointsFromUser)
+    ? pointsFromUser
+    : 0
+
+  const nextReward =
+    rewardPool.find((reward) => currentPoints < Number(reward.pointCost)) ||
+    rewardPool[rewardPool.length - 1]
+
+  if (!nextReward && isLoading) {
+    return (
+      <DashboardCard gradient='pink'>
+        <div className='animate-pulse'>
+          <div className='h-6 w-40 rounded bg-gray-100 mb-4' />
+          <div className='h-4 w-28 rounded bg-gray-100 mb-3' />
+          <div className='h-2.5 w-full rounded-full bg-gray-100 mb-3' />
+          <div className='h-4 w-52 rounded bg-gray-100' />
+        </div>
+      </DashboardCard>
+    )
+  }
+
+  if (!nextReward) return null
+
+  const targetPoints = Math.max(1, Number(nextReward.pointCost) || 1)
+  const clampedProgress = Math.max(0, Math.min(currentPoints, targetPoints))
+  const progressPercent = Math.round((clampedProgress / targetPoints) * 100)
+  const pointsRemaining = Math.max(0, targetPoints - currentPoints)
+  const isUnlocked = pointsRemaining === 0
+
+  const formatPoints = (value) =>
+    Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })
+
+  return (
+    <DashboardCard gradient='pink'>
+      <button
+        type='button'
+        onClick={() => navigate(withSpaParam('/rewards'))}
+        className='w-full text-left rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+      >
+        <div className='flex items-start justify-between gap-3 mb-4'>
+          <div className='flex items-center gap-2'>
+            <div className='rounded-xl bg-white p-2 shadow-sm'>
+              <Star className='w-5 h-5 text-[color:var(--brand-primary)]' />
+            </div>
+            <div>
+              <h2 className='text-lg font-bold text-gray-900'>Next Reward</h2>
+              <p className='text-xs text-gray-500'>Track your unlock progress</p>
+            </div>
+          </div>
+          <div className='rounded-full border border-[color:var(--brand-primary)/0.2] bg-[color:var(--brand-primary)/0.08] px-3 py-1'>
+            <p className='text-[11px] font-semibold text-[color:var(--brand-primary)]'>
+              Current: {formatPoints(currentPoints)} pts
+            </p>
+          </div>
+        </div>
+
+        <div className='rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-[color:var(--brand-primary)/0.02]'>
+          <div className='flex items-center justify-between gap-3 mb-2'>
+            <p className='text-sm font-semibold text-gray-900 line-clamp-1'>
+              {nextReward.name || 'Reward'}
+            </p>
+            <p className='text-sm font-semibold text-[color:var(--brand-primary)] whitespace-nowrap'>
+              {formatPoints(targetPoints)} pts
+            </p>
+          </div>
+
+          <div className='h-2.5 rounded-full bg-gray-100 overflow-hidden'>
+            <div
+              className='h-full rounded-full transition-all duration-500'
+              style={{
+                width: `${Math.max(3, progressPercent)}%`,
+                background: 'linear-gradient(90deg, var(--brand-primary), #f59e0b)',
+              }}
+            />
+          </div>
+
+          <div className='mt-3 flex items-center justify-between gap-2'>
+            <p className='text-xs font-medium text-gray-600'>
+              {formatPoints(Math.max(0, currentPoints))} / {formatPoints(targetPoints)} pts
+            </p>
+            <p
+              className={`text-xs font-semibold ${
+                isUnlocked ? 'text-emerald-600' : 'text-gray-500'
+              }`}
+            >
+              {isUnlocked
+                ? 'Unlocked, ready to claim'
+                : `${formatPoints(pointsRemaining)} points to go`}
+            </p>
+          </div>
+        </div>
+      </button>
+    </DashboardCard>
+  )
+}
+
 const DashboardPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -880,8 +999,6 @@ const DashboardPage = () => {
 
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
-
-  const isSpaManagementView = ['spa', 'admin'].includes(currentUser?.role)
 
   // Fetch dashboard data
   const { data: dashboardData, isLoading, error, refetch } = useDashboardData({
@@ -988,6 +1105,10 @@ const DashboardPage = () => {
               {/* Points Card - Full Width at Top */}
               <div className='mb-4 sm:mb-6 lg:mb-8'>
                 <PointsCard />
+              </div>
+
+              <div className='mb-4 sm:mb-6 lg:mb-8'>
+                <NextRewardProgressSection />
               </div>
 
               {/* Spa Rewards Section - Full Width */}
@@ -1243,9 +1364,11 @@ const DashboardPage = () => {
                                   {formatDate(visit.date)}
                                 </p>
                               </div>
-                              <div className='text-xs font-semibold text-[color:var(--brand-primary)] ml-3'>
-                                {visit.rating ? `${visit.rating}★` : 'Rate'}
-                              </div>
+                              {Number.isFinite(Number(visit?.rating)) && Number(visit.rating) > 0 && (
+                                <div className='text-xs font-semibold text-[color:var(--brand-primary)] ml-3'>
+                                  {Number(visit.rating).toFixed(1)}★
+                                </div>
+                              )}
                             </motion.div>
                           ))
                         ) : (
