@@ -539,10 +539,16 @@ const ensureMembershipCustomer = async ({
   stripeAccountId,
   locationId,
 }) => {
-  const isMissingCustomerError = (error) =>
-    error?.type === 'StripeInvalidRequestError' &&
-    error?.code === 'resource_missing' &&
-    error?.param === 'customer'
+  const isMissingCustomerError = (error) => {
+    const message = `${error?.message || ''}`.toLowerCase()
+    return (
+      error?.type === 'StripeInvalidRequestError' &&
+      error?.code === 'resource_missing' &&
+      (error?.param === 'customer' ||
+        error?.param === 'id' ||
+        message.includes('no such customer'))
+    )
+  }
 
   const existingCustomerId = user.membershipBilling?.stripeCustomerId
   const existingStripeAccountId = user.membershipBilling?.stripeAccountId
@@ -562,6 +568,14 @@ const ensureMembershipCustomer = async ({
       if (!isMissingCustomerError(error)) {
         throw error
       }
+
+      // Stale customer pointer (often test/live mismatch) - clear before recreating.
+      user.set('membershipBilling.stripeCustomerId', null)
+      user.set(
+        'membershipBilling.defaultPaymentMethod',
+        getEmptyMembershipDefaultPaymentMethod()
+      )
+      await user.save()
     }
   }
 
@@ -1179,10 +1193,13 @@ export const createMembershipSetupIntent = async (req, res, next) => {
         { stripeAccount: stripeAccountId }
       )
     } catch (stripeError) {
+      const stripeMessage = `${stripeError?.message || ''}`.toLowerCase()
       const shouldRegenerateCustomer =
         stripeError?.type === 'StripeInvalidRequestError' &&
         stripeError?.code === 'resource_missing' &&
-        stripeError?.param === 'customer'
+        (stripeError?.param === 'customer' ||
+          stripeError?.param === 'id' ||
+          stripeMessage.includes('no such customer'))
 
       if (!shouldRegenerateCustomer) {
         throw stripeError
