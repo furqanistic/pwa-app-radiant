@@ -1,6 +1,7 @@
 // File: client/src/pages/Layout/InstallPrompt.jsx
 // ENHANCED: Automatic app installation across all browsers with premium UI
 import { useBranding } from '@/context/BrandingContext'
+import { selectCurrentUser } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
     ArrowUp,
@@ -16,6 +17,7 @@ import {
     Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSelector } from 'react-redux'
 
 const Motion = motion
 
@@ -43,6 +45,11 @@ const InstallPrompt = () => {
   const [isInstalling, setIsInstalling] = useState(false)
   const [promptState, setPromptState] = useState(PROMPT_STATES.INITIAL)
   const { branding } = useBranding()
+  const currentUser = useSelector(selectCurrentUser)
+  const spaNameFromUser =
+    currentUser?.spaLocation?.locationName?.trim() ||
+    currentUser?.selectedLocation?.locationName?.trim()
+  const appDisplayName = spaNameFromUser || branding?.name?.trim() || 'your spa'
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -309,7 +316,7 @@ const InstallPrompt = () => {
                 App Installed Successfully! 🎉
               </h3>
               <p className='text-xs mt-0.5 font-medium text-[color:var(--brand-primary)]'>
-                Launch RadiantAI from your home screen
+                Launch {appDisplayName} from your home screen
               </p>
             </div>
           </div>
@@ -364,7 +371,7 @@ const InstallPrompt = () => {
             >
               <div>
                 <h3 className='text-lg font-bold text-gray-900'>
-                  Install RadiantAI
+                  Install {appDisplayName}
                 </h3>
                 <p className='text-sm text-gray-500 leading-relaxed mt-1'>
                   Add the app to your home screen for the full experience, offline access, and faster loading.

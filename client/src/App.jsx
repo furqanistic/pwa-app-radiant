@@ -56,6 +56,26 @@ const ScrollToTop = () => {
   return null
 }
 
+const MIN_FORCE_SYNC_GAP_MS = 10 * 1000
+const USER_SYNC_INTERVAL_MS = 2 * 60 * 1000
+
+const getUserSyncSignature = (user) =>
+  JSON.stringify({
+    id: user?._id || null,
+    role: user?.role || null,
+    name: user?.name || null,
+    email: user?.email || null,
+    points: user?.points ?? null,
+    hasSelectedSpa: user?.hasSelectedSpa ?? null,
+    selectedLocationId: user?.selectedLocation?.locationId || null,
+    selectedLocationName: user?.selectedLocation?.locationName || null,
+    selectedLocationLogo: user?.selectedLocation?.logo || null,
+    spaLocationId: user?.spaLocation?.locationId || null,
+    spaLocationName: user?.spaLocation?.locationName || null,
+    spaLocationLogo: user?.spaLocation?.logo || null,
+    updatedAt: user?.updatedAt || null,
+  })
+
 const SpaSelectionGuard = ({ children }) => {
   // Location selection is handled before auth (or via subdomain), so no extra onboarding gate is needed.
   return children
@@ -240,6 +260,13 @@ const LegacySpaSubdomainRedirect = () => {
 const App = () => {
   const dispatch = useDispatch()
   const { currentUser } = useSelector((state) => state.user)
+  const currentUserRef = useRef(currentUser)
+  const syncInFlightRef = useRef(false)
+  const lastSyncAtRef = useRef(0)
+
+  useEffect(() => {
+    currentUserRef.current = currentUser
+  }, [currentUser])
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -254,12 +281,24 @@ const App = () => {
     }
 
     const fetchCurrentUser = async ({ forceRefresh = false } = {}) => {
+      if (syncInFlightRef.current) return
+      if (
+        forceRefresh &&
+        Date.now() - lastSyncAtRef.current < MIN_FORCE_SYNC_GAP_MS
+      ) {
+        return
+      }
+
       try {
+        syncInFlightRef.current = true
         const response = await authService.getCurrentUser()
         const user = response?.data?.user || response?.data || response?.user
         if (user) {
-          // Avoid unnecessary store writes unless data is missing or we explicitly refresh.
-          if (!forceRefresh && currentUser?._id === user?._id) {
+          const currentSignature = getUserSyncSignature(currentUserRef.current)
+          const nextSignature = getUserSyncSignature(user)
+
+          // Avoid unnecessary store writes when server payload hasn't changed.
+          if (currentSignature === nextSignature) {
             localStorage.setItem('lastActivity', `${Date.now()}`)
             return
           }
@@ -270,6 +309,9 @@ const App = () => {
         dispatch(loginFailure(error.response?.data?.message || 'Session expired'))
         dispatch(logout())
         localStorage.removeItem('token')
+      } finally {
+        syncInFlightRef.current = false
+        lastSyncAtRef.current = Date.now()
       }
     }
 
@@ -292,7 +334,7 @@ const App = () => {
       document.addEventListener('visibilitychange', onVisibilityChange)
       const intervalId = window.setInterval(() => {
         fetchCurrentUser({ forceRefresh: true })
-      }, 15 * 1000)
+      }, USER_SYNC_INTERVAL_MS)
 
       return () => {
         window.clearInterval(intervalId)
@@ -300,7 +342,7 @@ const App = () => {
         document.removeEventListener('visibilitychange', onVisibilityChange)
       }
     }
-  }, [currentUser, dispatch])
+  }, [currentUser?._id, dispatch])
 
   useEffect(() => {
     const token = localStorage.getItem('token')

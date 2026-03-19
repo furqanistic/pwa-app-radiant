@@ -1311,32 +1311,30 @@ export const getCurrentUser = async (req, res, next) => {
       )
     }
 
-    console.log('getCurrentUser Debug:', {
-      userId: user._id,
-      hasSelectedSpa,
-      selectedLocation: user.selectedLocation,
-    })
-
-    // AUTO-SYNC: Ensure logo and name are up to date if hasSelectedSpa is true
+    // AUTO-SYNC: only fetch location when active location is missing logo
     if (hasSelectedSpa) {
       try {
-        const activeLoc = user.role === 'spa' ? user.spaLocation : user.selectedLocation;
-        if (activeLoc?.locationId) {
-          const location = await Location.findOne({ locationId: activeLoc.locationId });
+        const activeLoc =
+          user.role === 'spa' ? user.spaLocation : user.selectedLocation
+        const shouldSyncLogo = !!(activeLoc?.locationId && !activeLoc?.logo)
+
+        if (shouldSyncLogo) {
+          const location = await Location.findOne({
+            locationId: activeLoc.locationId,
+          })
           if (location && location.logo && activeLoc.logo !== location.logo) {
             if (user.role === 'spa') {
-              user.spaLocation.logo = location.logo;
-              user.markModified('spaLocation');
+              user.spaLocation.logo = location.logo
+              user.markModified('spaLocation')
             } else {
-              user.selectedLocation.logo = location.logo;
-              user.markModified('selectedLocation');
+              user.selectedLocation.logo = location.logo
+              user.markModified('selectedLocation')
             }
-            await user.save({ validateBeforeSave: false });
-            console.log(`Auto-synced logo for user ${user.email} in getCurrentUser`);
+            await user.save({ validateBeforeSave: false })
           }
         }
       } catch (syncError) {
-        console.error('Auto-sync failed in getCurrentUser:', syncError);
+        console.error('Auto-sync failed in getCurrentUser:', syncError)
       }
     }
 
