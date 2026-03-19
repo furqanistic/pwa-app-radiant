@@ -539,11 +539,30 @@ const ensureMembershipCustomer = async ({
   stripeAccountId,
   locationId,
 }) => {
+  const isMissingCustomerError = (error) =>
+    error?.type === 'StripeInvalidRequestError' &&
+    error?.code === 'resource_missing' &&
+    error?.param === 'customer'
+
   const existingCustomerId = user.membershipBilling?.stripeCustomerId
   const existingStripeAccountId = user.membershipBilling?.stripeAccountId
 
   if (existingCustomerId && existingStripeAccountId === stripeAccountId) {
-    return existingCustomerId
+    try {
+      const existingCustomer = await stripe.customers.retrieve(
+        existingCustomerId,
+        {},
+        { stripeAccount: stripeAccountId }
+      )
+
+      if (existingCustomer && !existingCustomer.deleted) {
+        return existingCustomerId
+      }
+    } catch (error) {
+      if (!isMissingCustomerError(error)) {
+        throw error
+      }
+    }
   }
 
   const customer = await stripe.customers.create(
@@ -1144,19 +1163,59 @@ export const createMembershipSetupIntent = async (req, res, next) => {
       locationId,
     })
 
-    const setupIntent = await stripe.setupIntents.create(
-      {
-        customer: customerId,
-        payment_method_types: ['card'],
-        usage: 'off_session',
-        metadata: {
-          userId: user._id.toString(),
-          locationId: `${locationId}`,
-          membershipSetup: 'true',
+    let setupIntent
+    try {
+      setupIntent = await stripe.setupIntents.create(
+        {
+          customer: customerId,
+          payment_method_types: ['card'],
+          usage: 'off_session',
+          metadata: {
+            userId: user._id.toString(),
+            locationId: `${locationId}`,
+            membershipSetup: 'true',
+          },
         },
-      },
-      { stripeAccount: stripeAccountId }
-    )
+        { stripeAccount: stripeAccountId }
+      )
+    } catch (stripeError) {
+      const shouldRegenerateCustomer =
+        stripeError?.type === 'StripeInvalidRequestError' &&
+        stripeError?.code === 'resource_missing' &&
+        stripeError?.param === 'customer'
+
+      if (!shouldRegenerateCustomer) {
+        throw stripeError
+      }
+
+      // Recover automatically when stored customer is stale (deleted / wrong mode).
+      user.set('membershipBilling.stripeCustomerId', null)
+      user.set(
+        'membershipBilling.defaultPaymentMethod',
+        getEmptyMembershipDefaultPaymentMethod()
+      )
+      await user.save()
+
+      const regeneratedCustomerId = await ensureMembershipCustomer({
+        user,
+        stripeAccountId,
+        locationId,
+      })
+
+      setupIntent = await stripe.setupIntents.create(
+        {
+          customer: regeneratedCustomerId,
+          payment_method_types: ['card'],
+          usage: 'off_session',
+          metadata: {
+            userId: user._id.toString(),
+            locationId: `${locationId}`,
+            membershipSetup: 'true',
+          },
+        },
+        { stripeAccount: stripeAccountId }
+      )
+    }
 
     res.status(201).json({
       success: true,
