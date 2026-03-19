@@ -427,6 +427,18 @@ const UserSchema = new mongoose.Schema(
         type: Date,
         default: null,
       },
+      paymentFailureStartedAt: {
+        type: Date,
+        default: null,
+      },
+      gracePeriodEndsAt: {
+        type: Date,
+        default: null,
+      },
+      autoDowngradedAt: {
+        type: Date,
+        default: null,
+      },
       defaultPaymentMethod: {
         paymentMethodId: {
           type: String,

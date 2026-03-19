@@ -347,6 +347,8 @@ const MEMBERSHIP_VISIBLE_STATUSES = new Set([
   'incomplete',
   'unpaid',
 ])
+const MEMBERSHIP_PAYMENT_GRACE_DAYS = 7
+const MEMBERSHIP_PAYMENT_GRACE_MS = MEMBERSHIP_PAYMENT_GRACE_DAYS * 24 * 60 * 60 * 1000
 
 const toDateFromUnix = (value) =>
   Number.isFinite(Number(value)) ? new Date(Number(value) * 1000) : null
@@ -378,6 +380,77 @@ const ensureMembershipBillingShape = (user) => {
   if (!user.membershipBilling?.pendingPlan) {
     user.set('membershipBilling.pendingPlan', getEmptyMembershipPendingPlan())
   }
+}
+
+const clearMembershipDelinquencyState = (user) => {
+  user.set('membershipBilling.paymentFailureStartedAt', null)
+  user.set('membershipBilling.gracePeriodEndsAt', null)
+}
+
+const markMembershipPaymentFailureState = ({
+  user,
+  failureStartedAt = new Date(),
+}) => {
+  const existingFailureStart = user.membershipBilling?.paymentFailureStartedAt
+  const normalizedFailureStart =
+    existingFailureStart && !Number.isNaN(new Date(existingFailureStart).getTime())
+      ? new Date(existingFailureStart)
+      : new Date(failureStartedAt)
+  const normalizedGraceEndsAt = new Date(
+    normalizedFailureStart.getTime() + MEMBERSHIP_PAYMENT_GRACE_MS
+  )
+
+  user.set('membershipBilling.paymentFailureStartedAt', normalizedFailureStart)
+  user.set('membershipBilling.gracePeriodEndsAt', normalizedGraceEndsAt)
+
+  return {
+    paymentFailureStartedAt: normalizedFailureStart,
+    gracePeriodEndsAt: normalizedGraceEndsAt,
+  }
+}
+
+const downgradeUserToFreeMembership = async ({ user, downgradedAt = new Date() }) => {
+  ensureMembershipBillingShape(user)
+
+  user.set('membershipBilling.subscriptionId', null)
+  user.set('membershipBilling.subscriptionItemId', null)
+  user.set('membershipBilling.subscriptionStatus', 'inactive')
+  user.set('membershipBilling.serviceId', null)
+  user.set('membershipBilling.currentPeriodStart', null)
+  user.set('membershipBilling.currentPeriodEnd', null)
+  user.set('membershipBilling.cancelAtPeriodEnd', false)
+  user.set('membershipBilling.pendingPlan', getEmptyMembershipPendingPlan())
+  user.set('membershipBilling.autoDowngradedAt', downgradedAt)
+  clearMembershipDelinquencyState(user)
+
+  user.membership = {
+    ...(user.membership || {}),
+    isActive: false,
+    status: 'inactive',
+    planName: null,
+    planId: null,
+    price: null,
+    currency: user.membership?.currency || 'usd',
+    serviceId: null,
+    locationId: user.membership?.locationId || user.membershipBilling?.locationId || null,
+    startedAt: null,
+    expiresAt: null,
+  }
+
+  user.activeMembership = {
+    ...(user.activeMembership || {}),
+    isActive: false,
+    status: 'inactive',
+    planName: null,
+    planId: null,
+    startedAt: null,
+    expiresAt: null,
+    locationId:
+      user.activeMembership?.locationId || user.membership?.locationId || null,
+  }
+
+  user.membershipStatus = 'inactive'
+  await user.save()
 }
 
 const buildMembershipPlanId = (plan, fallback = null) =>
@@ -690,6 +763,10 @@ const applyMembershipStateToUser = async ({
   const nextPlan = preserveCurrentPlan ? null : plan
   const membershipPlan =
     preserveCurrentPlan && user.membership?.planName ? null : plan
+
+  if (subscriptionStatus === 'active' || subscriptionStatus === 'trialing') {
+    clearMembershipDelinquencyState(user)
+  }
 
   user.set(
     'membershipBilling.stripeAccountId',
@@ -2384,6 +2461,11 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
     const customerId = req.user.id
     const { serviceId, locationId, planId, planName, checkoutUiMode } = req.body
     const useEmbeddedCheckout = `${checkoutUiMode || ''}`.trim().toLowerCase() === 'embedded'
+    const user = await User.findById(customerId)
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
 
     if (!serviceId || !locationId) {
       return next(createError(400, 'serviceId and locationId are required'))
@@ -2419,6 +2501,20 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
     const spaOwner = await findStripeReadySpaOwnerByLocation(locationId)
     if (!spaOwner) {
       return next(createError(400, 'No Stripe-ready spa account found for this location'))
+    }
+
+    const customerStripeId = await ensureMembershipCustomer({
+      user,
+      stripeAccountId: spaOwner.stripe.accountId,
+      locationId,
+    })
+    const paymentMethodState = await listMembershipPaymentMethods({
+      customerId: customerStripeId,
+      stripeAccountId: spaOwner.stripe.accountId,
+    })
+
+    if (paymentMethodState.paymentMethods.length === 0) {
+      return next(createError(400, 'Add a card before buying a membership plan.'))
     }
 
     const activeEntries = getActiveMembershipPricingEntries(service)
@@ -3638,6 +3734,10 @@ async function handleMembershipInvoicePaid(invoice, stripeAccountId) {
         : null,
     clearPendingPlan: true,
   })
+
+  user.set('membershipBilling.autoDowngradedAt', null)
+  clearMembershipDelinquencyState(user)
+  await user.save()
 }
 
 async function handleMembershipInvoicePaymentFailed(invoice, stripeAccountId) {
@@ -3699,6 +3799,46 @@ async function handleMembershipInvoicePaymentFailed(invoice, stripeAccountId) {
         : null,
     preserveCurrentPlan: true,
   })
+
+  const failureAnchor =
+    toDateFromUnix(invoice?.status_transitions?.finalized_at) ||
+    toDateFromUnix(invoice?.created) ||
+    new Date()
+  const { gracePeriodEndsAt } = markMembershipPaymentFailureState({
+    user,
+    failureStartedAt: failureAnchor,
+  })
+
+  const now = new Date()
+  if (now.getTime() < gracePeriodEndsAt.getTime()) {
+    await user.save()
+    return
+  }
+
+  const subscriptionId = subscription?.id || user.membershipBilling?.subscriptionId || null
+  if (subscriptionId) {
+    try {
+      await stripe.subscriptions.cancel(
+        subscriptionId,
+        {
+          prorate: false,
+        },
+        { stripeAccount: stripeAccountId }
+      )
+    } catch (stripeCancelError) {
+      const isAlreadyGone =
+        stripeCancelError?.type === 'StripeInvalidRequestError' &&
+        stripeCancelError?.code === 'resource_missing'
+      if (!isAlreadyGone) {
+        throw stripeCancelError
+      }
+    }
+  }
+
+  await downgradeUserToFreeMembership({
+    user,
+    downgradedAt: now,
+  })
 }
 
 async function handleMembershipSubscriptionUpdated(subscription, stripeAccountId) {
@@ -3746,6 +3886,55 @@ async function handleMembershipSubscriptionUpdated(subscription, stripeAccountId
         ? expandedSubscription.default_payment_method
         : null,
     preserveCurrentPlan,
+  })
+
+  const subscriptionStatus = `${expandedSubscription?.status || ''}`.trim().toLowerCase()
+  if (subscriptionStatus === 'active' || subscriptionStatus === 'trialing') {
+    user.set('membershipBilling.autoDowngradedAt', null)
+    clearMembershipDelinquencyState(user)
+    await user.save()
+    return
+  }
+
+  if (!['past_due', 'unpaid'].includes(subscriptionStatus)) {
+    return
+  }
+
+  const failureAnchor =
+    user.membershipBilling?.paymentFailureStartedAt ||
+    toDateFromUnix(expandedSubscription?.current_period_end) ||
+    new Date()
+  const { gracePeriodEndsAt } = markMembershipPaymentFailureState({
+    user,
+    failureStartedAt: failureAnchor,
+  })
+
+  const now = new Date()
+  if (now.getTime() < gracePeriodEndsAt.getTime()) {
+    await user.save()
+    return
+  }
+
+  try {
+    await stripe.subscriptions.cancel(
+      expandedSubscription.id,
+      {
+        prorate: false,
+      },
+      { stripeAccount: stripeAccountId }
+    )
+  } catch (stripeCancelError) {
+    const isAlreadyGone =
+      stripeCancelError?.type === 'StripeInvalidRequestError' &&
+      stripeCancelError?.code === 'resource_missing'
+    if (!isAlreadyGone) {
+      throw stripeCancelError
+    }
+  }
+
+  await downgradeUserToFreeMembership({
+    user,
+    downgradedAt: now,
   })
 }
 

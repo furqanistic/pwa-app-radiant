@@ -1,16 +1,6 @@
 import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
 import MembershipBillingSection from '@/components/Membership/MembershipBillingSection'
-import EmbeddedStripeCheckoutDialog from '@/components/Stripe/EmbeddedStripeCheckoutDialog'
 import { useBranding } from '@/context/BrandingContext'
-import { Button } from '@/components/ui/button'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
 import { useActiveServices } from '@/hooks/useServices'
 import { locationService } from '@/services/locationService'
 import { authService } from '@/services/authService'
@@ -116,12 +106,7 @@ const MembershipPage = () => {
     const membershipSummary = membershipBillingResponse?.summary || null
     const membershipInvoices = membershipInvoicesResponse?.invoices || []
     const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false)
-    const [checkoutOpen, setCheckoutOpen] = useState(false)
-    const [checkoutClientSecret, setCheckoutClientSecret] = useState('')
-    const [checkoutError, setCheckoutError] = useState('')
     const [cardDialogOpen, setCardDialogOpen] = useState(false)
-    const [recommendationDialogOpen, setRecommendationDialogOpen] = useState(false)
-    const [pendingCheckoutPayload, setPendingCheckoutPayload] = useState(null)
     const [pendingDirectSubscriptionPayload, setPendingDirectSubscriptionPayload] = useState(null)
 
     const refreshCurrentUser = async () => {
@@ -200,9 +185,8 @@ const MembershipPage = () => {
         if (!hasSavedCard) {
             return {
                 disabled: false,
-                ctaLabel: hasExistingSubscription ? 'Checkout Plan' : 'Checkout',
-                helperText:
-                    'Recommended: add a card for faster future purchases. You can still continue to checkout.',
+                ctaLabel: hasExistingSubscription ? 'Add Card to Continue' : 'Add Card to Subscribe',
+                helperText: 'A saved card is required for monthly membership billing.',
             }
         }
 
@@ -233,40 +217,6 @@ const MembershipPage = () => {
         }
     }
 
-    const openEmbeddedMembershipCheckout = async (payload) => {
-        try {
-            setIsCheckoutProcessing(true)
-            const response = await stripeService.createMembershipCheckoutSession({
-                ...payload,
-                checkoutUiMode: 'embedded',
-            })
-
-            if (response?.success && response?.clientSecret) {
-                setCheckoutClientSecret(response.clientSecret)
-                setCheckoutError('')
-                setCheckoutOpen(true)
-                return
-            }
-
-            if (response?.success && response?.sessionUrl) {
-                window.location.href = response.sessionUrl
-                return
-            }
-
-            const message = response?.message || 'Unable to open checkout right now.'
-            setCheckoutError(message)
-            toast.error(message)
-        } catch (error) {
-            const message =
-                error?.response?.data?.message ||
-                'Unable to open checkout right now.'
-            setCheckoutError(message)
-            toast.error(message)
-        } finally {
-            setIsCheckoutProcessing(false)
-        }
-    }
-
     const onServiceSelect = async (service, plan) => {
         if (!service?._id) {
             toast.error('This plan is not linked to online checkout yet.')
@@ -284,24 +234,21 @@ const MembershipPage = () => {
         }
 
         try {
-            if (!hasSavedCard) {
-                const payload = {
-                    serviceId: service._id,
-                    locationId: checkoutLocationId,
-                    planId: plan?._id || plan?.planId || plan?.id || null,
-                    planName: plan?.name || null,
-                }
-                setPendingCheckoutPayload(payload)
-                setRecommendationDialogOpen(true)
-                return
-            }
-
             const payload = {
                 serviceId: service._id,
                 locationId: checkoutLocationId,
                 planId: plan?._id || plan?.planId || plan?.id || null,
                 planName: plan?.name || null,
             }
+
+            if (!hasSavedCard) {
+                setPendingDirectSubscriptionPayload(payload)
+                setCardDialogOpen(true)
+                toast.message('Add a card to start this monthly membership plan.')
+                return
+            }
+
+            setIsCheckoutProcessing(true)
 
             if (hasExistingSubscription) {
                 const response = await stripeService.changeMembershipSubscriptionPlan(
@@ -347,44 +294,44 @@ const MembershipPage = () => {
         if (!pendingDirectSubscriptionPayload) return
 
         try {
+            setCardDialogOpen(false)
             setIsCheckoutProcessing(true)
-            const response = await stripeService.createMembershipSubscription(
-                pendingDirectSubscriptionPayload
-            )
+            const response = hasExistingSubscription
+                ? await stripeService.changeMembershipSubscriptionPlan(
+                    pendingDirectSubscriptionPayload
+                )
+                : await stripeService.createMembershipSubscription(
+                    pendingDirectSubscriptionPayload
+                )
             if (response?.success) {
-                toast.success(response?.message || 'Membership activated successfully.')
+                toast.success(
+                    response?.message ||
+                        (hasExistingSubscription
+                            ? 'Membership plan update scheduled for your next renewal.'
+                            : 'Membership activated successfully.')
+                )
                 await refreshMembershipState()
                 await refetchMembershipInvoices()
                 setPendingDirectSubscriptionPayload(null)
-                setPendingCheckoutPayload(null)
                 return
             }
 
-            toast.error('Unable to activate membership with saved card right now.')
+            toast.error(
+                hasExistingSubscription
+                    ? 'Unable to update membership plan with saved card right now.'
+                    : 'Unable to activate membership with saved card right now.'
+            )
         } catch (error) {
             console.error('Membership direct-charge error:', error)
             toast.error(
                 error?.response?.data?.message ||
-                    'Unable to activate membership with saved card right now.'
+                    (hasExistingSubscription
+                        ? 'Unable to update membership plan with saved card right now.'
+                        : 'Unable to activate membership with saved card right now.')
             )
         } finally {
             setIsCheckoutProcessing(false)
         }
-    }
-
-    const handleRecommendedAddCard = () => {
-        if (!pendingCheckoutPayload) return
-        setRecommendationDialogOpen(false)
-        setPendingDirectSubscriptionPayload(pendingCheckoutPayload)
-        setPendingCheckoutPayload(null)
-        setCardDialogOpen(true)
-    }
-
-    const handleContinueToCheckout = async () => {
-        if (!pendingCheckoutPayload) return
-        const payload = pendingCheckoutPayload
-        setRecommendationDialogOpen(false)
-        await openEmbeddedMembershipCheckout(payload)
     }
 
     return (
@@ -469,56 +416,6 @@ const MembershipPage = () => {
 
                 </div>
             </div>
-            <EmbeddedStripeCheckoutDialog
-                open={checkoutOpen}
-                onOpenChange={(nextOpen) => {
-                    setCheckoutOpen(nextOpen)
-                    if (!nextOpen) {
-                        setCheckoutClientSecret('')
-                        setCheckoutError('')
-                    }
-                }}
-                clientSecret={checkoutClientSecret}
-                loading={isCheckoutProcessing}
-                errorMessage={checkoutError}
-                onRetry={
-                    pendingCheckoutPayload
-                        ? async () => {
-                              await openEmbeddedMembershipCheckout(pendingCheckoutPayload)
-                          }
-                        : undefined
-                }
-                title='Membership Checkout'
-                description='Complete membership payment without leaving the app.'
-            />
-            <Dialog
-                open={recommendationDialogOpen}
-                onOpenChange={(nextOpen) => {
-                    setRecommendationDialogOpen(nextOpen)
-                    if (!nextOpen && !cardDialogOpen) {
-                        setPendingCheckoutPayload(null)
-                        setPendingDirectSubscriptionPayload(null)
-                    }
-                }}
-            >
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Add Card for Faster Checkout</DialogTitle>
-                        <DialogDescription>
-                            Adding a card is recommended so future purchases can be charged instantly.
-                            You can still continue to checkout without adding one.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={handleContinueToCheckout}>
-                            Continue to Checkout
-                        </Button>
-                        <Button onClick={handleRecommendedAddCard}>
-                            Add Card (Recommended)
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </Layout>
     )
 }
