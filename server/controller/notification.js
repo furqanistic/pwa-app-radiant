@@ -1,19 +1,36 @@
 // File: server/controller/notification.js - UPDATED WITH PUSH NOTIFICATIONS
+import dotenv from 'dotenv'
 import webpush from 'web-push'
 import { createError } from '../error.js'
 import Notification from '../models/Notification.js'
 import PushSubscription from '../models/PushSubscription.js'
 import User from '../models/User.js'
 
-// Configure web-push (Add these to your environment variables)
-webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_MAILTO || 'your-email@example.com'}`,
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
+dotenv.config()
+
+const hasVapidKeys = Boolean(
+  process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY
 )
+
+// Configure web-push only when VAPID keys are available.
+if (hasVapidKeys) {
+  webpush.setVapidDetails(
+    `mailto:${process.env.VAPID_MAILTO || 'your-email@example.com'}`,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  )
+} else {
+  console.warn(
+    '[notifications] VAPID keys are missing. Push notifications are disabled.'
+  )
+}
 
 // Helper function to send push notification
 const sendPushNotification = async (subscription, payload) => {
+  if (!hasVapidKeys) {
+    return false
+  }
+
   try {
     const pushSubscription = {
       endpoint: subscription.endpoint,
