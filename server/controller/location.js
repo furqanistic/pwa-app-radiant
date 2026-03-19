@@ -308,7 +308,7 @@ export const createLocation = async (req, res, next) => {
         { name: "St. Patrick's Day", content: "25% Off", isActive: false, type: "fixed-date", month: 3, day: 17 },
         { name: "Easter Special", content: "10% Off", isActive: false, type: "fixed-date", month: 3, day: 31 },
         { name: "Halloween", content: "30% Off", isActive: false, type: "fixed-date", month: 10, day: 31 },
-        { name: "Black Friday", content: "No Discount", isActive: false, type: "fixed-date", month: 11, day: 29 },
+        { name: "Black Friday", content: "40% Off", isActive: false, type: "fixed-date", month: 11, day: 29 },
         { name: "Christmas", content: "10% Off", isActive: false, type: "fixed-date", month: 12, day: 25 },
         { name: "Birthday Special", content: "15% Off", isActive: false, type: "birthday" },
         { name: "Client Anniversary", content: "$50 Off", isActive: false, type: "anniversary" },
@@ -691,7 +691,7 @@ export const getMyLocation = async (req, res, next) => {
       { name: "St. Patrick's Day", content: "25% Off", isActive: false, type: "fixed-date", month: 3, day: 17 },
       { name: "Easter Special", content: "10% Off", isActive: false, type: "fixed-date", month: 3, day: 31 },
       { name: "Halloween", content: "30% Off", isActive: false, type: "fixed-date", month: 10, day: 31 },
-      { name: "Black Friday", content: "No Discount", isActive: false, type: "fixed-date", month: 11, day: 29 },
+      { name: "Black Friday", content: "40% Off", isActive: false, type: "fixed-date", month: 11, day: 29 },
       { name: "Christmas", content: "10% Off", isActive: false, type: "fixed-date", month: 12, day: 25 },
       { name: "Birthday Special", content: "15% Off", isActive: false, type: "birthday" },
       { name: "Client Anniversary", content: "$50 Off", isActive: false, type: "anniversary" },
@@ -707,9 +707,20 @@ export const getMyLocation = async (req, res, next) => {
     } else {
       // Otherwise, add any missing templates individually
       templateGifts.forEach(template => {
-        const exists = location.automatedGifts.some(g => g.name === template.name);
+        const existingGift = location.automatedGifts.find(g => g.name === template.name);
+        const exists = Boolean(existingGift);
         if (!exists) {
           location.automatedGifts.push(template);
+          hasChanges = true;
+        }
+
+        // Correct legacy Black Friday template value on existing locations.
+        if (
+          existingGift &&
+          existingGift.name === "Black Friday" &&
+          existingGift.content === "No Discount"
+        ) {
+          existingGift.content = template.content;
           hasChanges = true;
         }
       });

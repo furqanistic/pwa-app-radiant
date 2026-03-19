@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useBranding } from "@/context/BrandingContext";
 import { locationService } from "@/services/locationService";
 import { uploadService } from "@/services/uploadService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,11 +14,29 @@ const TEMPLATE_GIFT_NAMES = [
   "Christmas", "Birthday Special", "Client Anniversary"
 ];
 
+const hexToRgba = (hex, alpha = 1) => {
+  const cleaned = (hex || "#ec4899").replace("#", "");
+  const normalized = cleaned.length === 3
+    ? cleaned.split("").map((char) => char + char).join("")
+    : cleaned;
+  const safe = normalized.length === 6 ? normalized : "ec4899";
+  const r = parseInt(safe.slice(0, 2), 16);
+  const g = parseInt(safe.slice(2, 4), 16);
+  const b = parseInt(safe.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const AutomatedGiftSettings = ({ isOpen, onClose }) => {
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || "#ec4899";
+  const brandRing = hexToRgba(brandColor, 0.35);
+  const brandSoft = hexToRgba(brandColor, 0.08);
+  const brandSoftBorder = hexToRgba(brandColor, 0.2);
+
   const queryClient = useQueryClient();
   const [automatedGifts, setAutomatedGifts] = useState([]);
   const [editingGift, setEditingGift] = useState(null);
-  const [giftForm, setGiftForm] = useState({
+  const getDefaultGiftForm = () => ({
     name: "",
     content: "",
     image: "",
@@ -26,6 +45,7 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
     month: 1,
     day: 1,
   });
+  const [giftForm, setGiftForm] = useState(getDefaultGiftForm());
 
   // Fetch my location settings
   const { data: locationData, isLoading } = useQuery({
@@ -43,7 +63,7 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
   const updateLocationMutation = useMutation({
     mutationFn: (data) => locationService.updateLocation(locationData.data.location._id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries(["myLocation"]);
+      queryClient.invalidateQueries({ queryKey: ["myLocation"] });
       toast.success("Settings updated successfully!");
     },
     onError: (error) => {
@@ -78,7 +98,12 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
     }
 
     const updatedGifts = [...automatedGifts];
-    if (editingGift !== null) {
+    const isEditingExistingGift =
+      Number.isInteger(editingGift?.index) &&
+      editingGift.index >= 0 &&
+      editingGift.index < updatedGifts.length;
+
+    if (isEditingExistingGift) {
       updatedGifts[editingGift.index] = { ...giftForm };
     } else {
       updatedGifts.push({ ...giftForm });
@@ -87,15 +112,7 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
     setAutomatedGifts(updatedGifts);
     await updateLocationMutation.mutateAsync({ automatedGifts: updatedGifts });
     setEditingGift(null);
-    setGiftForm({
-      name: "",
-      content: "",
-      image: "",
-      isActive: false,
-      type: "fixed-date",
-      month: 1,
-      day: 1,
-    });
+    setGiftForm(getDefaultGiftForm());
     onClose();
   };
 
@@ -195,7 +212,7 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                 <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">
                   Automated Gifts
                 </h2>
-                <p className="text-xs md:text-sm font-bold text-pink-500 uppercase tracking-widest mt-0.5">
+                <p className="text-xs md:text-sm font-bold uppercase tracking-widest mt-0.5" style={{ color: brandColor }}>
                   Manage Occasions & Rewards
                 </p>
               </div>
@@ -203,13 +220,15 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                 <button
                   onClick={() => updateLocationMutation.mutate({ automatedGifts: [] })}
                   title="Reload default templates"
-                  className="p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-blue-50 hover:text-blue-500 transition-all group"
+                  className="p-2.5 rounded-2xl hover:opacity-85 transition-all group"
+                  style={{ backgroundColor: brandSoft, color: brandColor }}
                 >
                   <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
                 </button>
                 <button
                   onClick={onClose}
-                  className="p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-pink-50 hover:text-pink-500 transition-all group"
+                  className="p-2.5 rounded-2xl hover:opacity-85 transition-all group"
+                  style={{ backgroundColor: brandSoft, color: brandColor }}
                 >
                   <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
                 </button>
@@ -219,7 +238,7 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
             <div className="flex-1 overflow-y-auto p-6 md:p-8">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-20">
-                  <RefreshCw className="w-10 h-10 text-pink-500 animate-spin mb-4" />
+                  <RefreshCw className="w-10 h-10 animate-spin mb-4" style={{ color: brandColor }} />
                   <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Loading Gifts...</p>
                 </div>
               ) : editingGift !== null ? (
@@ -232,7 +251,8 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                         value={giftForm.name}
                         onChange={(e) => setGiftForm({ ...giftForm, name: e.target.value })}
                         placeholder="e.g. Christmas Special"
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500"
+                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2"
+                        style={{ "--tw-ring-color": brandRing }}
                       />
                     </div>
                     <div className="space-y-2">
@@ -242,7 +262,8 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                         value={giftForm.content}
                         onChange={(e) => setGiftForm({ ...giftForm, content: e.target.value })}
                         placeholder="e.g. 20% Off"
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500"
+                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2"
+                        style={{ "--tw-ring-color": brandRing }}
                       />
                     </div>
                   </div>
@@ -253,7 +274,8 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                       <select
                         value={giftForm.type}
                         onChange={(e) => setGiftForm({ ...giftForm, type: e.target.value })}
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500"
+                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2"
+                        style={{ "--tw-ring-color": brandRing }}
                       >
                         <option value="fixed-date">Fixed Date (Holiday)</option>
                         <option value="birthday">User Birthday</option>
@@ -264,7 +286,10 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                   </div>
 
                   {giftForm.type === "fixed-date" && (
-                    <div className="grid grid-cols-2 gap-6 p-4 bg-pink-50 rounded-3xl">
+                    <div
+                      className="grid grid-cols-2 gap-6 p-4 rounded-3xl"
+                      style={{ backgroundColor: brandSoft, border: `1px solid ${brandSoftBorder}` }}
+                    >
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Month</label>
                         <input
@@ -273,7 +298,8 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                           max="12"
                           value={giftForm.month}
                           onChange={(e) => setGiftForm({ ...giftForm, month: parseInt(e.target.value) })}
-                          className="w-full px-4 py-2 bg-white border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-pink-500"
+                          className="w-full px-4 py-2 bg-white border-none rounded-xl text-sm font-medium focus:ring-2"
+                          style={{ "--tw-ring-color": brandRing }}
                         />
                       </div>
                       <div className="space-y-2">
@@ -284,7 +310,8 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                           max="31"
                           value={giftForm.day}
                           onChange={(e) => setGiftForm({ ...giftForm, day: parseInt(e.target.value) })}
-                          className="w-full px-4 py-2 bg-white border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-pink-500"
+                          className="w-full px-4 py-2 bg-white border-none rounded-xl text-sm font-medium focus:ring-2"
+                          style={{ "--tw-ring-color": brandRing }}
                         />
                       </div>
                     </div>
@@ -323,7 +350,8 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                     </div>
                     <button
                       onClick={() => setGiftForm({ ...giftForm, isActive: !giftForm.isActive })}
-                      className={`w-12 h-6 rounded-full relative transition-colors ${giftForm.isActive ? "bg-pink-500" : "bg-gray-300"}`}
+                      className="w-12 h-6 rounded-full relative transition-colors"
+                      style={{ backgroundColor: giftForm.isActive ? brandColor : "#d1d5db" }}
                     >
                       <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${giftForm.isActive ? "translate-x-6" : ""}`} />
                     </button>
@@ -332,14 +360,18 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                   <div className="flex gap-3">
                     <Button
                       variant="outline"
-                      onClick={() => setEditingGift(null)}
+                      onClick={() => {
+                        setEditingGift(null);
+                        setGiftForm(getDefaultGiftForm());
+                      }}
                       className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs"
                     >
                       Cancel
                     </Button>
                     <Button
                       onClick={handleSaveGift}
-                      className="flex-[2] rounded-2xl h-12 bg-pink-500 text-white font-black uppercase tracking-widest text-xs"
+                      className="flex-[2] rounded-2xl h-12 text-white font-black uppercase tracking-widest text-xs"
+                      style={{ backgroundColor: brandColor }}
                     >
                       Save Changes
                     </Button>
@@ -351,17 +383,20 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                     <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Available Gifts ({automatedGifts.length})</h3>
                     <Button
                       size="sm"
-                      onClick={() => setEditingGift({
-                        name: "",
-                        content: "",
-                        image: "",
-                        isActive: true,
-                        type: "fixed-date",
-                        month: new Date().getMonth() + 1,
-                        day: new Date().getDate(),
-                        index: automatedGifts.length
-                      })}
-                      className="bg-pink-500 text-white rounded-xl text-[10px] font-black uppercase"
+                      onClick={() => {
+                        setEditingGift({ index: null });
+                        setGiftForm({
+                          name: "",
+                          content: "",
+                          image: "",
+                          isActive: true,
+                          type: "fixed-date",
+                          month: new Date().getMonth() + 1,
+                          day: new Date().getDate(),
+                        });
+                      }}
+                      className="text-white rounded-xl text-[10px] font-black uppercase"
+                      style={{ backgroundColor: brandColor }}
                     >
                       Add New Gift
                     </Button>
@@ -379,11 +414,14 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                           key={index}
                           className="flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-[2rem] hover:shadow-md transition-shadow"
                         >
-                          <div className="w-14 h-14 rounded-2xl bg-pink-50 flex items-center justify-center overflow-hidden shrink-0">
+                          <div
+                            className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden shrink-0"
+                            style={{ backgroundColor: brandSoft }}
+                          >
                             {gift.image ? (
                               <img src={gift.image} alt={gift.name} className="w-full h-full object-cover" />
                             ) : (
-                              <Gift className="w-6 h-6 text-pink-500" />
+                              <Gift className="w-6 h-6" style={{ color: brandColor }} />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -395,13 +433,16 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                                 </span>
                               )}
                               {gift.type === 'custom' && (
-                                <span className="px-2 py-0.5 bg-purple-50 text-purple-500 text-[8px] font-black uppercase rounded-full border border-purple-100">
+                                <span
+                                  className="px-2 py-0.5 text-[8px] font-black uppercase rounded-full border"
+                                  style={{ backgroundColor: brandSoft, color: brandColor, borderColor: brandSoftBorder }}
+                                >
                                   Custom
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
-                              <p className="text-xs font-bold text-pink-500">{gift.content}</p>
+                              <p className="text-xs font-bold" style={{ color: brandColor }}>{gift.content}</p>
                               <span className="text-[10px] font-black text-gray-300 uppercase shrink-0">
                                 • {gift.type === 'fixed-date' ? `${gift.month}/${gift.day}` : gift.type}
                               </span>
@@ -410,7 +451,8 @@ const AutomatedGiftSettings = ({ isOpen, onClose }) => {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleToggleGift(index)}
-                              className={`w-10 h-5 rounded-full relative transition-colors ${gift.isActive ? "bg-green-500" : "bg-gray-300"}`}
+                              className="w-10 h-5 rounded-full relative transition-colors"
+                              style={{ backgroundColor: gift.isActive ? brandColor : "#d1d5db" }}
                             >
                               <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${gift.isActive ? "translate-x-5" : ""}`} />
                             </button>
