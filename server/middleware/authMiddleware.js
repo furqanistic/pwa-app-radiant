@@ -83,6 +83,16 @@ export const requireAdminOrAbove = (req, res, next) => {
   next()
 }
 
+// Spa, Admin, or Super-admin access
+export const requireSpaOrAdminOrAbove = (req, res, next) => {
+  if (!['spa', 'admin', 'super-admin'].includes(req.user.role)) {
+    return next(
+      createError(403, 'Spa, Admin, or Super-Admin access required')
+    )
+  }
+  next()
+}
+
 // ENHANCED: Management access - includes all roles that can manage games
 export const checkManagementAccess = (req, res, next) => {
   if (!['admin', 'spa', 'super-admin', 'enterprise'].includes(req.user.role)) {

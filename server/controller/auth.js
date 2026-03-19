@@ -375,9 +375,12 @@ export const getAllUsers = async (req, res, next) => {
 export const getAssignableUsers = async (req, res, next) => {
   try {
     // Check permissions
-    if (!['admin', 'super-admin'].includes(req.user.role)) {
+    if (!['spa', 'admin', 'super-admin'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or Super-Admin rights required.')
+        createError(
+          403,
+          'Access denied. Spa, Admin, or Super-Admin rights required.'
+        )
       )
     }
 

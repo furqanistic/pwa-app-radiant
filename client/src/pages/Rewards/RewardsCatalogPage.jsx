@@ -1,6 +1,11 @@
 // client/src/pages/Rewards/RewardsCatalogPage.jsx
 import PointsCard from '@/components/Dashboard/PointsCard'
-import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
+import {
+  useClaimReward,
+  useEnhancedRewardsCatalog,
+  useUserRewards,
+} from '@/hooks/useRewards'
+import confetti from 'canvas-confetti'
 import {
     Award,
     Check,
@@ -8,7 +13,6 @@ import {
     DollarSign,
     Filter,
     Gift,
-    Heart,
     ArrowUpRight,
     Pause,
     Percent,
@@ -26,6 +30,10 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
 import { useBranding } from '@/context/BrandingContext'
+import {
+  buildAutoApplyRewardState,
+  mergeCatalogRewardsWithClaims,
+} from '@/utils/rewardFlow'
 
 const rewardTypes = [
   { id: 'all', name: 'All Rewards' },
@@ -142,11 +150,39 @@ const PremiumDropdown = ({
 const RewardCard = ({ reward, onClaim }) => {
   const [isClaiming, setIsClaiming] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [showConfetti, setShowConfetti] = useState(false)
   const audioRef = useRef(null)
   const brandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
   const fallbackImage =
     'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop'
+
+  const fireClaimConfetti = (targetElement) => {
+    const rect = targetElement?.getBoundingClientRect?.()
+    const origin = rect
+      ? {
+          x: (rect.left + rect.width / 2) / window.innerWidth,
+          y: (rect.top + rect.height / 2) / window.innerHeight,
+        }
+      : { x: 0.5, y: 0.5 }
+
+    confetti({
+      particleCount: 70,
+      spread: 65,
+      startVelocity: 35,
+      origin,
+      scalar: 0.9,
+      zIndex: 9999,
+      ticks: 220,
+    })
+    confetti({
+      particleCount: 35,
+      spread: 100,
+      startVelocity: 25,
+      origin,
+      scalar: 0.75,
+      zIndex: 9999,
+      ticks: 180,
+    })
+  }
 
   const toggleVoiceNote = (e) => {
     e.stopPropagation()
@@ -163,6 +199,8 @@ const RewardCard = ({ reward, onClaim }) => {
   }
 
   const canAfford = reward.canClaim
+  const hasActiveClaim = Boolean(reward.hasActiveClaim)
+  const isUnavailable = !canAfford && !hasActiveClaim
 
   const getRewardIcon = (type) => {
     const iconClassName = 'w-4 h-4 text-white drop-shadow-sm'
@@ -189,17 +227,18 @@ const RewardCard = ({ reward, onClaim }) => {
     }
   }
 
-  const handleClaim = async () => {
+  const handleClaim = async (event) => {
     if (!canAfford || isClaiming) return
 
     setIsClaiming(true)
-    setShowConfetti(true)
 
     try {
-      await onClaim(reward._id)
-      setTimeout(() => setShowConfetti(false), 2000)
+      const isSuccess = await onClaim(reward._id)
+      if (isSuccess) {
+        fireClaimConfetti(event?.currentTarget)
+      }
     } catch {
-      setShowConfetti(false)
+      // Toast is handled by mutation hook
     } finally {
       setIsClaiming(false)
     }
@@ -207,6 +246,7 @@ const RewardCard = ({ reward, onClaim }) => {
 
   const getButtonText = () => {
     if (isClaiming) return 'Claiming...'
+    if (hasActiveClaim && !canAfford) return 'Claimed'
     if (canAfford) return 'Claim Reward'
     if (!reward.canClaimMoreInWindow) return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
@@ -216,42 +256,13 @@ const RewardCard = ({ reward, onClaim }) => {
     <div
       onClick={handleClaim}
       className={`relative h-full bg-white rounded-[1.35rem] overflow-hidden transition-all border flex flex-col shadow-[0_12px_34px_-28px_rgba(15,23,42,0.28)] ${
-        canAfford
+        isUnavailable
+          ? 'opacity-60 grayscale border-[#f9f9fa] cursor-not-allowed'
+          : canAfford
           ? 'hover:border-[#f9f9fa] hover:-translate-y-0.5 cursor-pointer group border-[#f9f9fa]'
-          : 'opacity-60 grayscale border-[#f9f9fa] cursor-not-allowed'
+          : 'border-[#f9f9fa] cursor-default'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
-      {/* Confetti Animation */}
-      {showConfetti && (
-        <div className='absolute inset-0 z-50 pointer-events-none overflow-hidden'>
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={i}
-              className='absolute w-2 h-2 bg-[color:var(--brand-primary)] rounded-full animate-ping'
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 0.5}s`,
-                animationDuration: `${1 + Math.random()}s`,
-              }}
-            />
-          ))}
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={`heart-${i}`}
-              className='absolute text-[color:var(--brand-primary)] animate-bounce'
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 0.3}s`,
-              }}
-            >
-              <Heart className='w-3 h-3' />
-            </div>
-          ))}
-        </div>
-      )}
-
       <div className='relative h-32 sm:h-36 md:h-40 overflow-hidden'>
         <img
           src={resolveImageUrl(reward.image, fallbackImage, { width: 500, height: 300 })}
@@ -313,12 +324,14 @@ const RewardCard = ({ reward, onClaim }) => {
         <div className='absolute bottom-2.5 left-2.5'>
           <span
             className={`px-2 py-1 rounded-full text-[10px] font-semibold ${
-              reward.status === 'active'
+              hasActiveClaim
+                ? 'bg-[color:var(--brand-primary)] text-white'
+                : reward.status === 'active'
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-500 text-white'
             }`}
           >
-            {reward.status}
+            {hasActiveClaim ? 'claimed' : reward.status}
           </span>
         </div>
       </div>
@@ -331,6 +344,15 @@ const RewardCard = ({ reward, onClaim }) => {
         <p className='text-[0.78rem] md:text-[0.82rem] mb-2.5 line-clamp-2 text-gray-600 leading-[1.4]'>
           {reward.description}
         </p>
+
+        {hasActiveClaim && (
+          <div className='mb-2.5 rounded-[0.8rem] border border-[color:var(--brand-primary)/0.2] bg-[color:var(--brand-primary)/0.08] px-2.5 py-2'>
+            <p className='text-[0.72rem] font-semibold text-[color:var(--brand-primary)]'>
+              Already claimed {reward.activeClaimCount > 1 ? `${reward.activeClaimCount}x` : ''}
+            </p>
+            <p className='text-[0.68rem] text-gray-700'>You can apply this in your cart at checkout.</p>
+          </div>
+        )}
 
         {/* Reward Value */}
         <div className='bg-[#fafafb] p-2.5 rounded-[0.8rem] mb-2.5 border border-[#f1f1f3]'>
@@ -374,6 +396,8 @@ const RewardCard = ({ reward, onClaim }) => {
               ? 'bg-[color:var(--brand-primary)] text-white cursor-wait'
               : canAfford
               ? 'text-white hover:brightness-105'
+              : hasActiveClaim
+              ? 'bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary)] cursor-default border border-[color:var(--brand-primary)/0.22]'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
           } ${isClaiming ? 'animate-pulse' : ''}`}
         >
@@ -406,26 +430,6 @@ const RewardsCatalogPage = () => {
   }
   const pageBrandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
 
-  const getLinkedServiceId = (reward) => {
-    if (!reward) return null
-    const linkedServices = Array.isArray(reward.linkedServices)
-      ? reward.linkedServices
-      : []
-    const firstLinkedService = linkedServices[0] || null
-    const value =
-      reward.serviceId?._id ||
-      reward.serviceId ||
-      reward.linkedServiceId?._id ||
-      reward.linkedServiceId ||
-      reward.service?._id ||
-      reward.linkedService?._id ||
-      reward.linkedService?.serviceId ||
-      firstLinkedService?.serviceId?._id ||
-      firstLinkedService?.serviceId ||
-      firstLinkedService?._id
-    return value ? String(value) : null
-  }
-
   // API calls using React Query hooks
   const {
     rewards = [],
@@ -437,27 +441,23 @@ const RewardsCatalogPage = () => {
     type: selectedType === 'all' ? '' : selectedType,
     sortBy: sortBy,
   })
+  const { data: userRewardsData } = useUserRewards({
+    status: 'active',
+    limit: 100,
+  })
 
   const claimRewardMutation = useClaimReward({
     onSuccess: (data, rewardId) => {
       // Toast handled by hook
       const claimedReward = rewards.find((reward) => reward._id === rewardId)
-      const claimedPayload =
-        data?.data?.claimedReward ||
-        data?.data?.reward ||
-        data?.data?.userReward ||
-        data?.claimedReward ||
-        data?.reward ||
-        null
-      const linkedServiceId =
-        getLinkedServiceId(claimedPayload) || getLinkedServiceId(claimedReward)
+      const { linkedServiceId, autoApplyState } = buildAutoApplyRewardState({
+        data,
+        rewardId,
+        fallbackReward: claimedReward,
+      })
       if (linkedServiceId) {
         navigate(withSpaParam(`/services/${linkedServiceId}`), {
-          state: {
-            autoApplyRewardId: rewardId,
-            autoApplyRewardName:
-              claimedPayload?.name || claimedReward?.name || 'Reward',
-          },
+          state: autoApplyState,
         })
       }
     },
@@ -518,9 +518,19 @@ const RewardsCatalogPage = () => {
     )
   }
 
-  const filteredRewards = rewards || []
+  const activeUserRewards = userRewardsData?.userRewards || []
+  const mergedRewards = mergeCatalogRewardsWithClaims({
+    catalogRewards: rewards || [],
+    userRewards: activeUserRewards,
+  })
+  const filteredRewards = mergedRewards || []
   const handleClaimReward = async (rewardId) => {
-    claimRewardMutation.mutate(rewardId)
+    try {
+      await claimRewardMutation.mutateAsync(rewardId)
+      return true
+    } catch {
+      return false
+    }
   }
 
   return (

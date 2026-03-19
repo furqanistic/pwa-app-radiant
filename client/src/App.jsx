@@ -253,11 +253,16 @@ const App = () => {
       return
     }
 
-    const fetchCurrentUser = async () => {
+    const fetchCurrentUser = async ({ forceRefresh = false } = {}) => {
       try {
         const response = await authService.getCurrentUser()
         const user = response?.data?.user || response?.data || response?.user
         if (user) {
+          // Avoid unnecessary store writes unless data is missing or we explicitly refresh.
+          if (!forceRefresh && currentUser?._id === user?._id) {
+            localStorage.setItem('lastActivity', `${Date.now()}`)
+            return
+          }
           dispatch(loginSuccess({ data: { user }, token }))
           localStorage.setItem('lastActivity', `${Date.now()}`)
         }
@@ -270,6 +275,30 @@ const App = () => {
 
     if (!currentUser) {
       fetchCurrentUser()
+    }
+
+    if (currentUser) {
+      // Immediate refresh for persisted sessions so stale points are corrected quickly.
+      fetchCurrentUser({ forceRefresh: true })
+
+      // Keep user profile (including points) in sync with server-side updates.
+      const syncOnFocusOrVisible = () => fetchCurrentUser({ forceRefresh: true })
+      const onVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          syncOnFocusOrVisible()
+        }
+      }
+      window.addEventListener('focus', syncOnFocusOrVisible)
+      document.addEventListener('visibilitychange', onVisibilityChange)
+      const intervalId = window.setInterval(() => {
+        fetchCurrentUser({ forceRefresh: true })
+      }, 15 * 1000)
+
+      return () => {
+        window.clearInterval(intervalId)
+        window.removeEventListener('focus', syncOnFocusOrVisible)
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+      }
     }
   }, [currentUser, dispatch])
 

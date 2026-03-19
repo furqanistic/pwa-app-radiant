@@ -159,7 +159,7 @@ export const authService = {
       case 'changeRole':
         return currentLevel > targetLevel && currentLevel >= 4
       case 'adjustPoints':
-        return currentLevel >= 4
+        return currentLevel >= 3
       default:
         return false
     }

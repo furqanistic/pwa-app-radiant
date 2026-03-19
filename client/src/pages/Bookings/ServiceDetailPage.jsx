@@ -4,6 +4,7 @@
 import BNPLBanner from "@/components/Common/BNPLBanner";
 import { useBranding } from '@/context/BrandingContext';
 import { useAvailability } from "@/hooks/useAvailability";
+import { useUserRewards } from "@/hooks/useRewards";
 import { useService } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
 import { useQuery } from "@tanstack/react-query";
@@ -32,6 +33,11 @@ import { toast } from 'sonner';
 import { addToCart } from "../../redux/cartSlice";
 import ghlService from "../../services/ghlService";
 import stripeService from "../../services/stripeService";
+import {
+  calculateRewardDiscount,
+  getApplicableRewardsForService,
+  getRewardDisplayValue,
+} from "@/utils/rewardFlow";
 
 const ServiceDetailSkeleton = () => (
   <Layout>
@@ -332,6 +338,7 @@ const ServiceDetailPage = () => {
     ? String(location.state.autoApplyRewardId)
     : null;
   const autoApplyRewardName = location.state?.autoApplyRewardName || "Reward";
+  const autoApplyRewardSnapshot = location.state?.autoApplyRewardSnapshot || null;
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
   const { branding, locationId: brandedLocationId, subdomain: brandingSubdomain } = useBranding();
@@ -361,7 +368,11 @@ const ServiceDetailPage = () => {
   const toastError = (message, options = {}) =>
     toast.error(message, { ...toastStyle, ...options });
   const appliedReward = autoApplyRewardId
-    ? { id: autoApplyRewardId, name: autoApplyRewardName }
+    ? {
+        id: autoApplyRewardId,
+        name: autoApplyRewardName,
+        snapshot: autoApplyRewardSnapshot,
+      }
     : null;
   // ✅ GET CART FROM REDUX
   const { items: cartItems } = useSelector((state) => state.cart);
@@ -381,6 +392,10 @@ const ServiceDetailPage = () => {
     enabled: !!serviceId,
     includeRewards: "false",
   });
+  const { data: userRewardsData } = useUserRewards({
+    status: 'active',
+    limit: 100,
+  })
 
   const activeLocationId =
     spaParamLocationId ||
@@ -619,6 +634,15 @@ const ServiceDetailPage = () => {
     return price;
   };
 
+  const calculateAppliedRewardDiscount = (subtotal) => {
+    if (!appliedReward?.snapshot) return 0;
+    return calculateRewardDiscount({
+      rewardSnapshot: appliedReward.snapshot,
+      subtotal,
+      serviceId: service?._id,
+    });
+  };
+
   const handleTreatmentSelect = (treatment) => {
     setSelectedTreatments((prev) => {
       const exists = prev.find((t) => (t._id || t.id) === (treatment._id || treatment.id));
@@ -648,7 +672,7 @@ const ServiceDetailPage = () => {
     });
   };
 
-  const calculateTotalPrice = () => {
+  const calculateTotalPrice = ({ includeReward = true } = {}) => {
     const treatmentsPrice = selectedTreatments.reduce((sum, t) => sum + (t.price || 0), 0);
     const planBasedMemberPrice = getMemberPriceForUserPlan(service, currentUser);
     const shouldUseMemberPrice =
@@ -667,7 +691,13 @@ const ServiceDetailPage = () => {
       return total + (addOn.finalPrice || addOn.customPrice || addOn.basePrice);
     }, 0);
 
-    return discountedBasePrice + addOnsTotal;
+    const subtotalWithServiceDiscount = discountedBasePrice + addOnsTotal;
+    if (!includeReward) {
+      return subtotalWithServiceDiscount;
+    }
+
+    const rewardDiscount = calculateAppliedRewardDiscount(subtotalWithServiceDiscount);
+    return Math.max(0, subtotalWithServiceDiscount - rewardDiscount);
   };
 
   const calculateTotalDuration = () => {
@@ -711,7 +741,7 @@ const ServiceDetailPage = () => {
       return;
     }
 
-    const totalPrice = calculateTotalPrice();
+    const totalPrice = calculateTotalPrice({ includeReward: false });
     const totalDuration = calculateTotalDuration();
 
     const cartItem = {
@@ -895,6 +925,34 @@ const ServiceDetailPage = () => {
   const membershipPath = activeLocationId
     ? `/membership?spa=${encodeURIComponent(activeLocationId)}`
     : '/membership'
+  const activeUserRewards = userRewardsData?.userRewards || []
+  const availableServiceRewards = getApplicableRewardsForService({
+    userRewards: activeUserRewards,
+    serviceId: service?._id,
+  })
+  const rewardPreviewSubtotal = Number(service?.basePrice) || 0
+  const topAvailableServiceReward = [...availableServiceRewards]
+    .map((reward) => ({
+      ...reward,
+      estimatedDiscount: calculateRewardDiscount({
+        rewardSnapshot: reward?.rewardSnapshot || null,
+        subtotal: rewardPreviewSubtotal,
+        serviceId: service?._id,
+      }),
+    }))
+    .sort((a, b) => {
+      if (b.estimatedDiscount !== a.estimatedDiscount) {
+        return b.estimatedDiscount - a.estimatedDiscount
+      }
+      const aExpiry = new Date(a?.expiresAt || '9999-12-31T23:59:59.999Z').getTime()
+      const bExpiry = new Date(b?.expiresAt || '9999-12-31T23:59:59.999Z').getTime()
+      if (aExpiry !== bExpiry) {
+        return aExpiry - bExpiry
+      }
+      const aClaimed = new Date(a?.claimedAt || a?.createdAt || 0).getTime()
+      const bClaimed = new Date(b?.claimedAt || b?.createdAt || 0).getTime()
+      return bClaimed - aClaimed
+    })[0]
 
   return (
     <Layout>
@@ -948,6 +1006,11 @@ const ServiceDetailPage = () => {
                             Reward Applied: {appliedReward.name}
                         </div>
                     )}
+                    {!appliedReward && topAvailableServiceReward && (
+                        <div className="bg-white text-[color:var(--brand-primary)] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
+                            {availableServiceRewards.length} reward{availableServiceRewards.length > 1 ? 's' : ''} available
+                        </div>
+                    )}
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-4 h-4 text-[color:var(--brand-primary)]" />
                       <span>{service.duration} mins</span>
@@ -958,6 +1021,25 @@ const ServiceDetailPage = () => {
                       <span>{service.rating?.toFixed(1) || "5.0"} ({service.totalReviews || 12} reviews)</span>
                     </div>
                   </div>
+                  {(topAvailableServiceReward || appliedReward) && (
+                    <div className="rounded-xl bg-white/90 backdrop-blur-sm border border-white/70 px-3 py-2 text-[11px] font-semibold text-gray-700 inline-flex flex-col gap-0.5">
+                      {appliedReward ? (
+                        <>
+                          <span className="text-[color:var(--brand-primary)] uppercase tracking-wide">
+                            Reward selected: {appliedReward.name}
+                          </span>
+                          <span>This reward will be applied automatically at checkout.</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[color:var(--brand-primary)] uppercase tracking-wide">
+                            Available: {topAvailableServiceReward?.rewardSnapshot?.name || 'Reward'} ({getRewardDisplayValue(topAvailableServiceReward?.rewardSnapshot)})
+                          </span>
+                          <span>Add this service to cart to apply this reward at checkout.</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                </div>
              </div>
         </div>
@@ -1275,6 +1357,14 @@ const ServiceDetailPage = () => {
                               <span className="text-gray-500">Reward</span>
                               <span className="font-medium text-[color:var(--brand-primary)] text-right">
                                 {appliedReward.name}
+                              </span>
+                          </div>
+                      )}
+                      {!appliedReward && topAvailableServiceReward && (
+                          <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Available reward</span>
+                              <span className="font-medium text-[color:var(--brand-primary)] text-right">
+                                {topAvailableServiceReward?.rewardSnapshot?.name || 'Reward'}
                               </span>
                           </div>
                       )}

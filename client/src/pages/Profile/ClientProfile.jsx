@@ -124,7 +124,7 @@ const ClientProfile = () => {
           userRewardsService.getUserRewards({
             userId: isOwnProfile ? null : targetUserId,
             status: 'all',
-            limit: 200,
+            limit: 100,
           }),
           userRewardsService.getUserTransactions({
             userId: isOwnProfile ? null : targetUserId,

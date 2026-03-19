@@ -19,6 +19,11 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useBranding } from '@/context/BrandingContext'
+import {
+  calculateCartRewardDiscount,
+  getRewardDisplayValue,
+  selectBestCartReward,
+} from '@/utils/rewardFlow'
 import axiosInstance from '../../config'
 import { clearCart, removeFromCart } from '../../redux/cartSlice'
 import stripeService from '../../services/stripeService'
@@ -57,13 +62,13 @@ const CartPage = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [availableRewards, setAvailableRewards] = useState([])
   const [selectedReward, setSelectedReward] = useState(null)
-  const [isLoadingRewards, setIsLoadingRewards] = useState(false)
+  const [hasManualRewardOverride, setHasManualRewardOverride] = useState(false)
+  const [autoSelectedRewardId, setAutoSelectedRewardId] = useState(null)
 
   // Fetch user rewards on mount
   useEffect(() => {
     const fetchRewards = async () => {
       if (!currentUser) return
-      setIsLoadingRewards(true)
       try {
         const response = await axiosInstance.get('/rewards/my-rewards')
         if (response.data?.status === 'success') {
@@ -75,78 +80,83 @@ const CartPage = () => {
         }
       } catch (error) {
         console.error('Error fetching rewards:', error)
-      } finally {
-        setIsLoadingRewards(false)
       }
     }
 
     fetchRewards()
   }, [currentUser])
 
+  useEffect(() => {
+    if (selectedReward || availableRewards.length === 0 || items.length === 0) return
+
+    const rewardIdFromCart = items
+      .map((item) => item.rewardUsed || item.userRewardId || null)
+      .find(Boolean)
+
+    if (!rewardIdFromCart) return
+
+    const matchedReward = availableRewards.find(
+      (reward) => String(reward._id) === String(rewardIdFromCart)
+    )
+
+    if (matchedReward) {
+      setSelectedReward(matchedReward)
+      setAutoSelectedRewardId(String(matchedReward._id))
+    }
+  }, [availableRewards, items, selectedReward])
+
+  const cartSignature = JSON.stringify(
+    items.map((item) => ({
+      id: item.id,
+      serviceId: item.serviceId,
+      date: item.date,
+      time: item.time,
+      totalPrice: Number(item.totalPrice) || 0,
+    }))
+  )
+  const totalAmountSafe = Number(totalAmount) || 0
+
+  useEffect(() => {
+    setHasManualRewardOverride(false)
+  }, [cartSignature])
+
+  useEffect(() => {
+    if (availableRewards.length === 0 || items.length === 0) return
+    if (hasManualRewardOverride) return
+
+    const bestReward = selectBestCartReward({
+      rewards: availableRewards,
+      items,
+      totalAmount: totalAmountSafe,
+    })
+    if (!bestReward) return
+
+    if (String(selectedReward?._id || '') === String(bestReward._id)) {
+      return
+    }
+
+    setSelectedReward(bestReward)
+    setAutoSelectedRewardId(String(bestReward._id))
+  }, [
+    availableRewards,
+    hasManualRewardOverride,
+    items,
+    selectedReward?._id,
+    totalAmountSafe,
+  ])
+
   // Calculate discount based on selected reward
   const calculateRewardDiscount = () => {
     if (!selectedReward) return 0
-
-    const rewardSnapshot = selectedReward.rewardSnapshot
-    const type = rewardSnapshot.type
-    const value = rewardSnapshot.value
-
-    if (type === 'credit' || type === 'referral') {
-      return Math.min(value, totalAmount)
-    }
-
-    if (['discount', 'service_discount', 'combo'].includes(type)) {
-      const serviceId = rewardSnapshot.serviceId
-      const serviceIds = rewardSnapshot.serviceIds || []
-
-      if (serviceId || serviceIds.length > 0) {
-        // Apply only to specific services in cart
-        const applicableTotal = items
-          .filter(
-            (item) =>
-              item.serviceId === serviceId?.toString() ||
-              serviceIds.some((id) => id.toString() === item.serviceId)
-          )
-          .reduce((sum, item) => sum + item.totalPrice, 0)
-
-        let discount = (applicableTotal * value) / 100
-        if (rewardSnapshot.maxValue && discount > rewardSnapshot.maxValue) {
-          discount = rewardSnapshot.maxValue
-        }
-        return discount
-      } else {
-        // Apply to all items
-        let discount = (totalAmount * value) / 100
-        if (rewardSnapshot.maxValue && discount > rewardSnapshot.maxValue) {
-          discount = rewardSnapshot.maxValue
-        }
-        return discount
-      }
-    }
-
-    if (type === 'service' || type === 'free_service') {
-      const serviceId = rewardSnapshot.serviceId
-      const serviceIds = rewardSnapshot.serviceIds || []
-
-      const applicableItems = items.filter(
-        (item) =>
-          item.serviceId === serviceId?.toString() ||
-          serviceIds.some((id) => id.toString() === item.serviceId)
-      )
-
-      if (applicableItems.length > 0) {
-        const freeItem = applicableItems.reduce((prev, curr) =>
-          prev.totalPrice > curr.totalPrice ? prev : curr
-        )
-        return freeItem.totalPrice
-      }
-    }
-
-    return 0
+    return calculateCartRewardDiscount({
+      rewardSnapshot: selectedReward.rewardSnapshot,
+      items,
+      totalAmount: totalAmountSafe,
+    })
   }
 
   const rewardDiscount = calculateRewardDiscount()
-  const totalWithDiscount = Math.max(0, totalAmount - rewardDiscount)
+  const totalWithDiscount = Math.max(0, totalAmountSafe - rewardDiscount)
   const finalTotal = totalWithDiscount
 
   const handleRemoveItem = (itemId) => {
@@ -378,7 +388,7 @@ const CartPage = () => {
               <div className='space-y-4 mb-6'>
                 <div className='flex justify-between text-gray-600'>
                   <span>Subtotal ({totalItems} items)</span>
-                  <span>${totalAmount.toFixed(2)}</span>
+                  <span>${totalAmountSafe.toFixed(2)}</span>
                 </div>
 
                 {/* Rewards Section */}
@@ -392,11 +402,31 @@ const CartPage = () => {
 
                   {availableRewards.length > 0 ? (
                     <div className='space-y-2'>
+                      <div className='rounded-lg border border-[color:var(--brand-primary)/0.15] bg-[color:var(--brand-primary)/0.06] px-3 py-2 text-xs text-gray-700'>
+                        <div className='font-semibold text-[color:var(--brand-primary)]'>
+                          You currently have {availableRewards.length} usable reward{availableRewards.length > 1 ? 's' : ''}
+                        </div>
+                        {selectedReward ? (
+                          <div className='mt-0.5'>
+                            Selected: {selectedReward.rewardSnapshot?.name} ({getRewardDisplayValue(selectedReward.rewardSnapshot)})
+                            {autoSelectedRewardId &&
+                            String(selectedReward._id) === autoSelectedRewardId ? (
+                              <span className='ml-1 font-semibold text-[color:var(--brand-primary)]'>
+                                - We auto-picked your best available savings.
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className='mt-0.5'>Choose a reward below to apply it before checkout.</div>
+                        )}
+                      </div>
                       <div className='relative'>
                         <select
                           className='w-full pl-3 pr-10 py-2 text-sm border border-gray-200/70 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] transition-all font-medium text-gray-700'
                           value={selectedReward?._id || ''}
                           onChange={(e) => {
+                            setHasManualRewardOverride(true)
+                            setAutoSelectedRewardId(null)
                             const reward = availableRewards.find(
                               (r) => r._id === e.target.value
                             )

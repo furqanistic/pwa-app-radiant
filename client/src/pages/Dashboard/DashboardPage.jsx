@@ -4,11 +4,15 @@ import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
 import SpaDashboard from '@/components/Dashboard/SpaDashboard'
 import { useBranding } from '@/context/BrandingContext'
-import { useDashboardData } from '@/hooks/useDashboard'
+import { dashboardQueryKeys, useDashboardData } from '@/hooks/useDashboard'
 import { useAvailableGames } from '@/hooks/useGameWheel'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
+import { dashboardService } from '@/services/dashboardService'
 import { rewardsService } from '@/services/rewardsService'
 import { resolveImageUrl } from '@/lib/imageHelpers'
+import { buildAutoApplyRewardState } from '@/utils/rewardFlow'
+import { useQueryClient } from '@tanstack/react-query'
+import confetti from 'canvas-confetti'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   AlertCircle,
@@ -75,10 +79,38 @@ const RewardCard = ({
   isOptimisticUpdate = false,
 }) => {
   const [isClaiming, setIsClaiming] = useState(false)
-  const [showConfetti, setShowConfetti] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef(null)
   const brandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
+
+  const fireClaimConfetti = (targetElement) => {
+    const rect = targetElement?.getBoundingClientRect?.()
+    const origin = rect
+      ? {
+          x: (rect.left + rect.width / 2) / window.innerWidth,
+          y: (rect.top + rect.height / 2) / window.innerHeight,
+        }
+      : { x: 0.5, y: 0.5 }
+
+    confetti({
+      particleCount: 70,
+      spread: 65,
+      startVelocity: 35,
+      origin,
+      scalar: 0.9,
+      zIndex: 9999,
+      ticks: 220,
+    })
+    confetti({
+      particleCount: 35,
+      spread: 100,
+      startVelocity: 25,
+      origin,
+      scalar: 0.75,
+      zIndex: 9999,
+      ticks: 180,
+    })
+  }
 
   const toggleVoiceNote = (e) => {
     e.stopPropagation()
@@ -121,20 +153,18 @@ const RewardCard = ({
     }
   }
 
-  const handleClaim = async () => {
+  const handleClaim = async (event) => {
     if (!canAfford || isClaiming) return
 
     setIsClaiming(true)
 
     try {
-      await onClaim(reward._id)
-      setShowConfetti(true)
-
-      setTimeout(() => {
-        setShowConfetti(false)
-      }, 3000)
+      const isSuccess = await onClaim(reward._id)
+      if (isSuccess) {
+        fireClaimConfetti(event?.currentTarget)
+      }
     } catch {
-      setShowConfetti(false)
+      // Toast is handled by mutation hook
     } finally {
       setIsClaiming(false)
     }
@@ -163,34 +193,6 @@ const RewardCard = ({
           : 'opacity-60 border-gray-100'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
-      {/* Confetti Animation */}
-      <AnimatePresence>
-        {showConfetti && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className='absolute inset-0 z-50 pointer-events-none overflow-hidden'
-          >
-            {[...Array(12)].map((_, i) => (
-              <motion.div
-                key={i}
-                initial={{ y: -20, x: Math.random() * 100 + '%', rotate: 0 }}
-                animate={{
-                  y: '120%',
-                  rotate: 360,
-                  transition: {
-                    duration: 2 + Math.random(),
-                    delay: Math.random() * 0.5,
-                  },
-                }}
-                className='absolute w-3 h-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-full'
-              />
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <div className='relative h-32 sm:h-36 md:h-40 overflow-hidden'>
         <img
           src={resolveImageUrl(
@@ -390,26 +392,6 @@ const SpaRewardsSection = () => {
   const [optimisticRewards, setOptimisticRewards] = useState(new Set())
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
-  const getLinkedServiceId = (reward) => {
-    if (!reward) return null
-    const linkedServices = Array.isArray(reward.linkedServices)
-      ? reward.linkedServices
-      : []
-    const firstLinkedService = linkedServices[0] || null
-    const value =
-      reward.serviceId?._id ||
-      reward.serviceId ||
-      reward.linkedServiceId?._id ||
-      reward.linkedServiceId ||
-      reward.service?._id ||
-      reward.linkedService?._id ||
-      reward.linkedService?.serviceId ||
-      firstLinkedService?.serviceId?._id ||
-      firstLinkedService?.serviceId ||
-      firstLinkedService?._id
-    return value ? String(value) : null
-  }
-
   const {
     rewards = [],
     isLoading,
@@ -438,23 +420,15 @@ const SpaRewardsSection = () => {
         duration: 4000,
       })
 
-      const claimedPayload =
-        data?.data?.claimedReward ||
-        data?.data?.reward ||
-        data?.data?.userReward ||
-        data?.claimedReward ||
-        data?.reward ||
-        null
       const fallbackReward = rewards.find((reward) => reward._id === rewardId)
-      const linkedServiceId =
-        getLinkedServiceId(claimedPayload) || getLinkedServiceId(fallbackReward)
+      const { linkedServiceId, autoApplyState } = buildAutoApplyRewardState({
+        data,
+        rewardId,
+        fallbackReward,
+      })
       if (linkedServiceId) {
         navigate(withSpaParam(`/services/${linkedServiceId}`), {
-          state: {
-            autoApplyRewardId: rewardId,
-            autoApplyRewardName:
-              claimedPayload?.name || fallbackReward?.name || 'Reward',
-          },
+          state: autoApplyState,
         })
       }
 
@@ -490,7 +464,12 @@ const SpaRewardsSection = () => {
       })
     }
 
-    claimRewardMutation.mutate(rewardId)
+    try {
+      await claimRewardMutation.mutateAsync(rewardId)
+      return true
+    } catch {
+      return false
+    }
   }
 
   const recentRewards = rewards.slice(-4).reverse()
@@ -895,6 +874,7 @@ const NeedMorePointsSection = ({ methods = [] }) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { locationId } = useBranding()
   const { currentUser } = useSelector((state) => state.user)
 
@@ -905,11 +885,35 @@ const DashboardPage = () => {
 
   // Fetch dashboard data
   const { data: dashboardData, isLoading, error, refetch } = useDashboardData({
-    refetchInterval: isSpaManagementView ? 30000 : false,
+    refetchInterval: false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   })
+  const refreshRecentCheckInsOnly = useCallback(async () => {
+    const response = await dashboardService.getDashboardData()
+    const latestData = response?.data?.data || {}
+
+    queryClient.setQueryData(dashboardQueryKeys.data(), (current) => {
+      if (!current?.data) {
+        return response?.data || current
+      }
+
+      return {
+        ...current,
+        data: {
+          ...current.data,
+          recentQrClaims: Array.isArray(latestData.recentQrClaims)
+            ? latestData.recentQrClaims
+            : current.data.recentQrClaims || [],
+          recentQrClaimsSummary:
+            latestData.recentQrClaimsSummary ||
+            current.data.recentQrClaimsSummary ||
+            {},
+        },
+      }
+    })
+  }, [queryClient])
   // Prefetch games in parallel so GamesSection appears faster.
   useAvailableGames({}, { enabled: currentUser?.role === 'user' })
 
@@ -974,7 +978,11 @@ const DashboardPage = () => {
       <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
         <div className='max-w-7xl mx-auto'>
           {['spa', 'admin'].includes(currentUser?.role || data.role) ? (
-            <SpaDashboard data={data} refetch={refetch} />
+            <SpaDashboard
+              data={data}
+              refetch={refetch}
+              refreshRecentCheckIns={refreshRecentCheckInsOnly}
+            />
           ) : (
             <>
               {/* Points Card - Full Width at Top */}

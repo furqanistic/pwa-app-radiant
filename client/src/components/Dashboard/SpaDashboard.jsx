@@ -46,7 +46,7 @@ import { toast } from 'sonner'
 
 const Motion = motion
 
-const SpaDashboard = ({ data, refetch }) => {
+const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
   const [activeTab, setActiveTab] = useState('overview')
   const [currentCheckInPage, setCurrentCheckInPage] = useState(1)
   const [checkInRowsPerPage, setCheckInRowsPerPage] = useState(10)
@@ -121,15 +121,43 @@ const SpaDashboard = ({ data, refetch }) => {
   )
 
   const handleRefresh = useCallback(async () => {
-    if (typeof refetch === 'function') {
-      try {
-        setIsRefreshingCheckIns(true)
-        await refetch()
-      } finally {
-        setIsRefreshingCheckIns(false)
-      }
+    const refreshFn =
+      typeof refreshRecentCheckIns === 'function'
+        ? refreshRecentCheckIns
+        : typeof refetch === 'function'
+        ? refetch
+        : null
+
+    if (!refreshFn) return
+
+    try {
+      setIsRefreshingCheckIns(true)
+      await refreshFn()
+    } finally {
+      setIsRefreshingCheckIns(false)
     }
-  }, [refetch])
+  }, [refetch, refreshRecentCheckIns])
+
+  useEffect(() => {
+    const refreshFn =
+      typeof refreshRecentCheckIns === 'function'
+        ? refreshRecentCheckIns
+        : typeof refetch === 'function'
+        ? refetch
+        : null
+
+    if (!refreshFn) return undefined
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        await refreshFn()
+      } catch {
+        // Keep background refresh silent; manual refresh still surfaces errors.
+      }
+    }, 30000)
+
+    return () => window.clearInterval(intervalId)
+  }, [refetch, refreshRecentCheckIns])
 
   useEffect(() => {
     setCurrentCheckInPage(1)
@@ -886,11 +914,7 @@ const SpaDashboard = ({ data, refetch }) => {
   )
 
   const StatCard = ({ title, value, icon, growth }) => (
-    <Motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow group"
-    >
+    <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow group">
       <div className="flex items-center gap-3 mb-4">
         <div
           className="p-2 sm:p-3 rounded-xl text-white"
@@ -915,7 +939,7 @@ const SpaDashboard = ({ data, refetch }) => {
           </div>
         )}
       </div>
-    </Motion.div>
+    </div>
   )
 
   const TabButton = ({ id, label, icon }) => (

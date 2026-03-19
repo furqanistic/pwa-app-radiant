@@ -29,6 +29,7 @@ import {
     canViewUsers,
     checkManagementAccess,
     requireAdminOrAbove,
+    requireSpaOrAdminOrAbove,
     requireSuperAdmin,
     restrictTo,
     verifyToken,
@@ -87,7 +88,7 @@ router.delete(
 // Adjust user points (add/remove/set)
 router.post(
   '/users/:userId/points',
-  requireAdminOrAbove,
+  requireSpaOrAdminOrAbove,
   canManageUser,
   auditLog('points_adjustment'),
   adjustUserPoints

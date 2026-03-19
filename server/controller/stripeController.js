@@ -6,8 +6,12 @@ import Location from '../models/Location.js'
 import Payment from '../models/Payment.js'
 import Service from '../models/Service.js'
 import User from '../models/User.js'
+import UserReward from '../models/UserReward.js'
 import { createGhlAppointmentForBooking } from './ghl.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
+import {
+  resolveSingleBookingRewardUsage,
+} from '../utils/rewardCheckout.js'
 import {
   assertSlotAvailable,
   getServiceCalendarSelection,
@@ -1778,7 +1782,11 @@ export const createMembershipBillingPortalSession = async (req, res, next) => {
 export const createCheckoutSession = async (req, res, next) => {
   try {
     const customerId = req.user.id
-    const { items, locationId: cartLocationId, userRewardId } = req.body
+    const {
+      items,
+      locationId: cartLocationId,
+      userRewardId: cartUserRewardId,
+    } = req.body
     console.log(customerId)
     // Check if this is a cart checkout (multiple items) or single service
     const isCartCheckout = Array.isArray(items) && items.length > 0
@@ -1799,9 +1807,9 @@ export const createCheckoutSession = async (req, res, next) => {
       let cartDiscountAmount = 0
       let appliedReward = null
 
-      if (userRewardId) {
+      if (cartUserRewardId) {
         appliedReward = await UserReward.findOne({
-          _id: userRewardId,
+          _id: cartUserRewardId,
           userId: customerId,
           status: 'active',
         })
@@ -1964,7 +1972,7 @@ export const createCheckoutSession = async (req, res, next) => {
           servicePrice: item.price,
           finalPrice: itemFinalPrice,
           discountApplied: itemDiscount,
-          rewardUsed: userRewardId || null,
+          rewardUsed: cartUserRewardId || null,
           pointsUsed: 0,
           date: new Date(item.date),
           time: item.time,
@@ -2022,14 +2030,14 @@ export const createCheckoutSession = async (req, res, next) => {
             customerId: customerId.toString(),
             spaOwnerId: checkoutSpaOwner._id.toString(),
             bookingIds: bookings.map((b) => b._id.toString()).join(','),
-            userRewardId: userRewardId || '',
+            userRewardId: cartUserRewardId || '',
             isCartCheckout: 'true',
           },
         },
         metadata: {
           customerId: customerId.toString(),
           bookingIds: bookings.map((b) => b._id.toString()).join(','),
-          userRewardId: userRewardId || '',
+          userRewardId: cartUserRewardId || '',
           isCartCheckout: 'true',
         },
       })
@@ -2058,6 +2066,7 @@ export const createCheckoutSession = async (req, res, next) => {
       duration,
       locationId,
       notes,
+      userRewardId,
       rewardUsed,
       pointsUsed,
     } = req.body
@@ -2094,7 +2103,8 @@ export const createCheckoutSession = async (req, res, next) => {
     // Calculate pricing
     let subtotal = service.basePrice
     let discountAmount = 0
-    let isFreeGift = false;
+    let isFreeGift = false
+    let resolvedRewardUsed = rewardUsed || null
 
     // Birthday Gift Redemption Logic
     if (req.body.isBirthdayGift) {
@@ -2118,28 +2128,58 @@ export const createCheckoutSession = async (req, res, next) => {
         }
       }
     } else {
-        // Apply service discount if active
-        if (service.discount?.active && service.discount.percentage > 0) {
+      // Apply service discount if active
+      if (service.discount?.active && service.discount.percentage > 0) {
         const now = new Date()
         const startDate = service.discount.startDate
-            ? new Date(service.discount.startDate)
-            : new Date()
+          ? new Date(service.discount.startDate)
+          : new Date()
         const endDate = service.discount.endDate
-            ? new Date(service.discount.endDate)
-            : new Date()
+          ? new Date(service.discount.endDate)
+          : new Date()
 
         if (now >= startDate && now <= endDate) {
-            discountAmount = (subtotal * service.discount.percentage) / 100
+          discountAmount = (subtotal * service.discount.percentage) / 100
         }
-        }
+      }
 
-        // Apply points discount
-        if (pointsUsed && pointsUsed > 0) {
+      // Apply points discount
+      if (pointsUsed && pointsUsed > 0) {
         const customer = await User.findById(customerId)
         if (customer && customer.points >= pointsUsed) {
-            discountAmount += pointsUsed // $1 per point
+          discountAmount += pointsUsed // $1 per point
         }
+      }
+
+      // Apply claimed user reward discount if provided
+      if (userRewardId) {
+        const appliedReward = await UserReward.findOne({
+          _id: userRewardId,
+          userId: customerId,
+          status: 'active',
+        })
+
+        if (!appliedReward) {
+          return next(createError(404, 'Selected reward not found or not active'))
         }
+
+        if (appliedReward.isExpired) {
+          appliedReward.status = 'expired'
+          await appliedReward.save()
+          return next(createError(400, 'Selected reward has expired'))
+        }
+
+        const { rewardDiscountAmount, resolvedRewardUsed: nextResolvedRewardUsed } =
+          resolveSingleBookingRewardUsage({
+          rewardSnapshot: appliedReward.rewardSnapshot,
+          subtotal,
+          serviceId,
+          userRewardId,
+        })
+
+        discountAmount += rewardDiscountAmount
+        resolvedRewardUsed = nextResolvedRewardUsed
+      }
     }
 
     // Calculate final amount
@@ -2155,7 +2195,7 @@ export const createCheckoutSession = async (req, res, next) => {
       servicePrice: subtotal,
       finalPrice,
       discountApplied: discountAmount,
-      rewardUsed: rewardUsed || (isFreeGift ? 'BIRTHDAY_GIFT' : null),
+      rewardUsed: resolvedRewardUsed || (isFreeGift ? 'BIRTHDAY_GIFT' : null),
       pointsUsed: pointsUsed || 0,
       date: new Date(date),
       time,
@@ -2209,12 +2249,14 @@ export const createCheckoutSession = async (req, res, next) => {
           serviceId: serviceId.toString(),
           serviceName: service.name,
           bookingId: booking._id.toString(),
+          userRewardId: resolvedRewardUsed || '',
         },
       },
       metadata: {
         customerId: customerId.toString(),
         bookingId: booking._id.toString(),
         serviceId: serviceId.toString(),
+        userRewardId: resolvedRewardUsed || '',
       },
     })
 
@@ -3102,11 +3144,15 @@ async function handleCheckoutSessionCompleted(session) {
 
     // Mark reward as used if provided
     if (userRewardId) {
+      const totalRewardValue = bookings.reduce(
+        (sum, booking) => sum + (Number(booking.discountApplied) || 0),
+        0
+      )
       await UserReward.findByIdAndUpdate(userRewardId, {
         status: 'used',
         usedAt: new Date(),
         usedBy: customerId,
-        actualValue: cartDiscountAmount || 0, // Note: cartDiscountAmount isn't in scope here, need to rethink or pull from metadata
+        actualValue: totalRewardValue,
       })
     }
 
@@ -3198,6 +3244,15 @@ async function handleCheckoutSessionCompleted(session) {
     }
 
     await customer.save()
+  }
+
+  if (userRewardId) {
+    await UserReward.findByIdAndUpdate(userRewardId, {
+      status: 'used',
+      usedAt: new Date(),
+      usedBy: customerId,
+      actualValue: Number(booking.discountApplied) || 0,
+    })
   }
 
   console.log(`Booking ${bookingId} payment completed successfully`)
