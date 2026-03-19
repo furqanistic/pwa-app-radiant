@@ -448,21 +448,61 @@ export const getQRCodeStats = async (req, res, next) => {
       return next(createError(404, "Location not found"));
     }
 
-    // Get scan statistics
-    const scans = await QRCodeScan.find({
-      locationId: location.locationId,
-    })
-      .sort({ createdAt: -1 })
-      .limit(100);
+    // NOTE:
+    // QRCodeScan documents auto-expire after 3 days, so they are only reliable for
+    // recent activity. For all-time analytics, use durable sources:
+    // - PointTransaction (qr_scan / qr_scan_reward)
+    // - location.qrCode.scans counter
+    const [
+      recentScans,
+      pendingScansCount,
+      rejectedScansCount,
+      verifiedScansFromTransactions,
+      uniqueVisitorsFromTransactions,
+      pointsDistributionAgg,
+    ] = await Promise.all([
+      QRCodeScan.find({ locationId: location.locationId })
+        .sort({ createdAt: -1 })
+        .limit(20),
+      QRCodeScan.countDocuments({
+        locationId: location.locationId,
+        status: "pending",
+      }),
+      QRCodeScan.countDocuments({
+        locationId: location.locationId,
+        status: "rejected",
+      }),
+      PointTransaction.countDocuments({
+        locationId: location.locationId,
+        type: "qr_scan",
+      }),
+      PointTransaction.distinct("user", {
+        locationId: location.locationId,
+        type: "qr_scan",
+      }),
+      PointTransaction.aggregate([
+        {
+          $match: {
+            locationId: location.locationId,
+            type: { $in: ["qr_scan", "qr_scan_reward"] },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalPoints: { $sum: "$points" },
+          },
+        },
+      ]),
+    ]);
 
-    const verifiedScans = scans.filter((s) => s.status === "verified");
-    const pendingScans = scans.filter((s) => s.status === "pending");
-    const rejectedScans = scans.filter((s) => s.status === "rejected");
-
-    const totalPointsDistributed = verifiedScans.reduce(
-      (sum, scan) => sum + (scan.pointsAwarded + scan.pointsAwardedToSpaOwner),
-      0
+    const allTimeVerifiedScans = Math.max(
+      location.qrCode?.scans || 0,
+      verifiedScansFromTransactions || 0
     );
+    const totalPointsDistributed =
+      pointsDistributionAgg?.[0]?.totalPoints ||
+      allTimeVerifiedScans * ((location.qrCode?.pointsValue || 0) * 2);
 
     res.status(200).json({
       status: "success",
@@ -477,15 +517,14 @@ export const getQRCodeStats = async (req, res, next) => {
           pointsValue: location.qrCode?.pointsValue,
         },
         statistics: {
-          totalScans: scans.length,
-          verifiedScans: verifiedScans.length,
-          pendingScans: pendingScans.length,
-          rejectedScans: rejectedScans.length,
+          totalScans: allTimeVerifiedScans,
+          verifiedScans: allTimeVerifiedScans,
+          pendingScans: pendingScansCount,
+          rejectedScans: rejectedScansCount,
           totalPointsDistributed,
-          uniqueVisitors: new Set(verifiedScans.map((s) => s.scannedByEmail))
-            .size,
+          uniqueVisitors: uniqueVisitorsFromTransactions.length,
         },
-        recentScans: scans.slice(0, 20).map((scan) => ({
+        recentScans: recentScans.map((scan) => ({
           email: scan.scannedByEmail,
           status: scan.status,
           pointsAwarded: scan.pointsAwarded,
