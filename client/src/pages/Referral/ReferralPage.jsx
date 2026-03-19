@@ -23,11 +23,38 @@ import Layout from '../Layout/Layout'
 // Loading Skeleton
 const ReferralSkeleton = () => (
     <Layout>
-        <div className='min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white p-4 space-y-4 max-w-7xl mx-auto'>
-            <div className='h-40 rounded-3xl bg-white/50 animate-pulse w-full' />
-            <div className='grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6'>
-                <div className='md:col-span-2 h-64 rounded-3xl bg-white/50 animate-pulse' />
-                <div className='h-64 rounded-3xl bg-white/50 animate-pulse' />
+        <div className='min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white pb-20 md:pb-12'>
+            <div className='md:hidden max-w-md mx-auto min-h-screen overflow-hidden'>
+                <div className='h-40 bg-gray-200/80 animate-pulse' />
+                <div className='-mt-4 rounded-t-[30px] bg-white/95 px-4 pb-8 pt-5 space-y-4'>
+                    <div className='h-24 rounded-2xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                    <div className='h-16 rounded-2xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                    <div className='h-16 rounded-2xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                    <div className='grid grid-cols-3 gap-2.5'>
+                        <div className='h-10 rounded-xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                        <div className='h-10 rounded-xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                        <div className='h-10 rounded-xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                    </div>
+                    <div className='space-y-2.5'>
+                        <div className='h-16 rounded-2xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                        <div className='h-16 rounded-2xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                        <div className='h-16 rounded-2xl bg-gray-200/70 animate-pulse border border-gray-200/70' />
+                    </div>
+                </div>
+            </div>
+
+            <div className='hidden md:block max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6'>
+                <div className='h-44 rounded-[2.25rem] bg-white/70 animate-pulse border border-gray-200/70' />
+                <div className='grid lg:grid-cols-3 gap-6'>
+                    <div className='lg:col-span-2 space-y-6'>
+                        <div className='h-80 rounded-[1.8rem] bg-white/70 animate-pulse border border-gray-200/70' />
+                        <div className='h-72 rounded-[1.8rem] bg-white/70 animate-pulse border border-gray-200/70' />
+                    </div>
+                    <div className='space-y-6'>
+                        <div className='h-40 rounded-[1.8rem] bg-white/70 animate-pulse border border-gray-200/70' />
+                        <div className='h-28 rounded-[1.8rem] bg-white/70 animate-pulse border border-gray-200/70' />
+                    </div>
+                </div>
             </div>
         </div>
     </Layout>
