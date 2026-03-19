@@ -1977,6 +1977,8 @@ export const createCheckoutSession = async (req, res, next) => {
             calendarId: ghlCalendar.calendarId,
             calendarName: ghlCalendar.name,
             timeZone: ghlCalendar.timeZone,
+            userId: ghlCalendar.userId,
+            teamId: ghlCalendar.teamId,
           },
         })
 
@@ -2166,6 +2168,8 @@ export const createCheckoutSession = async (req, res, next) => {
         calendarId: ghlCalendar.calendarId,
         calendarName: ghlCalendar.name,
         timeZone: ghlCalendar.timeZone,
+        userId: ghlCalendar.userId,
+        teamId: ghlCalendar.teamId,
       },
     })
 
@@ -2870,7 +2874,7 @@ async function syncBookingToGhl(booking, customerId) {
     if (!service || service.isDeleted) {
       booking.ghl.syncError = 'Service not found for GHL sync'
       await booking.save()
-      return
+      return { ok: false, retryable: false }
     }
 
     const result = await createGhlAppointmentForBooking({
@@ -2882,7 +2886,9 @@ async function syncBookingToGhl(booking, customerId) {
     if (result.skipped) {
       booking.ghl.syncError = result.reason || ''
       await booking.save()
-      return
+      const reason = `${result.reason || ''}`.toLowerCase()
+      const retryable = !reason.includes('no ghl calendar linked')
+      return { ok: false, retryable }
     }
 
     booking.ghl.appointmentId = result.appointmentId || ''
@@ -2890,6 +2896,7 @@ async function syncBookingToGhl(booking, customerId) {
     booking.ghl.syncedAt = new Date()
     booking.ghl.syncError = ''
     await booking.save()
+    return { ok: true, retryable: false }
   } catch (error) {
     if (!booking.ghl) booking.ghl = {}
     booking.ghl.syncError =
@@ -2902,7 +2909,28 @@ async function syncBookingToGhl(booking, customerId) {
       `Failed syncing booking ${booking._id} to GHL:`,
       error.response?.data || error.message
     )
+    return { ok: false, retryable: true }
   }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function syncBookingToGhlWithRetry(booking, customerId, maxAttempts = 3) {
+  let attempt = 0
+  let lastResult = { ok: false, retryable: true }
+
+  while (attempt < maxAttempts) {
+    attempt += 1
+    lastResult = await syncBookingToGhl(booking, customerId)
+    if (lastResult.ok || !lastResult.retryable) {
+      return lastResult
+    }
+    if (attempt < maxAttempts) {
+      await sleep(1200 * attempt)
+    }
+  }
+
+  return lastResult
 }
 
 async function handleCheckoutSessionCompleted(session) {
@@ -3062,7 +3090,7 @@ async function handleCheckoutSessionCompleted(session) {
         booking,
         service,
       })
-      await syncBookingToGhl(booking, customerId)
+      await syncBookingToGhlWithRetry(booking, customerId)
     }
 
     // Award points to customer and handle deductions
@@ -3157,7 +3185,7 @@ async function handleCheckoutSessionCompleted(session) {
     booking,
     service: bookingService,
   })
-  await syncBookingToGhl(booking, customerId)
+  await syncBookingToGhlWithRetry(booking, customerId)
 
   // Award points to customer
   const customer = await User.findById(customerId)

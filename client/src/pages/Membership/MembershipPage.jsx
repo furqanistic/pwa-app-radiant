@@ -181,9 +181,10 @@ const MembershipPage = () => {
 
         if (!hasSavedCard) {
             return {
-                disabled: true,
-                ctaLabel: hasExistingSubscription ? 'Add Card First' : 'Add Card to Subscribe',
-                helperText: 'A saved card is required before you can start, upgrade, or downgrade a plan.',
+                disabled: false,
+                ctaLabel: hasExistingSubscription ? 'Checkout Plan' : 'Checkout',
+                helperText:
+                    'No saved card yet. Continue to secure checkout and pay there.',
             }
         }
 
@@ -232,7 +233,19 @@ const MembershipPage = () => {
 
         try {
             if (!hasSavedCard) {
-                toast.error('Add a card before buying a membership plan.')
+                const response = await stripeService.createMembershipCheckoutSession({
+                    serviceId: service._id,
+                    locationId: checkoutLocationId,
+                    planId: plan?._id || plan?.planId || plan?.id || null,
+                    planName: plan?.name || null,
+                })
+
+                if (response?.success && response?.sessionUrl) {
+                    window.location.href = response.sessionUrl
+                    return
+                }
+
+                toast.error('Unable to open checkout right now.')
                 return
             }
 

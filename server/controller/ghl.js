@@ -386,8 +386,14 @@ const normalizeCalendarEvent = (event) => {
   const status = (event?.status || event?.appointmentStatus || '').toLowerCase()
   const resolvedCalendarId =
     event?.calendarId ||
+    event?.calendarID ||
+    event?.calendar_id ||
     event?.calendar?.id ||
     event?.calendar?._id ||
+    event?.calendar?.calendarId ||
+    event?.calendar?.calendarID ||
+    event?.calendar?.calendar_id ||
+    event?.calendarIdString ||
     null
   const resolvedTimeZone =
     event?.timeZone ||
@@ -416,7 +422,9 @@ const normalizeCalendarsPayload = (payload) => {
   if (!payload || typeof payload !== 'object') return []
   return (
     payload.calendars ||
+    payload.items ||
     payload.data?.calendars ||
+    payload.data?.items ||
     payload.data ||
     []
   )
@@ -924,12 +932,19 @@ const normalizeCalendarServiceEntity = (service, index = 0) => {
 
 const normalizeCalendarEntity = (calendar) => ({
   ...calendar,
-  id: calendar?.id || calendar?._id || '',
+  id:
+    calendar?.id ||
+    calendar?._id ||
+    calendar?.calendarId ||
+    calendar?.calendarID ||
+    calendar?.calendar_id ||
+    '',
   name: calendar?.name || calendar?.title || '',
   timeZone:
     calendar?.timeZone ||
     calendar?.timezone ||
     calendar?.calendarTimeZone ||
+    calendar?.timezoneId ||
     calendar?.settings?.timeZone ||
     calendar?.settings?.timezone ||
     '',
@@ -1065,56 +1080,61 @@ export const fetchLocationCalendarEventsByDate = async (
   const startMs = Date.parse(startIso)
   const endMs = Date.parse(endIso)
 
-  // First try v2 endpoints/param shapes; if location JWT is rejected, fall back to v1 appointments.
-  try {
-    const v2Attempts = [
-      {
-        endpoint: '/calendars/events',
-        params: {
-          locationId,
-          startTime: startIso,
-          endTime: endIso,
-          ...(calendarId ? { calendarId } : {}),
-        },
-        source: 'ghl-v2-events-iso',
+  // First try v2 endpoints/param shapes. If all fail, fall back to v1 appointments.
+  const v2Attempts = [
+    {
+      endpoint: '/calendars/events',
+      params: {
+        locationId,
+        startTime: startIso,
+        endTime: endIso,
+        ...(calendarId ? { calendarId } : {}),
       },
-      {
-        endpoint: '/calendars/events',
-        params: {
-          locationId,
-          startTime: startMs,
-          endTime: endMs,
-          ...(calendarId ? { calendarId } : {}),
-        },
-        source: 'ghl-v2-events-ms',
+      source: 'ghl-v2-events-iso',
+    },
+    {
+      endpoint: '/calendars/events',
+      params: {
+        locationId,
+        startTime: startMs,
+        endTime: endMs,
+        ...(calendarId ? { calendarId } : {}),
       },
-      {
-        endpoint: '/calendars/events/appointments',
-        params: {
-          locationId,
-          startTime: startIso,
-          endTime: endIso,
-          ...(calendarId ? { calendarId } : {}),
-        },
-        source: 'ghl-v2-appointments-iso',
+      source: 'ghl-v2-events-ms',
+    },
+    {
+      endpoint: '/calendars/events/appointments',
+      params: {
+        locationId,
+        startTime: startIso,
+        endTime: endIso,
+        ...(calendarId ? { calendarId } : {}),
       },
-      {
-        endpoint: '/calendars/events/appointments',
-        params: {
-          locationId,
-          startTime: startMs,
-          endTime: endMs,
-          ...(calendarId ? { calendarId } : {}),
-        },
-        source: 'ghl-v2-appointments-ms',
+      source: 'ghl-v2-appointments-iso',
+    },
+    {
+      endpoint: '/calendars/events/appointments',
+      params: {
+        locationId,
+        startTime: startMs,
+        endTime: endMs,
+        ...(calendarId ? { calendarId } : {}),
       },
-    ]
+      source: 'ghl-v2-appointments-ms',
+    },
+  ]
 
-    for (const attempt of v2Attempts) {
+  let hadV2Success = false
+  let lastV2Error = null
+
+  for (const attempt of v2Attempts) {
+    try {
       const response = await makeGHLV2Request(attempt.endpoint, {
         token,
         params: attempt.params,
       })
+      hadV2Success = true
+
       const rawEvents = extractRawEventsPayload(response)
       if (!Array.isArray(rawEvents) || rawEvents.length === 0) {
         continue
@@ -1137,20 +1157,19 @@ export const fetchLocationCalendarEventsByDate = async (
         source: attempt.source,
         effectiveTimeZone: timeZone || normalizedEvents[0]?.timeZone || '',
       }
+    } catch (error) {
+      lastV2Error = error
     }
+  }
 
+  // v2 reached successfully but returned no events across tested endpoints.
+  if (hadV2Success) {
     return {
       events: [],
       rawCount: 0,
       total: 0,
       source: 'ghl-v2',
-      unavailable: true,
-      reason: 'No events returned from tested v2 calendar endpoints',
       effectiveTimeZone: timeZone || '',
-    }
-  } catch (error) {
-    if (!isUnauthorizedGhlError(error)) {
-      throw error
     }
   }
 
@@ -1175,7 +1194,13 @@ export const fetchLocationCalendarEventsByDate = async (
   if (selector.teamId) params.set('teamId', selector.teamId)
 
   const v1Endpoint = `/appointments/?${params.toString()}`
-  const v1Response = await makeGHLRequest(v1Endpoint, 'GET', null, token)
+  let v1Response
+  try {
+    v1Response = await makeGHLRequest(v1Endpoint, 'GET', null, token)
+  } catch (v1Error) {
+    if (lastV2Error) throw lastV2Error
+    throw v1Error
+  }
   const rawAppointments =
     v1Response?.appointments || v1Response?.data?.appointments || []
 
@@ -1756,7 +1781,7 @@ export const getCalendars = async (req, res, next) => {
       success: true,
       message: 'Calendars fetched successfully',
       data: {
-        calendars,
+        calendars: calendars.map(normalizeCalendarEntity),
         total: calendars.length,
         source,
       },

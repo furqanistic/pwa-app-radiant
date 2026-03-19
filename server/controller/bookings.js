@@ -22,6 +22,7 @@ export const getUserUpcomingAppointments = async (req, res, next) => {
       userId,
       date: { $gte: new Date() },
       status: { $in: ['scheduled', 'confirmed'] },
+      paymentStatus: 'paid',
     })
       .populate('serviceId', 'name basePrice duration categoryId')
       .populate('providerId', 'name')
@@ -94,6 +95,7 @@ export const getUserBookingStats = async (req, res, next) => {
           userId,
           date: { $gte: new Date() },
           status: { $in: ['scheduled', 'confirmed'] },
+          paymentStatus: 'paid',
         }),
         Booking.countDocuments({
           userId,
@@ -251,6 +253,8 @@ export const createBooking = async (req, res, next) => {
         calendarId: ghlCalendar.calendarId,
         calendarName: ghlCalendar.name,
         timeZone: ghlCalendar.timeZone,
+        userId: ghlCalendar.userId,
+        teamId: ghlCalendar.teamId,
       },
     })
 
@@ -395,6 +399,8 @@ export const getAdminBookings = async (req, res, next) => {
 
     // Build query
     const query = {}
+    // Management views should only show fully paid bookings.
+    query.paymentStatus = 'paid'
 
     // Role-based filtering
     if (req.user.role === 'spa' || req.user.role === 'admin') {

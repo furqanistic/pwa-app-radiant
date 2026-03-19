@@ -81,6 +81,29 @@ const getBookingServiceId = (booking) => {
 const getBookingCalendarId = (booking) =>
   `${booking?.ghl?.calendarId || booking?.serviceId?.ghlCalendar?.calendarId || ''}`.trim()
 
+const PENDING_BOOKING_HOLD_MINUTES = 30
+
+const shouldConsiderBookingConflict = (booking) => {
+  if (!booking) return false
+
+  const paymentStatus = `${booking.paymentStatus || ''}`.trim().toLowerCase()
+  if (paymentStatus === 'paid') return true
+
+  // Non-Stripe bookings (manual/internal flow) should block immediately.
+  if (!booking.stripeSessionId) return true
+
+  // Hold Stripe-pending checkout slots temporarily to prevent double-booking
+  // while payment/webhook sync completes.
+  if (paymentStatus === 'pending') {
+    const createdAt = booking.createdAt ? new Date(booking.createdAt) : null
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return true
+    const holdThreshold = Date.now() - PENDING_BOOKING_HOLD_MINUTES * 60 * 1000
+    return createdAt.getTime() >= holdThreshold
+  }
+
+  return false
+}
+
 const isBookingRelevantForService = (booking, service) => {
   const targetServiceId = service?._id?.toString?.() || service?.id?.toString?.() || ''
   const targetCalendarId = getServiceCalendarSelection(service).calendarId
@@ -116,11 +139,13 @@ export const getDailySchedulingContext = async ({
   }
 
   const rawBookings = await Booking.find(query)
-    .select('date time duration serviceId ghl status')
+    .select('date time duration serviceId ghl status paymentStatus stripeSessionId createdAt')
     .populate('serviceId', 'ghlCalendar')
 
-  const relevantBookings = rawBookings.filter((booking) =>
-    isBookingRelevantForService(booking, service)
+  const relevantBookings = rawBookings.filter(
+    (booking) =>
+      isBookingRelevantForService(booking, service) &&
+      shouldConsiderBookingConflict(booking)
   )
 
   const calendarSelection = getServiceCalendarSelection(service)
@@ -150,7 +175,6 @@ export const getDailySchedulingContext = async ({
     }
   }
 
-  const useGhlOnly = Boolean(calendarSelection.calendarId)
   let externalEvents = []
   let externalSourceUnavailable = false
 
@@ -183,11 +207,10 @@ export const getDailySchedulingContext = async ({
 
   return {
     calendarSelection,
-    localBookings: useGhlOnly ? [] : relevantBookings,
+    localBookings: relevantBookings,
     externalEvents,
     externalSourceUnavailable,
     serviceDuration: Number.parseInt(service?.duration, 10) || 60,
-    useGhlOnly,
   }
 }
 

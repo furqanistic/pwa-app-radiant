@@ -70,181 +70,20 @@ const normalizeMembershipPlans = (membership) => {
   return []
 }
 
-const decodeHtmlEntities = (value) => {
-  let output = `${value || ''}`
-  const replacements = [
-    [/&amp;/gi, '&'],
-    [/&lt;/gi, '<'],
-    [/&gt;/gi, '>'],
-    [/&quot;/gi, '"'],
-    [/&#34;/gi, '"'],
-    [/&apos;/gi, "'"],
-    [/&#39;/gi, "'"],
-  ]
+const resolveGhlCalendarId = (value = {}) =>
+  `${value?.calendarId || value?.calendarID || value?.calendar_id || value?.id || value?._id || value?.calendar?.id || value?.calendar?._id || ''}`.trim()
 
-  for (let i = 0; i < 3; i += 1) {
-    const previous = output
-    replacements.forEach(([pattern, replacement]) => {
-      output = output.replace(pattern, replacement)
-    })
-    if (output === previous) break
-  }
+const resolveGhlCalendarName = (value = {}) =>
+  `${value?.calendarName || value?.title || value?.calendar?.name || value?.calendar?.title || value?.name || ''}`.trim()
 
-  return output
-}
+const resolveGhlCalendarTimeZone = (value = {}) =>
+  `${value?.timeZone || value?.timezone || value?.calendarTimeZone || value?.calendar?.timeZone || value?.calendar?.timezone || ''}`.trim()
 
-const normalizeUrlLikeValue = (value) => {
-  const raw = decodeHtmlEntities(`${value || ''}`).trim()
-  if (!raw) return ''
-  if (/<iframe/i.test(raw) || /<script/i.test(raw) || /form_embed\.js/i.test(raw)) {
-    return raw
-  }
-  if (/^https?:\/\//i.test(raw)) return raw
-  if (/^\/\//.test(raw)) return `https:${raw}`
-  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(raw)) return `https://${raw}`
-  return ''
-}
+const resolveGhlCalendarUserId = (value = {}) =>
+  `${value?.userId || value?.assignedUserId || value?.calendar?.userId || ''}`.trim()
 
-const normalizeHttpUrl = (value) => {
-  const normalized = normalizeUrlLikeValue(value)
-  if (!normalized || /<iframe/i.test(normalized) || /<script/i.test(normalized)) {
-    return ''
-  }
-  return normalized
-}
-
-const extractIframeSrc = (value = '') => {
-  const raw = decodeHtmlEntities(`${value || ''}`).trim()
-  if (!raw) return ''
-
-  const iframeMatch = raw.match(/src=(['"])(.*?)\1/i)
-  if (iframeMatch?.[2]) {
-    return normalizeHttpUrl(iframeMatch[2])
-  }
-
-  return ''
-}
-
-const buildSpaSchedulerBookingFallback = ({ subdomain = '', serviceId = '' } = {}) => {
-  const normalizedSubdomain = `${subdomain || ''}`.trim().toLowerCase()
-  const normalizedServiceId = `${serviceId || ''}`.trim()
-  if (!normalizedSubdomain || !normalizedServiceId) {
-    return {
-      schedulingLink: '',
-      permanentLink: '',
-      embedCode: '',
-    }
-  }
-
-  const baseUrl = `https://app.spascheduler.online/booking/${normalizedSubdomain}/sv/${normalizedServiceId}`
-  const iframeSrc = `${baseUrl}?heightMode=fixed&showHeader=true`
-  return {
-    schedulingLink: baseUrl,
-    permanentLink: baseUrl,
-    embedCode: `<iframe src="${iframeSrc}" style="width: 100%;border:none;overflow: hidden;" scrolling="no" id="${normalizedServiceId}_auto"></iframe><br><script src="https://app.spascheduler.online/js/form_embed.js" type="text/javascript"></script>`,
-  }
-}
-
-const extractGhlBookingFromServicePayload = (payload = {}, fallback = {}) => {
-  const candidatesForScheduling = [
-    payload?.schedulingLink,
-    payload?.schedulingURL,
-    payload?.schedulingUrl,
-    payload?.bookingLink,
-    payload?.bookingUrl,
-    payload?.bookingURL,
-    payload?.shareBookingLink,
-    payload?.shareLink,
-    payload?.url,
-    payload?.shareBooking?.schedulingLink,
-    payload?.shareBooking?.schedulingURL,
-    payload?.shareBooking?.schedulingUrl,
-    payload?.shareBooking?.bookingLink,
-    payload?.shareBooking?.shareLink,
-    payload?.shareBooking?.url,
-    payload?.booking?.schedulingLink,
-    payload?.booking?.schedulingURL,
-    payload?.booking?.schedulingUrl,
-    payload?.booking?.bookingLink,
-    payload?.booking?.shareLink,
-    payload?.booking?.url,
-    payload?.links?.scheduling,
-    payload?.links?.schedulingLink,
-    payload?.links?.booking,
-    payload?.links?.bookingLink,
-  ]
-
-  const candidatesForPermanent = [
-    payload?.permanentLink,
-    payload?.permaLink,
-    payload?.permalink,
-    payload?.publicLink,
-    payload?.publicUrl,
-    payload?.shareBooking?.permanentLink,
-    payload?.shareBooking?.permaLink,
-    payload?.shareBooking?.permalink,
-    payload?.shareBooking?.publicLink,
-    payload?.shareBooking?.publicUrl,
-    payload?.booking?.permanentLink,
-    payload?.booking?.permaLink,
-    payload?.booking?.permalink,
-    payload?.booking?.publicLink,
-    payload?.booking?.publicUrl,
-    payload?.links?.permanent,
-    payload?.links?.permanentLink,
-    payload?.links?.public,
-    payload?.links?.publicLink,
-  ]
-
-  const candidatesForEmbed = [
-    payload?.embedCode,
-    payload?.embed,
-    payload?.embedHtml,
-    payload?.mCode,
-    payload?.mcode,
-    payload?.shareBookingCode,
-    payload?.shareBookingMCode,
-    payload?.widgetCode,
-    payload?.widgetMCode,
-    payload?.iframeCode,
-    payload?.shareBooking?.embedCode,
-    payload?.shareBooking?.mCode,
-    payload?.shareBooking?.mcode,
-    payload?.shareBooking?.code,
-    payload?.booking?.embedCode,
-    payload?.booking?.mCode,
-    payload?.booking?.mcode,
-    payload?.booking?.code,
-    payload?.widget?.embedCode,
-    payload?.widget?.mCode,
-    payload?.widget?.mcode,
-    payload?.widget?.code,
-    payload?.links?.embedCode,
-    payload?.links?.mCode,
-    payload?.links?.mcode,
-  ]
-
-  const embedCode =
-    candidatesForEmbed.map(normalizeUrlLikeValue).find(Boolean) || ''
-
-  const schedulingLink =
-    candidatesForScheduling.map(normalizeHttpUrl).find(Boolean) ||
-    extractIframeSrc(embedCode) ||
-    ''
-
-  const permanentLink =
-    candidatesForPermanent.map(normalizeHttpUrl).find(Boolean) ||
-    schedulingLink ||
-    ''
-
-  const fallbackBooking = buildSpaSchedulerBookingFallback(fallback)
-
-  return {
-    schedulingLink: schedulingLink || fallbackBooking.schedulingLink,
-    permanentLink: permanentLink || fallbackBooking.permanentLink,
-    embedCode: embedCode || fallbackBooking.embedCode,
-  }
-}
+const resolveGhlCalendarTeamId = (value = {}) =>
+  `${value?.teamId || value?.calendar?.teamId || ''}`.trim()
 
 // Enhanced Service Selection Modal for Add-ons with custom pricing
 const ServiceSelectionModal = ({
@@ -963,7 +802,7 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 
 // Complete Service Form with fixed linked services handling
 const ServiceForm = ({ service, onSave, onCancel }) => {
-  const { branding, subdomain: brandingSubdomain } = useBranding()
+  const { branding } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -1027,14 +866,13 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
   })
   const effectiveLocationId =
     service?.locationId || locationData?.data?.location?.locationId || ''
-  const ghlBookingSubdomain = `${locationData?.data?.location?.subdomain || branding?.subdomain || brandingSubdomain || ''}`.trim().toLowerCase()
-  const { data: ghlServicesData, isLoading: ghlServicesLoading } = useQuery({
-    queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
-    queryFn: () => ghlService.getCalendarServices(effectiveLocationId),
+  const { data: ghlCalendarsData, isLoading: ghlCalendarsLoading } = useQuery({
+    queryKey: ['ghl-calendars', 'service-management-form', effectiveLocationId],
+    queryFn: () => ghlService.getCalendars(effectiveLocationId),
     enabled: !!effectiveLocationId,
     retry: false,
   })
-  const ghlServices = ghlServicesData?.data?.services || []
+  const ghlCalendars = ghlCalendarsData?.data?.calendars || []
 
   const locationMembership =
     branding?.membership || locationData?.data?.location?.membership
@@ -1169,51 +1007,26 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     return Object.keys(newErrors).length === 0
   }
 
-  const selectedGhlServiceId = formData.ghlService?.serviceId || ''
-  const {
-    data: selectedGhlServiceData,
-    isLoading: selectedGhlServiceLoading,
-  } = useQuery({
-    queryKey: [
-      'ghl-calendar-service',
-      'service-management-form',
-      effectiveLocationId,
-      selectedGhlServiceId,
-    ],
-    queryFn: () =>
-      ghlService.getCalendarServiceById(effectiveLocationId, selectedGhlServiceId),
-    enabled: !!effectiveLocationId && !!selectedGhlServiceId,
-    retry: false,
-  })
-  const selectedGhlServiceDetails =
-    selectedGhlServiceData?.data?.service ||
-    ghlServices.find(
-      (ghlServiceItem) =>
-        `${ghlServiceItem.serviceId || ghlServiceItem.id || ''}` ===
-        `${selectedGhlServiceId}`
-    ) ||
-    null
-
-  const handleGhlServiceChange = (serviceId) => {
-    const selectedGhlService =
-      ghlServices.find(
-        (ghlServiceItem) =>
-          `${ghlServiceItem.serviceId || ghlServiceItem.id || ''}` === `${serviceId}`
+  const handleGhlCalendarChange = (calendarId) => {
+    const selectedGhlCalendar =
+      ghlCalendars.find(
+        (ghlCalendarItem) =>
+          `${resolveGhlCalendarId(ghlCalendarItem)}` === `${calendarId}`
       ) || null
 
-    if (!selectedGhlService) {
+    if (!selectedGhlCalendar) {
       setFormData((prev) => ({
         ...prev,
-        ghlService: {
-          serviceId: '',
-          name: '',
-        },
         ghlCalendar: {
           calendarId: '',
           name: '',
           timeZone: '',
           userId: '',
           teamId: '',
+        },
+        ghlService: {
+          serviceId: '',
+          name: '',
         },
         ghlBooking: {
           schedulingLink: '',
@@ -1224,108 +1037,26 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
       return
     }
 
-    const selectedGhlBooking = extractGhlBookingFromServicePayload(selectedGhlService, {
-      subdomain: ghlBookingSubdomain,
-      serviceId: selectedGhlService.serviceId || selectedGhlService.id || '',
-    })
-
     setFormData((prev) => ({
       ...prev,
-      ghlService: {
-        serviceId: selectedGhlService.serviceId || selectedGhlService.id || '',
-        name: selectedGhlService.name || '',
-      },
       ghlCalendar: {
-        calendarId:
-          selectedGhlService.calendarId ||
-          selectedGhlService.serviceId ||
-          selectedGhlService.id ||
-          '',
-        name: selectedGhlService.calendarName || selectedGhlService.name || '',
-        timeZone: selectedGhlService.timeZone || '',
-        userId: selectedGhlService.userId || '',
-        teamId: selectedGhlService.teamId || '',
+        calendarId: resolveGhlCalendarId(selectedGhlCalendar),
+        name: resolveGhlCalendarName(selectedGhlCalendar),
+        timeZone: resolveGhlCalendarTimeZone(selectedGhlCalendar),
+        userId: resolveGhlCalendarUserId(selectedGhlCalendar),
+        teamId: resolveGhlCalendarTeamId(selectedGhlCalendar),
       },
-      ghlBooking: selectedGhlBooking,
+      ghlService: {
+        serviceId: '',
+        name: '',
+      },
+      ghlBooking: {
+        schedulingLink: '',
+        permanentLink: '',
+        embedCode: '',
+      },
     }))
   }
-
-  useEffect(() => {
-    if (!selectedGhlServiceId || !selectedGhlServiceDetails) return
-
-    setFormData((prev) => {
-      const resolvedGhlBooking =
-        extractGhlBookingFromServicePayload(selectedGhlServiceDetails, {
-          subdomain: ghlBookingSubdomain,
-          serviceId:
-            selectedGhlServiceDetails.serviceId ||
-            selectedGhlServiceDetails.id ||
-            prev.ghlService?.serviceId ||
-            '',
-        })
-
-      const nextGhlService = {
-        serviceId:
-          selectedGhlServiceDetails.serviceId ||
-          selectedGhlServiceDetails.id ||
-          prev.ghlService?.serviceId ||
-          '',
-        name: selectedGhlServiceDetails.name || prev.ghlService?.name || '',
-      }
-
-      const nextGhlCalendar = {
-        calendarId:
-          selectedGhlServiceDetails.calendarId ||
-          selectedGhlServiceDetails.serviceId ||
-          selectedGhlServiceDetails.id ||
-          prev.ghlCalendar?.calendarId ||
-          '',
-        name:
-          selectedGhlServiceDetails.calendarName ||
-          selectedGhlServiceDetails.name ||
-          prev.ghlCalendar?.name ||
-          '',
-        timeZone:
-          selectedGhlServiceDetails.timeZone || prev.ghlCalendar?.timeZone || '',
-        userId: selectedGhlServiceDetails.userId || prev.ghlCalendar?.userId || '',
-        teamId: selectedGhlServiceDetails.teamId || prev.ghlCalendar?.teamId || '',
-      }
-
-      const nextGhlBooking = {
-        schedulingLink:
-          resolvedGhlBooking.schedulingLink ||
-          prev.ghlBooking?.schedulingLink ||
-          '',
-        permanentLink:
-          resolvedGhlBooking.permanentLink ||
-          prev.ghlBooking?.permanentLink ||
-          '',
-        embedCode:
-          resolvedGhlBooking.embedCode || prev.ghlBooking?.embedCode || '',
-      }
-
-      const unchanged =
-        prev.ghlService?.serviceId === nextGhlService.serviceId &&
-        prev.ghlService?.name === nextGhlService.name &&
-        prev.ghlCalendar?.calendarId === nextGhlCalendar.calendarId &&
-        prev.ghlCalendar?.name === nextGhlCalendar.name &&
-        prev.ghlCalendar?.timeZone === nextGhlCalendar.timeZone &&
-        prev.ghlCalendar?.userId === nextGhlCalendar.userId &&
-        prev.ghlCalendar?.teamId === nextGhlCalendar.teamId &&
-        prev.ghlBooking?.schedulingLink === nextGhlBooking.schedulingLink &&
-        prev.ghlBooking?.permanentLink === nextGhlBooking.permanentLink &&
-        prev.ghlBooking?.embedCode === nextGhlBooking.embedCode
-
-      if (unchanged) return prev
-
-      return {
-        ...prev,
-        ghlService: nextGhlService,
-        ghlCalendar: nextGhlCalendar,
-        ghlBooking: nextGhlBooking,
-      }
-    })
-  }, [selectedGhlServiceDetails, selectedGhlServiceId, ghlBookingSubdomain])
 
   // Fixed handleSelectServices function
   const handleSelectServices = (services) => {
@@ -1742,57 +1473,39 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
             <div>
               <label className='block text-sm font-semibold text-gray-700 mb-2'>
-                GHL Service
+                GHL Calendar
               </label>
               <select
-                value={formData.ghlService?.serviceId || ''}
-                onChange={(e) => handleGhlServiceChange(e.target.value)}
+                value={formData.ghlCalendar?.calendarId || ''}
+                onChange={(e) => handleGhlCalendarChange(e.target.value)}
                 className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
-                disabled={isSubmitting || !effectiveLocationId || ghlServicesLoading}
+                disabled={isSubmitting || !effectiveLocationId || ghlCalendarsLoading}
               >
                 <option value=''>
-                  {ghlServicesLoading
-                    ? 'Loading GHL services...'
-                    : 'No GHL service linked'}
+                  {ghlCalendarsLoading
+                    ? 'Loading GHL calendars...'
+                    : 'No GHL calendar linked'}
                 </option>
-                {ghlServices.map((ghlServiceItem) => (
+                {ghlCalendars.map((ghlCalendarItem) => (
                   <option
-                    key={ghlServiceItem.serviceId || ghlServiceItem.id}
-                    value={ghlServiceItem.serviceId || ghlServiceItem.id}
+                    key={resolveGhlCalendarId(ghlCalendarItem)}
+                    value={resolveGhlCalendarId(ghlCalendarItem)}
                   >
-                    {ghlServiceItem.name || 'Untitled Service'}
+                    {resolveGhlCalendarName(ghlCalendarItem) || 'Untitled Calendar'}
                   </option>
                 ))}
               </select>
               <p className='text-[10px] text-gray-500 mt-1'>
-                Choose the matching GoHighLevel service. This replaces the old
-                calendar picker and manual Share Booking fields. Radiant will
-                automatically pull the booking widget or booking link from the
-                selected GHL service.
+                Link this service to a GoHighLevel calendar. Availability and
+                booking sync will use the selected calendar.
               </p>
-              {(selectedGhlServiceDetails || formData.ghlCalendar?.timeZone) && (
+              {formData.ghlCalendar?.calendarId && (
                 <p className='text-[10px] text-gray-500 mt-1'>
-                  Time zone:{' '}
-                  {selectedGhlServiceDetails?.timeZone ||
-                    formData.ghlCalendar?.timeZone ||
-                    'Not provided'}
+                  Linked calendar: {formData.ghlCalendar?.name || 'Unnamed Calendar'}
+                  {formData.ghlCalendar?.timeZone
+                    ? ` (${formData.ghlCalendar.timeZone})`
+                    : ''}
                 </p>
-              )}
-              {formData.ghlService?.serviceId && (
-                <div className='mt-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3'>
-                  <p className='text-xs font-semibold text-gray-700'>
-                    Auto-linked booking source
-                  </p>
-                  <p className='text-[10px] text-gray-500 mt-1'>
-                    {selectedGhlServiceLoading
-                      ? 'Syncing selected GHL service details...'
-                      : formData.ghlBooking?.embedCode
-                      ? 'Mcode/embed detected. Service detail page will render the GHL widget automatically.'
-                      : formData.ghlBooking?.schedulingLink || formData.ghlBooking?.permanentLink
-                      ? 'Booking link detected. Service detail page will open the GHL booking page automatically.'
-                      : 'No Share Booking link or Mcode/embed was returned for this GHL service yet.'}
-                  </p>
-                </div>
               )}
             </div>
 

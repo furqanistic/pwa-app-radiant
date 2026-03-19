@@ -305,7 +305,8 @@ export const getDashboardData = async (req, res, next) => {
       const currentBookings = await Booking.find({
         locationId,
         date: { $gte: new Date().setHours(0, 0, 0, 0) },
-        status: { $in: ['scheduled', 'confirmed'] }
+        status: { $in: ['scheduled', 'confirmed'] },
+        paymentStatus: 'paid',
       })
         .sort({ date: 1, time: 1 })
         .limit(10)
@@ -416,6 +417,7 @@ export const getDashboardData = async (req, res, next) => {
       userId,
       date: { $gte: new Date() },
       status: { $in: ['scheduled', 'confirmed'] },
+      paymentStatus: 'paid',
     })
       .select('serviceName date time duration providerName status')
       .sort({ date: 1 })

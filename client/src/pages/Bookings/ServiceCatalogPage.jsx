@@ -357,6 +357,11 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const { currentUser } = useSelector((state) => state.user)
   const { branding, locationId } = useBranding()
+  const effectiveLocationId =
+    locationId ||
+    currentUser?.selectedLocation?.locationId ||
+    currentUser?.spaLocation?.locationId ||
+    ''
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -375,7 +380,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const { data: categories = [] } = useCategories(true) // Enable counts
   const { services, isLoading, isFetching } = useActiveServices({
     search: debouncedSearchTerm,
-    locationId
+    locationId: effectiveLocationId
   })
 
   // Fetch location data if needed (primarily for manager/admin to get latest edits)
@@ -668,13 +673,18 @@ const ServiceCatalogPage = () => {
   const navigate = useNavigate()
   const { currentUser } = useSelector((state) => state.user)
   const { locationId } = useBranding()
+  const effectiveLocationId =
+    locationId ||
+    currentUser?.selectedLocation?.locationId ||
+    currentUser?.spaLocation?.locationId ||
+    ''
   const withSpaParam = (path) =>
-    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+    effectiveLocationId ? `${path}?spa=${encodeURIComponent(effectiveLocationId)}` : path
 
   const handleServiceSelect = async (service, plan) => {
     if (plan && service?._id) {
       const checkoutLocationId =
-        locationId ||
+        effectiveLocationId ||
         currentUser?.selectedLocation?.locationId ||
         currentUser?.spaLocation?.locationId
 

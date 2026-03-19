@@ -134,6 +134,16 @@ const BookingSchema = new mongoose.Schema(
         default: '',
         trim: true,
       },
+      userId: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      teamId: {
+        type: String,
+        default: '',
+        trim: true,
+      },
       appointmentId: {
         type: String,
         default: '',

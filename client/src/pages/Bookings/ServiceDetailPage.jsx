@@ -390,18 +390,24 @@ const ServiceDetailPage = () => {
     service?.locationId ||
     "";
 
-  const linkedGhlServiceId = `${service?.ghlService?.serviceId || service?.ghlCalendar?.calendarId || ""}`.trim();
+  const linkedGhlCalendarId = `${service?.ghlCalendar?.calendarId || ""}`.trim();
+  const linkedGhlServiceId = `${service?.ghlService?.serviceId || ""}`.trim();
   const bookingSubdomain = `${branding?.subdomain || brandingSubdomain || ""}`.trim().toLowerCase();
-  const { data: liveGhlServiceData } = useQuery({
-    queryKey: ["ghl-calendar-service", "service-detail-page", activeLocationId, linkedGhlServiceId],
-    queryFn: () => ghlService.getCalendarServiceById(activeLocationId, linkedGhlServiceId),
-    enabled: Boolean(activeLocationId && linkedGhlServiceId),
+  const { data: liveCalendarsData } = useQuery({
+    queryKey: ["ghl-calendars", "service-detail-page", activeLocationId, linkedGhlCalendarId],
+    queryFn: () => ghlService.getCalendars(activeLocationId),
+    enabled: Boolean(activeLocationId && linkedGhlCalendarId),
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
-  const liveGhlService = liveGhlServiceData?.data?.service || null;
+  const liveGhlCalendar =
+    (liveCalendarsData?.data?.calendars || []).find(
+      (calendar) =>
+        `${calendar?.id || calendar?._id || calendar?.calendarId || ""}` ===
+        linkedGhlCalendarId
+    ) || null;
 
-  const ghlBookingConfig = getGhlBookingConfig(service, liveGhlService, {
+  const ghlBookingConfig = getGhlBookingConfig(service, null, {
     subdomain: bookingSubdomain,
     serviceId: linkedGhlServiceId,
   });
@@ -426,7 +432,12 @@ const ServiceDetailPage = () => {
   const externalSourceUnavailable = Boolean(
     availabilityMeta.externalSourceUnavailable
   );
-  const ghlCalendarName = availabilityMeta?.ghlCalendar?.name || "";
+  const ghlCalendarName =
+    availabilityMeta?.ghlCalendar?.name ||
+    service?.ghlCalendar?.name ||
+    liveGhlCalendar?.name ||
+    liveGhlCalendar?.title ||
+    "";
 
   const handleOpenGhlBooking = () => {
     if (shouldRenderEmbeddedBooking) {
