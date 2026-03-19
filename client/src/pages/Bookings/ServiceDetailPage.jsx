@@ -58,17 +58,17 @@ import stripeService from "../../services/stripeService";
 const ServiceDetailSkeleton = () => (
   <Layout>
     <div className="pb-32 md:pb-12 bg-gray-50/50 min-h-screen animate-pulse">
-      <div className="relative h-[35vh] min-h-[300px] w-full overflow-hidden bg-gray-200">
+      <div className="relative h-[180px] sm:h-[240px] md:h-[35vh] md:min-h-[300px] w-full overflow-hidden bg-gray-200">
         <div className="absolute inset-0 bg-gradient-to-t from-gray-300 via-gray-200 to-gray-100" />
-        <div className="absolute top-6 left-4 md:left-8 h-10 w-10 rounded-full bg-white/70" />
-        <div className="absolute inset-x-4 bottom-8 mx-auto max-w-6xl md:px-4">
+        <div className="absolute top-4 left-3 md:top-6 md:left-8 h-9 w-9 md:h-10 md:w-10 rounded-full bg-white/70" />
+        <div className="absolute inset-x-4 bottom-4 sm:bottom-6 md:bottom-8 mx-auto max-w-6xl md:px-4">
           <div className="mb-3 h-6 w-28 rounded-full bg-white/70" />
           <div className="mb-3 h-10 w-3/4 max-w-xl rounded-xl bg-white/70" />
           <div className="h-5 w-64 rounded-lg bg-white/70" />
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-8 -mt-6 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 -mt-2 sm:-mt-6 relative z-10">
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/70">
@@ -555,6 +555,12 @@ const ServiceDetailPage = () => {
     },
     { morning: [], afternoon: [], evening: [], anytime: [] }
   );
+  const slotGroups = [
+    { key: "morning", label: "Morning", times: groupedAvailableTimes.morning },
+    { key: "afternoon", label: "Afternoon", times: groupedAvailableTimes.afternoon },
+    { key: "evening", label: "Evening", times: groupedAvailableTimes.evening },
+    { key: "anytime", label: "Other Times", times: groupedAvailableTimes.anytime },
+  ].filter((group) => group.times.length > 0);
 
   useEffect(() => {
     if (!selectedTime) return;
@@ -1053,7 +1059,7 @@ const ServiceDetailPage = () => {
     <Layout>
       <div className="pb-32 md:pb-12 bg-gray-50/50 min-h-screen">
         {/* HERO SECTION */}
-        <div className="relative h-[35vh] min-h-[300px] w-full bg-gray-900 overflow-hidden">
+        <div className="relative h-[180px] sm:h-[240px] md:h-[35vh] md:min-h-[300px] w-full bg-gray-900 overflow-hidden">
              
              {/* Background Image */}
              <div className="absolute inset-0">
@@ -1066,16 +1072,15 @@ const ServiceDetailPage = () => {
              </div>
 
              {/* Header Content */}
-             <div className="absolute inset-0 flex flex-col justify-end px-4 py-6 md:px-8 max-w-6xl mx-auto">
+             <div className="absolute inset-0 flex flex-col justify-end px-4 py-4 sm:py-5 md:py-6 md:px-8 max-w-6xl mx-auto">
                 <button
                 onClick={handleBackClick}
-                className="absolute top-6 left-4 md:left-8 bg-white/20 backdrop-blur-md text-white p-2.5 rounded-full hover:bg-white/30 transition-all z-20"
+                className="absolute top-4 left-3 md:top-6 md:left-8 bg-white/20 backdrop-blur-md text-white p-2 md:p-2.5 rounded-full hover:bg-white/30 transition-all z-20"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4 md:w-5 md:h-5" />
               </button>
 
-               <div className="space-y-3 mb-2 animate-in slide-in-from-bottom-5 fade-in duration-500 relative z-10">
-                  <div className="flex gap-2 items-center">
+               <div className="absolute top-4 right-3 md:top-6 md:right-8 flex gap-2 items-center z-20">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white text-xs font-bold shadow-lg shadow-[color:var(--brand-primary)/0.2]">
                       {service.categoryId?.name || service.categoryName || "Premium Service"}
                     </span>
@@ -1084,13 +1089,15 @@ const ServiceDetailPage = () => {
                         <Star className="w-3 h-3 fill-current" /> Popular
                       </span>
                     )}
-                  </div>
+               </div>
+
+               <div className="space-y-3 mb-2 animate-in slide-in-from-bottom-5 fade-in duration-500 relative z-10">
                   
-                  <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight text-shadow-lg leading-tight">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight text-shadow-lg leading-tight">
                     {service.name}
                   </h1>
 
-                  <div className="flex flex-wrap items-center gap-4 text-white/90 text-sm md:text-base font-medium">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-2 sm:mt-0 sm:gap-4 text-white/90 text-xs sm:text-sm md:text-base font-medium">
                     {isBirthdayGift && (
                         <div className="bg-white text-[color:var(--brand-primary)] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm animate-pulse">
                             🎉 Birthday Gift Applied
@@ -1140,7 +1147,7 @@ const ServiceDetailPage = () => {
         </div>
 
         {/* MAIN CONTENT GRID */}
-        <div className="max-w-6xl mx-auto px-4 md:px-8 -mt-6 relative z-10">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 -mt-2 sm:-mt-6 relative z-10">
           <div className="grid lg:grid-cols-3 gap-8">
             
             {/* LEFT COLUMN */}
@@ -1176,26 +1183,34 @@ const ServiceDetailPage = () => {
                  )}
                  
                  {/* Quick Stats Grid */}
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-gray-200/70">
-                    <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                       <User className="w-5 h-5 mx-auto text-slate-500 mb-1.5" />
-                       <div className="text-xs text-gray-500">Practitioner</div>
-                       <div className="font-semibold text-gray-900 text-sm">{service.practitioner || "Staff"}</div>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200/70">
+                    <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200/70 flex items-center gap-2 sm:block sm:text-center">
+                       <User className="w-4 h-4 sm:w-5 sm:h-5 sm:mx-auto text-slate-500 sm:mb-1.5 shrink-0" />
+                       <div className="min-w-0">
+                         <div className="text-[11px] sm:text-xs text-gray-500 leading-tight">Practitioner</div>
+                         <div className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight truncate">{service.practitioner || "Staff"}</div>
+                       </div>
                     </div>
-                    <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                       <DollarSign className="w-5 h-5 mx-auto text-slate-500 mb-1.5" />
-                       <div className="text-xs text-gray-500">Starts at</div>
-                       <div className="font-semibold text-gray-900 text-sm">${service.basePrice}</div>
+                    <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200/70 flex items-center gap-2 sm:block sm:text-center">
+                       <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 sm:mx-auto text-slate-500 sm:mb-1.5 shrink-0" />
+                       <div className="min-w-0">
+                         <div className="text-[11px] sm:text-xs text-gray-500 leading-tight">Starts at</div>
+                         <div className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight">${service.basePrice}</div>
+                       </div>
                     </div>
-                    <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                       <Calendar className="w-5 h-5 mx-auto text-slate-500 mb-1.5" />
-                       <div className="text-xs text-gray-500">Availability</div>
-                       <div className="font-semibold text-gray-900 text-sm">Mon-Sun</div>
+                    <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200/70 flex items-center gap-2 sm:block sm:text-center">
+                       <Calendar className="w-4 h-4 sm:w-5 sm:h-5 sm:mx-auto text-slate-500 sm:mb-1.5 shrink-0" />
+                       <div className="min-w-0">
+                         <div className="text-[11px] sm:text-xs text-gray-500 leading-tight">Availability</div>
+                         <div className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight">Mon-Sun</div>
+                       </div>
                     </div>
-                     <div className="text-center p-3 rounded-xl bg-slate-50 border border-slate-200/70">
-                       <Zap className="w-5 h-5 mx-auto text-[color:var(--brand-primary)] mb-1.5" />
-                       <div className="text-xs text-gray-500">Instant</div>
-                       <div className="font-semibold text-gray-900 text-sm">Booking</div>
+                     <div className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 border border-slate-200/70 flex items-center gap-2 sm:block sm:text-center">
+                       <Zap className="w-4 h-4 sm:w-5 sm:h-5 sm:mx-auto text-[color:var(--brand-primary)] sm:mb-1.5 shrink-0" />
+                       <div className="min-w-0">
+                         <div className="text-[11px] sm:text-xs text-gray-500 leading-tight">Instant</div>
+                         <div className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight">Booking</div>
+                       </div>
                     </div>
                  </div>
               </div>
@@ -1324,8 +1339,8 @@ const ServiceDetailPage = () => {
                         })}
                       </div>
                     ) : (
-                      <div className="bg-gray-50 rounded-xl p-6 text-center border border-dashed border-gray-200/70">
-                         <p className="text-gray-500">Standard service booking. No variants available.</p>
+                      <div className="bg-gray-50 rounded-xl p-4 sm:p-6 text-center border border-dashed border-gray-200/70">
+                         <p className="text-[11px] sm:text-sm text-gray-500 whitespace-nowrap">Standard service booking. No variants available.</p>
                       </div>
                     )}
                   </div>
@@ -1475,90 +1490,42 @@ const ServiceDetailPage = () => {
                                  </div>
                                </div>
                              ) : availableTimes.length > 0 ? (
-                               <div className="space-y-4">
-                                 {groupedAvailableTimes.morning.length > 0 && (
-                                   <div>
-                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Morning</p>
-                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                       {groupedAvailableTimes.morning.map((time) => (
-                                         <button
-                                           key={time}
-                                           onClick={() => setSelectedTime(time)}
-                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
-                                             selectedTime === time
-                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
-                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
-                                           }`}
-                                         >
-                                           {time}
-                                         </button>
-                                       ))}
+                               <div className="space-y-2.5">
+                                 {slotGroups.map((group) => {
+                                   return (
+                                     <div
+                                       key={group.key}
+                                       className="rounded-xl border border-gray-200/70 bg-gray-50/60 p-2.5 sm:p-3"
+                                     >
+                                       <div className="mb-2 flex items-center justify-between gap-2">
+                                         <p className="text-[11px] sm:text-xs font-semibold tracking-wide uppercase text-gray-500">
+                                           {group.label}
+                                           <span className="ml-1.5 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
+                                             {group.times.length}
+                                           </span>
+                                         </p>
+                                       </div>
+                                       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                                         {group.times.map((time) => (
+                                           <button
+                                             key={time}
+                                             onClick={() => setSelectedTime(time)}
+                                             className={`h-9 w-full px-2 text-[11px] sm:text-sm font-semibold rounded-lg border transition-all ${
+                                               selectedTime === time
+                                                 ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow"
+                                                 : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
+                                             }`}
+                                           >
+                                             {time}
+                                           </button>
+                                         ))}
+                                       </div>
                                      </div>
-                                   </div>
-                                 )}
-                                 {groupedAvailableTimes.afternoon.length > 0 && (
-                                   <div>
-                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Afternoon</p>
-                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                       {groupedAvailableTimes.afternoon.map((time) => (
-                                         <button
-                                           key={time}
-                                           onClick={() => setSelectedTime(time)}
-                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
-                                             selectedTime === time
-                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
-                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
-                                           }`}
-                                         >
-                                           {time}
-                                         </button>
-                                       ))}
-                                     </div>
-                                   </div>
-                                 )}
-                                 {groupedAvailableTimes.evening.length > 0 && (
-                                   <div>
-                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Evening</p>
-                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                       {groupedAvailableTimes.evening.map((time) => (
-                                         <button
-                                           key={time}
-                                           onClick={() => setSelectedTime(time)}
-                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
-                                             selectedTime === time
-                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
-                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
-                                           }`}
-                                         >
-                                           {time}
-                                         </button>
-                                       ))}
-                                     </div>
-                                   </div>
-                                 )}
-                                 {groupedAvailableTimes.anytime.length > 0 && (
-                                   <div>
-                                     <p className="text-xs font-semibold tracking-wide uppercase text-gray-500 mb-2">Other Times</p>
-                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                       {groupedAvailableTimes.anytime.map((time) => (
-                                         <button
-                                           key={time}
-                                           onClick={() => setSelectedTime(time)}
-                                           className={`min-h-11 px-3 text-sm font-semibold rounded-xl border transition-all ${
-                                             selectedTime === time
-                                               ? "bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white border-transparent shadow-lg"
-                                               : "bg-white text-gray-700 border-gray-200/70 hover:bg-gray-50"
-                                           }`}
-                                         >
-                                           {time}
-                                         </button>
-                                       ))}
-                                     </div>
-                                   </div>
-                                 )}
+                                   );
+                                 })}
                                  {selectedTime && (
                                    <div className="rounded-xl border border-[color:var(--brand-primary)/0.25] bg-[color:var(--brand-primary)/0.06] px-3 py-2">
-                                     <p className="text-sm font-medium text-gray-800">
+                                     <p className="text-xs sm:text-sm font-medium text-gray-800">
                                        Selected time: <span className="font-bold text-[color:var(--brand-primary)]">{selectedTime}</span>
                                      </p>
                                    </div>
