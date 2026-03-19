@@ -175,6 +175,17 @@ const CartPage = () => {
   const totalWithDiscount = Math.max(0, totalAmountSafe - rewardDiscount)
   const finalTotal = totalWithDiscount
 
+  const formatCartDate = (dateValue) => {
+    if (!dateValue) return ''
+    const parsed = new Date(dateValue)
+    if (Number.isNaN(parsed.getTime())) return dateValue
+    return parsed.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
   const handleRemoveItem = (itemId) => {
     dispatch(removeFromCart(itemId))
     toastSuccess('Item removed from cart')
@@ -304,24 +315,24 @@ const CartPage = () => {
   return (
     <Layout>
       <div
-        className='px-4 py-6 max-w-6xl mx-auto'
+        className='px-3 md:px-4 py-4 md:py-6 max-w-6xl mx-auto'
         style={{
           ['--brand-primary']: brandColor,
           ['--brand-primary-dark']: brandColorDark,
         }}
       >
         {/* Header */}
-        <div className='flex items-center justify-between mb-6'>
+        <div className='flex items-center justify-between mb-4 md:mb-6'>
           <button
             onClick={() => navigate('/bookings')}
-            className='flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors h-8 px-3 rounded-lg hover:bg-gray-100'
+            className='flex items-center gap-1.5 md:gap-2 text-gray-600 hover:text-gray-800 transition-colors h-8 px-2.5 md:px-3 rounded-lg hover:bg-gray-100 text-sm md:text-base'
           >
-            <ArrowLeft className='w-5 h-5' />
+            <ArrowLeft className='w-4 h-4 md:w-5 md:h-5' />
             <span>Continue Shopping</span>
           </button>
           <button
             onClick={handleClearCart}
-            className='flex items-center gap-2 text-red-600 hover:text-red-800 transition-colors h-8 px-3 rounded-lg hover:bg-red-50'
+            className='flex items-center gap-1.5 md:gap-2 text-red-600 hover:text-red-800 transition-colors h-8 px-2.5 md:px-3 rounded-lg hover:bg-red-50 text-sm md:text-base'
           >
             <Trash2 className='w-4 h-4' />
             <span>Clear Cart</span>
@@ -331,21 +342,75 @@ const CartPage = () => {
         <div className='grid lg:grid-cols-3 gap-6'>
           {/* Cart Items */}
           <div className='lg:col-span-2 space-y-4'>
-            <div className='bg-white rounded-lg shadow-sm p-6 border border-gray-200/70'>
-              <h1 className='text-2xl font-bold text-gray-900 mb-2'>
+            <div className='bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200/70'>
+              <h1 className='text-xl md:text-2xl font-bold text-gray-900 mb-1.5 md:mb-2'>
                 Shopping Cart
               </h1>
-              <p className='text-gray-600 mb-6'>
+              <p className='text-sm md:text-base text-gray-600 mb-4 md:mb-6'>
                 {totalItems} {totalItems === 1 ? 'item' : 'items'} in your cart
               </p>
 
-              <div className='space-y-4'>
+              <div className='md:hidden mb-2 rounded-lg border border-dashed border-gray-200/80 bg-gray-50/70 px-3 py-2'>
+                <div className='flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gray-500'>
+                  <span>Item</span>
+                  <span>Amount</span>
+                </div>
+              </div>
+
+              <div className='space-y-3 md:space-y-4'>
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className='border border-gray-200/70 rounded-lg p-4 hover:border-gray-200/70 transition-colors'
+                    className='border border-gray-200/70 rounded-lg p-3 md:p-4 hover:border-gray-200/70 transition-colors'
                   >
-                    <div className='flex gap-4'>
+                    {/* Mobile: invoice-style compact item */}
+                    <div className='md:hidden'>
+                      <div className='flex items-start justify-between gap-2'>
+                        <div className='min-w-0'>
+                          <h3 className='text-sm font-semibold text-gray-900 truncate'>
+                            {item.serviceName}
+                          </h3>
+                          {item.treatment && (
+                            <p className='text-[11px] text-gray-500 truncate mt-0.5'>
+                              {item.treatment.name}
+                            </p>
+                          )}
+                        </div>
+                        <div className='flex items-center gap-2 shrink-0'>
+                          <span className='text-sm font-bold text-[color:var(--brand-primary)]'>
+                            ${item.totalPrice.toFixed(2)}
+                          </span>
+                          <button
+                            onClick={() => handleRemoveItem(item.id)}
+                            className='text-red-500 hover:text-red-700 p-1 -mr-1'
+                            aria-label='Remove item'
+                          >
+                            <Trash2 className='w-3.5 h-3.5' />
+                          </button>
+                        </div>
+                      </div>
+
+                        <div className='mt-2 grid grid-cols-3 gap-1.5 text-[11px] text-gray-600'>
+                        <div className='rounded-md bg-gray-50 px-1.5 py-1 text-center truncate'>
+                          {formatCartDate(item.date)}
+                        </div>
+                        <div className='rounded-md bg-gray-50 px-1.5 py-1 text-center truncate'>
+                          {item.time}
+                        </div>
+                        <div className='rounded-md bg-gray-50 px-1.5 py-1 text-center truncate'>
+                          {item.duration}m
+                        </div>
+                      </div>
+
+                      {item.addOns && item.addOns.length > 0 && (
+                        <p className='mt-1.5 text-[11px] text-gray-500 truncate'>
+                          Add-ons: {item.addOns.map((addon) => addon.name).join(', ')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Desktop: existing richer card */}
+                    <div className='hidden md:flex gap-4'>
                       <img
                         src={
                           item.image ||
@@ -358,7 +423,7 @@ const CartPage = () => {
                       <div className='flex-1'>
                         <div className='flex items-start justify-between mb-2'>
                           <div>
-                            <h3 className='text-lg font-semibold text-gray-900'>
+                            <h3 className='text-lg font-semibold text-gray-900 leading-tight'>
                               {item.serviceName}
                             </h3>
                             {item.treatment && (
@@ -369,7 +434,7 @@ const CartPage = () => {
                           </div>
                           <button
                             onClick={() => handleRemoveItem(item.id)}
-                            className='text-red-500 hover:text-red-700 p-1'
+                            className='text-red-500 hover:text-red-700 p-1 -mr-1'
                           >
                             <Trash2 className='w-4 h-4' />
                           </button>
@@ -378,7 +443,7 @@ const CartPage = () => {
                         <div className='grid grid-cols-2 gap-2 mb-3'>
                           <div className='flex items-center gap-1 text-sm text-gray-600'>
                             <Calendar className='w-4 h-4' />
-                            <span>{item.date}</span>
+                            <span>{formatCartDate(item.date)}</span>
                           </div>
                           <div className='flex items-center gap-1 text-sm text-gray-600'>
                             <Clock className='w-4 h-4' />
@@ -390,7 +455,7 @@ const CartPage = () => {
                           </div>
                           <div className='flex items-center gap-1 text-sm text-gray-600'>
                             <DollarSign className='w-4 h-4' />
-                            <span className='font-semibold text-green-600'>
+                            <span className='font-semibold text-[color:var(--brand-primary)]'>
                               ${item.totalPrice.toFixed(2)}
                             </span>
                           </div>
@@ -405,7 +470,7 @@ const CartPage = () => {
                               {item.addOns.map((addon, idx) => (
                                 <span
                                   key={idx}
-                                  className='text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full'
+                                  className='text-xs bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary-dark)] px-2 py-1 rounded-full'
                                 >
                                   {addon.name}
                                 </span>

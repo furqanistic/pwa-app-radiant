@@ -1,4 +1,5 @@
 // File: client/src/pages/Referral/ReferralPage.jsx - PWA OPTIMIZED
+import { useBranding } from '@/context/BrandingContext'
 import {
     useGenerateMyReferralCode,
     useReferralStatsWithComputedData,
@@ -7,7 +8,6 @@ import { motion } from 'framer-motion'
 import {
     Check,
     Copy,
-    Gift,
     Loader2,
     Mail,
     MessageSquare,
@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 import React, { useState } from 'react'
 import Layout from '../Layout/Layout'
-import { useBranding } from '@/context/BrandingContext'
 
 // Loading Skeleton
 const ReferralSkeleton = () => (
@@ -150,13 +149,13 @@ const ReferralPage = () => {
     return (
         <Layout>
             <div
-                className='min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white pb-20 md:pb-12'
+                className='min-h-screen pb-20 md:pb-12 md:bg-gradient-to-br md:from-[color:var(--brand-primary)/0.08] md:to-white'
                 style={{
                     ['--brand-primary']: brandColor,
                     ['--brand-primary-dark']: brandColorDark,
                 }}
             >
-                <div className='md:hidden max-w-md mx-auto min-h-screen bg-[color:var(--brand-primary)/0.06] shadow-sm overflow-hidden border border-gray-200/70'>
+                <div className='md:hidden max-w-md mx-auto min-h-screen overflow-hidden'>
                     <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] px-6 pt-10 pb-8 text-center'>
                         <p className='text-[11px] tracking-[0.2em] uppercase text-white font-semibold mb-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/20 border border-white/25'>
                             <Sparkles size={12} />
@@ -165,16 +164,11 @@ const ReferralPage = () => {
                         <h1 className='text-[34px] leading-[1.08] font-semibold text-[#f7f7f7]'>Share Your Link</h1>
                     </div>
 
-                    <div className='-mt-4 rounded-t-[30px] bg-white/95 px-4 pb-8 pt-5 space-y-4'>
-                        <div className='rounded-2xl border border-[color:var(--brand-primary)/0.2] bg-white px-4 py-3 flex items-center justify-between gap-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
-                            <div className='flex items-center gap-3'>
-                                <div className='w-10 h-10 rounded-full bg-[color:var(--brand-primary)/0.18] grid place-items-center text-[color:var(--brand-primary)]'>
-                                    <Gift size={18} />
-                                </div>
-                                <div>
-                                    <p className='text-xs text-[#8a8a8a]'>Total Earned</p>
-                                    <p className='text-[29px] leading-none font-semibold text-[color:var(--brand-primary-dark)]'>{formatPoints(totalEarnings)}</p>
-                                </div>
+                    <div className='px-4 pb-8 pt-4 space-y-4'>
+                        <div className='rounded-2xl border border-gray-200/70 bg-white px-4 py-3 flex items-center justify-between gap-3 shadow-[0_1px_0_rgba(0,0,0,0.02)]'>
+                            <div>
+                                <p className='text-xs text-[#8a8a8a]'>Total Earned</p>
+                                <p className='text-[29px] leading-none font-semibold text-[color:var(--brand-primary-dark)]'>{formatPoints(totalEarnings)}</p>
                             </div>
                             <div className='text-right'>
                                 <p className='text-xs text-[#8a8a8a]'>Per Referral</p>
