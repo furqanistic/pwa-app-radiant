@@ -269,6 +269,22 @@ const ManagementPage = () => {
           },
         ]
       : []),
+    ...(isTeamOrAbove && isSuperAdmin
+      ? [
+          {
+            key: "points-rules",
+            title: "Points Rules",
+            description: "Control earning, redemption, and loyalty balance rules.",
+            icon: Award,
+            onClick: () => setIsPointsSettingsOpen(true),
+            className:
+              "border-transparent text-white hover:opacity-95",
+            style: {
+              backgroundImage: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})`,
+            },
+          },
+        ]
+      : []),
     ...(["admin", "spa"].includes(currentUser?.role)
       ? [
           {
@@ -781,6 +797,8 @@ const ManagementPage = () => {
         <PointsSettings
           isOpen={isPointsSettingsOpen}
           onClose={() => setIsPointsSettingsOpen(false)}
+          locations={locations}
+          currentUser={currentUser}
         />
 
         {/* QR Code Modal */}

@@ -6,10 +6,13 @@ import Location from '../models/Location.js'
 import PointTransaction from '../models/PointTransaction.js'
 import QRCodeScan from '../models/QRCodeScan.js'
 import Referral from '../models/Referral.js'
-import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
-import { mergePointsMethodsWithDefaults } from '../utils/pointsSettings.js'
+import {
+  buildPointsLabel,
+  EARN_MORE_POINTS_METHOD_KEYS,
+  mergePointsMethodsWithDefaults,
+} from '../utils/pointsSettings.js'
 
 const RECENT_QR_CLAIMS_WINDOW_DAYS = 3
 const RECENT_QR_CLAIMS_LIMIT = 250
@@ -94,8 +97,6 @@ export const getDashboardData = async (req, res, next) => {
     if (!userId) {
       return next(createError(401, 'User ID not found'))
     }
-
-    const config = await ReferralConfig.getActiveConfig()
 
     // Get automated gifts from user's relevant location
     let automatedGifts = []
@@ -485,41 +486,26 @@ export const getDashboardData = async (req, res, next) => {
     })
 
     // Get point earning methods based on location configuration
-    const referralTier = user.referralStats?.currentTier || 'bronze'
-    const referralPoints = Math.round(
-      config.signupReward.referrerPoints * (config.tierMultipliers[referralTier] || 1.0)
-    )
-
     const pointsEarningMethods = pointsMethods
       .filter(
         (method) =>
+          EARN_MORE_POINTS_METHOD_KEYS.includes(method.key) &&
           method.isActive &&
           (typeof method.pointsValue !== 'number' || method.pointsValue > 0)
       )
+      .sort(
+        (a, b) =>
+          EARN_MORE_POINTS_METHOD_KEYS.indexOf(a.key) -
+          EARN_MORE_POINTS_METHOD_KEYS.indexOf(b.key)
+      )
       .map((method, index) => {
-        const resolvedPointsValue =
-          method.key === 'referral' ? referralPoints : method.pointsValue
-
-        const pointsLabel =
-          method.key === 'referral'
-            ? `+${referralPoints}`
-            : method.pointsLabel ||
-              (method.perDollar
-                ? `+${resolvedPointsValue}/$1`
-                : resolvedPointsValue > 0
-                ? `+${resolvedPointsValue}`
-                : `${resolvedPointsValue}`)
-
-        const description =
-          method.key === 'referral'
-            ? `Earn ${referralPoints} points per referral`
-            : method.description
+        const pointsLabel = buildPointsLabel(method)
 
         return {
           id: index + 1,
           key: method.key,
           title: method.title,
-          description,
+          description: method.description,
           icon: method.icon || 'Zap',
           points: pointsLabel,
           action: method.action || 'Learn More',

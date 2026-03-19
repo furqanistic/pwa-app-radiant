@@ -7,6 +7,14 @@ const formatPointsLabel = (pointsValue) => {
   return `${pointsValue}`
 }
 
+export const buildPointsLabel = (method = {}) => {
+  const value =
+    typeof method?.pointsValue === 'number' ? method.pointsValue : null
+  if (value === null) return method?.pointsLabel || ''
+  if (method?.perDollar) return `${value > 0 ? '+' : ''}${value}/$1`
+  return formatPointsLabel(value)
+}
+
 export const DEFAULT_POINTS_METHODS = [
   {
     key: 'referral',
@@ -443,6 +451,13 @@ export const DEFAULT_POINTS_METHODS = [
   },
 ]
 
+export const EARN_MORE_POINTS_METHOD_KEYS = [
+  'referral',
+  'share_referral_link',
+  'booking',
+  'purchase',
+]
+
 const normalizePointsMethod = (method, fallback) => {
   const pointsValue =
     typeof method.pointsValue === 'number'
@@ -455,10 +470,11 @@ const normalizePointsMethod = (method, fallback) => {
     ...fallback,
     ...method,
     pointsValue,
-    pointsLabel:
-      method.pointsLabel ||
-      fallback?.pointsLabel ||
-      formatPointsLabel(pointsValue),
+    pointsLabel: buildPointsLabel({
+      ...(fallback || {}),
+      ...(method || {}),
+      pointsValue,
+    }),
   }
 }
 

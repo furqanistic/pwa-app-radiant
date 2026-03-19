@@ -3,7 +3,9 @@ import { createError } from '../error.js';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
 import {
+    buildPointsLabel,
     DEFAULT_POINTS_METHODS,
+    EARN_MORE_POINTS_METHOD_KEYS,
     ensureLocationPointsSettings,
     mergePointsMethodsWithDefaults,
 } from '../utils/pointsSettings.js';
@@ -22,6 +24,12 @@ const transformHoursFromModel = (hoursArray) => {
         };
     });
     return hoursObj;
+}
+
+const normalizeMethodPointsValue = (value, fallback = 0) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.round(parsed)
 }
 
 const DEFAULT_MEMBERSHIP_PLAN = {
@@ -315,7 +323,12 @@ export const createLocation = async (req, res, next) => {
       ],
       pointsSettings: {
         allMethodsBootstrapped: true,
-        methods: mergePointsMethodsWithDefaults(pointsSettings?.methods || []),
+        methods: mergePointsMethodsWithDefaults(
+          pointsSettings?.methods || []
+        ).map((method) => ({
+          ...method,
+          pointsLabel: buildPointsLabel(method),
+        })),
       },
       addedBy: req.user.id,
     })
@@ -404,31 +417,74 @@ export const updateLocation = async (req, res, next) => {
         : null
 
       let finalMethods
-
-      if (incomingMethods) {
-        // The frontend always sends the full list of methods it rendered.
-        // Trust it as the source of truth for isActive and pointsValue.
-        const incomingByKey = new Map(
-          incomingMethods
-            .filter((m) => m?.key)
-            .map((m) => [m.key, m])
-        )
-
-        // Append any brand-new default methods not in the payload as disabled.
-        DEFAULT_POINTS_METHODS.forEach((def) => {
-          if (!incomingByKey.has(def.key)) {
-            incomingByKey.set(def.key, { ...def, isActive: false })
-          }
-        })
-
-        finalMethods = Array.from(incomingByKey.values())
-      } else {
-        // No methods in payload — preserve existing
-        finalMethods = Array.isArray(location.pointsSettings?.methods)
+      const existingResolvedMethods = mergePointsMethodsWithDefaults(
+        Array.isArray(location.pointsSettings?.methods)
           ? location.pointsSettings.methods.map((m) =>
               typeof m?.toObject === 'function' ? m.toObject() : m
             )
           : []
+      ).map((method) => ({
+        ...method,
+        pointsLabel: buildPointsLabel(method),
+      }))
+
+      if (incomingMethods) {
+        if (req.user.role === 'spa') {
+          const editableKeys = new Set(EARN_MORE_POINTS_METHOD_KEYS)
+          const incomingByKey = new Map(
+            incomingMethods
+              .filter((method) => method?.key && editableKeys.has(method.key))
+              .map((method) => [method.key, method])
+          )
+
+          finalMethods = existingResolvedMethods.map((method) => {
+            const incomingMethod = incomingByKey.get(method.key)
+            if (!incomingMethod) return method
+
+            const normalizedPoints = normalizeMethodPointsValue(
+              incomingMethod.pointsValue,
+              method.pointsValue
+            )
+
+            return {
+              ...method,
+              ...incomingMethod,
+              pointsValue: normalizedPoints,
+              pointsLabel: buildPointsLabel({
+                ...method,
+                ...incomingMethod,
+                pointsValue: normalizedPoints,
+              }),
+            }
+          })
+        } else {
+        // Merge with defaults to preserve metadata while honoring edited values.
+        const merged = mergePointsMethodsWithDefaults(incomingMethods)
+        finalMethods = merged.map((method) => {
+          const fallbackMethod = DEFAULT_POINTS_METHODS.find(
+            (candidate) => candidate.key === method.key
+          )
+          const fallbackPoints = typeof fallbackMethod?.pointsValue === 'number'
+            ? fallbackMethod.pointsValue
+            : 0
+          const normalizedPoints = normalizeMethodPointsValue(
+            method.pointsValue,
+            fallbackPoints
+          )
+
+          return {
+            ...method,
+            pointsValue: normalizedPoints,
+            pointsLabel: buildPointsLabel({
+              ...method,
+              pointsValue: normalizedPoints,
+            }),
+          }
+        })
+        }
+      } else {
+        // No methods in payload — preserve existing
+        finalMethods = existingResolvedMethods
       }
 
       console.log('[pointsSettings] Saving methods. Sample isActive values:',
@@ -610,6 +666,16 @@ export const getAllLocations = async (req, res, next) => {
 
       return {
         ...location,
+        pointsSettings: {
+          ...(location.pointsSettings || {}),
+          methods: mergePointsMethodsWithDefaults(
+            location.pointsSettings?.methods || []
+          ).map((method) => ({
+            ...method,
+            pointsLabel: buildPointsLabel(method),
+          })),
+          allMethodsBootstrapped: true,
+        },
         membershipStripeConnected: stripeConnected,
         membershipStripeMessage,
       }
@@ -781,9 +847,23 @@ export const getLocation = async (req, res, next) => {
       return next(createError(404, 'Location not found'))
     }
 
+    const locationObject =
+      typeof location.toObject === 'function' ? location.toObject() : location
+
+    locationObject.pointsSettings = {
+      ...(locationObject.pointsSettings || {}),
+      methods: mergePointsMethodsWithDefaults(
+        locationObject.pointsSettings?.methods || []
+      ).map((method) => ({
+        ...method,
+        pointsLabel: buildPointsLabel(method),
+      })),
+      allMethodsBootstrapped: true,
+    }
+
     res.status(200).json({
       status: 'success',
-      data: { location },
+      data: { location: locationObject },
     })
   } catch (error) {
     console.error('Error fetching location:', error)

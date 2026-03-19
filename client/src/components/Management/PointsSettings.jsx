@@ -1,41 +1,107 @@
 import { Button } from '@/components/ui/button'
+import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { RefreshCw, Save, X } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+const Motion = motion
+
 const cloneMethods = (methods = []) =>
   Array.isArray(methods) ? methods.map((method) => ({ ...method })) : []
 
-const PointsSettings = ({ isOpen, onClose }) => {
+const SPA_VISIBLE_METHOD_KEYS = [
+  'referral',
+  'share_referral_link',
+  'booking',
+  'purchase',
+]
+
+const buildLocalPointsLabel = (method, nextValue) => {
+  const numericValue = Number(nextValue)
+  if (!Number.isFinite(numericValue)) return method?.pointsLabel || ''
+  if (method?.perDollar) return `${numericValue > 0 ? '+' : ''}${numericValue}/$1`
+  return numericValue > 0 ? `+${numericValue}` : `${numericValue}`
+}
+
+const hexToRgba = (hex, alpha = 1) => {
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return null
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) return null
+  const num = Number.parseInt(cleaned, 16)
+  if (!Number.isFinite(num)) return null
+  const r = (num >> 16) & 255
+  const g = (num >> 8) & 255
+  const b = num & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const resolveInitialLocationId = (locations = [], currentUser = null) => {
+  if (!locations.length) return null
+
+  const preferredBusinessLocationId =
+    currentUser?.selectedLocation?.locationId ||
+    currentUser?.spaLocation?.locationId ||
+    null
+
+  if (preferredBusinessLocationId) {
+    const preferredLocation = locations.find(
+      (location) => location?.locationId === preferredBusinessLocationId
+    )
+    if (preferredLocation?._id) return preferredLocation._id
+  }
+
+  return locations[0]?._id || null
+}
+
+const PointsSettings = ({ isOpen, onClose, locations = [], currentUser }) => {
   const queryClient = useQueryClient()
+  const { branding } = useBranding()
+  const isSpaManager = currentUser?.role === 'spa'
+  const isSuperAdmin = currentUser?.role === 'super-admin'
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandSoft = hexToRgba(brandColor, 0.18) || 'rgba(236,72,153,0.18)'
+  const brandSofter = hexToRgba(brandColor, 0.1) || 'rgba(236,72,153,0.1)'
   const [methods, setMethods] = useState([])
   const [isDirty, setIsDirty] = useState(false)
   const [saveProgress, setSaveProgress] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedLocationId, setSelectedLocationId] = useState(null)
   // Tracks whether the user has unsaved local changes so we don't
   // overwrite them when the query re-renders with stale data.
   const hasLocalChanges = React.useRef(false)
 
-  const { data: locationData, isLoading } = useQuery({
-    queryKey: ['myLocation'],
-    queryFn: () => locationService.getMyLocation(),
-    enabled: isOpen,
-    refetchOnWindowFocus: false,
-  })
-
-  const locationId = locationData?.data?.location?._id
+  const selectedLocation = useMemo(
+    () =>
+      locations.find((location) => location?._id === selectedLocationId) || null,
+    [locations, selectedLocationId]
+  )
 
   useEffect(() => {
-    const incomingMethods = locationData?.data?.location?.pointsSettings?.methods
+    if (!isOpen) return
+    const initialLocationId = resolveInitialLocationId(locations, currentUser)
+    setSelectedLocationId(initialLocationId)
+  }, [isOpen, locations, currentUser])
+
+  useEffect(() => {
+    const incomingMethods = selectedLocation?.pointsSettings?.methods
     if (!incomingMethods) return
     // Only skip if the user has unsaved local edits
     if (hasLocalChanges.current) return
-    setMethods(cloneMethods(incomingMethods))
+    const scopedMethods = isSpaManager
+      ? incomingMethods.filter((method) =>
+          SPA_VISIBLE_METHOD_KEYS.includes(method.key)
+        )
+      : incomingMethods
+    setMethods(cloneMethods(scopedMethods))
     setIsDirty(false)
-  }, [locationData])
+  }, [selectedLocation, isSpaManager])
+
+  const locationId = selectedLocation?._id
+  const hasLocations = locations.length > 0
+  const canSwitchLocation = locations.length > 1
 
   const updateLocationMutation = useMutation({
     mutationFn: (data) => locationService.updateLocation(locationId, data),
@@ -44,7 +110,8 @@ const PointsSettings = ({ isOpen, onClose }) => {
       // incoming fresh data is allowed to update the methods list.
       hasLocalChanges.current = false
       setIsDirty(false)
-      queryClient.invalidateQueries({ queryKey: ['myLocation'] })
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'data'] })
       toast.success('Points settings updated!')
       onClose?.()
     },
@@ -89,7 +156,11 @@ const PointsSettings = ({ isOpen, onClose }) => {
     hasLocalChanges.current = true
     setMethods((prev) => {
       const updated = [...prev]
-      updated[index] = { ...updated[index], [field]: value }
+      const nextMethod = { ...updated[index], [field]: value }
+      if (field === 'pointsValue') {
+        nextMethod.pointsLabel = buildLocalPointsLabel(nextMethod, value)
+      }
+      updated[index] = nextMethod
       return updated
     })
     setIsDirty(true)
@@ -145,7 +216,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
     <AnimatePresence>
       {isOpen && (
         <>
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -153,7 +224,7 @@ const PointsSettings = ({ isOpen, onClose }) => {
             className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]'
           />
 
-          <motion.div
+          <Motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -167,7 +238,10 @@ const PointsSettings = ({ isOpen, onClose }) => {
                 <h2 className='text-xl md:text-2xl font-black text-gray-900 tracking-tight'>
                   Points Settings
                 </h2>
-                <p className='text-xs md:text-sm font-bold text-pink-500 uppercase tracking-widest mt-0.5'>
+                <p
+                  className='text-xs md:text-sm font-bold uppercase tracking-widest mt-0.5'
+                  style={{ color: brandColor }}
+                >
                   {activeCount} enabled
                 </p>
               </div>
@@ -187,8 +261,8 @@ const PointsSettings = ({ isOpen, onClose }) => {
                   Disable All
                 </button>
                 <button
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ['myLocation'] })}
-                  disabled={isSaving}
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['locations'] })}
+                  disabled={isSaving || !hasLocations}
                   title='Reload'
                   className='p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-blue-50 hover:text-blue-500 transition-all group'
                 >
@@ -196,7 +270,15 @@ const PointsSettings = ({ isOpen, onClose }) => {
                 </button>
                 <button
                   onClick={onClose}
-                  className='p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-pink-50 hover:text-pink-500 transition-all group'
+                  className='p-2.5 bg-gray-100 text-gray-500 rounded-2xl transition-all group'
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.backgroundColor = brandSofter
+                    event.currentTarget.style.color = brandColor
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.backgroundColor = ''
+                    event.currentTarget.style.color = ''
+                  }}
                 >
                   <X className='w-5 h-5 group-hover:rotate-90 transition-transform' />
                 </button>
@@ -205,12 +287,47 @@ const PointsSettings = ({ isOpen, onClose }) => {
 
             <div className='flex-1 overflow-y-auto p-6 md:p-8'>
               <div className='mb-5'>
+                <label className='block text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2'>
+                  Location
+                </label>
+                <select
+                  value={selectedLocationId || ''}
+                  onChange={(e) => {
+                    hasLocalChanges.current = false
+                    setSelectedLocationId(e.target.value || null)
+                    setSearchQuery('')
+                  }}
+                  disabled={isSaving || !canSwitchLocation}
+                  className='w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 disabled:bg-gray-50 disabled:text-gray-500'
+                  style={{ '--tw-ring-color': brandSoft }}
+                >
+                  {locations.map((location) => (
+                    <option key={location._id} value={location._id}>
+                      {location.name || location.locationId}
+                    </option>
+                  ))}
+                </select>
+                {isSpaManager && (
+                  <p className='mt-2 text-[11px] font-semibold text-gray-500'>
+                    You can edit only the rules used in the dashboard{" "}
+                    <span className='text-gray-700'>"Earn More Points"</span> section.
+                  </p>
+                )}
+                {isSuperAdmin && (
+                  <p className='mt-2 text-[11px] font-semibold text-gray-500'>
+                    Super admin can edit all point rules for the selected location.
+                  </p>
+                )}
+              </div>
+
+              <div className='mb-5'>
                 <div className='relative'>
                   <input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder='Search rules...'
-                    className='w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-200'
+                    className='w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2'
+                    style={{ '--tw-ring-color': brandSoft }}
                   />
                   {searchQuery && (
                     <button
@@ -228,10 +345,11 @@ const PointsSettings = ({ isOpen, onClose }) => {
                   </p>
                 )}
               </div>
-              {isLoading ? (
+              {!hasLocations ? (
                 <div className='flex flex-col items-center justify-center py-20'>
-                  <RefreshCw className='w-10 h-10 text-pink-500 animate-spin mb-4' />
-                  <p className='text-sm font-bold text-gray-500 uppercase tracking-widest'>Loading settings...</p>
+                  <p className='text-sm font-bold text-gray-500 uppercase tracking-widest'>
+                    No location found for this account.
+                  </p>
                 </div>
               ) : filteredMethods.length === 0 ? (
                 <div className='text-center py-12 bg-gray-50 rounded-[2rem]'>
@@ -253,7 +371,14 @@ const PointsSettings = ({ isOpen, onClose }) => {
                               {method.title}
                             </h4>
                             {method.pointsLabel && (
-                              <span className='px-2 py-0.5 bg-pink-50 text-pink-600 text-[10px] font-black uppercase rounded-full border border-pink-100'>
+                              <span
+                                className='px-2 py-0.5 text-[10px] font-black uppercase rounded-full border'
+                                style={{
+                                  backgroundColor: brandSofter,
+                                  color: brandColor,
+                                  borderColor: brandSoft,
+                                }}
+                              >
                                 {method.pointsLabel} pts
                               </span>
                             )}
@@ -366,7 +491,10 @@ const PointsSettings = ({ isOpen, onClose }) => {
               {isSaving && (
                 <div className='mb-3'>
                   <div className='flex items-center justify-between mb-1'>
-                    <span className='text-[10px] font-black uppercase tracking-wider text-pink-600'>
+                    <span
+                      className='text-[10px] font-black uppercase tracking-wider'
+                      style={{ color: brandColor }}
+                    >
                       Saving settings...
                     </span>
                     <span className='text-[10px] font-bold text-gray-500'>
@@ -375,8 +503,11 @@ const PointsSettings = ({ isOpen, onClose }) => {
                   </div>
                   <div className='h-2 w-full rounded-full bg-gray-100 overflow-hidden'>
                     <div
-                      className='h-full bg-gradient-to-r from-pink-500 to-rose-500 transition-all duration-200'
-                      style={{ width: `${Math.max(8, Math.min(100, saveProgress))}%` }}
+                      className='h-full transition-all duration-200'
+                      style={{
+                        background: `linear-gradient(90deg, ${brandColor}, ${brandSoft})`,
+                        width: `${Math.max(8, Math.min(100, saveProgress))}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -384,13 +515,14 @@ const PointsSettings = ({ isOpen, onClose }) => {
               <Button
                 onClick={handleSave}
                 disabled={!isDirty || isSaving || !locationId}
-                className='w-full rounded-2xl h-12 bg-pink-500 text-white font-black uppercase tracking-widest text-xs'
+                className='w-full rounded-2xl h-12 text-white font-black uppercase tracking-widest text-xs'
+                style={{ backgroundColor: brandColor }}
               >
                 <Save className='w-4 h-4 mr-2' />
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
-          </motion.div>
+          </Motion.div>
         </>
       )}
     </AnimatePresence>
