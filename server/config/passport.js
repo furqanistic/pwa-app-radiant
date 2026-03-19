@@ -2,6 +2,7 @@ import dotenv from 'dotenv'
 import passport from 'passport'
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20'
 import User from '../models/User.js'
+import { processPendingQrClaimsForUser } from '../utils/qrPendingClaims.js'
 dotenv.config()
 
 passport.use(
@@ -50,6 +51,8 @@ passport.use(
           lastLogin: new Date(),
           // No password field for Google users
         })
+
+        await processPendingQrClaimsForUser(newUser)
 
         return done(null, newUser)
       } catch (error) {

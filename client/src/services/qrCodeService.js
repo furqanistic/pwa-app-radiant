@@ -53,6 +53,14 @@ export const qrCodeService = {
     return response.data;
   },
 
+  // Update QR ID (admin only)
+  updateQRCodeId: async (locationId, qrId) => {
+    const response = await axiosInstance.patch(`/qr-codes/${locationId}/qr-id`, {
+      qrId,
+    });
+    return response.data;
+  },
+
   // Get all QR codes (admin only)
   getAllQRCodes: async (page = 1, limit = 20) => {
     const response = await axiosInstance.get("/qr-codes", {

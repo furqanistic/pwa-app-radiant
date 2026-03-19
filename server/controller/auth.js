@@ -7,6 +7,7 @@ import Location from '../models/Location.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
+import { processPendingQrClaimsForUser } from '../utils/qrPendingClaims.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { createSystemNotification } from './notification.js'
 import { updateUserTier } from './referral.js'
@@ -821,6 +822,10 @@ export const signup = async (req, res, next) => {
     if (locationData) userData.selectedLocation = locationData
 
     const newUser = await User.create(userData)
+
+    // If this email scanned a QR before account creation, auto-claim those
+    // pending rewards immediately after signup.
+    await processPendingQrClaimsForUser(newUser)
 
     // Process referral if provided
     let referralResult = { success: false }

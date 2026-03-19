@@ -15,6 +15,12 @@ const generateQRId = () => {
     .toUpperCase()}`;
 };
 
+const normalizeCustomQRId = (value) =>
+  `${value || ""}`
+    .trim()
+    .replace(/\s+/g, "_")
+    .toUpperCase();
+
 const buildSpaSignupUrl = (location) => {
   const normalizedLocationId = location?.locationId
     ? encodeURIComponent(location.locationId)
@@ -255,6 +261,30 @@ export const scanQRCode = async (req, res, next) => {
 
     if (!user) {
       const signupUrl = buildSpaSignupUrl(location);
+
+      // Prevent duplicate pending claims within 5 minutes for the same QR/email.
+      const recentPendingScan = await QRCodeScan.findOne({
+        qrId,
+        scannedByEmail: email.toLowerCase(),
+        scannedByUser: null,
+        status: "pending",
+        createdAt: { $gt: new Date(Date.now() - 5 * 60 * 1000) },
+      });
+      if (recentPendingScan) {
+        return res.status(202).json({
+          status: "pending",
+          message:
+            "A pending claim already exists for this email. Create an account to claim your points.",
+          data: {
+            scanId: recentPendingScan._id,
+            email: email.toLowerCase(),
+            pointsToEarn: location.qrCode.pointsValue,
+            locationId: location.locationId,
+            subdomain: location.subdomain || null,
+            signupUrl,
+          },
+        });
+      }
 
       // User doesn't exist - create a pending scan record
       const pendingScan = new QRCodeScan({
@@ -572,6 +602,91 @@ export const toggleQRCodeStatus = async (req, res, next) => {
   } catch (error) {
     console.error("Error toggling QR code status:", error);
     next(createError(500, "Failed to toggle QR code status"));
+  }
+};
+
+// Update QR code ID for a location
+export const updateQRCodeId = async (req, res, next) => {
+  try {
+    const { locationId } = req.params;
+    const { qrId } = req.body;
+    const adminUser = req.user;
+
+    if (!["admin", "super-admin"].includes(adminUser.role)) {
+      return next(createError(403, "Only admins can manage QR codes"));
+    }
+
+    const normalizedQrId = normalizeCustomQRId(qrId);
+
+    if (!normalizedQrId) {
+      return next(createError(400, "QR ID is required"));
+    }
+
+    if (!/^[A-Z0-9_-]{6,80}$/.test(normalizedQrId)) {
+      return next(
+        createError(
+          400,
+          "QR ID must be 6-80 characters and contain only letters, numbers, '_' or '-'"
+        )
+      );
+    }
+
+    const location = await Location.findById(locationId);
+    if (!location) {
+      return next(createError(404, "Location not found"));
+    }
+
+    if (!location.qrCode?.qrId) {
+      return next(createError(404, "QR code not found. Generate one first."));
+    }
+
+    const existingLocationWithQrId = await Location.findOne({
+      _id: { $ne: location._id },
+      "qrCode.qrId": normalizedQrId,
+    }).select("_id name locationId");
+
+    if (existingLocationWithQrId) {
+      return next(createError(409, "This QR ID is already in use"));
+    }
+
+    const previousQrId = location.qrCode.qrId;
+    location.qrCode.qrId = normalizedQrId;
+
+    // Keep qrData in sync with the updated QR ID.
+    try {
+      const parsed = location.qrCode?.qrData
+        ? JSON.parse(location.qrCode.qrData)
+        : {};
+      location.qrCode.qrData = JSON.stringify({
+        ...parsed,
+        qrId: normalizedQrId,
+        locationId: location.locationId,
+        locationName: location.name,
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      location.qrCode.qrData = JSON.stringify({
+        qrId: normalizedQrId,
+        locationId: location.locationId,
+        locationName: location.name,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    await location.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "QR ID updated successfully",
+      data: {
+        previousQrId,
+        qrId: location.qrCode.qrId,
+        locationId: location.locationId,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating QR ID:", error);
+    next(createError(500, "Failed to update QR ID"));
   }
 };
 

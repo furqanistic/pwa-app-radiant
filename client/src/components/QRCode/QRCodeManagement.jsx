@@ -5,6 +5,7 @@ import {
     Check,
     Copy,
     Download,
+    Edit2,
     Eye,
     EyeOff,
     Loader2,
@@ -25,6 +26,21 @@ const QRCodeManagement = ({ locationId, locationName }) => {
   const [qrImage, setQrImage] = useState(null);
   const [stats, setStats] = useState(null);
   const [copiedQRId, setCopiedQRId] = useState(false);
+  const [isEditingQRId, setIsEditingQRId] = useState(false);
+  const [newQrId, setNewQrId] = useState("");
+  const [updatingQRId, setUpdatingQRId] = useState(false);
+
+  const generateQrImageForId = async (qrId) => {
+    const claimUrl = `${FRONTEND_URL}/claim-reward?qrId=${qrId}`;
+    return QRCodeLib.toDataURL(claimUrl, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF",
+      },
+    });
+  };
 
   // Fetch QR code details
   const fetchQRCode = async () => {
@@ -33,18 +49,11 @@ const QRCodeManagement = ({ locationId, locationName }) => {
       const response = await qrCodeService.getLocationQRCode(locationId);
       if (response.status === "success") {
         setQrCode(response.data);
+        setNewQrId(response.data?.qrId || "");
 
         // Generate QR code image
         if (response.data.qrData) {
-          const claimUrl = `${FRONTEND_URL}/claim-reward?qrId=${response.data.qrId}`;
-          const image = await QRCodeLib.toDataURL(claimUrl, {
-            width: 300,
-            margin: 2,
-            color: {
-              dark: "#000000",
-              light: "#FFFFFF",
-            },
-          });
+          const image = await generateQrImageForId(response.data.qrId);
           setQrImage(image);
         }
       }
@@ -79,13 +88,10 @@ const QRCodeManagement = ({ locationId, locationName }) => {
       const response = await qrCodeService.generateQRCode(locationId);
       if (response.status === "success") {
         setQrCode(response.data);
+        setNewQrId(response.data?.qrId || "");
 
         // Generate QR code image
-        const claimUrl = `${FRONTEND_URL}/claim-reward?qrId=${response.data.qrId}`;
-        const image = await QRCodeLib.toDataURL(claimUrl, {
-          width: 300,
-          margin: 2,
-        });
+        const image = await generateQrImageForId(response.data.qrId);
         setQrImage(image);
 
         toast.success("QR code generated successfully!");
@@ -151,6 +157,43 @@ const QRCodeManagement = ({ locationId, locationName }) => {
     setTimeout(() => {
       setCopiedQRId(false);
     }, 2000);
+  };
+
+  const handleSaveQrId = async () => {
+    const candidateQrId = `${newQrId || ""}`.trim().toUpperCase();
+    if (!candidateQrId) {
+      toast.error("Please enter a QR ID");
+      return;
+    }
+
+    if (!/^[A-Z0-9_-]{6,80}$/.test(candidateQrId)) {
+      toast.error("QR ID must be 6-80 chars: A-Z, 0-9, '_' or '-'");
+      return;
+    }
+
+    if (candidateQrId === qrCode?.qrId) {
+      setIsEditingQRId(false);
+      return;
+    }
+
+    setUpdatingQRId(true);
+    try {
+      const response = await qrCodeService.updateQRCodeId(locationId, candidateQrId);
+      if (response.status === "success") {
+        const updatedQrId = response.data?.qrId || candidateQrId;
+        setQrCode((prev) => (prev ? { ...prev, qrId: updatedQrId } : prev));
+        setNewQrId(updatedQrId);
+        const image = await generateQrImageForId(updatedQrId);
+        setQrImage(image);
+        setIsEditingQRId(false);
+        toast.success("QR ID updated successfully");
+        fetchStats();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update QR ID");
+    } finally {
+      setUpdatingQRId(false);
+    }
   };
 
   useEffect(() => {
@@ -233,7 +276,56 @@ const QRCodeManagement = ({ locationId, locationName }) => {
                     >
                       {copiedQRId ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </button>
+                    {!isEditingQRId && (
+                      <button
+                        onClick={() => {
+                          setIsEditingQRId(true);
+                          setNewQrId(qrCode?.qrId || "");
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all bg-pink-50 text-pink-700 hover:bg-pink-100 text-[11px] font-bold"
+                        title="Edit QR ID"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        Edit ID
+                      </button>
+                    )}
                   </div>
+
+                  {isEditingQRId && (
+                    <div className="mt-2 space-y-2">
+                      <input
+                        value={newQrId}
+                        onChange={(e) => setNewQrId(e.target.value.toUpperCase())}
+                        placeholder="Enter new QR ID"
+                        maxLength={80}
+                        className="w-full px-3 py-2 text-xs md:text-sm font-mono border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-300"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleSaveQrId}
+                          disabled={updatingQRId}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-600 text-white text-xs font-bold hover:bg-pink-700 disabled:opacity-60"
+                        >
+                          {updatingQRId ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                          Save ID
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsEditingQRId(false);
+                            setNewQrId(qrCode?.qrId || "");
+                          }}
+                          disabled={updatingQRId}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
               </div>
 
               <div className="flex items-center justify-between bg-yellow-50/50 px-4 py-3 rounded-2xl border border-yellow-100/50">

@@ -9,6 +9,7 @@ import {
   resolveQRCodeLocation,
   scanQRCode,
   toggleQRCodeStatus,
+  updateQRCodeId,
 } from "../controller/qrCode.js";
 import {
   requireAdminOrAbove,
@@ -47,6 +48,14 @@ router.patch(
   verifyToken,
   requireAdminOrAbove,
   toggleQRCodeStatus
+);
+
+// ADMIN ONLY: Update QR ID
+router.patch(
+  "/:locationId/qr-id",
+  verifyToken,
+  requireAdminOrAbove,
+  updateQRCodeId
 );
 
 // ADMIN ONLY: Get all QR codes
