@@ -1862,7 +1862,9 @@ export const createCheckoutSession = async (req, res, next) => {
       items,
       locationId: cartLocationId,
       userRewardId: cartUserRewardId,
+      checkoutUiMode,
     } = req.body
+    const useEmbeddedCheckout = `${checkoutUiMode || ''}`.trim().toLowerCase() === 'embedded'
     console.log(customerId)
     // Check if this is a cart checkout (multiple items) or single service
     const isCartCheckout = Array.isArray(items) && items.length > 0
@@ -2091,12 +2093,10 @@ export const createCheckoutSession = async (req, res, next) => {
       const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
       const cancelUrl = `${process.env.CLIENT_URL}/cart`
 
-      const session = await stripe.checkout.sessions.create({
+      const checkoutSessionPayload = {
         payment_method_types: ['card', 'afterpay_clearpay'],
         line_items: lineItems,
         mode: 'payment',
-        success_url: successUrl,
-        cancel_url: cancelUrl,
         customer_email: req.user.email,
         payment_intent_data: {
           transfer_data: {
@@ -2116,7 +2116,18 @@ export const createCheckoutSession = async (req, res, next) => {
           userRewardId: cartUserRewardId || '',
           isCartCheckout: 'true',
         },
-      })
+      }
+
+      if (useEmbeddedCheckout) {
+        checkoutSessionPayload.ui_mode = 'embedded'
+        checkoutSessionPayload.return_url = successUrl
+        checkoutSessionPayload.redirect_on_completion = 'always'
+      } else {
+        checkoutSessionPayload.success_url = successUrl
+        checkoutSessionPayload.cancel_url = cancelUrl
+      }
+
+      const session = await stripe.checkout.sessions.create(checkoutSessionPayload)
 
       // Update bookings with session ID
       await Promise.all(
@@ -2128,8 +2139,10 @@ export const createCheckoutSession = async (req, res, next) => {
 
       return res.status(201).json({
         success: true,
+        checkoutMode: useEmbeddedCheckout ? 'embedded' : 'hosted',
         sessionId: session.id,
-        sessionUrl: session.url,
+        sessionUrl: session.url || null,
+        clientSecret: session.client_secret || null,
         bookingIds: bookings.map((b) => b._id),
       })
     }
@@ -2293,7 +2306,7 @@ export const createCheckoutSession = async (req, res, next) => {
     const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${process.env.CLIENT_URL}/services/${serviceId}`
 
-    const session = await stripe.checkout.sessions.create({
+    const checkoutSessionPayload = {
       payment_method_types: ['card', 'afterpay_clearpay'],
       line_items: [
         {
@@ -2312,8 +2325,6 @@ export const createCheckoutSession = async (req, res, next) => {
         },
       ],
       mode: 'payment',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
       customer_email: req.user.email,
       payment_intent_data: {
         transfer_data: {
@@ -2334,7 +2345,18 @@ export const createCheckoutSession = async (req, res, next) => {
         serviceId: serviceId.toString(),
         userRewardId: resolvedRewardUsed || '',
       },
-    })
+    }
+
+    if (useEmbeddedCheckout) {
+      checkoutSessionPayload.ui_mode = 'embedded'
+      checkoutSessionPayload.return_url = successUrl
+      checkoutSessionPayload.redirect_on_completion = 'always'
+    } else {
+      checkoutSessionPayload.success_url = successUrl
+      checkoutSessionPayload.cancel_url = cancelUrl
+    }
+
+    const session = await stripe.checkout.sessions.create(checkoutSessionPayload)
 
     // Update booking with session ID
     booking.stripeSessionId = session.id
@@ -2342,8 +2364,10 @@ export const createCheckoutSession = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
+      checkoutMode: useEmbeddedCheckout ? 'embedded' : 'hosted',
       sessionId: session.id,
-      sessionUrl: session.url,
+      sessionUrl: session.url || null,
+      clientSecret: session.client_secret || null,
       bookingId: booking._id,
     })
   } catch (error) {
@@ -2358,7 +2382,8 @@ export const createCheckoutSession = async (req, res, next) => {
 export const createMembershipCheckoutSession = async (req, res, next) => {
   try {
     const customerId = req.user.id
-    const { serviceId, locationId, planId, planName } = req.body
+    const { serviceId, locationId, planId, planName, checkoutUiMode } = req.body
+    const useEmbeddedCheckout = `${checkoutUiMode || ''}`.trim().toLowerCase() === 'embedded'
 
     if (!serviceId || !locationId) {
       return next(createError(400, 'serviceId and locationId are required'))
@@ -2461,7 +2486,7 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
     const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${process.env.CLIENT_URL}/membership`
 
-    const session = await stripe.checkout.sessions.create({
+    const checkoutSessionPayload = {
       payment_method_types: ['card', 'afterpay_clearpay'],
       line_items: [
         {
@@ -2477,8 +2502,6 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
         },
       ],
       mode: 'payment',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
       customer_email: req.user.email,
       payment_intent_data: {
         transfer_data: {
@@ -2505,12 +2528,25 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
         planPrice: `${resolvedAmountDollars}`,
         isMembershipCheckout: 'true',
       },
-    })
+    }
+
+    if (useEmbeddedCheckout) {
+      checkoutSessionPayload.ui_mode = 'embedded'
+      checkoutSessionPayload.return_url = successUrl
+      checkoutSessionPayload.redirect_on_completion = 'always'
+    } else {
+      checkoutSessionPayload.success_url = successUrl
+      checkoutSessionPayload.cancel_url = cancelUrl
+    }
+
+    const session = await stripe.checkout.sessions.create(checkoutSessionPayload)
 
     res.status(201).json({
       success: true,
+      checkoutMode: useEmbeddedCheckout ? 'embedded' : 'hosted',
       sessionId: session.id,
-      sessionUrl: session.url,
+      sessionUrl: session.url || null,
+      clientSecret: session.client_secret || null,
     })
   } catch (error) {
     console.error('Error creating membership checkout session:', error)

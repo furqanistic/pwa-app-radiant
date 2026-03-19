@@ -1,4 +1,15 @@
 import BNPLBanner from '@/components/Common/BNPLBanner'
+import MembershipAddCardDialog from '@/components/Membership/MembershipAddCardDialog'
+import EmbeddedStripeCheckoutDialog from '@/components/Stripe/EmbeddedStripeCheckoutDialog'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import Layout from '@/pages/Layout/Layout'
 import {
     ArrowLeft,
@@ -60,6 +71,11 @@ const CartPage = () => {
   const toastError = (message, options = {}) =>
     toast.error(message, { ...toastStyle, ...options })
   const [isProcessing, setIsProcessing] = useState(false)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState('')
+  const [checkoutError, setCheckoutError] = useState('')
+  const [cardRecommendationOpen, setCardRecommendationOpen] = useState(false)
+  const [addCardDialogOpen, setAddCardDialogOpen] = useState(false)
   const [availableRewards, setAvailableRewards] = useState([])
   const [selectedReward, setSelectedReward] = useState(null)
   const [hasManualRewardOverride, setHasManualRewardOverride] = useState(false)
@@ -171,7 +187,17 @@ const CartPage = () => {
     }
   }
 
-  const handleCheckout = async () => {
+  const shouldRecommendAddingCard = async (locationId) => {
+    try {
+      const billing = await stripeService.getMembershipBillingSummary(locationId)
+      return !billing?.summary?.hasPaymentMethod
+    } catch (error) {
+      console.error('Unable to fetch card status before checkout:', error)
+      return false
+    }
+  }
+
+  const handleCheckout = async ({ skipCardRecommendation = false } = {}) => {
     if (!currentUser?.selectedLocation?.locationId) {
       toastError('Please select a spa location first')
       return
@@ -180,6 +206,16 @@ const CartPage = () => {
     if (items.length === 0) {
       toastError('Your cart is empty')
       return
+    }
+
+    if (!skipCardRecommendation) {
+      const noSavedCard = await shouldRecommendAddingCard(
+        currentUser.selectedLocation.locationId
+      )
+      if (noSavedCard) {
+        setCardRecommendationOpen(true)
+        return
+      }
     }
 
     setIsProcessing(true)
@@ -204,21 +240,28 @@ const CartPage = () => {
         items: cartItems,
         locationId: currentUser.selectedLocation.locationId,
         userRewardId: selectedReward?._id,
+        checkoutUiMode: 'embedded',
       })
 
-      if (response.success && response.sessionUrl) {
-        // Redirect to Stripe Checkout
+      if (response.success && response.clientSecret) {
+        setCheckoutClientSecret(response.clientSecret)
+        setCheckoutError('')
+        setCheckoutOpen(true)
+      } else if (response.success && response.sessionUrl) {
         window.location.href = response.sessionUrl
       } else {
-        toastError('Failed to create payment session')
-        setIsProcessing(false)
+        const message = response?.message || 'Failed to create payment session'
+        setCheckoutError(message)
+        toastError(message)
       }
     } catch (error) {
       console.error('Error creating checkout session:', error)
-      toastError(
+      const message =
         error.response?.data?.message ||
           'Failed to process checkout. Please try again.'
-      )
+      toastError(message)
+      setCheckoutError(message)
+    } finally {
       setIsProcessing(false)
     }
   }
@@ -491,18 +534,74 @@ const CartPage = () => {
                   </>
                 )}
               </button>
-
-              <div className='bg-blue-50 rounded-lg p-4'>
-                <p className='text-xs text-blue-800'>
-                  <strong>Note:</strong> You'll be redirected to a secure
-                  payment page. All bookings will be confirmed after successful
-                  payment.
-                </p>
-              </div>
+              <button
+                onClick={() => setAddCardDialogOpen(true)}
+                className='w-full h-10 rounded-lg border border-gray-200/70 bg-white text-gray-800 font-semibold hover:bg-gray-50 transition-colors'
+              >
+                Add Card (Recommended)
+              </button>
             </div>
           </div>
         </div>
       </div>
+      <EmbeddedStripeCheckoutDialog
+        open={checkoutOpen}
+        onOpenChange={(nextOpen) => {
+          setCheckoutOpen(nextOpen)
+          if (!nextOpen) {
+            setCheckoutClientSecret('')
+            setCheckoutError('')
+          }
+        }}
+        clientSecret={checkoutClientSecret}
+        loading={isProcessing}
+        errorMessage={checkoutError}
+        onRetry={handleCheckout}
+        title='Cart Checkout'
+        description='Complete your payment.'
+      />
+      <Dialog
+        open={cardRecommendationOpen}
+        onOpenChange={setCardRecommendationOpen}
+      >
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Add Card for Faster Checkout</DialogTitle>
+            <DialogDescription>
+              Adding a card is recommended for faster future purchases. You can
+              still continue to checkout right now.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={async () => {
+                setCardRecommendationOpen(false)
+                await handleCheckout({ skipCardRecommendation: true })
+              }}
+            >
+              Continue to Checkout
+            </Button>
+            <Button
+              onClick={() => {
+                setCardRecommendationOpen(false)
+                setAddCardDialogOpen(true)
+              }}
+            >
+              Add Card (Recommended)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <MembershipAddCardDialog
+        open={addCardDialogOpen}
+        onOpenChange={setAddCardDialogOpen}
+        locationId={currentUser?.selectedLocation?.locationId || null}
+        onSuccess={async () => {
+          setAddCardDialogOpen(false)
+          await handleCheckout({ skipCardRecommendation: true })
+        }}
+      />
     </Layout>
   )
 }

@@ -332,7 +332,6 @@ const AuthPage = () => {
       if (data.token) {
         localStorage.setItem('token', data.token)
       }
-      localStorage.setItem('lastActivity', `${Date.now()}`)
       dispatch(loginSuccess(data))
       const role = getRoleFromAuthPayload(data)
 
@@ -358,7 +357,6 @@ const AuthPage = () => {
           setLocalError(errorMessage)
           dispatch(loginFailure(errorMessage))
           localStorage.removeItem('token')
-          localStorage.removeItem('lastActivity')
           return
         }
       }
@@ -391,7 +389,6 @@ const AuthPage = () => {
       if (data.token) {
         localStorage.setItem('token', data.token)
       }
-      localStorage.setItem('lastActivity', `${Date.now()}`)
       dispatch(loginSuccess(data))
       const role = getRoleFromAuthPayload(data)
 
@@ -417,7 +414,6 @@ const AuthPage = () => {
           setLocalError(errorMessage)
           dispatch(loginFailure(errorMessage))
           localStorage.removeItem('token')
-          localStorage.removeItem('lastActivity')
           return
         }
       }

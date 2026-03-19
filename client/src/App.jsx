@@ -272,14 +272,6 @@ const App = () => {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const lastActivity = parseInt(localStorage.getItem('lastActivity') || '0', 10)
-    const maxIdleMs = 30 * 24 * 60 * 60 * 1000
-    if (lastActivity && Date.now() - lastActivity > maxIdleMs) {
-      dispatch(logout())
-      localStorage.removeItem('token')
-      return
-    }
-
     const fetchCurrentUser = async ({ forceRefresh = false } = {}) => {
       if (syncInFlightRef.current) return
       if (
@@ -299,11 +291,9 @@ const App = () => {
 
           // Avoid unnecessary store writes when server payload hasn't changed.
           if (currentSignature === nextSignature) {
-            localStorage.setItem('lastActivity', `${Date.now()}`)
             return
           }
           dispatch(loginSuccess({ data: { user }, token }))
-          localStorage.setItem('lastActivity', `${Date.now()}`)
         }
       } catch (error) {
         dispatch(loginFailure(error.response?.data?.message || 'Session expired'))
@@ -343,26 +333,6 @@ const App = () => {
       }
     }
   }, [currentUser?._id, dispatch])
-
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) return
-
-    const refreshActivity = () => {
-      localStorage.setItem('lastActivity', `${Date.now()}`)
-    }
-
-    refreshActivity()
-
-    const events = ['click', 'keydown', 'touchstart', 'scroll', 'mousemove']
-    events.forEach((event) => window.addEventListener(event, refreshActivity, { passive: true }))
-    document.addEventListener('visibilitychange', refreshActivity)
-
-    return () => {
-      events.forEach((event) => window.removeEventListener(event, refreshActivity))
-      document.removeEventListener('visibilitychange', refreshActivity)
-    }
-  }, [])
 
   // PWA setup (keep existing code)
   useEffect(() => {

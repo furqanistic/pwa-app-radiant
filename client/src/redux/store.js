@@ -18,9 +18,17 @@ const persistConfig = {
   key: 'radiant-root',
   version: 1,
   storage,
+  whitelist: ['user', 'cart'],
 }
+
+const userPersistConfig = {
+  key: 'user',
+  storage,
+  blacklist: ['loading', 'error', 'previousPoints'],
+}
+
 const rootReducer = combineReducers({
-  user: userReducer,
+  user: persistReducer(userPersistConfig, userReducer),
   cart: cartReducer,
 })
 const persistedReducer = persistReducer(persistConfig, rootReducer)

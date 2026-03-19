@@ -9,6 +9,12 @@ const initialState = {
   previousPoints: null, // For rollback functionality
 }
 
+const resolveTokenFromPayload = (payload) =>
+  payload?.token ||
+  payload?.data?.token ||
+  payload?.user?.token ||
+  null
+
 export const userSlice = createSlice({
   name: 'user',
   initialState,
@@ -20,19 +26,20 @@ export const userSlice = createSlice({
     loginSuccess: (state, action) => {
       state.loading = false
       state.error = false
+      const nextToken = resolveTokenFromPayload(action.payload)
       // Handle different payload structures with defensive checks
       if (action.payload?.data?.user) {
         state.currentUser = action.payload.data.user
-        state.token = action.payload.token || action.payload.data.token
+        state.token = nextToken
       } else if (action.payload?.user) {
         state.currentUser = action.payload.user
-        state.token = action.payload.token
+        state.token = nextToken
       } else if (action.payload?.data) {
         state.currentUser = action.payload.data
-        state.token = action.payload.token
+        state.token = nextToken
       } else {
         state.currentUser = action.payload
-        state.token = action.payload?.token || null
+        state.token = nextToken
       }
       // Reset previous points on login
       state.previousPoints = null
@@ -55,6 +62,7 @@ export const userSlice = createSlice({
     },
     logout: (state) => {
       localStorage.removeItem('token')
+      sessionStorage.removeItem('token')
       return initialState
     },
 

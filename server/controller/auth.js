@@ -17,6 +17,13 @@ const signToken = (id) => {
   if (!jwtSecret) {
     throw new Error('JWT_SECRET is not defined in the environment variables')
   }
+
+  const useExpiringSessions =
+    String(process.env.JWT_USE_EXPIRY || '').toLowerCase() === 'true'
+  if (!useExpiringSessions) {
+    return jwt.sign({ id }, jwtSecret)
+  }
+
   return jwt.sign({ id }, jwtSecret, {
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   })
@@ -25,15 +32,14 @@ const signToken = (id) => {
 const createSendToken = (user, statusCode, res) => {
   try {
     const token = signToken(user._id)
+    const useExpiringSessions =
+      String(process.env.JWT_USE_EXPIRY || '').toLowerCase() === 'true'
+    const cookieExpiryDays = useExpiringSessions
+      ? parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10) || 1
+      : 36500 // ~100 years to behave like "stay logged in"
+
     const cookieOptions = {
-      expires: new Date(
-        Date.now() +
-          (parseInt(process.env.JWT_COOKIE_EXPIRES_IN) || 1) *
-            24 *
-            60 *
-            60 *
-            1000
-      ),
+      expires: new Date(Date.now() + cookieExpiryDays * 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
     }

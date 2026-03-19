@@ -35,8 +35,11 @@ const MembershipBillingSection = ({
   onMakeDefault,
   onRemoveCard,
   onOpenInvoicePortal,
+  cardDialogOpen: controlledCardDialogOpen,
+  onCardDialogOpenChange,
+  onCardAdded,
 }) => {
-  const [cardDialogOpen, setCardDialogOpen] = useState(false)
+  const [uncontrolledCardDialogOpen, setUncontrolledCardDialogOpen] = useState(false)
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false)
   const [makingDefaultId, setMakingDefaultId] = useState(null)
   const [removingCardId, setRemovingCardId] = useState(null)
@@ -50,6 +53,17 @@ const MembershipBillingSection = ({
   const membershipStatus = `${membership?.status || subscription?.status || 'inactive'}`
     .trim()
     .toLowerCase()
+  const cardDialogOpen =
+    typeof controlledCardDialogOpen === 'boolean'
+      ? controlledCardDialogOpen
+      : uncontrolledCardDialogOpen
+  const setCardDialogOpen = (nextOpen) => {
+    if (typeof onCardDialogOpenChange === 'function') {
+      onCardDialogOpenChange(nextOpen)
+      return
+    }
+    setUncontrolledCardDialogOpen(nextOpen)
+  }
 
   const defaultCardLabel = useMemo(() => {
     if (!summary?.defaultPaymentMethod?.last4) return 'No card saved'
@@ -289,7 +303,10 @@ const MembershipBillingSection = ({
         open={cardDialogOpen}
         onOpenChange={setCardDialogOpen}
         locationId={locationId}
-        onSuccess={onRefresh}
+        onSuccess={async () => {
+          await onRefresh?.()
+          await onCardAdded?.()
+        }}
       />
 
       <MembershipInvoicesDialog

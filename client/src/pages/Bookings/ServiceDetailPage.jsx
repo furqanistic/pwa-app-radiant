@@ -2,6 +2,17 @@
 // ✅ FIXED: Booked times + Cart duplicate prevention
 
 import BNPLBanner from "@/components/Common/BNPLBanner";
+import MembershipAddCardDialog from "@/components/Membership/MembershipAddCardDialog";
+import EmbeddedStripeCheckoutDialog from "@/components/Stripe/EmbeddedStripeCheckoutDialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useBranding } from '@/context/BrandingContext';
 import { useAvailability } from "@/hooks/useAvailability";
 import { useUserRewards } from "@/hooks/useRewards";
@@ -21,6 +32,7 @@ import {
   MapPin,
   Percent,
   Plus,
+  CreditCard,
   Star,
   User,
   X,
@@ -382,6 +394,11 @@ const ServiceDetailPage = () => {
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedAddOns, setSelectedAddOns] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutClientSecret, setCheckoutClientSecret] = useState("");
+  const [checkoutError, setCheckoutError] = useState("");
+  const [cardRecommendationOpen, setCardRecommendationOpen] = useState(false);
+  const [addCardDialogOpen, setAddCardDialogOpen] = useState(false);
 
   const {
     data: service,
@@ -790,7 +807,17 @@ const ServiceDetailPage = () => {
     // Don't reset treatment if it's the main choice user made
   };
 
-  const handleBooking = async () => {
+  const shouldRecommendAddingCard = async (locationId) => {
+    try {
+      const billing = await stripeService.getMembershipBillingSummary(locationId);
+      return !billing?.summary?.hasPaymentMethod;
+    } catch (error) {
+      console.error("Unable to fetch card status before booking checkout:", error);
+      return false;
+    }
+  };
+
+  const handleBooking = async ({ skipCardRecommendation = false } = {}) => {
     if ((service.subTreatments?.length > 0) && selectedTreatments.length === 0) {
       toastError("Please select at least one treatment option");
 
@@ -808,6 +835,14 @@ const ServiceDetailPage = () => {
     if (!activeLocationId) {
       toastError("Please select a spa location first");
       return;
+    }
+
+    if (!skipCardRecommendation) {
+      const noSavedCard = await shouldRecommendAddingCard(activeLocationId);
+      if (noSavedCard) {
+        setCardRecommendationOpen(true);
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -849,23 +884,31 @@ const ServiceDetailPage = () => {
         })),
         totalPrice: calculateTotalPrice(),
         isBirthdayGift: isBirthdayGift,
-        notificationId: birthdayNotificationId
+        notificationId: birthdayNotificationId,
+        checkoutUiMode: "embedded",
       };
 
       const response = await stripeService.createCheckoutSession(bookingData);
 
-      if (response.success && response.sessionUrl) {
+      if (response.success && response.clientSecret) {
+        setCheckoutClientSecret(response.clientSecret);
+        setCheckoutError("");
+        setCheckoutOpen(true);
+      } else if (response.success && response.sessionUrl) {
         window.location.href = response.sessionUrl;
       } else {
-        toastError("Failed to create payment session");
-        setIsProcessing(false);
+        const message = response?.message || "Failed to create payment session";
+        setCheckoutError(message);
+        toastError(message);
       }
     } catch (error) {
       console.error("Error creating checkout session:", error);
-      toastError(
+      const message =
         error.response?.data?.message ||
-          "Failed to process booking. Please try again."
-      );
+          "Failed to process booking. Please try again.";
+      setCheckoutError(message);
+      toastError(message);
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -1442,6 +1485,12 @@ const ServiceDetailPage = () => {
                             {isProcessing ? "Processing..." : "Book Now"}
                           </button>
                           <button
+                            onClick={() => setAddCardDialogOpen(true)}
+                            className="w-full py-3 bg-white border border-gray-200/70 text-gray-800 rounded-xl font-semibold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                          >
+                            <CreditCard className="w-4 h-4" /> Add Card (Recommended)
+                          </button>
+                          <button
                             onClick={handleAddToCart}
                             className="w-full py-3.5 bg-white border border-gray-200/70 text-gray-900 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-200/70 transition-all flex items-center justify-center gap-2"
                           >
@@ -1497,6 +1546,13 @@ const ServiceDetailPage = () => {
                       <Plus className="w-6 h-6" />
                    </button>
                    <button
+                      onClick={() => setAddCardDialogOpen(true)}
+                      className="p-3.5 rounded-xl border border-gray-200/70 text-gray-600 hover:bg-gray-50 transition-colors"
+                      aria-label="Add card"
+                   >
+                      <CreditCard className="w-6 h-6" />
+                   </button>
+                   <button
                       onClick={handleBooking}
                       disabled={isProcessing}
                       className="px-6 py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] disabled:opacity-50"
@@ -1515,6 +1571,64 @@ const ServiceDetailPage = () => {
          </div>
          {/* Safe area is handled by padding-bottom now, removed separate spacer div to avoid double spacing if any */}
       </div>
+      <EmbeddedStripeCheckoutDialog
+        open={checkoutOpen}
+        onOpenChange={(nextOpen) => {
+          setCheckoutOpen(nextOpen);
+          if (!nextOpen) {
+            setCheckoutClientSecret("");
+            setCheckoutError("");
+          }
+        }}
+        clientSecret={checkoutClientSecret}
+        loading={isProcessing}
+        errorMessage={checkoutError}
+        onRetry={handleBooking}
+        title="Booking Checkout"
+        description="Complete your payment."
+      />
+      <Dialog
+        open={cardRecommendationOpen}
+        onOpenChange={setCardRecommendationOpen}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Card for Faster Checkout</DialogTitle>
+            <DialogDescription>
+              Adding a card is recommended for faster future purchases. You can
+              still continue to checkout now.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                setCardRecommendationOpen(false);
+                await handleBooking({ skipCardRecommendation: true });
+              }}
+            >
+              Continue to Checkout
+            </Button>
+            <Button
+              onClick={() => {
+                setCardRecommendationOpen(false);
+                setAddCardDialogOpen(true);
+              }}
+            >
+              Add Card (Recommended)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <MembershipAddCardDialog
+        open={addCardDialogOpen}
+        onOpenChange={setAddCardDialogOpen}
+        locationId={activeLocationId || null}
+        onSuccess={async () => {
+          setAddCardDialogOpen(false);
+          await handleBooking({ skipCardRecommendation: true });
+        }}
+      />
     </Layout>
   );
 };
