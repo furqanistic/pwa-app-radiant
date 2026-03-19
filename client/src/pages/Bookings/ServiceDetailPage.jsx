@@ -1725,27 +1725,27 @@ const ServiceDetailPage = () => {
       </div>
 
       {/* MOBILE STICKY BOTTOM BAR */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200/70 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-[60] pb-[calc(1rem+env(safe-area-inset-bottom))]">
-         <div className="flex items-center gap-4 max-w-lg mx-auto">
-            <div className="flex-1">
-               {hasMemberDeal && (
-                 <div className="mb-1.5 rounded-lg bg-emerald-50 px-2 py-1.5">
-                   <div className="flex items-center justify-between">
-                     <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Member Price</span>
-                     <span className="text-sm font-black text-emerald-700">{formatPrice(memberDealPrice)}</span>
-                   </div>
-                 </div>
-               )}
-               <div className="text-xs text-gray-500 font-medium mb-0.5">Total for {totalDuration} min</div>
-               <div className="text-2xl font-bold text-gray-900 leading-none">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[60] border-t border-slate-200/80 bg-white/95 p-3 shadow-[0_-10px_28px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/85 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+         <div className="mx-auto grid max-w-lg grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-3">
+            {hasMemberDeal && (
+              <div className="col-span-2 rounded-xl bg-emerald-50 px-4 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Member Price</span>
+                  <span className="text-[2rem] font-black leading-none text-emerald-700">{formatPrice(memberDealPrice)}</span>
+                </div>
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+               <div className="mb-0.5 text-xs font-medium text-slate-500">Total for {totalDuration} min</div>
+               <div className="text-[1.9rem] font-black leading-none tracking-tight text-slate-900">
                   ${totalPrice.toFixed(2)}
                </div>
             </div>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-[3rem_3rem_minmax(0,1fr)] items-stretch gap-2">
                {hasGhlBooking ? (
                  <button
                     onClick={handleOpenGhlBooking}
-                    className="px-6 py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25]"
+                    className="col-span-3 h-12 w-full rounded-xl bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] px-5 text-[15px] font-bold text-white shadow-lg shadow-[color:var(--brand-primary)/0.25] transition-transform active:scale-[0.98]"
                  >
                     {hasEmbeddedGhlBooking ? "Book in GHL" : "Open Booking"}
                  </button>
@@ -1753,24 +1753,25 @@ const ServiceDetailPage = () => {
                  <>
                    <button
                       onClick={handleAddToCart}
-                       className="p-3.5 rounded-xl border border-gray-200/70 text-gray-600 hover:bg-gray-50 transition-colors"
+                       className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 active:scale-[0.98]"
+                      aria-label="Add to cart"
                    >
-                      <Plus className="w-6 h-6" />
+                      <Plus className="mx-auto h-5 w-5" />
                    </button>
                    <button
                       onClick={() => setAddCardDialogOpen(true)}
-                      className="p-3.5 rounded-xl border border-gray-200/70 text-gray-600 hover:bg-gray-50 transition-colors"
+                      className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 active:scale-[0.98]"
                       aria-label="Add card"
                    >
-                      <CreditCard className="w-6 h-6" />
+                      <CreditCard className="mx-auto h-5 w-5" />
                    </button>
                    <button
                       onClick={handleBooking}
                       disabled={isProcessing}
-                      className="px-6 py-3.5 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl font-bold shadow-lg shadow-[color:var(--brand-primary)/0.25] disabled:opacity-50"
+                      className="h-12 w-full rounded-xl bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] px-5 text-[15px] font-bold text-white shadow-lg shadow-[color:var(--brand-primary)/0.25] transition-transform active:scale-[0.98] disabled:opacity-50"
                    >
                       {isProcessing ? (
-                         <span className="flex items-center gap-2">
+                         <span className="flex items-center justify-center gap-2">
                             <div className="w-4 h-4 border border-white/30 border-t-white rounded-full animate-spin" />
                          </span>
                       ) : (
