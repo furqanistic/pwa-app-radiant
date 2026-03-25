@@ -39,6 +39,8 @@ export const authService = {
       locationId: params.locationId || '', // Filter by location
       sortBy: params.sortBy || 'createdAt',
       sortOrder: params.sortOrder || 'desc',
+      excludeTestUsers: params.excludeTestUsers ? 'true' : 'false',
+      excludeEmailDomain: params.excludeEmailDomain || '',
     }).toString()
 
     const response = await axiosInstance.get(`/auth/all-users?${queryParams}`)

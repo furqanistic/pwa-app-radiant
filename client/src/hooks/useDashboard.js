@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 // Dashboard query keys
 export const dashboardQueryKeys = {
   all: ['dashboard'],
-  data: () => [...dashboardQueryKeys.all, 'data'],
+  data: (filters = {}) => [...dashboardQueryKeys.all, 'data', { filters }],
   appointments: () => [...dashboardQueryKeys.all, 'appointments'],
   visits: () => [...dashboardQueryKeys.all, 'visits'],
   stats: () => [...dashboardQueryKeys.all, 'stats'],
@@ -13,11 +13,11 @@ export const dashboardQueryKeys = {
 }
 
 // Get complete dashboard data
-export const useDashboardData = (options = {}) => {
+export const useDashboardData = (filters = {}, options = {}) => {
   return useQuery({
-    queryKey: dashboardQueryKeys.data(),
+    queryKey: dashboardQueryKeys.data(filters),
     queryFn: async () => {
-      const response = await dashboardService.getDashboardData()
+      const response = await dashboardService.getDashboardData(filters)
       return response.data
     },
     staleTime: 2 * 60 * 1000, // 2 minutes

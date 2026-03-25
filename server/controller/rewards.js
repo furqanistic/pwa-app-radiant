@@ -8,6 +8,9 @@ import UserReward from '../models/UserReward.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { awardPoints } from '../utils/rewardHelpers.js'
 
+const escapeRegex = (value = '') =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 // Get all rewards with filtering, sorting, and searching
 export const getRewards = async (req, res, next) => {
   try {
@@ -759,6 +762,8 @@ export const getRewardsCatalog = async (req, res, next) => {
       sortBy = 'pointCost-low',
       page = 1,
       limit = 50,
+      excludeTestUsers = 'false',
+      excludeEmailDomain = '',
     } = req.query
 
     const userId = req.user.id
@@ -836,6 +841,68 @@ export const getRewardsCatalog = async (req, res, next) => {
       Reward.countDocuments(filter),
     ])
 
+    const shouldExcludeTestUsers =
+      String(excludeTestUsers).toLowerCase() === 'true'
+    const normalizedExcludedDomain = String(excludeEmailDomain)
+      .trim()
+      .toLowerCase()
+
+    let redeemCountByRewardId = new Map()
+    const rewardIds = rewards.map((reward) => reward?._id).filter(Boolean)
+
+    if (
+      rewardIds.length > 0 &&
+      (shouldExcludeTestUsers || normalizedExcludedDomain)
+    ) {
+      const emailExclusions = []
+
+      if (shouldExcludeTestUsers) {
+        emailExclusions.push({ 'user.email': { $not: /@test/i } })
+      }
+
+      if (normalizedExcludedDomain) {
+        const escapedDomain = escapeRegex(normalizedExcludedDomain)
+        emailExclusions.push({
+          'user.email': { $not: new RegExp(`@${escapedDomain}$`, 'i') },
+        })
+      }
+
+      const groupedCounts = await UserReward.aggregate([
+        {
+          $match: {
+            rewardId: { $in: rewardIds },
+          },
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'userId',
+            foreignField: '_id',
+            as: 'user',
+          },
+        },
+        { $unwind: '$user' },
+        {
+          $match: {
+            $and: [
+              { 'user.email': { $exists: true, $type: 'string' } },
+              ...emailExclusions,
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: '$rewardId',
+            count: { $sum: 1 },
+          },
+        },
+      ])
+
+      redeemCountByRewardId = new Map(
+        groupedCounts.map((item) => [String(item._id), item.count || 0])
+      )
+    }
+
     // Get user's claimed rewards this month for each reward
     const claimCounts = await Promise.all(
       rewards.map((reward) =>
@@ -846,6 +913,10 @@ export const getRewardsCatalog = async (req, res, next) => {
     // Enhance rewards with user-specific data
     const enhancedRewards = rewards.map((reward, index) => ({
       ...reward,
+      redeemCount:
+        shouldExcludeTestUsers || normalizedExcludedDomain
+          ? redeemCountByRewardId.get(String(reward._id)) || 0
+          : reward.redeemCount || 0,
       isAffordable: userPoints >= reward.pointCost,
       canClaim:
         userPoints >= reward.pointCost && claimCounts[index] < reward.limit,
@@ -1265,6 +1336,7 @@ export const getSpaUserRewards = async (req, res, next) => {
     const {
       status = 'all',
       type = 'all',
+      rewardId,
       page = 1,
       limit = 20,
       search = '',
@@ -1300,6 +1372,10 @@ export const getSpaUserRewards = async (req, res, next) => {
     // Type filter
     if (type !== 'all') {
       filter['rewardSnapshot.type'] = type
+    }
+
+    if (rewardId) {
+      filter.rewardId = rewardId
     }
 
     // Date range filter

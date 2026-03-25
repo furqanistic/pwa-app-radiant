@@ -8,6 +8,7 @@ import {
 import { useServices } from '@/hooks/useServices'
 import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
+import { rewardsService } from '@/services/rewardsService'
 import { useQuery } from '@tanstack/react-query'
 import { uploadService } from '@/services/uploadService'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -66,6 +67,7 @@ const normalizeMembershipPlans = (membership) => {
 
 const isPercentValueType = (type) => ['discount', 'experience', 'combo', 'service_discount'].includes(type)
 const isFreeValueType = (type) => ['service', 'free_service'].includes(type)
+const isTestEmail = (email = '') => String(email).trim().toLowerCase().includes('@test')
 
 const getRewardValueFieldLabel = (type) => {
   if (isPercentValueType(type)) return 'Value Amount (%) *'
@@ -203,7 +205,15 @@ const RewardHeader = ({
 )
 
 // Reward Card Component
-const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
+const RewardCard = ({
+  reward,
+  onEdit,
+  onDelete,
+  onView,
+  onViewRedeemers,
+  canOpenRedeemers = false,
+  userRole,
+}) => {
   const rewardType = rewardTypes.find((t) => t.id === reward.type)
   const IconComponent = rewardType?.icon || Award
   const canEdit = ['super-admin', 'admin', 'spa'].includes(userRole)
@@ -211,7 +221,7 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
     'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop'
 
   return (
-    <div className='bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all group'>
+    <div className='bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all group h-full flex flex-col'>
       <div className='relative h-40 md:h-48 overflow-hidden'>
         <img
           src={resolveImageUrl(reward.image, fallbackImage, { width: 500, height: 300 })}
@@ -288,7 +298,7 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
         )}
       </div>
 
-      <div className='p-4 md:p-6'>
+      <div className='p-4 md:p-6 flex-1 flex flex-col'>
         <h3 className='text-lg md:text-xl font-bold text-gray-900 mb-2'>
           {reward.name}
         </h3>
@@ -307,37 +317,44 @@ const RewardCard = ({ reward, onEdit, onDelete, onView, userRole }) => {
               : 'All Users'}
           </div>
         </div>
-        <div className='grid grid-cols-2 gap-3 mb-4'>
-          <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-lg'>
-            <div className='flex items-center gap-2 mb-1'>
-              <Zap className='w-4 h-4 text-[color:var(--brand-primary)]' />
-              <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>
-                Points
+        <div className='mt-auto'>
+          <div className='grid grid-cols-2 gap-3 mb-4'>
+            <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-lg'>
+              <div className='flex items-center gap-2 mb-1'>
+                <Zap className='w-4 h-4 text-[color:var(--brand-primary)]' />
+                <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>
+                  Points
+                </span>
+              </div>
+              <span className='text-lg font-bold text-[color:var(--brand-primary)]'>
+                {reward.pointCost}
               </span>
             </div>
-            <span className='text-lg font-bold text-[color:var(--brand-primary)]'>
-              {reward.pointCost}
-            </span>
-          </div>
-          <div className='bg-green-50 p-3 rounded-lg'>
-            <div className='flex items-center gap-2 mb-1'>
-              <RewardValueIcon type={reward.type} className='w-4 h-4 text-green-600' />
-              <span className='text-xs font-semibold text-green-700'>
-                Value
+            <div className='bg-green-50 p-3 rounded-lg'>
+              <div className='flex items-center gap-2 mb-1'>
+                <RewardValueIcon type={reward.type} className='w-4 h-4 text-green-600' />
+                <span className='text-xs font-semibold text-green-700'>
+                  Value
+                </span>
+              </div>
+              <span className='text-lg font-bold text-green-700'>
+                {getRewardValueDisplay(reward)}
               </span>
             </div>
-            <span className='text-lg font-bold text-green-700'>
-              {getRewardValueDisplay(reward)}
-            </span>
           </div>
-        </div>
-        <div className='flex items-center justify-between pt-4 border-t border-gray-100'>
-          <div className='text-sm text-gray-600'>
-            <span className='font-semibold'>{reward.redeemCount || 0}</span>{' '}
-            redeemed
-          </div>
-          <div className='text-sm text-gray-600'>
-            ID: {reward._id?.slice(-6) || reward.id}
+          <div className='flex items-center justify-between pt-4 border-t border-gray-100'>
+            <button
+              type='button'
+              onClick={() => onViewRedeemers?.(reward)}
+              disabled={!canOpenRedeemers || !reward.redeemCount}
+              className='text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:text-[color:var(--brand-primary)] transition-colors'
+            >
+              <span className='font-semibold'>{reward.redeemCount || 0}</span>{' '}
+              redeemed
+            </button>
+            <div className='text-sm text-gray-600'>
+              ID: {reward._id?.slice(-6) || reward.id}
+            </div>
           </div>
         </div>
       </div>
@@ -942,12 +959,148 @@ const RewardForm = ({
   )
 }
 
+const RedeemedUsersModal = ({
+  isOpen,
+  onClose,
+  reward,
+  redemptions = [],
+  isLoading = false,
+  error = null,
+}) => {
+  if (!isOpen) return null
+
+  const groupedRedeemers = Object.values(
+    redemptions.reduce((acc, redemption) => {
+      const user = redemption?.userId
+      const fallbackId = redemption?._id || redemption?.id
+      const key = user?._id || user?.email || fallbackId
+      if (!key) return acc
+
+      if (!acc[key]) {
+        acc[key] = {
+          id: key,
+          name: user?.name || 'Unknown user',
+          email: user?.email || 'No email',
+          avatar: user?.avatar || '',
+          claimCount: 0,
+          latestClaimAt: null,
+          status: redemption?.status || 'active',
+        }
+      }
+
+      acc[key].claimCount += 1
+
+      const claimedAt = redemption?.claimedAt ? new Date(redemption.claimedAt) : null
+      if (
+        claimedAt &&
+        (!acc[key].latestClaimAt || claimedAt > new Date(acc[key].latestClaimAt))
+      ) {
+        acc[key].latestClaimAt = claimedAt.toISOString()
+        acc[key].status = redemption?.status || acc[key].status
+      }
+
+      return acc
+    }, {})
+  ).sort((a, b) => {
+    const dateA = a.latestClaimAt ? new Date(a.latestClaimAt).getTime() : 0
+    const dateB = b.latestClaimAt ? new Date(b.latestClaimAt).getTime() : 0
+    return dateB - dateA
+  })
+
+  return (
+    <AnimatePresence>
+      <div className='fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-[2px] p-0 sm:p-4'>
+        <motion.div
+          initial={{ opacity: 0, y: '100%' }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          className='bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl overflow-hidden border border-[color:var(--brand-primary)/0.12] max-w-2xl w-full max-h-[88vh] flex flex-col'
+        >
+          <div className='px-5 py-4 border-b border-gray-100 flex items-center justify-between'>
+            <div>
+              <h3 className='text-lg font-bold text-gray-900'>{reward?.name || 'Reward'}</h3>
+              <p className='text-sm text-gray-500'>
+                People who redeemed this reward
+              </p>
+            </div>
+            <button
+              type='button'
+              onClick={onClose}
+              className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
+            >
+              <X className='w-5 h-5 text-gray-500' />
+            </button>
+          </div>
+
+          <div className='p-4 overflow-y-auto flex-1'>
+            {isLoading ? (
+              <div className='flex items-center justify-center py-12'>
+                <div className='w-8 h-8 border-4 border-gray-200 border-t-[color:var(--brand-primary)] rounded-full animate-spin' />
+              </div>
+            ) : error ? (
+              <p className='text-sm text-red-600 bg-red-50 border border-red-100 px-4 py-3 rounded-xl'>
+                Failed to load redeemed users. Please try again.
+              </p>
+            ) : groupedRedeemers.length === 0 ? (
+              <p className='text-sm text-gray-500 bg-gray-50 border border-gray-100 px-4 py-3 rounded-xl'>
+                No redemptions found for this reward yet.
+              </p>
+            ) : (
+              <div className='space-y-3'>
+                {groupedRedeemers.map((redeemer) => (
+                  <div
+                    key={redeemer.id}
+                    className='flex items-center justify-between gap-3 p-3 border border-gray-100 rounded-xl'
+                  >
+                    <div className='flex items-center gap-3 min-w-0'>
+                      {redeemer.avatar ? (
+                        <img
+                          src={redeemer.avatar}
+                          alt={redeemer.name}
+                          className='w-10 h-10 rounded-full object-cover'
+                        />
+                      ) : (
+                        <div className='w-10 h-10 rounded-full bg-[color:var(--brand-primary)/0.12] flex items-center justify-center text-[color:var(--brand-primary)] font-bold text-sm'>
+                          {(redeemer.name || '?').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className='min-w-0'>
+                        <p className='text-sm font-semibold text-gray-900 truncate'>
+                          {redeemer.name}
+                        </p>
+                        <p className='text-xs text-gray-500 truncate'>{redeemer.email}</p>
+                      </div>
+                    </div>
+                    <div className='text-right shrink-0'>
+                      <p className='text-xs font-semibold text-[color:var(--brand-primary)]'>
+                        {redeemer.claimCount} redemption{redeemer.claimCount > 1 ? 's' : ''}
+                      </p>
+                      <p className='text-[11px] text-gray-500 mt-1'>
+                        {redeemer.latestClaimAt
+                          ? `Last: ${new Date(redeemer.latestClaimAt).toLocaleString()}`
+                          : 'No date'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  )
+}
+
 // Main Reward Management Component
 const RewardManagement = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [view, setView] = useState('grid')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedReward, setSelectedReward] = useState(null)
+  const [isRedeemedUsersOpen, setIsRedeemedUsersOpen] = useState(false)
+  const [selectedRedeemedReward, setSelectedRedeemedReward] = useState(null)
 
   const { currentUser } = useSelector((state) => state.user)
   const { branding } = useBranding()
@@ -972,12 +1125,44 @@ const RewardManagement = () => {
     isLoading,
     error,
     refetch,
-  } = useEnhancedRewardsCatalog({ search: searchTerm })
-  const { data: servicesData } = useServices({ status: 'active', limit: 300 })
+  } = useEnhancedRewardsCatalog({
+    search: searchTerm,
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
+  })
+  const { data: servicesData } = useServices({
+    status: 'active',
+    limit: 300,
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
+  })
   const serviceOptions = (servicesData?.services || []).map((service) => ({
     id: service._id || service.id,
     name: service.name || 'Unnamed Service',
   }))
+
+  const {
+    data: redeemedUsersResponse,
+    isLoading: isRedeemedUsersLoading,
+    error: redeemedUsersError,
+  } = useQuery({
+    queryKey: ['reward-redeemers', selectedRedeemedReward?._id || selectedRedeemedReward?.id],
+    queryFn: () =>
+      rewardsService.getSpaUserRewards({
+        rewardId: selectedRedeemedReward?._id || selectedRedeemedReward?.id,
+        status: 'all',
+        limit: 100,
+      }),
+    enabled:
+      isRedeemedUsersOpen &&
+      Boolean(selectedRedeemedReward?._id || selectedRedeemedReward?.id) &&
+      canManageRewards,
+    staleTime: 60 * 1000,
+  })
+
+  const redeemedUsers = (redeemedUsersResponse?.data?.rewards || []).filter(
+    (rewardEntry) => !isTestEmail(rewardEntry?.userId?.email)
+  )
 
   const deleteRewardMutation = useDeleteReward({
     onSuccess: () => toast.success('Reward deleted successfully!'),
@@ -1020,6 +1205,17 @@ const RewardManagement = () => {
     refetch()
   }
 
+  const handleOpenRedeemedUsers = (reward) => {
+    if (!canManageRewards) return
+    setSelectedRedeemedReward(reward)
+    setIsRedeemedUsersOpen(true)
+  }
+
+  const handleCloseRedeemedUsers = () => {
+    setIsRedeemedUsersOpen(false)
+    setSelectedRedeemedReward(null)
+  }
+
   if (isLoading) {
     return (
       <Layout>
@@ -1053,6 +1249,8 @@ const RewardManagement = () => {
                 onEdit={handleEditReward}
                 onDelete={handleDeleteReward}
                 onView={(reward) => alert(`View ${reward.name}`)}
+                onViewRedeemers={handleOpenRedeemedUsers}
+                canOpenRedeemers={canManageRewards}
                 userRole={userRole}
               />
             ))}
@@ -1082,6 +1280,14 @@ const RewardManagement = () => {
                     <div className='flex gap-4 mt-1'>
                       <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>{reward.pointCost} pts</span>
                       <span className='text-xs font-semibold text-green-600'>{getRewardValueDisplay(reward)}</span>
+                      <button
+                        type='button'
+                        onClick={() => handleOpenRedeemedUsers(reward)}
+                        disabled={!canManageRewards || !reward.redeemCount}
+                        className='text-xs font-semibold text-gray-600 hover:text-[color:var(--brand-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                      >
+                        {reward.redeemCount || 0} redeemed
+                      </button>
                     </div>
                   </div>
                   {canManageRewards && (
@@ -1126,6 +1332,14 @@ const RewardManagement = () => {
         onSave={handleFormSave}
         membershipPlanOptions={membershipPlanOptions}
         serviceOptions={serviceOptions}
+      />
+      <RedeemedUsersModal
+        isOpen={isRedeemedUsersOpen}
+        onClose={handleCloseRedeemedUsers}
+        reward={selectedRedeemedReward}
+        redemptions={redeemedUsers}
+        isLoading={isRedeemedUsersLoading}
+        error={redeemedUsersError}
       />
     </Layout>
   )

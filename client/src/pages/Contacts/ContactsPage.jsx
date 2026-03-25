@@ -114,6 +114,8 @@ const ContactsPage = () => {
         limit: pageSize,
         search: debouncedSearchTerm,
         role: roleFilter,
+        excludeTestUsers: true,
+        excludeEmailDomain: "test.com",
         sortBy: "createdAt",
         sortOrder: "desc",
         ...(effectiveLocationFilter && {
@@ -144,6 +146,8 @@ const ContactsPage = () => {
           limit: pageSize,
           search: debouncedSearchTerm,
           role: roleFilter,
+          excludeTestUsers: true,
+          excludeEmailDomain: "test.com",
           sortBy: "createdAt",
           sortOrder: "desc",
           ...(effectiveLocationFilter && {

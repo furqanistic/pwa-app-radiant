@@ -48,6 +48,10 @@ import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
 const Motion = motion
+const DASHBOARD_DATA_FILTERS = {
+  excludeTestUsers: true,
+  excludeEmailDomain: 'test.com',
+}
 
 // Icon mapping for string icon names from backend
 const iconMap = {
@@ -1017,19 +1021,23 @@ const DashboardPage = () => {
 
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+  const dashboardFilters = DASHBOARD_DATA_FILTERS
 
   // Fetch dashboard data
-  const { data: dashboardData, isLoading, error, refetch } = useDashboardData({
-    refetchInterval: false,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-  })
+  const { data: dashboardData, isLoading, error, refetch } = useDashboardData(
+    dashboardFilters,
+    {
+      refetchInterval: false,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+    }
+  )
   const refreshRecentCheckInsOnly = useCallback(async () => {
-    const response = await dashboardService.getDashboardData()
+    const response = await dashboardService.getDashboardData(dashboardFilters)
     const latestData = response?.data?.data || {}
 
-    queryClient.setQueryData(dashboardQueryKeys.data(), (current) => {
+    queryClient.setQueryData(dashboardQueryKeys.data(dashboardFilters), (current) => {
       if (!current?.data) {
         return response?.data || current
       }
@@ -1048,7 +1056,7 @@ const DashboardPage = () => {
         },
       }
     })
-  }, [queryClient])
+  }, [dashboardFilters, queryClient])
   // Prefetch games in parallel so GamesSection appears faster.
   useAvailableGames({}, { enabled: currentUser?.role === 'user' })
 
@@ -1117,6 +1125,7 @@ const DashboardPage = () => {
               data={data}
               refetch={refetch}
               refreshRecentCheckIns={refreshRecentCheckInsOnly}
+              dashboardFilters={dashboardFilters}
             />
           ) : (
             <>

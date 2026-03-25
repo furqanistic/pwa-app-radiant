@@ -45,8 +45,12 @@ import {
 import { toast } from 'sonner'
 
 const Motion = motion
+const TEST_EMAIL_SUFFIX = '@test.com'
 
-const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
+const normalizeEmail = (email = '') => String(email).trim().toLowerCase()
+const isTestEmail = (email = '') => normalizeEmail(email).endsWith(TEST_EMAIL_SUFFIX)
+
+const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters = {} }) => {
   const [activeTab, setActiveTab] = useState('overview')
   const [currentCheckInPage, setCurrentCheckInPage] = useState(1)
   const [checkInRowsPerPage, setCheckInRowsPerPage] = useState(10)
@@ -102,13 +106,23 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
     '#9ca3af',
     '#d1d5db',
   ]
-  const latestQrClaim = recentQrClaims[0] || null
+  const claimEmail = (claim = {}) =>
+    claim?.customer?.email || claim?.scannedByEmail || ''
+
+  const filteredRecentQrClaims = recentQrClaims.filter(
+    (claim) => !isTestEmail(claimEmail(claim))
+  )
+  const latestVisibleQrClaim = filteredRecentQrClaims[0] || null
+  const filteredRecentQrClaimsSummary = {
+    ...recentQrClaimsSummary,
+    latestClaimAt: latestVisibleQrClaim?.claimedAt || null,
+  }
   const totalCheckInPages = Math.max(
     1,
-    Math.ceil(recentQrClaims.length / checkInRowsPerPage)
+    Math.ceil(filteredRecentQrClaims.length / checkInRowsPerPage)
   )
   const checkInStartIndex = (currentCheckInPage - 1) * checkInRowsPerPage
-  const paginatedQrClaims = recentQrClaims.slice(
+  const paginatedQrClaims = filteredRecentQrClaims.slice(
     checkInStartIndex,
     checkInStartIndex + checkInRowsPerPage
   )
@@ -205,27 +219,30 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
       const response = await dashboardService.resetRecentCheckIns()
       const resetPayload = response?.data || {}
 
-      queryClient.setQueryData(dashboardQueryKeys.data(), (currentData) => {
-        if (!currentData?.data) return currentData
+      queryClient.setQueryData(
+        dashboardQueryKeys.data(dashboardFilters),
+        (currentData) => {
+          if (!currentData?.data) return currentData
 
-        return {
-          ...currentData,
-          data: {
-            ...currentData.data,
-            recentQrClaims: [],
-            recentQrClaimsSummary: {
-              ...(currentData.data.recentQrClaimsSummary || {}),
-              totalClaims: 0,
-              uniqueVisitors: 0,
-              latestClaimAt: null,
-              lastResetAt:
-                resetPayload.lastResetAt ||
-                currentData.data.recentQrClaimsSummary?.lastResetAt ||
-                null,
+          return {
+            ...currentData,
+            data: {
+              ...currentData.data,
+              recentQrClaims: [],
+              recentQrClaimsSummary: {
+                ...(currentData.data.recentQrClaimsSummary || {}),
+                totalClaims: 0,
+                uniqueVisitors: 0,
+                latestClaimAt: null,
+                lastResetAt:
+                  resetPayload.lastResetAt ||
+                  currentData.data.recentQrClaimsSummary?.lastResetAt ||
+                  null,
+              },
             },
-          },
+          }
         }
-      })
+      )
 
       toast.success(
         resetPayload.deletedScans
@@ -278,8 +295,15 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
     const payment = activity?.paymentId
     const paymentLivemode =
       payment && typeof payment === 'object' ? payment?.livemode : undefined
+    const activityEmail =
+      activity?.customer?.email ||
+      activity?.user?.email ||
+      activity?.client?.email ||
+      activity?.email ||
+      ''
 
     return !(
+      isTestEmail(activityEmail) ||
       activity?.paymentStatus !== 'paid' ||
       activity?.stripeMode === 'test' ||
       activity?.testMode === true ||
@@ -374,7 +398,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
                 Recent Check-Ins
               </h2>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 mt-1">
-                Last {recentQrClaimsSummary?.days || 3} days
+                Last {filteredRecentQrClaimsSummary?.days || 3} days
               </p>
             </div>
           </div>
@@ -386,7 +410,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
                   Claims
                 </p>
                 <p className="text-2xl font-black text-gray-900 mt-1">
-                  {recentQrClaimsSummary?.totalClaims || 0}
+                  {filteredRecentQrClaimsSummary?.totalClaims || 0}
                 </p>
               </div>
               <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
@@ -394,7 +418,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
                   Visitors
                 </p>
                 <p className="text-2xl font-black text-gray-900 mt-1">
-                  {recentQrClaimsSummary?.uniqueVisitors || 0}
+                  {filteredRecentQrClaimsSummary?.uniqueVisitors || 0}
                 </p>
               </div>
               <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
@@ -402,8 +426,8 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
                   Latest
                 </p>
                 <p className="text-sm font-black text-gray-900 mt-2 leading-tight">
-                  {recentQrClaimsSummary?.latestClaimAt
-                    ? formatRelativeTime(recentQrClaimsSummary.latestClaimAt)
+                  {filteredRecentQrClaimsSummary?.latestClaimAt
+                    ? formatRelativeTime(filteredRecentQrClaimsSummary.latestClaimAt)
                     : 'No scans'}
                 </p>
               </div>
@@ -413,8 +437,8 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
               <p className="text-xs font-bold text-gray-400">
                 Last reset:{' '}
                 <span className="text-gray-700">
-                  {recentQrClaimsSummary?.lastResetAt
-                    ? formatDate(recentQrClaimsSummary.lastResetAt)
+                  {filteredRecentQrClaimsSummary?.lastResetAt
+                    ? formatDate(filteredRecentQrClaimsSummary.lastResetAt)
                     : 'Never'}
                 </span>
               </p>
@@ -434,7 +458,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
               <button
                 type="button"
                 onClick={() => setIsResetDialogOpen(true)}
-                disabled={isResettingCheckIns || recentQrClaims.length === 0}
+                disabled={isResettingCheckIns || filteredRecentQrClaims.length === 0}
                 className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RotateCcw className="w-4 h-4" />
@@ -444,24 +468,24 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
           </div>
         </div>
 
-        {latestQrClaim ? (
+        {latestVisibleQrClaim ? (
           <button
             type="button"
-            onClick={() => openClientProfile(latestQrClaim)}
+            onClick={() => openClientProfile(latestVisibleQrClaim)}
             className="w-full text-left rounded-[28px] border border-[color:var(--brand-primary)/0.14] bg-gradient-to-br from-white via-[color:var(--brand-primary)/0.04] to-[color:var(--brand-primary)/0.1] p-5 sm:p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-start gap-4 min-w-0">
                 <div className="w-14 h-14 rounded-2xl bg-[color:var(--brand-primary)/0.16] flex items-center justify-center text-[color:var(--brand-primary)] font-black overflow-hidden shrink-0">
-                  {latestQrClaim.customer?.avatar ? (
+                  {latestVisibleQrClaim.customer?.avatar ? (
                     <img
-                      src={latestQrClaim.customer.avatar}
+                      src={latestVisibleQrClaim.customer.avatar}
                       alt=""
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     (
-                      getClaimedCustomerName(latestQrClaim).charAt(0) || '?'
+                      getClaimedCustomerName(latestVisibleQrClaim).charAt(0) || '?'
                     ).toUpperCase()
                   )}
                 </div>
@@ -470,22 +494,22 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
                     Latest customer scan
                   </p>
                   <h3 className="text-2xl font-black text-gray-900 truncate mt-1">
-                    {getClaimedCustomerName(latestQrClaim)}
+                    {getClaimedCustomerName(latestVisibleQrClaim)}
                   </h3>
                   <p className="text-sm text-gray-500 font-bold truncate mt-1">
-                    {latestQrClaim.customer?.email ||
-                      latestQrClaim.scannedByEmail}
+                    {latestVisibleQrClaim.customer?.email ||
+                      latestVisibleQrClaim.scannedByEmail}
                   </p>
                   <p className="text-xs text-gray-400 font-bold mt-2">
-                    Claimed {latestQrClaim.pointsAwarded} points{' '}
-                    {formatRelativeTime(latestQrClaim.claimedAt)}
+                    Claimed {latestVisibleQrClaim.pointsAwarded} points{' '}
+                    {formatRelativeTime(latestVisibleQrClaim.claimedAt)}
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col items-start lg:items-end gap-3">
                 <RewardSummaryChips
-                  rewardSummary={latestQrClaim.activeRewardSummary}
+                  rewardSummary={latestVisibleQrClaim.activeRewardSummary}
                 />
                 <span className="inline-flex items-center gap-2 text-sm font-black text-[color:var(--brand-primary)]">
                   Open profile
@@ -501,7 +525,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
             </div>
             <p className="text-gray-900 font-black">No verified check-ins yet</p>
             <p className="text-sm text-gray-500 font-bold mt-2">
-              New QR claims from the last {recentQrClaimsSummary?.days || 3}{' '}
+              New QR claims from the last {filteredRecentQrClaimsSummary?.days || 3}{' '}
               days will appear here automatically.
             </p>
           </div>
@@ -599,7 +623,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
             )}
           </div>
 
-          {recentQrClaims.length > 0 && (
+          {filteredRecentQrClaims.length > 0 && (
             <div className="flex flex-col gap-4 border-t border-gray-100 bg-white px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <label className="flex items-center gap-3 text-sm font-bold text-gray-500">
@@ -622,9 +646,9 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns }) => {
                   Showing {checkInStartIndex + 1}-
                   {Math.min(
                     checkInStartIndex + paginatedQrClaims.length,
-                    recentQrClaims.length
+                    filteredRecentQrClaims.length
                   )}{' '}
-                  of {recentQrClaims.length}
+                  of {filteredRecentQrClaims.length}
                 </p>
               </div>
 

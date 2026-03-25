@@ -101,6 +101,8 @@ const ServiceSelectionModal = ({
   const { data: servicesData, isLoading } = useServices({
     search: searchTerm,
     status: 'active',
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
   })
 
   const services = servicesData?.services || []
@@ -2255,6 +2257,8 @@ const ServiceManagementPage = () => {
     error: servicesError,
   } = useServices({
     search: searchTerm,
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
   })
 
   const { data: categories = [] } = useCategories(false)

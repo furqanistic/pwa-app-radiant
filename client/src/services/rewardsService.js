@@ -93,6 +93,14 @@ export const rewardsService = {
     return response.data
   },
 
+  // Get spa/admin user rewards (claimed rewards list)
+  getSpaUserRewards: async (params = {}) => {
+    const response = await axiosInstance.get('/rewards/spa/user-rewards', {
+      params,
+    })
+    return response.data
+  },
+
   // ===============================================
   // REWARD MANAGEMENT (Admin/spa) - Enhanced
   // ===============================================
