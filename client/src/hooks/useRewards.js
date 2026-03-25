@@ -193,12 +193,14 @@ export const useClaimReward = (options = {}) => {
         data.data?.pointsSpent || context.reward?.pointCost || 0
       const newBalance = data.data?.newPointBalance || 0
 
-      toast.success(
-        `Reward claimed! Spent ${pointsSpent} points. New balance: ${newBalance}`,
-        {
-          duration: 4000,
-        }
-      )
+      if (!options.disableDefaultToasts) {
+        toast.success(
+          `Reward claimed! Spent ${pointsSpent} points. New balance: ${newBalance}`,
+          {
+            duration: 4000,
+          }
+        )
+      }
 
       options.onSuccess?.(data, rewardId)
     },
@@ -222,9 +224,11 @@ export const useClaimReward = (options = {}) => {
       // Show error toast
       const errorMessage =
         error.response?.data?.message || 'Failed to claim reward'
-      toast.error(errorMessage, {
-        duration: 5000,
-      })
+      if (!options.disableDefaultToasts) {
+        toast.error(errorMessage, {
+          duration: 5000,
+        })
+      }
 
       options.onError?.(error, rewardId)
     },

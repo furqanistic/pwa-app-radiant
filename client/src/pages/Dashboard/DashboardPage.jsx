@@ -126,7 +126,8 @@ const RewardCard = ({
     setIsPlaying((prev) => !prev)
   }
 
-  const canAfford = reward.canClaim && !isOptimisticUpdate
+  const hasActiveClaim = Boolean(reward.hasActiveClaim)
+  const canAfford = reward.canClaim && !isOptimisticUpdate && !hasActiveClaim
 
   const getRewardIcon = (type) => {
     const iconClassName = 'w-4 h-4 text-white drop-shadow-sm'
@@ -172,7 +173,8 @@ const RewardCard = ({
 
   const getButtonText = () => {
     if (isClaiming) return 'Claiming...'
-    if (isOptimisticUpdate) return 'Processing...'
+    if (isOptimisticUpdate) return 'Claiming...'
+    if (hasActiveClaim) return 'Claimed'
     if (canAfford) return 'Claim Reward'
     if (!(reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth)) return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
@@ -180,7 +182,6 @@ const RewardCard = ({
 
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
@@ -190,6 +191,8 @@ const RewardCard = ({
           ? 'hover:border-[#f9f9fa] hover:-translate-y-0.5 cursor-pointer group border-[#f9f9fa]'
           : isOptimisticUpdate
           ? 'border-[#f9f9fa] opacity-75'
+          : hasActiveClaim
+          ? 'border-[#f9f9fa] cursor-default'
           : 'opacity-60 border-gray-100'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
@@ -257,12 +260,14 @@ const RewardCard = ({
         <div className='absolute bottom-2.5 left-2.5'>
           <span
             className={`px-2 py-1 rounded-full text-[10px] font-semibold ${
-              reward.status === 'active'
+              hasActiveClaim
+                ? 'bg-[color:var(--brand-primary)] text-white'
+                : reward.status === 'active'
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-500 text-white'
             }`}
           >
-            {reward.status}
+            {hasActiveClaim ? 'claimed' : reward.status}
           </span>
         </div>
       </div>
@@ -314,8 +319,10 @@ const RewardCard = ({
           className={`mt-auto w-full min-h-[2.5rem] py-2.5 rounded-[0.9rem] font-medium text-[0.82rem] transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
             isClaiming
               ? 'bg-[color:var(--brand-primary)] text-white cursor-wait'
-              : isOptimisticUpdate
+            : isOptimisticUpdate
               ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+            : hasActiveClaim
+              ? 'bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] cursor-default'
               : canAfford
               ? 'text-white hover:brightness-105'
               : 'bg-gray-200 text-gray-500 cursor-not-allowed'
@@ -400,6 +407,7 @@ const SpaRewardsSection = () => {
   } = useEnhancedRewardsCatalog({})
 
   const claimRewardMutation = useClaimReward({
+    disableDefaultToasts: true,
     onSuccess: (data, rewardId) => {
       // Remove from optimistic updates
       setOptimisticRewards((prev) => {
@@ -414,7 +422,6 @@ const SpaRewardsSection = () => {
         payload: data.data.newPointBalance,
       })
 
-      // Sonner success notification
       toast.success('Reward claimed successfully!', {
         description: `You spent ${data.data.pointsSpent} points. New balance: ${data.data.newPointBalance}`,
         duration: 4000,
@@ -443,7 +450,6 @@ const SpaRewardsSection = () => {
         return next
       })
 
-      // Sonner error notification
       toast.error('Failed to claim reward', {
         description: error.response?.data?.message || 'Please try again later',
         duration: 5000,
@@ -472,18 +478,18 @@ const SpaRewardsSection = () => {
     }
   }
 
-  const claimableRewards = rewards.filter(
+  const orderedRewards = [...rewards].reverse()
+  const claimableRewards = orderedRewards.filter(
     (reward) =>
       reward?.canClaim &&
-      (reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth ?? true) &&
-      !optimisticRewards.has(reward._id)
+      (reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth ?? true)
   )
   const claimableRewardIds = new Set(claimableRewards.map((reward) => reward._id))
-  const lockedRewards = rewards.filter(
+  const lockedRewards = orderedRewards.filter(
     (reward) => !claimableRewardIds.has(reward._id)
   )
-  const recentRewards = [...claimableRewards].reverse()
-    .concat([...lockedRewards].reverse())
+  const recentRewards = claimableRewards
+    .concat(lockedRewards)
     .slice(0, 4)
 
   // Pull to refresh handler for PWA

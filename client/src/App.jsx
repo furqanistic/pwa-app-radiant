@@ -396,18 +396,6 @@ const App = () => {
         <Toaster 
           richColors 
           position="top-center" 
-          toastOptions={{
-            style: { background: 'var(--brand-primary)', color: 'white', border: 'none' },
-            classNames: {
-              toast: 'bg-[color:var(--brand-primary)]',
-              title: 'text-white',
-              description: 'text-white',
-              actionButton: 'bg-white text-[color:var(--brand-primary)]',
-              cancelButton: 'bg-white text-[color:var(--brand-primary)]',
-              success: 'bg-[color:var(--brand-primary)] text-white border-none',
-              error: 'bg-[color:var(--brand-primary)] text-white border-none', 
-            }
-          }}
         />
         <InstallPrompt />
         <AppIconManager />
