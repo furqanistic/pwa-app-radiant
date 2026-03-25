@@ -757,6 +757,7 @@ export const getRewardsCatalog = async (req, res, next) => {
     const {
       search = '',
       type = '',
+      status = 'active',
       serviceId = '',
       categoryId = '',
       sortBy = 'pointCost-low',
@@ -769,10 +770,17 @@ export const getRewardsCatalog = async (req, res, next) => {
     const userId = req.user.id
     const userPoints = req.user.points || 0
 
-    // Build filter for active rewards
+    const canViewAllStatuses = ['admin', 'spa', 'super-admin'].includes(
+      req.user?.role
+    )
+
+    // Build filter for rewards
     const filter = {
-      status: 'active',
       isDeleted: false,
+    }
+
+    if (!canViewAllStatuses || status !== 'all') {
+      filter.status = 'active'
     }
 
     // Add location filter

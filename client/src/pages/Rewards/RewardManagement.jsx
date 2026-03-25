@@ -17,11 +17,9 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
     ArrowLeft,
     Award,
-    Calendar,
     ChevronDown,
     DollarSign,
     Edit3,
-    Eye,
     Gift,
     Mic,
     Percent,
@@ -91,6 +89,7 @@ const RewardValueIcon = ({ type, className }) => {
   if (isPercentValueType(type)) return <Percent className={className} />
   return <DollarSign className={className} />
 }
+const MotionDiv = motion.div
 
 // Reward Header Component
 const RewardHeader = ({
@@ -102,73 +101,86 @@ const RewardHeader = ({
   stats,
   userRole,
 }) => (
-  <div className='bg-white rounded-lg p-4 md:p-6 shadow-sm mb-6'>
-    <div className='flex flex-col md:flex-row md:items-center justify-between mb-6'>
-      <div className='flex items-center mb-4 md:mb-0'>
+  <div className='bg-white/70 backdrop-blur-xl border border-[#ececef] rounded-[1.35rem] p-3.5 md:p-4 shadow-[0_8px_28px_-22px_rgba(0,0,0,0.24)] mb-8 transition-all'>
+    <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4'>
+      <div className='flex items-center gap-3 min-w-0'>
         <div
-          className='p-3 rounded-lg mr-4 shadow-lg'
+          className='w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0'
           style={{
             background:
               'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
           }}
         >
-          <Gift className='w-6 h-6 text-white' />
+          <Gift className='w-5 h-5' />
         </div>
-        <div>
-          <h1 className='text-xl md:text-3xl font-bold text-gray-900'>
+        <div className='min-w-0'>
+          <h1 className='text-xl md:text-2xl font-bold text-gray-900 truncate'>
             Reward Management
           </h1>
-          <p className='text-gray-600 text-sm'>
+          <p className='text-[0.82rem] text-gray-600'>
             {userRole === 'admin' || userRole === 'spa'
               ? 'Create and manage reward redemptions'
               : 'View available rewards'}
           </p>
-          <div className='flex items-center gap-4 mt-1'>
-            <span className='text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full'>
-              {stats.active || 0} Active
-            </span>
-            <span className='text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full'>
-              {stats.total || 0} Total
-            </span>
-          </div>
         </div>
       </div>
 
-      {(userRole === 'admin' || userRole === 'spa') && (
-        <button
-          onClick={onAddReward}
-          className='text-white px-4 md:px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-sm hover:brightness-105'
-          style={{
-            background:
-              'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
-          }}
-        >
-          <Plus className='w-5 h-5' />
-          <span className='hidden sm:inline'>Add New Reward</span>
-          <span className='sm:hidden'>Add Reward</span>
-        </button>
-      )}
+      <div className='flex items-center gap-2.5 flex-wrap'>
+        <span className='inline-flex items-center gap-1.5 bg-[#f4fbf7] border border-[#dcf4e6] text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold'>
+          {stats.active || 0} Active
+        </span>
+        <span className='inline-flex items-center gap-1.5 bg-[#fafafb] border border-[#f1f1f3] text-gray-700 px-3 py-1.5 rounded-full text-xs font-semibold'>
+          {stats.total || 0} Total
+        </span>
+        {(userRole === 'admin' || userRole === 'spa') && (
+          <button
+            onClick={onAddReward}
+            className='text-white px-4 py-2.5 rounded-[0.9rem] font-semibold transition-all flex items-center justify-center gap-2 shadow-sm hover:brightness-105 text-[0.82rem]'
+            style={{
+              background:
+                'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+            }}
+          >
+            <Plus className='w-4 h-4' />
+            Add Reward
+          </button>
+        )}
+      </div>
     </div>
 
-    <div className='flex flex-col md:flex-row gap-4'>
-      <div className='flex-1 relative'>
-        <Search className='absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[color:var(--brand-primary)] opacity-60' />
+    <div className='flex flex-col lg:flex-row gap-3'>
+      <div className='relative flex-1 group'>
+        <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
+          <Search className='h-4 w-4 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors duration-200' />
+        </div>
         <input
           type='text'
           placeholder='Search rewards...'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className='w-full pl-12 pr-4 py-3 md:py-4 border border-[color:var(--brand-primary)/0.2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:border-transparent'
+          className='block w-full h-10 pl-10 pr-10 bg-white border border-[#ececef] rounded-[0.9rem] text-[0.84rem] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)/0.2] focus:border-[color:var(--brand-primary)/0.25] transition-all duration-200'
         />
+        {searchTerm && (
+          <div className='absolute inset-y-0 right-0 pr-3 flex items-center'>
+            <button
+              type='button'
+              onClick={() => setSearchTerm('')}
+              className='p-1 bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all'
+            >
+              <X className='h-3.5 w-3.5' />
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className='flex gap-2'>
+      <div className='bg-[#fafafb] border border-[#f1f1f3] rounded-[0.9rem] p-1 inline-flex'>
         <button
+          type='button'
           onClick={() => setView('grid')}
-          className={`flex-1 md:flex-none px-4 py-3 md:py-4 rounded-lg font-semibold transition-all ${
+          className={`px-4 h-8 rounded-[0.7rem] text-xs font-semibold transition-all ${
             view === 'grid'
-              ? 'text-white shadow-lg'
-              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              ? 'text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
           }`}
           style={
             view === 'grid'
@@ -182,11 +194,12 @@ const RewardHeader = ({
           Grid
         </button>
         <button
+          type='button'
           onClick={() => setView('list')}
-          className={`flex-1 md:flex-none px-4 py-3 md:py-4 rounded-lg font-semibold transition-all ${
+          className={`px-4 h-8 rounded-[0.7rem] text-xs font-semibold transition-all ${
             view === 'list'
-              ? 'text-white shadow-lg'
-              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              ? 'text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
           }`}
           style={
             view === 'list'
@@ -209,7 +222,6 @@ const RewardCard = ({
   reward,
   onEdit,
   onDelete,
-  onView,
   onViewRedeemers,
   canOpenRedeemers = false,
   userRole,
@@ -221,19 +233,19 @@ const RewardCard = ({
     'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop'
 
   return (
-    <div className='bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all group h-full flex flex-col'>
-      <div className='relative h-40 md:h-48 overflow-hidden'>
+    <div className='relative h-full bg-white rounded-[1.35rem] overflow-hidden transition-all border flex flex-col shadow-[0_12px_34px_-28px_rgba(15,23,42,0.28)] hover:border-[#f1f1f3] border-[#f9f9fa] group'>
+      <div className='relative h-32 sm:h-36 md:h-40 overflow-hidden'>
         <img
           src={resolveImageUrl(reward.image, fallbackImage, { width: 500, height: 300 })}
           alt={reward.name}
-          className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
+          className='w-full h-full object-cover transition-transform duration-300 group-hover:scale-105'
           loading='lazy'
           decoding='async'
         />
 
-        <div className='absolute top-3 left-3 flex flex-col gap-2'>
+        <div className='absolute top-2.5 left-2.5 flex flex-col gap-1.5'>
           <span
-            className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+            className={`px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
               reward.status === 'active'
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-500 text-white'
@@ -242,7 +254,7 @@ const RewardCard = ({
             {reward.status}
           </span>
           <span
-            className='text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'
+            className='text-white px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 border border-white/25 shadow-sm'
             style={{
               background:
                 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
@@ -253,15 +265,15 @@ const RewardCard = ({
           </span>
         </div>
 
-        <div className='absolute top-3 right-3'>
-          <span className='bg-black/70 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
+        <div className='absolute top-2.5 right-2.5'>
+          <span className='bg-black/70 text-white px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1'>
              <Zap className='w-3 h-3' />
             {reward.pointCost} pts
           </span>
         </div>
 
         {reward.voiceNoteUrl && (
-          <div className='absolute bottom-3 left-3'>
+          <div className='absolute bottom-2.5 left-2.5'>
             <div
               className='backdrop-blur-sm text-white p-1.5 rounded-lg shadow-sm flex items-center gap-1.5'
               style={{
@@ -275,13 +287,7 @@ const RewardCard = ({
         )}
 
         {canEdit && (
-          <div className='absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity'>
-            <button
-              onClick={() => onView(reward)}
-              className='bg-white/90 backdrop-blur-sm p-2 rounded-lg hover:bg-white transition-all'
-            >
-              <Eye className='w-4 h-4 text-gray-700' />
-            </button>
+          <div className='absolute bottom-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity'>
             <button
               onClick={() => onEdit(reward)}
               className='bg-white/90 backdrop-blur-sm p-2 rounded-lg hover:bg-white transition-all'
@@ -298,18 +304,18 @@ const RewardCard = ({
         )}
       </div>
 
-      <div className='p-4 md:p-6 flex-1 flex flex-col'>
-        <h3 className='text-lg md:text-xl font-bold text-gray-900 mb-2'>
+      <div className='p-3.5 md:p-4 flex-1 flex flex-col'>
+        <h3 className='text-[0.95rem] md:text-[1rem] font-semibold mb-1.5 text-gray-900 line-clamp-1 tracking-[-0.015em]'>
           {reward.name}
         </h3>
-        <p className='text-gray-600 text-sm mb-4 line-clamp-2'>
+        <p className='text-[0.78rem] md:text-[0.82rem] mb-2.5 line-clamp-2 text-gray-600 leading-[1.4]'>
           {reward.description}
         </p>
-        <div className='text-xs text-gray-500 mb-4 space-y-1'>
-          <div>
+        <div className='text-[0.7rem] text-gray-500 mb-2.5 space-y-1'>
+          <div className='bg-[#fafafb] border border-[#f1f1f3] rounded-[0.8rem] px-2.5 py-2'>
             Claims: {reward.limitCount || reward.limit || 1} per {reward.limitDays || 30} days
           </div>
-          <div>
+          <div className='bg-[#fafafb] border border-[#f1f1f3] rounded-[0.8rem] px-2.5 py-2'>
             Eligible:{' '}
             {reward.claimAudience === 'members_only' ||
             (Array.isArray(reward.eligibleMembershipIds) && reward.eligibleMembershipIds.length > 0)
@@ -318,41 +324,41 @@ const RewardCard = ({
           </div>
         </div>
         <div className='mt-auto'>
-          <div className='grid grid-cols-2 gap-3 mb-4'>
-            <div className='bg-[color:var(--brand-primary)/0.08] p-3 rounded-lg'>
+          <div className='grid grid-cols-2 gap-2 mb-3'>
+            <div className='bg-[color:var(--brand-primary)/0.08] p-2.5 rounded-[0.8rem] border border-[color:var(--brand-primary)/0.14]'>
               <div className='flex items-center gap-2 mb-1'>
                 <Zap className='w-4 h-4 text-[color:var(--brand-primary)]' />
-                <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>
+                <span className='text-[0.68rem] font-semibold text-[color:var(--brand-primary)]'>
                   Points
                 </span>
               </div>
-              <span className='text-lg font-bold text-[color:var(--brand-primary)]'>
+              <span className='text-[0.95rem] font-bold text-[color:var(--brand-primary)]'>
                 {reward.pointCost}
               </span>
             </div>
-            <div className='bg-green-50 p-3 rounded-lg'>
+            <div className='bg-green-50 p-2.5 rounded-[0.8rem] border border-green-100'>
               <div className='flex items-center gap-2 mb-1'>
                 <RewardValueIcon type={reward.type} className='w-4 h-4 text-green-600' />
-                <span className='text-xs font-semibold text-green-700'>
+                <span className='text-[0.68rem] font-semibold text-green-700'>
                   Value
                 </span>
               </div>
-              <span className='text-lg font-bold text-green-700'>
+              <span className='text-[0.95rem] font-bold text-green-700'>
                 {getRewardValueDisplay(reward)}
               </span>
             </div>
           </div>
-          <div className='flex items-center justify-between pt-4 border-t border-gray-100'>
+          <div className='flex items-center justify-between pt-3 border-t border-[#f1f1f3]'>
             <button
               type='button'
               onClick={() => onViewRedeemers?.(reward)}
               disabled={!canOpenRedeemers || !reward.redeemCount}
-              className='text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:text-[color:var(--brand-primary)] transition-colors'
+              className='text-[0.75rem] text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:text-[color:var(--brand-primary)] transition-colors'
             >
               <span className='font-semibold'>{reward.redeemCount || 0}</span>{' '}
               redeemed
             </button>
-            <div className='text-sm text-gray-600'>
+            <div className='text-[0.72rem] text-gray-500'>
               ID: {reward._id?.slice(-6) || reward.id}
             </div>
           </div>
@@ -505,7 +511,7 @@ const RewardForm = ({
     <AnimatePresence>
       {isOpen && (
         <div className='fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-[2px] p-0 sm:p-4'>
-          <motion.div
+          <MotionDiv
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
@@ -659,7 +665,7 @@ const RewardForm = ({
                   {/* Status */}
                   <div className='space-y-1.5'>
                     <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
-                      Status
+                      Reward Visibility
                     </label>
                     <div className='relative'>
                       <select
@@ -667,8 +673,8 @@ const RewardForm = ({
                         onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                         className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none outline-none text-sm font-medium'
                       >
-                        <option value='active'>Active</option>
-                        <option value='inactive'>Inactive</option>
+                        <option value='active'>Enabled (Visible to users)</option>
+                        <option value='inactive'>Disabled (Hidden from users)</option>
                       </select>
                       <ChevronDown className='absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
                     </div>
@@ -838,7 +844,7 @@ const RewardForm = ({
                                 imagePublicId: res.publicId || '',
                               }))
                               toast.success('Image uploaded!')
-                            } catch (error) {
+                            } catch {
                               toast.error('Failed to upload image')
                             } finally {
                               setIsUploadingImage(false)
@@ -905,7 +911,7 @@ const RewardForm = ({
                           }
                           setFormData(prev => ({ ...prev, voiceNoteUrl: res.url }));
                           toast.success("Voice note uploaded!");
-                        } catch (error) {
+                        } catch {
                           toast.error("Failed to upload voice note");
                         }
                       }}
@@ -952,7 +958,7 @@ const RewardForm = ({
                 </button>
               </div>
             </div>
-          </motion.div>
+          </MotionDiv>
         </div>
       )}
     </AnimatePresence>
@@ -1010,7 +1016,7 @@ const RedeemedUsersModal = ({
   return (
     <AnimatePresence>
       <div className='fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-[2px] p-0 sm:p-4'>
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0, y: '100%' }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: '100%' }}
@@ -1087,7 +1093,7 @@ const RedeemedUsersModal = ({
               </div>
             )}
           </div>
-        </motion.div>
+        </MotionDiv>
       </div>
     </AnimatePresence>
   )
@@ -1123,10 +1129,10 @@ const RewardManagement = () => {
   const {
     rewards = [],
     isLoading,
-    error,
     refetch,
   } = useEnhancedRewardsCatalog({
     search: searchTerm,
+    status: canManageRewards ? 'all' : 'active',
     excludeTestUsers: true,
     excludeEmailDomain: 'test.com',
   })
@@ -1168,17 +1174,21 @@ const RewardManagement = () => {
     onSuccess: () => toast.success('Reward deleted successfully!'),
     onError: (error) => toast.error(error.response?.data?.message || 'Failed to delete reward'),
   })
-
   const stats = {
     total: rewards.length,
     active: rewards.filter((r) => r.status === 'active').length,
   }
 
-  const filteredRewards = rewards.filter((reward) =>
-    reward.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reward.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reward.type.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredRewards = rewards.filter((reward) => {
+    const isVisibleToCurrentRole = canManageRewards || reward.status === 'active'
+    if (!isVisibleToCurrentRole) return false
+
+    return (
+      reward.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reward.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reward.type.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
 
   const handleAddReward = () => {
     if (!canManageRewards) return toast.error('Access denied')
@@ -1229,7 +1239,7 @@ const RewardManagement = () => {
 
   return (
     <Layout>
-      <div className='px-4 py-8 max-w-7xl mx-auto w-full'>
+      <div className='px-4 py-4 mx-auto max-w-7xl md:px-6 lg:px-8 relative z-0'>
         <RewardHeader
           view={view}
           setView={setView}
@@ -1241,14 +1251,13 @@ const RewardManagement = () => {
         />
 
         {view === 'grid' ? (
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 md:gap-4.5 mb-8'>
             {filteredRewards.map((reward) => (
               <RewardCard
                 key={reward._id}
                 reward={reward}
                 onEdit={handleEditReward}
                 onDelete={handleDeleteReward}
-                onView={(reward) => alert(`View ${reward.name}`)}
                 onViewRedeemers={handleOpenRedeemedUsers}
                 canOpenRedeemers={canManageRewards}
                 userRole={userRole}
@@ -1256,12 +1265,12 @@ const RewardManagement = () => {
             ))}
           </div>
         ) : (
-          <div className='bg-white rounded-lg p-4 md:p-6 shadow-sm border border-[color:var(--brand-primary)/0.12]'>
+          <div className='bg-white rounded-[1.35rem] p-3.5 md:p-4 shadow-[0_8px_28px_-22px_rgba(0,0,0,0.24)] border border-[#ececef] mb-8'>
             <div className='space-y-4'>
               {filteredRewards.map((reward) => (
                 <div
                   key={reward._id}
-                  className='flex items-center gap-4 p-4 border border-gray-100 rounded-lg hover:border-[color:var(--brand-primary)/0.35] hover:shadow-md transition-all group'
+                  className='flex items-center gap-3 p-3 border border-[#f1f1f3] rounded-[0.95rem] hover:border-[color:var(--brand-primary)/0.35] hover:shadow-sm transition-all group bg-white'
                 >
                   <img
                     src={resolveImageUrl(
@@ -1270,28 +1279,35 @@ const RewardManagement = () => {
                       { width: 160, height: 160 }
                     )}
                     alt={reward.name}
-                    className='w-16 h-16 rounded-lg object-cover'
+                    className='w-14 h-14 rounded-[0.8rem] object-cover'
                     loading='lazy'
                     decoding='async'
                   />
                   <div className='flex-1 min-w-0'>
-                    <h3 className='font-bold text-gray-900 truncate'>{reward.name}</h3>
-                    <p className='text-sm text-gray-600 line-clamp-1'>{reward.description}</p>
-                    <div className='flex gap-4 mt-1'>
-                      <span className='text-xs font-semibold text-[color:var(--brand-primary)]'>{reward.pointCost} pts</span>
-                      <span className='text-xs font-semibold text-green-600'>{getRewardValueDisplay(reward)}</span>
+                    <h3 className='font-semibold text-[0.9rem] text-gray-900 truncate'>{reward.name}</h3>
+                    <p className='text-[0.77rem] text-gray-600 line-clamp-1'>{reward.description}</p>
+                    <div className='flex gap-3 mt-1.5 flex-wrap'>
+                      <span className='text-[0.7rem] font-semibold text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] border border-[color:var(--brand-primary)/0.14] px-2 py-0.5 rounded-full'>{reward.pointCost} pts</span>
+                      <span className='text-[0.7rem] font-semibold text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full'>{getRewardValueDisplay(reward)}</span>
+                      <span className={`text-[0.68rem] font-semibold px-2 py-0.5 rounded-full border ${
+                        reward.status === 'active'
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                          : 'text-gray-600 bg-gray-50 border-gray-200'
+                      }`}>
+                        {reward.status}
+                      </span>
                       <button
                         type='button'
                         onClick={() => handleOpenRedeemedUsers(reward)}
                         disabled={!canManageRewards || !reward.redeemCount}
-                        className='text-xs font-semibold text-gray-600 hover:text-[color:var(--brand-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                        className='text-[0.72rem] font-semibold text-gray-600 hover:text-[color:var(--brand-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
                       >
                         {reward.redeemCount || 0} redeemed
                       </button>
                     </div>
                   </div>
                   {canManageRewards && (
-                    <div className='flex gap-2'>
+                    <div className='flex gap-2 items-center'>
                       <button onClick={() => handleEditReward(reward)} className='p-2 text-blue-600 hover:bg-blue-50 rounded-lg'><Edit3 className='w-4 h-4' /></button>
                       <button onClick={() => handleDeleteReward(reward)} className='p-2 text-red-600 hover:bg-red-50 rounded-lg'><Trash2 className='w-4 h-4' /></button>
                     </div>
@@ -1303,22 +1319,20 @@ const RewardManagement = () => {
         )}
 
         {filteredRewards.length === 0 && (
-          <div className='text-center py-20 bg-white rounded-3xl shadow-sm border border-[color:var(--brand-primary)/0.12]'>
-            <div className='text-6xl mb-6'>🎁</div>
-            <h3 className='text-2xl font-bold text-gray-800 mb-2'>No rewards found</h3>
-            <p className='text-gray-500 mb-8'>Check back later for new surprises!</p>
+          <div className='text-center py-12 md:py-16 bg-white rounded-2xl border border-[#f1f1f3] mb-8'>
+            <div className='text-4xl md:text-6xl mb-4'>💝</div>
+            <h3 className='text-xl md:text-2xl font-bold text-gray-800 mb-3'>No rewards found</h3>
+            <p className='text-gray-600 mb-6 px-4'>Try a different search or create a new reward.</p>
             {canManageRewards && (
               <button
                 onClick={handleAddReward}
-                className='text-white px-8 py-4 rounded-2xl font-bold shadow-lg hover:brightness-105'
+                className='text-white px-6 py-3 rounded-xl font-semibold hover:brightness-110'
                 style={{
                   background:
                     'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
-                  boxShadow:
-                    '0 10px 25px -10px color-mix(in srgb, var(--brand-primary) 45%, transparent)',
                 }}
               >
-                Create Your First Reward
+                Create Reward
               </button>
             )}
           </div>

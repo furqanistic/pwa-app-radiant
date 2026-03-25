@@ -523,8 +523,15 @@ const RewardsCatalogPage = () => {
     catalogRewards: rewards || [],
     userRewards: activeUserRewards,
   })
-  const filteredRewards = mergedRewards || []
+  const visibleRewards = (mergedRewards || []).filter(
+    (reward) => reward?.status === 'active'
+  )
+
+  const filteredRewards = visibleRewards
   const handleClaimReward = async (rewardId) => {
+    const selectedReward = filteredRewards.find((reward) => reward._id === rewardId)
+    if (!selectedReward || selectedReward.status !== 'active') return false
+
     try {
       await claimRewardMutation.mutateAsync(rewardId)
       return true
