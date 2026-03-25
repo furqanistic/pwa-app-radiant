@@ -4,6 +4,7 @@ import {
     logout,
     selectIsElevatedUser,
     selectIsSuperAdmin,
+    selectUserRole,
 } from '@/redux/userSlice';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -79,6 +80,7 @@ const BottomNav = () => {
   // Selector for role-based access
   const isSuperAdmin = useSelector(selectIsSuperAdmin)
   const isElevatedUser = useSelector(selectIsElevatedUser)
+  const userRole = useSelector(selectUserRole)
   const isRegularUser = !isSuperAdmin && !isElevatedUser
 
   // Navigation logic mirrored from Layout.jsx
@@ -157,6 +159,9 @@ const BottomNav = () => {
 
   // Filter items based on user role
   const allowedItems = baseNavigationItems.filter((item) => {
+    if (userRole === 'spa' && item.id === 'scan-qr') {
+      return false
+    }
     if (isRegularUser && item.elevatedAccessRequired) {
       return false
     }
@@ -177,6 +182,9 @@ const BottomNav = () => {
     // 3. Normal User: Show everything (existing logic)
     return true
   }).map(item => {
+    if (userRole === 'spa' && item.id === 'clients') {
+      return { ...item, inBottomBar: true }
+    }
     // Apply redirects for Admin/SPA
     if (isElevatedUser) {
       if (item.id === 'services') {
