@@ -472,7 +472,19 @@ const SpaRewardsSection = () => {
     }
   }
 
-  const recentRewards = rewards.slice(-4).reverse()
+  const claimableRewards = rewards.filter(
+    (reward) =>
+      reward?.canClaim &&
+      (reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth ?? true) &&
+      !optimisticRewards.has(reward._id)
+  )
+  const claimableRewardIds = new Set(claimableRewards.map((reward) => reward._id))
+  const lockedRewards = rewards.filter(
+    (reward) => !claimableRewardIds.has(reward._id)
+  )
+  const recentRewards = [...claimableRewards].reverse()
+    .concat([...lockedRewards].reverse())
+    .slice(0, 4)
 
   // Pull to refresh handler for PWA
   const [isRefreshing, setIsRefreshing] = useState(false)
