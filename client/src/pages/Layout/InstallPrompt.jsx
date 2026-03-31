@@ -1,6 +1,7 @@
 // File: client/src/pages/Layout/InstallPrompt.jsx
 // ENHANCED: Automatic app installation across all browsers with premium UI
 import { useBranding } from '@/context/BrandingContext'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
 import { selectCurrentUser } from '@/redux/userSlice'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -38,13 +39,13 @@ const PROMPT_STATES = {
 }
 
 const InstallPrompt = () => {
-  const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
-  const [isInstalled, setIsInstalled] = useState(false)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [isInstalling, setIsInstalling] = useState(false)
   const [promptState, setPromptState] = useState(PROMPT_STATES.INITIAL)
-  const { branding } = useBranding()
+  const { branding, locationId } = useBranding()
+  const { browserInfo, hasNativePrompt, isInstalled, triggerInstall } =
+    usePwaInstall()
   const currentUser = useSelector(selectCurrentUser)
   const spaNameFromUser =
     currentUser?.spaLocation?.locationName?.trim() ||
@@ -62,55 +63,6 @@ const InstallPrompt = () => {
       .toString(16)
       .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
   })()
-
-  // Improved browser detection
-  const browserInfo = useMemo(() => {
-    const ua = navigator.userAgent
-    const isChrome =
-      /Chrome/.test(ua) &&
-      /Google Inc/.test(navigator.vendor) &&
-      !/Edg/.test(ua)
-    const isSafari =
-      /Safari/.test(ua) &&
-      /Apple Computer/.test(navigator.vendor) &&
-      !/Chrome/.test(ua)
-    const isEdge = /Edg/.test(ua)
-    const isFirefox = /Firefox/.test(ua)
-    const isMobile =
-      /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)
-    const isIOS = /iPad|iPhone|iPod/.test(ua)
-    const isAndroid = /Android/.test(ua)
-
-    return {
-      isChrome,
-      isSafari,
-      isEdge,
-      isFirefox,
-      isMobile,
-      isIOS,
-      isAndroid,
-      name: isChrome
-        ? 'Chrome'
-        : isSafari
-        ? 'Safari'
-        : isEdge
-        ? 'Edge'
-        : isFirefox
-        ? 'Firefox'
-        : 'Unknown',
-      supportsNativeInstall: isChrome || isEdge || (isSafari && isIOS),
-    }
-  }, [])
-
-  // Check if app is installed
-  const checkIfInstalled = useCallback(() => {
-    return (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true ||
-      document.referrer.includes('android-app://') ||
-      window.matchMedia('(display-mode: minimal-ui)').matches
-    )
-  }, [])
 
   const isPWAReady = useMemo(() => {
     const hasManifest = document.querySelector('link[rel="manifest"]')
@@ -133,15 +85,48 @@ const InstallPrompt = () => {
 
   const handleInstallSuccess = useCallback(() => {
     console.log('✅ App installed successfully')
-    setIsInstalled(true)
     setShowInstallPrompt(false)
-    setDeferredPrompt(null)
     setIsInstalling(false)
     setPromptState(PROMPT_STATES.INITIAL)
     showInstallSuccess()
   }, [showInstallSuccess])
 
-  const { locationId } = useBranding()
+  const openInstructionsForEnvironment = useCallback(() => {
+    if (browserInfo.isIOS) {
+      setPromptState(PROMPT_STATES.IOS_INSTRUCTIONS)
+      return
+    }
+    if (browserInfo.isAndroid) {
+      setPromptState(PROMPT_STATES.ANDROID_INSTRUCTIONS)
+      return
+    }
+    setPromptState(PROMPT_STATES.GENERAL_INSTRUCTIONS)
+  }, [browserInfo.isAndroid, browserInfo.isIOS])
+
+  useEffect(() => {
+    const openPromptFromButton = () => {
+      if (isInstalled || !locationId) return
+      setShowInstallPrompt(true)
+
+      if (hasNativePrompt) {
+        setPromptState(PROMPT_STATES.INITIAL)
+      } else {
+        openInstructionsForEnvironment()
+      }
+    }
+
+    window.addEventListener('radiant:open-install-prompt', openPromptFromButton)
+    return () =>
+      window.removeEventListener(
+        'radiant:open-install-prompt',
+        openPromptFromButton
+      )
+  }, [
+    hasNativePrompt,
+    isInstalled,
+    locationId,
+    openInstructionsForEnvironment,
+  ])
 
   // Main installation effect
   useEffect(() => {
@@ -151,8 +136,7 @@ const InstallPrompt = () => {
       return
     }
 
-    if (checkIfInstalled()) {
-      setIsInstalled(true)
+    if (isInstalled) {
       const hasShownSuccess = localStorage.getItem(STORAGE_KEYS.SUCCESS_SHOWN)
       if (!hasShownSuccess) {
         showInstallSuccess()
@@ -172,101 +156,57 @@ const InstallPrompt = () => {
       return
     }
 
-    const handleBeforeInstallPrompt = (e) => {
-      console.log('✅ beforeinstallprompt event fired')
-      e.preventDefault()
-      setDeferredPrompt(e)
-      setShowInstallPrompt(true)
-    }
-
-    const handleAppInstalled = () => {
-      handleInstallSuccess()
-    }
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    window.addEventListener('appinstalled', handleAppInstalled)
-
     const timer = setTimeout(() => {
-      if (!isInstalled && !showInstallPrompt && isPWAReady) {
-        console.log('🔄 Showing install prompt')
+      if (!isInstalled && !showInstallPrompt && hasNativePrompt && isPWAReady) {
+        console.log('🔄 Showing native install prompt')
+        setPromptState(PROMPT_STATES.INITIAL)
         setShowInstallPrompt(true)
       }
-    }, 3000)
+    }, 1500)
 
     return () => {
-      window.removeEventListener(
-        'beforeinstallprompt',
-        handleBeforeInstallPrompt
-      )
-      window.removeEventListener('appinstalled', handleAppInstalled)
       clearTimeout(timer)
     }
   }, [
     isInstalled,
     showInstallPrompt,
+    hasNativePrompt,
     isPWAReady,
-    checkIfInstalled,
-    handleInstallSuccess,
     showInstallSuccess,
     locationId,
   ])
 
-  // Monitor installation status
-  useEffect(() => {
-    const checkInstallStatus = () => {
-      if (checkIfInstalled() && !isInstalled) {
-        handleInstallSuccess()
-      }
-    }
-
-    const interval = setInterval(checkInstallStatus, 2000)
-    return () => clearInterval(interval)
-  }, [isInstalled, checkIfInstalled, handleInstallSuccess])
-
   // MAIN INSTALL HANDLER - Automatically installs based on browser
   const handleAutoInstall = async () => {
     setIsInstalling(true)
-    const { isIOS, isAndroid } = browserInfo
 
     try {
-      // 1. Try native install (Chrome, Edge, Android)
-      if (deferredPrompt) {
-        console.log('🚀 Triggering native install prompt')
-        await deferredPrompt.prompt()
-        const { outcome } = await deferredPrompt.userChoice
+      const installResult = await triggerInstall()
 
-        if (outcome === 'accepted') {
-          console.log('✅ User accepted installation')
-          handleInstallSuccess()
-        } else {
-          console.log('❌ User rejected installation')
-          localStorage.setItem(STORAGE_KEYS.DISMISSED, Date.now().toString())
-          setShowInstallPrompt(false)
-          setIsInstalling(false)
-        }
-        setDeferredPrompt(null)
+      if (installResult.status === 'accepted') {
+        handleInstallSuccess()
         return
       }
 
-      // 2. For iOS Safari
-      if (isIOS) {
-        setPromptState(PROMPT_STATES.IOS_INSTRUCTIONS)
+      if (installResult.status === 'prompted') {
+        setIsInstalling(false)
+        setShowInstallPrompt(false)
+        setPromptState(PROMPT_STATES.INITIAL)
+        return
+      }
+
+      if (installResult.status === 'dismissed') {
+        localStorage.setItem(STORAGE_KEYS.DISMISSED, Date.now().toString())
+        setShowInstallPrompt(false)
         setIsInstalling(false)
         return
       }
 
-      // 3. For Android non-native
-      if (isAndroid) {
-        setPromptState(PROMPT_STATES.ANDROID_INSTRUCTIONS)
-        setIsInstalling(false)
-        return
-      }
-
-      // 4. Fallback
-      setPromptState(PROMPT_STATES.GENERAL_INSTRUCTIONS)
+      openInstructionsForEnvironment()
       setIsInstalling(false)
     } catch (error) {
       console.error('Installation error:', error)
+      openInstructionsForEnvironment()
       setIsInstalling(false)
     }
   }
@@ -282,7 +222,6 @@ const InstallPrompt = () => {
     }
 
     setTimeout(() => {
-      setDeferredPrompt(null)
       setPromptState(PROMPT_STATES.INITIAL)
     }, 1000)
   }
@@ -389,7 +328,7 @@ const InstallPrompt = () => {
                   ) : (
                     <>
                       <Download className='w-5 h-5 group-hover:animate-bounce' />
-                      {deferredPrompt ? 'Install Now' : 'Get Started'}
+                      {hasNativePrompt ? 'Install Now' : 'Show Steps'}
                     </>
                   )}
                 </button>

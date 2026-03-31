@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { useBranding } from '@/context/BrandingContext';
 import { resolveImageUrl } from '@/lib/imageHelpers';
+import { getCurrentSubdomain } from '@/utils/subdomain';
 
 /**
  * AppIconManager dynamically updates the PWA manifest and icons based on the selected spa location.
@@ -16,6 +17,25 @@ const AppIconManager = () => {
         if (typeof window === 'undefined') return null;
         return new URLSearchParams(window.location.search).get('spa');
     }, []);
+    const subdomainFallbackName = useMemo(() => {
+        const rawSubdomain = (subdomain || getCurrentSubdomain() || '').trim().toLowerCase();
+        if (!rawSubdomain) return null;
+
+        const reserved = new Set(['www', 'app', 'api', 'localhost', '127']);
+        if (reserved.has(rawSubdomain)) return null;
+
+        return rawSubdomain
+            .split('-')
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+    }, [subdomain]);
+    const normalizedSubdomain = useMemo(() => {
+        const rawSubdomain = (subdomain || getCurrentSubdomain() || '').trim().toLowerCase();
+        if (!rawSubdomain) return null;
+        const reserved = new Set(['www', 'app', 'api', 'localhost', '127']);
+        return reserved.has(rawSubdomain) ? null : rawSubdomain;
+    }, [subdomain]);
     const hasScopedSpaContext = Boolean(subdomain || locationId || spaFromQuery);
     
     // Determine the active location based on role
@@ -30,7 +50,7 @@ const AppIconManager = () => {
     const spaThemeColor = useActiveLocationFallback ? activeLocation?.themeColor : null;
 
     // Prefer subdomain branding, then selected spa data
-    const brandName = branding?.name || spaName;
+    const brandName = branding?.name || spaName || subdomainFallbackName;
     const resolvedBrandLogo = resolveImageUrl(
         branding?.logo || branding?.logoPublicId || spaLogo,
         branding?.logo || spaLogo,
@@ -60,6 +80,14 @@ const AppIconManager = () => {
             const appleLogoToUse = brandLogo || brandFavicon || DEFAULT_APPLE_ICON;
             const nameToUse = brandName ? `${brandName}` : DEFAULT_APP_NAME;
             const themeColorToUse = brandThemeColor || DEFAULT_THEME_COLOR;
+
+            if (branding?.name && normalizedSubdomain) {
+                try {
+                    localStorage.setItem(`radiant-branding-name:${normalizedSubdomain}`, branding.name);
+                } catch {
+                    // Ignore localStorage failures.
+                }
+            }
 
             // 1. Update Title
             document.title = brandName ? `${brandName} | RadiantAI` : DEFAULT_APP_NAME;
@@ -193,7 +221,7 @@ const AppIconManager = () => {
                 manifestUrlRef.current = null;
             }
         };
-    }, [brandLogo, brandFavicon, brandName, brandThemeColor]);
+    }, [brandLogo, brandFavicon, brandName, brandThemeColor, branding?.name, normalizedSubdomain]);
 
     return null; // This component doesn't render anything
 };

@@ -114,6 +114,123 @@
     />
 
     <title>RadiantAI</title>
+    <script>
+      (() => {
+        const DEFAULT_APP_NAME = 'RadiantAI';
+        const RESERVED_SUBDOMAINS = new Set([
+          'www',
+          'app',
+          'api',
+          'localhost',
+          '127',
+        ]);
+
+        const setMetaContent = (selector, content) => {
+          const node = document.querySelector(selector);
+          if (node && content) {
+            node.setAttribute('content', content);
+          }
+        };
+
+        const humanizeSubdomain = (value) =>
+          value
+            .split('-')
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+
+        const applyAppName = (name) => {
+          const normalizedName = (name || '').trim();
+          if (!normalizedName) return;
+          document.title = `${normalizedName} | ${DEFAULT_APP_NAME}`;
+          setMetaContent("meta[name='apple-mobile-web-app-title']", normalizedName);
+          setMetaContent("meta[name='application-name']", normalizedName);
+          setMetaContent("meta[property='og:title']", normalizedName);
+          setMetaContent("meta[name='twitter:title']", normalizedName);
+        };
+
+        const updateManifestName = async (name) => {
+          const normalizedName = (name || '').trim();
+          if (!normalizedName) return;
+
+          const manifestLink = document.querySelector("link[rel='manifest']");
+          if (!manifestLink) return;
+
+          try {
+            const response = await fetch('/manifest.json', { cache: 'no-store' });
+            if (!response.ok) return;
+
+            const manifest = await response.json();
+            manifest.name = normalizedName;
+            manifest.short_name = normalizedName;
+
+            const blob = new Blob([JSON.stringify(manifest)], {
+              type: 'application/manifest+json',
+            });
+            const manifestUrl = URL.createObjectURL(blob);
+
+            if (window.__radiantManifestObjectUrl) {
+              URL.revokeObjectURL(window.__radiantManifestObjectUrl);
+            }
+            window.__radiantManifestObjectUrl = manifestUrl;
+            manifestLink.setAttribute('href', manifestUrl);
+          } catch {
+            // Keep default manifest.
+          }
+        };
+
+        const hostname = window.location.hostname.toLowerCase();
+        const hostnameParts = hostname.split('.');
+        const isIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+        const subdomain =
+          !isIpv4 && hostnameParts.length > 2
+            ? hostnameParts[0]
+            : null;
+
+        if (!subdomain || RESERVED_SUBDOMAINS.has(subdomain)) {
+          return;
+        }
+
+        const brandingCacheKey = `radiant-branding-name:${subdomain}`;
+        let cachedBrandName = null;
+        try {
+          cachedBrandName = localStorage.getItem(brandingCacheKey);
+        } catch {
+          cachedBrandName = null;
+        }
+
+        // Apply immediately so iOS "Add to Home Screen" gets tenant-specific text.
+        // Prefer exact cached management name, fallback to humanized subdomain.
+        const immediateName = cachedBrandName || humanizeSubdomain(subdomain);
+        applyAppName(immediateName);
+        updateManifestName(immediateName);
+
+        // Resolve exact location name (if available) and overwrite fallback.
+        const apiBase = '%VITE_API_URL%';
+        if (!apiBase || apiBase.includes('%VITE_API_URL%')) return;
+
+        const normalizedApiBase = apiBase.replace(/\/+$/, '');
+        fetch(`${normalizedApiBase}/branding/${encodeURIComponent(subdomain)}`, {
+          credentials: 'include',
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((payload) => {
+            const locationName = payload?.success ? payload?.data?.name : null;
+            if (locationName) {
+              try {
+                localStorage.setItem(brandingCacheKey, locationName);
+              } catch {
+                // Ignore storage failures.
+              }
+              applyAppName(locationName);
+              updateManifestName(locationName);
+            }
+          })
+          .catch(() => {
+            // Keep fallback subdomain name.
+          });
+      })();
+    </script>
 
     <style>
       :root {
