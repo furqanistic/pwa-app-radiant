@@ -250,6 +250,12 @@ const ServiceSchema = new mongoose.Schema(
       min: 1,
       default: 1,
     },
+    recommendedCycleWeeks: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 104,
+    },
     subTreatments: [SubTreatmentSchema],
 
     // ✅ NEW: Linked services as add-ons
