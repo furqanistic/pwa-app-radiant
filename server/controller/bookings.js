@@ -11,6 +11,7 @@ import {
   assertSlotAvailable,
   getServiceCalendarSelection,
 } from '../utils/bookingScheduling.js'
+import { getCycleWeeksForService, calculateNextRecommendedDate, getCycleUrgency, formatDaysUntilDue } from '../utils/treatmentCycles.js'
 
 // Get user's upcoming appointments
 export const getUserUpcomingAppointments = async (req, res, next) => {
@@ -473,4 +474,104 @@ export const getAdminBookings = async (req, res, next) => {
     console.error('Error fetching admin bookings:', error)
     next(createError(500, 'Failed to fetch admin bookings'))
   }
+  /**
+ * GET /bookings/my-cycles
+ * Returns upcoming treatment cycle reminders for the logged-in user.
+ * Shows services where a refresh is due within 30 days or overdue,
+ * and the user has no upcoming booking for that service.
+ */
+export const getTreatmentCycles = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const now = new Date()
+
+    // Look back up to 12 months for past paid bookings
+    const twelveMonthsAgo = new Date(now)
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
+
+    // Fetch past paid bookings, most recent first, with service populated
+    const pastBookings = await Booking.find({
+      userId,
+      date: { $gte: twelveMonthsAgo, $lt: now },
+      paymentStatus: 'paid',
+      status: { $nin: ['cancelled'] },
+    })
+      .populate('serviceId', 'name recommendedCycleWeeks')
+      .sort({ date: -1 })
+      .lean()
+
+    // Keep only the most recent booking per service
+    const latestByService = new Map()
+    for (const booking of pastBookings) {
+      const sid = booking.serviceId?._id?.toString()
+      if (sid && !latestByService.has(sid)) {
+        latestByService.set(sid, booking)
+      }
+    }
+
+    // Fetch upcoming paid bookings to know which services are already rebooked
+    const upcomingBookings = await Booking.find({
+      userId,
+      date: { $gte: now },
+      paymentStatus: 'paid',
+      status: { $in: ['scheduled', 'confirmed'] },
+    })
+      .select('serviceId')
+      .lean()
+
+    const upcomingServiceIds = new Set(
+      upcomingBookings.map((b) => b.serviceId?.toString()).filter(Boolean)
+    )
+
+    // Build cycles array — only include cycles due within 30 days or overdue
+    const SHOW_WITHIN_DAYS = 30
+    const cycles = []
+
+    for (const [sid, booking] of latestByService) {
+      // Skip if user already has an upcoming booking for this service
+      if (upcomingServiceIds.has(sid)) continue
+
+      const service = booking.serviceId
+      if (!service) continue
+
+      const cycleWeeks = getCycleWeeksForService(service)
+      if (!cycleWeeks) continue // No cycle configured for this treatment type
+
+      const nextRecommendedDate = calculateNextRecommendedDate(booking.date, cycleWeeks)
+      const daysUntilDue = Math.floor(
+        (nextRecommendedDate - now) / (1000 * 60 * 60 * 24)
+      )
+
+      // Only surface if overdue or coming up within the window
+      if (daysUntilDue > SHOW_WITHIN_DAYS) continue
+
+      cycles.push({
+        bookingId: booking._id,
+        serviceId: sid,
+        serviceName: service.name,
+        lastVisitDate: booking.date,
+        nextRecommendedDate,
+        cycleWeeks,
+        daysUntilDue,
+        isOverdue: daysUntilDue < 0,
+        urgency: getCycleUrgency(daysUntilDue),
+        dueDateLabel: formatDaysUntilDue(daysUntilDue),
+      })
+    }
+
+    // Sort: overdue and most urgent first
+    cycles.sort((a, b) => a.daysUntilDue - b.daysUntilDue)
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        cycles,
+        total: cycles.length,
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching treatment cycles:', error)
+    next(createError(500, 'Failed to fetch treatment cycles'))
+  }
+}
 }
