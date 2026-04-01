@@ -8,6 +8,7 @@ import {
     createBooking,
     getAdminBookings,
     getBookedTimes,
+    getTreatmentCycles,
     getUserBookingStats,
     getUserPastVisits,
     getUserUpcomingAppointments,
@@ -28,11 +29,11 @@ router.put('/availability', updateAvailability)
 router.get('/upcoming', getUserUpcomingAppointments)
 router.get('/past', getUserPastVisits)
 router.get('/stats', getUserBookingStats)
+router.get('/my-cycles', getTreatmentCycles)
 router.post('/create', createBooking)
 router.post('/rate/:bookingId', rateVisit)
-router.get("/booked-times", getBookedTimes);
-import { ..., getTreatmentCycles } from '../controller/bookings.js'
-//   router.get('/my-cycles', getTreatmentCycles)
+router.get('/booked-times', getBookedTimes)
+
 // Admin routes
 router.get('/admin/all', getAdminBookings)
 
