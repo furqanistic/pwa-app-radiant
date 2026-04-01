@@ -21,6 +21,11 @@ export const bookingService = {
     return response.data;
   },
 
+  getTreatmentCycles: async () => {
+    const response = await axiosInstance.get("/bookings/my-cycles");
+    return response.data;
+  },
+
   rescheduleBooking: async (bookingId, newDate, newTime) => {
     const response = await axiosInstance.put(
       `/bookings/${bookingId}/reschedule`,
