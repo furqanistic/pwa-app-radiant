@@ -31,7 +31,8 @@ router.get('/stats', getUserBookingStats)
 router.post('/create', createBooking)
 router.post('/rate/:bookingId', rateVisit)
 router.get("/booked-times", getBookedTimes);
-
+import { ..., getTreatmentCycles } from '../controller/bookings.js'
+//   router.get('/my-cycles', getTreatmentCycles)
 // Admin routes
 router.get('/admin/all', getAdminBookings)
 
