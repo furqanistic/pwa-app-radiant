@@ -3,6 +3,7 @@ import ClinicLocations from '@/components/Dashboard/ClinicLocations'
 import GamesSection from '@/components/Dashboard/GamesSection'
 import PointsCard from '@/components/Dashboard/PointsCard'
 import SpaDashboard from '@/components/Dashboard/SpaDashboard'
+import TreatmentCycleCard from '@/components/Dashboard/TreatmentCycleCard'
 import { useBranding } from '@/context/BrandingContext'
 import { dashboardQueryKeys, useDashboardData } from '@/hooks/useDashboard'
 import { useAvailableGames } from '@/hooks/useGameWheel'
@@ -1131,7 +1132,8 @@ const DashboardPage = () => {
             <>
               {/* Points Card - Full Width at Top */}
               <div className='mb-4 sm:mb-6 lg:mb-8'>
-                <PointsCard />
+                <PointsCard /> 
+                <TreatmentCycleCard />
               </div>
 
               <div className='mb-4 sm:mb-6 lg:mb-8'>
