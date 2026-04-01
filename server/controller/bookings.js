@@ -574,4 +574,3 @@ export const getTreatmentCycles = async (req, res, next) => {
     next(createError(500, 'Failed to fetch treatment cycles'))
   }
 }
-}
