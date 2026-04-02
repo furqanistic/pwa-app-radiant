@@ -577,6 +577,7 @@ export const getAdminBookings = async (req, res, next) => {
     console.error('Error fetching admin bookings:', error)
     next(createError(500, 'Failed to fetch admin bookings'))
   }
+}
   /**
  * GET /bookings/my-cycles
  * Returns upcoming treatment cycle reminders for the logged-in user.
