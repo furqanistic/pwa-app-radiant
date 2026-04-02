@@ -16,9 +16,13 @@ const parseDateOnly = (dateString) => {
 
 export const getServiceCalendarSelection = (service = null) => {
   const calendar = service?.ghlCalendar || {}
+  const linkedGhlServiceId = `${service?.ghlService?.serviceId || ''}`.trim()
+  const rawCalendarId = `${calendar.calendarId || ''}`.trim()
+  const looksLikeServiceIdStoredAsCalendarId =
+    Boolean(rawCalendarId && linkedGhlServiceId && rawCalendarId === linkedGhlServiceId)
 
   return {
-    calendarId: `${calendar.calendarId || ''}`.trim(),
+    calendarId: looksLikeServiceIdStoredAsCalendarId ? '' : rawCalendarId,
     name: `${calendar.name || ''}`.trim(),
     timeZone:
       `${calendar.timeZone || calendar.calendarTimeZone || calendar.timezone || ''}`.trim(),
@@ -31,6 +35,18 @@ const extractOffsetFromDateTime = (value = '') => {
   const match = `${value || ''}`.match(/([+-]\d{2}:\d{2}|Z)$/i)
   if (!match) return ''
   return match[1].toUpperCase() === 'Z' ? '+00:00' : match[1]
+}
+
+const isExpectedGhlLookupFailure = (error) => {
+  const status = error?.response?.status || error?.response?.data?.statusCode || 0
+  const message = `${error?.response?.data?.message || error?.response?.data?.error || error?.message || ''}`.toLowerCase()
+  return (
+    status === 401 ||
+    status === 404 ||
+    message.includes('invalid jwt') ||
+    message.includes('cannot get /calendars/events/appointments') ||
+    message.includes('not found')
+  )
 }
 
 export const parseTimeStringOnDate = (dateInput, timeString) => {
@@ -198,10 +214,12 @@ export const getDailySchedulingContext = async ({
       }
     } catch (error) {
       externalSourceUnavailable = true
-      console.warn(
-        `GHL scheduling lookup failed for location ${locationId}:`,
-        error.response?.data || error.message
-      )
+      if (!isExpectedGhlLookupFailure(error)) {
+        console.warn(
+          `GHL scheduling lookup failed for location ${locationId}:`,
+          error.response?.data || error.message
+        )
+      }
     }
   }
 

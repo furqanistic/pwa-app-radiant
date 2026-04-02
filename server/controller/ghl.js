@@ -35,7 +35,11 @@ const makeGHLRequest = async (
     const response = await axios(config)
     return response.data
   } catch (error) {
-    console.error('GHL API Error:', error.response?.data || error.message)
+    const apiMessage = `${error?.response?.data?.msg || error?.response?.data?.message || ''}`.toLowerCase()
+    const isExpectedLegacyApiKeyFailure = apiMessage.includes('api key is invalid')
+    if (!isExpectedLegacyApiKeyFailure) {
+      console.error('GHL API Error:', error.response?.data || error.message)
+    }
     throw error
   }
 }
@@ -933,9 +937,6 @@ const normalizeCalendarServiceEntity = (service, index = 0) => {
       service?.calendarId ||
       service?.calendar?.id ||
       service?.calendar?._id ||
-      service?.id ||
-      service?._id ||
-      service?.serviceId ||
       '',
     calendarName:
       service?.calendarName || service?.calendar?.name || service?.calendar?.title || '',
@@ -1397,6 +1398,17 @@ export const createGhlAppointmentForBooking = async ({
     throw new Error('Booking location is required for GHL sync')
   }
 
+  console.log('[GHL:SYNC] Preparing appointment payload', {
+    bookingId: `${booking?._id || ''}`,
+    serviceId: `${service?._id || ''}`,
+    locationId,
+    calendarId,
+    time: booking?.time || '',
+    date: booking?.date || '',
+    customerEmail: customer?.email || '',
+    customerName: customer?.name || '',
+  })
+
   const { token, contactId } = await ensureGhlContactForLocation(locationId, {
     email: customer?.email || '',
     phone: customer?.phone || '',
@@ -1429,6 +1441,7 @@ export const createGhlAppointmentForBooking = async ({
     ...(teamId ? { teamId } : {}),
   }
 
+  // Booking sync is v2-only. Do not fall back to legacy v1 for location API keys.
   const attempts = [
     {
       endpoint: '/calendars/events/appointments',
@@ -1436,34 +1449,17 @@ export const createGhlAppointmentForBooking = async ({
       transport: 'v2',
       data: basePayload,
     },
-    {
-      endpoint: '/appointments/',
-      method: 'POST',
-      transport: 'v1',
-        data: {
-          locationId,
-          calendarId,
-          contactId,
-          title: basePayload.title,
-          selectedTimezone: timeZone,
-          selectedSlot: basePayload.selectedSlot,
-          startTime: basePayload.startTime,
-          endTime: basePayload.endTime,
-          appointmentStatus: 'confirmed',
-          notes: basePayload.notes,
-          ...(assignedUserId ? { assignedUserId } : {}),
-          ...(teamId ? { teamId } : {}),
-          address: '',
-          ignoreDateRange: true,
-          toNotify: false,
-      },
-    },
   ]
 
   let lastError = null
 
   for (const attempt of attempts) {
     try {
+      console.log('[GHL:SYNC] Attempting appointment create', {
+        bookingId: `${booking?._id || ''}`,
+        transport: attempt.transport,
+        endpoint: attempt.endpoint,
+      })
       const response =
         attempt.transport === 'v2'
           ? await makeGHLV2Request(attempt.endpoint, {
@@ -1478,6 +1474,12 @@ export const createGhlAppointmentForBooking = async ({
               token
             )
 
+      console.log('[GHL:SYNC] Appointment created successfully', {
+        bookingId: `${booking?._id || ''}`,
+        transport: attempt.transport,
+        endpoint: attempt.endpoint,
+        appointmentId: extractAppointmentId(response),
+      })
       return {
         skipped: false,
         appointmentId: extractAppointmentId(response),
@@ -1489,14 +1491,25 @@ export const createGhlAppointmentForBooking = async ({
         attempt.transport === 'v2' &&
         error?.response?.status === 400 &&
         message.includes('slot you have selected is no longer available')
+      const isV2InactiveCalendar =
+        attempt.transport === 'v2' &&
+        error?.response?.status === 400 &&
+        message.includes('calendar is inactive')
 
       // If v2 confirms a real business failure (slot no longer available),
-      // do not fall back to v1 because it produces misleading auth noise.
-      if (isV2SlotUnavailable) {
+      // fail fast so we don't retry blindly.
+      if (isV2SlotUnavailable || isV2InactiveCalendar) {
         throw error
       }
 
       lastError = error
+      console.warn('[GHL:SYNC] Appointment create failed', {
+        bookingId: `${booking?._id || ''}`,
+        transport: attempt.transport,
+        endpoint: attempt.endpoint,
+        statusCode: error?.response?.status || error?.response?.data?.statusCode || null,
+        message: error?.response?.data?.message || error?.response?.data?.msg || error?.message,
+      })
     }
   }
 
@@ -1901,6 +1914,7 @@ export const getCalendarServices = async (req, res, next) => {
     ]
 
     let lastError = null
+    const attemptErrors = []
     const bookingSubdomain = await resolveBookingSubdomainForLocation(locationId)
 
     for (const attempt of attempts) {
@@ -1925,9 +1939,19 @@ export const getCalendarServices = async (req, res, next) => {
         })
       } catch (error) {
         lastError = error
+        attemptErrors.push({
+          endpoint: attempt.endpoint,
+          source: attempt.source,
+          statusCode: error?.response?.status || error?.response?.data?.statusCode || null,
+          message: error?.response?.data?.message || error?.response?.data?.msg || error?.message,
+        })
       }
     }
 
+    console.warn('[GHL:getCalendarServices] v2 attempts failed', {
+      locationId,
+      attemptErrors,
+    })
     throw lastError || new Error('Failed to fetch GHL calendar services')
   } catch (error) {
     res.status(200).json({
@@ -1976,6 +2000,7 @@ export const getCalendarServiceById = async (req, res, next) => {
     ]
 
     let lastError = null
+    const attemptErrors = []
     const bookingSubdomain = await resolveBookingSubdomainForLocation(locationId)
 
     for (const attempt of attempts) {
@@ -2003,9 +2028,20 @@ export const getCalendarServiceById = async (req, res, next) => {
         })
       } catch (error) {
         lastError = error
+        attemptErrors.push({
+          endpoint: attempt.endpoint,
+          source: attempt.source,
+          statusCode: error?.response?.status || error?.response?.data?.statusCode || null,
+          message: error?.response?.data?.message || error?.response?.data?.msg || error?.message,
+        })
       }
     }
 
+    console.warn('[GHL:getCalendarServiceById] v2 attempts failed', {
+      locationId,
+      serviceId,
+      attemptErrors,
+    })
     throw lastError || new Error('Failed to fetch GHL calendar service')
   } catch (error) {
     res.status(200).json({

@@ -2490,6 +2490,8 @@ export const createCheckoutSession = async (req, res, next) => {
       duration,
       locationId,
       notes,
+      addOns,
+      totalPrice,
       userRewardId,
       rewardUsed,
       pointsUsed,
@@ -2526,16 +2528,37 @@ export const createCheckoutSession = async (req, res, next) => {
       return next(createError(400, 'No Stripe-ready spa account found for this location'))
     }
 
+    const normalizedAddOns = Array.isArray(addOns)
+      ? addOns
+          .map((addOn) => {
+            const parsedPrice = Number(addOn?.price)
+            const parsedDuration = Number.parseInt(addOn?.duration, 10)
+            return {
+              serviceId: addOn?.serviceId || null,
+              name: `${addOn?.name || 'Add-on'}`.trim(),
+              price: Number.isFinite(parsedPrice) ? Math.max(0, parsedPrice) : 0,
+              duration: Number.isFinite(parsedDuration) ? Math.max(0, parsedDuration) : 0,
+            }
+          })
+          .filter((addOn) => addOn.price > 0)
+      : []
+
+    const addOnsTotal = normalizedAddOns.reduce(
+      (sum, addOn) => sum + addOn.price,
+      0
+    )
+
     // Calculate pricing
-    let subtotal = Number(service.basePrice) || 0
+    let baseSubtotal = Number(service.basePrice) || 0
     const memberPrice = resolveMemberPriceForUserAndService({ user: customer, service })
     if (
       isUserEligibleForMembershipPricing(customer) &&
       Number.isFinite(memberPrice) &&
       memberPrice >= 0
     ) {
-      subtotal = memberPrice
+      baseSubtotal = memberPrice
     }
+    let subtotal = baseSubtotal + addOnsTotal
     let discountAmount = 0
     let isFreeGift = false
     let resolvedRewardUsed = rewardUsed || null
@@ -2562,7 +2585,7 @@ export const createCheckoutSession = async (req, res, next) => {
         }
       }
     } else {
-      // Apply service discount if active
+      // Apply service discount if active (base service only, add-ons excluded)
       if (service.discount?.active && service.discount.percentage > 0) {
         const now = new Date()
         const startDate = service.discount.startDate
@@ -2573,7 +2596,7 @@ export const createCheckoutSession = async (req, res, next) => {
           : new Date()
 
         if (now >= startDate && now <= endDate) {
-          discountAmount = (subtotal * service.discount.percentage) / 100
+          discountAmount = (baseSubtotal * service.discount.percentage) / 100
         }
       }
 
@@ -2615,10 +2638,36 @@ export const createCheckoutSession = async (req, res, next) => {
       }
     }
 
+    if (Number.isFinite(Number(totalPrice))) {
+      const requestedTotal = Number(totalPrice)
+      const roundedRequestedTotal = Math.round(requestedTotal * 100) / 100
+      const roundedComputedSubtotal = Math.round(subtotal * 100) / 100
+      const roundedComputedFinalPrice =
+        Math.round(Math.max(subtotal - discountAmount, 0) * 100) / 100
+      if (Math.abs(roundedRequestedTotal - roundedComputedFinalPrice) >= 0.01) {
+        console.warn('[Stripe Checkout] Total mismatch detected', {
+          serviceId: `${serviceId || ''}`,
+          locationId: `${locationId || ''}`,
+          requestedTotal: roundedRequestedTotal,
+          computedSubtotal: roundedComputedSubtotal,
+          computedFinalPrice: roundedComputedFinalPrice,
+          discountAmount: Math.round(discountAmount * 100) / 100,
+          addOnsTotal: Math.round(addOnsTotal * 100) / 100,
+          addOnsCount: normalizedAddOns.length,
+        })
+      }
+    }
+
     // Calculate final amount
     const finalPrice = Math.max(subtotal - discountAmount, 0)
     const amount = Math.round(finalPrice * 100) // Convert to cents
     const ghlCalendar = getServiceCalendarSelection(service)
+    const addOnsNote = normalizedAddOns.length
+      ? `[Add-ons] ${normalizedAddOns
+          .map((addOn) => `${addOn.name} ($${addOn.price.toFixed(2)})`)
+          .join(', ')}`
+      : ''
+    const bookingNotes = [notes || '', addOnsNote].filter(Boolean).join('\n')
 
     // Create temporary booking record
     const booking = await Booking.create({
@@ -2634,7 +2683,7 @@ export const createCheckoutSession = async (req, res, next) => {
       time,
       duration: effectiveDuration,
       locationId,
-      notes: notes || '',
+      notes: bookingNotes,
       status: 'scheduled',
       paymentStatus: 'pending',
       ghl: {
@@ -2817,7 +2866,13 @@ export const createCheckoutSession = async (req, res, next) => {
               name: service.name,
               description: `Booking on ${new Date(
                 date
-              ).toLocaleDateString()} at ${time}`,
+              ).toLocaleDateString()} at ${time}${
+                normalizedAddOns.length > 0
+                  ? ` | Add-ons: ${normalizedAddOns
+                      .map((addOn) => addOn.name)
+                      .join(', ')}`
+                  : ''
+              }`,
               images: service.images?.length > 0 ? [service.images[0]] : [],
             },
             unit_amount: amount,
@@ -3548,6 +3603,13 @@ async function handleAccountUpdated(account) {
 async function syncBookingToGhl(booking, customerId) {
   try {
     if (!booking.ghl) booking.ghl = {}
+    console.log('[Stripe->GHL] Sync start', {
+      bookingId: `${booking?._id || ''}`,
+      customerId: `${customerId || ''}`,
+      paymentStatus: booking?.paymentStatus || '',
+      locationId: booking?.locationId || '',
+      calendarId: booking?.ghl?.calendarId || '',
+    })
 
     const [service, customer] = await Promise.all([
       Service.findById(booking.serviceId),
@@ -3557,6 +3619,10 @@ async function syncBookingToGhl(booking, customerId) {
     if (!service || service.isDeleted) {
       booking.ghl.syncError = 'Service not found for GHL sync'
       await booking.save()
+      console.warn('[Stripe->GHL] Sync skipped - service missing', {
+        bookingId: `${booking?._id || ''}`,
+        serviceId: `${booking?.serviceId || ''}`,
+      })
       return { ok: false, retryable: false }
     }
 
@@ -3571,6 +3637,11 @@ async function syncBookingToGhl(booking, customerId) {
       await booking.save()
       const reason = `${result.reason || ''}`.toLowerCase()
       const retryable = !reason.includes('no ghl calendar linked')
+      console.warn('[Stripe->GHL] Sync skipped', {
+        bookingId: `${booking?._id || ''}`,
+        reason: result.reason || '',
+        retryable,
+      })
       return { ok: false, retryable }
     }
 
@@ -3579,6 +3650,10 @@ async function syncBookingToGhl(booking, customerId) {
     booking.ghl.syncedAt = new Date()
     booking.ghl.syncError = ''
     await booking.save()
+    console.log('[Stripe->GHL] Sync success', {
+      bookingId: `${booking?._id || ''}`,
+      appointmentId: booking?.ghl?.appointmentId || '',
+    })
     return { ok: true, retryable: false }
   } catch (error) {
     if (!booking.ghl) booking.ghl = {}
@@ -3592,10 +3667,12 @@ async function syncBookingToGhl(booking, customerId) {
       `Failed syncing booking ${booking._id} to GHL:`,
       error.response?.data || error.message
     )
-    const errMessage = `${error.response?.data?.msg || error.message || ''}`.toLowerCase()
+    const errMessage = `${error.response?.data?.message || error.response?.data?.msg || error.message || ''}`.toLowerCase()
     const retryable = !(
       errMessage.includes('api key is invalid') ||
-      errMessage.includes('invalid jwt')
+      errMessage.includes('invalid jwt') ||
+      errMessage.includes('calendar is inactive') ||
+      errMessage.includes('slot you have selected is no longer available')
     )
     return { ok: false, retryable }
   }
@@ -3609,8 +3686,19 @@ async function syncBookingToGhlWithRetry(booking, customerId, maxAttempts = 3) {
 
   while (attempt < maxAttempts) {
     attempt += 1
+    console.log('[Stripe->GHL] Sync attempt', {
+      bookingId: `${booking?._id || ''}`,
+      attempt,
+      maxAttempts,
+    })
     lastResult = await syncBookingToGhl(booking, customerId)
     if (lastResult.ok || !lastResult.retryable) {
+      console.log('[Stripe->GHL] Sync finished', {
+        bookingId: `${booking?._id || ''}`,
+        attempt,
+        ok: lastResult.ok,
+        retryable: lastResult.retryable,
+      })
       return lastResult
     }
     if (attempt < maxAttempts) {
@@ -3635,6 +3723,15 @@ async function handleCheckoutSessionCompleted(session) {
       : null
   const fallbackPaymentIntentId = paymentIntentId || `checkout_session_${session.id}`
   const amountTotalCents = Number(session?.amount_total || 0)
+  console.log('[Stripe webhook] checkout.session.completed', {
+    sessionId: session?.id || '',
+    bookingId: bookingId || '',
+    bookingIds: bookingIds || '',
+    customerId: customerId || '',
+    isCartCheckout,
+    isMembershipCheckout,
+    amountTotalCents,
+  })
 
   let paymentIntent = null
   if (paymentIntentId) {
@@ -3771,6 +3868,11 @@ async function handleCheckoutSessionCompleted(session) {
 
     // Find all bookings
     const bookings = await Booking.find({ _id: { $in: bookingIdArray } })
+    console.log('[Stripe webhook] Cart checkout booking resolution', {
+      sessionId: session?.id || '',
+      requestedBookingIds: bookingIdArray,
+      foundCount: bookings.length,
+    })
 
     if (bookings.length === 0) {
       console.error('No bookings found for IDs:', bookingIdArray)
@@ -3899,6 +4001,13 @@ async function handleCheckoutSessionCompleted(session) {
     console.error('Booking not found:', bookingId)
     return
   }
+  console.log('[Stripe webhook] Single booking resolved', {
+    sessionId: session?.id || '',
+    bookingId: `${booking?._id || ''}`,
+    paymentStatus: booking?.paymentStatus || '',
+    locationId: booking?.locationId || '',
+    calendarId: booking?.ghl?.calendarId || '',
+  })
 
   if (booking.paymentStatus === 'paid' && booking.paymentId) {
     console.log(`Booking ${bookingId} already marked as paid; skipping duplicate webhook`)

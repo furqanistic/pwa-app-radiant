@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from 'sonner';
 import { useBranding } from "@/context/BrandingContext";
 
@@ -69,6 +69,7 @@ const adjustHex = (hex, amount) => {
 };
 
 const ManagementPage = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
@@ -104,6 +105,16 @@ const ManagementPage = () => {
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId;
+  const spaParamLocationId = `${new URLSearchParams(location.search).get("spa") || ""}`.trim();
+  const activeSpaLocationId = spaParamLocationId || currentUserLocationId || "";
+
+  const navigateWithSpa = (path) => {
+    if (!activeSpaLocationId) {
+      navigate(path);
+      return;
+    }
+    navigate(`${path}?spa=${encodeURIComponent(activeSpaLocationId)}`);
+  };
 
   // Fetch locations (admin only)
   const {
@@ -292,7 +303,7 @@ const ManagementPage = () => {
             title: "Manage Calendar",
             description: "View location calendars and booked appointments.",
             icon: Calendar,
-            onClick: () => navigate("/management/calendar"),
+            onClick: () => navigateWithSpa("/management/calendar"),
             className:
               "border-sky-100 bg-sky-50/70 hover:bg-sky-100/70 text-sky-900",
           },

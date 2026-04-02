@@ -259,6 +259,17 @@ export const createBooking = async (req, res, next) => {
       },
     })
 
+    console.log('[Booking API] Booking created (pre-payment)', {
+      bookingId: `${booking?._id || ''}`,
+      userId: `${userId || ''}`,
+      serviceId: `${serviceId || ''}`,
+      locationId: effectiveLocationId,
+      date,
+      time,
+      paymentStatus: booking?.paymentStatus || '',
+      ghlCalendarId: booking?.ghl?.calendarId || '',
+    })
+
     res.status(201).json({
       status: 'success',
       message: 'Booking created successfully',

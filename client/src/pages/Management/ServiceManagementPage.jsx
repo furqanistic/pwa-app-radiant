@@ -39,6 +39,7 @@ import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
 import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
 import { useBranding } from '@/context/BrandingContext'
+import { useLocation } from 'react-router-dom'
 
 const fallbackServiceImage =
   'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=500&h=300&fit=crop'
@@ -71,10 +72,25 @@ const normalizeMembershipPlans = (membership) => {
 }
 
 const resolveGhlCalendarId = (value = {}) =>
-  `${value?.calendarId || value?.calendarID || value?.calendar_id || value?.id || value?._id || value?.calendar?.id || value?.calendar?._id || ''}`.trim()
+  `${value?.calendarId || value?.calendarID || value?.calendar_id || value?.calendar?.id || value?.calendar?._id || ''}`.trim()
 
 const resolveGhlCalendarName = (value = {}) =>
-  `${value?.calendarName || value?.title || value?.calendar?.name || value?.calendar?.title || value?.name || ''}`.trim()
+  `${value?.calendarName || value?.calendar?.name || value?.calendar?.title || value?.title || ''}`.trim()
+
+const resolveGhlServiceId = (value = {}) =>
+  `${value?.serviceId || value?.id || value?._id || value?.calendarId || ''}`.trim()
+
+const resolveGhlServiceName = (value = {}) =>
+  `${value?.name || value?.title || value?.serviceName || ''}`.trim()
+
+const resolveGhlServiceDurationMinutes = (value = {}) => {
+  const numericDuration = Number(
+    value?.durationMinutes ?? value?.durationInMinutes ?? value?.duration
+  )
+  return Number.isFinite(numericDuration) && numericDuration > 0
+    ? numericDuration
+    : null
+}
 
 const resolveGhlCalendarTimeZone = (value = {}) =>
   `${value?.timeZone || value?.timezone || value?.calendarTimeZone || value?.calendar?.timeZone || value?.calendar?.timezone || ''}`.trim()
@@ -804,7 +820,8 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 
 // Complete Service Form with fixed linked services handling
 const ServiceForm = ({ service, onSave, onCancel }) => {
-  const { branding } = useBranding()
+  const location = useLocation()
+  const { branding, locationId: brandedLocationId } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -866,15 +883,40 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     queryKey: ['my-location', 'service-management-form'],
     queryFn: () => locationService.getMyLocation(),
   })
+  const spaParamLocationId = useMemo(
+    () => `${new URLSearchParams(location.search).get('spa') || ''}`.trim(),
+    [location.search]
+  )
   const effectiveLocationId =
-    service?.locationId || locationData?.data?.location?.locationId || ''
-  const { data: ghlCalendarsData, isLoading: ghlCalendarsLoading } = useQuery({
-    queryKey: ['ghl-calendars', 'service-management-form', effectiveLocationId],
-    queryFn: () => ghlService.getCalendars(effectiveLocationId),
+    spaParamLocationId ||
+    service?.locationId ||
+    brandedLocationId ||
+    locationData?.data?.location?.locationId ||
+    ''
+  const { data: ghlCalendarServicesData, isLoading: ghlCalendarServicesLoading } = useQuery({
+    queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
+    queryFn: () => ghlService.getCalendarServices(effectiveLocationId),
     enabled: !!effectiveLocationId,
     retry: false,
   })
-  const ghlCalendars = ghlCalendarsData?.data?.calendars || []
+  const ghlCalendarServices = useMemo(
+    () => ghlCalendarServicesData?.data?.services || [],
+    [ghlCalendarServicesData]
+  )
+  const selectedGhlServiceId = useMemo(() => {
+    const explicitServiceId = `${formData.ghlService?.serviceId || ''}`.trim()
+    if (explicitServiceId) return explicitServiceId
+    const linkedCalendarId = `${formData.ghlCalendar?.calendarId || ''}`.trim()
+    if (!linkedCalendarId) return ''
+    const matchedService = ghlCalendarServices.find(
+      (entry) => `${resolveGhlCalendarId(entry)}` === linkedCalendarId
+    )
+    return matchedService ? resolveGhlServiceId(matchedService) : ''
+  }, [
+    formData.ghlService?.serviceId,
+    formData.ghlCalendar?.calendarId,
+    ghlCalendarServices,
+  ])
 
   const locationMembership =
     branding?.membership || locationData?.data?.location?.membership
@@ -1009,14 +1051,14 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleGhlCalendarChange = (calendarId) => {
-    const selectedGhlCalendar =
-      ghlCalendars.find(
-        (ghlCalendarItem) =>
-          `${resolveGhlCalendarId(ghlCalendarItem)}` === `${calendarId}`
+  const handleGhlServiceChange = (ghlServiceId) => {
+    const selectedGhlService =
+      ghlCalendarServices.find(
+        (ghlServiceItem) =>
+          `${resolveGhlServiceId(ghlServiceItem)}` === `${ghlServiceId}`
       ) || null
 
-    if (!selectedGhlCalendar) {
+    if (!selectedGhlService) {
       setFormData((prev) => ({
         ...prev,
         ghlCalendar: {
@@ -1042,20 +1084,22 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     setFormData((prev) => ({
       ...prev,
       ghlCalendar: {
-        calendarId: resolveGhlCalendarId(selectedGhlCalendar),
-        name: resolveGhlCalendarName(selectedGhlCalendar),
-        timeZone: resolveGhlCalendarTimeZone(selectedGhlCalendar),
-        userId: resolveGhlCalendarUserId(selectedGhlCalendar),
-        teamId: resolveGhlCalendarTeamId(selectedGhlCalendar),
+        calendarId: resolveGhlCalendarId(selectedGhlService),
+        name:
+          resolveGhlCalendarName(selectedGhlService) ||
+          resolveGhlServiceName(selectedGhlService),
+        timeZone: resolveGhlCalendarTimeZone(selectedGhlService),
+        userId: resolveGhlCalendarUserId(selectedGhlService),
+        teamId: resolveGhlCalendarTeamId(selectedGhlService),
       },
       ghlService: {
-        serviceId: '',
-        name: '',
+        serviceId: resolveGhlServiceId(selectedGhlService),
+        name: resolveGhlServiceName(selectedGhlService),
       },
       ghlBooking: {
-        schedulingLink: '',
-        permanentLink: '',
-        embedCode: '',
+        schedulingLink: `${selectedGhlService?.schedulingLink || ''}`.trim(),
+        permanentLink: `${selectedGhlService?.permanentLink || ''}`.trim(),
+        embedCode: `${selectedGhlService?.embedCode || selectedGhlService?.mCode || ''}`.trim(),
       },
     }))
   }
@@ -1475,38 +1519,49 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
 
             <div>
               <label className='block text-sm font-semibold text-gray-700 mb-2'>
-                GHL Calendar
+                GHL Service
               </label>
               <select
-                value={formData.ghlCalendar?.calendarId || ''}
-                onChange={(e) => handleGhlCalendarChange(e.target.value)}
+                value={selectedGhlServiceId}
+                onChange={(e) => handleGhlServiceChange(e.target.value)}
                 className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
-                disabled={isSubmitting || !effectiveLocationId || ghlCalendarsLoading}
+                disabled={isSubmitting || !effectiveLocationId || ghlCalendarServicesLoading}
               >
                 <option value=''>
-                  {ghlCalendarsLoading
-                    ? 'Loading GHL calendars...'
-                    : 'No GHL calendar linked'}
+                  {ghlCalendarServicesLoading
+                    ? 'Loading GHL services...'
+                    : 'No GHL service linked'}
                 </option>
-                {ghlCalendars.map((ghlCalendarItem) => (
+                {ghlCalendarServices.map((ghlServiceItem) => {
+                  const serviceName =
+                    resolveGhlServiceName(ghlServiceItem) || 'Untitled Service'
+                  const hasDurationInName = /\(\s*\d+\s*min\s*\)/i.test(
+                    serviceName
+                  )
+                  const duration = resolveGhlServiceDurationMinutes(ghlServiceItem)
+                  const durationLabel =
+                    duration && !hasDurationInName ? ` (${duration} min)` : ''
+                  return (
                   <option
-                    key={resolveGhlCalendarId(ghlCalendarItem)}
-                    value={resolveGhlCalendarId(ghlCalendarItem)}
+                    key={resolveGhlServiceId(ghlServiceItem)}
+                    value={resolveGhlServiceId(ghlServiceItem)}
                   >
-                    {resolveGhlCalendarName(ghlCalendarItem) || 'Untitled Calendar'}
+                    {serviceName + durationLabel}
                   </option>
-                ))}
+                  )
+                })}
               </select>
               <p className='text-[10px] text-gray-500 mt-1'>
-                Link this service to a GoHighLevel calendar. Availability and
-                booking sync will use the selected calendar.
+                Link this service to a GoHighLevel service. Its linked calendar,
+                availability, and booking sync will be used automatically.
               </p>
-              {formData.ghlCalendar?.calendarId && (
+              {formData.ghlService?.serviceId && (
                 <p className='text-[10px] text-gray-500 mt-1'>
-                  Linked calendar: {formData.ghlCalendar?.name || 'Unnamed Calendar'}
-                  {formData.ghlCalendar?.timeZone
-                    ? ` (${formData.ghlCalendar.timeZone})`
+                  Linked GHL service: {formData.ghlService?.name || 'Unnamed Service'}
+                  {formData.ghlCalendar?.name
+                    ? ` | Calendar: ${formData.ghlCalendar.name}`
                     : ''}
+                  {formData.ghlCalendar?.timeZone ? ` (${formData.ghlCalendar.timeZone})` : ''}
                 </p>
               )}
             </div>
