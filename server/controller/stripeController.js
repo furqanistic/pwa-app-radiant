@@ -2806,13 +2806,104 @@ export const createCheckoutSession = async (req, res, next) => {
         booking.pointsEarned = pointsEarned
         await booking.save()
 
+        const syncResult = await syncBookingToGhlWithRetry(booking, customerId)
+        if (!syncResult.ok) {
+          const syncReason = `${booking?.ghl?.syncError || 'Failed to sync booking to GHL'}`
+          const paymentAmount = Number(payment.amount || 0)
+          const shouldRefund =
+            paymentAmount > 0 &&
+            stripePaymentIntentId &&
+            !`${stripePaymentIntentId}`.startsWith('free_booking_')
+
+          if (shouldRefund) {
+            try {
+              const refund = await stripe.refunds.create(
+                {
+                  payment_intent: stripePaymentIntentId,
+                  amount: paymentAmount,
+                  reason: 'requested_by_customer',
+                  metadata: {
+                    bookingId: booking._id.toString(),
+                    customerId: customerId.toString(),
+                    syncFailure: 'true',
+                  },
+                },
+                { stripeAccount: spaOwner.stripe.accountId }
+              )
+
+              payment.status = 'refunded'
+              payment.refund = {
+                amount: paymentAmount,
+                reason: syncReason,
+                stripeRefundId: refund?.id || null,
+                refundedAt: new Date(),
+                refundedBy: null,
+              }
+              await payment.save()
+            } catch (refundError) {
+              console.error('[Stripe->GHL] Auto-refund failed after sync failure', {
+                bookingId: `${booking?._id || ''}`,
+                paymentIntentId: stripePaymentIntentId,
+                error: refundError?.response?.data || refundError?.message || refundError,
+              })
+              return next(
+                createError(
+                  502,
+                  'Booking could not be confirmed in GoHighLevel and auto-refund failed. Please contact support immediately.'
+                )
+              )
+            }
+          } else {
+            payment.status = 'refunded'
+            payment.refund = {
+              amount: 0,
+              reason: syncReason,
+              stripeRefundId: null,
+              refundedAt: new Date(),
+              refundedBy: null,
+            }
+            await payment.save()
+          }
+
+          booking.paymentStatus = 'refunded'
+          booking.status = 'cancelled'
+          booking.cancelledAt = new Date()
+          booking.cancelReason = `GHL sync failed: ${syncReason}`
+          booking.pointsEarned = 0
+          await booking.save()
+
+          const syncReasonLower = syncReason.toLowerCase()
+          if (syncReasonLower.includes('calendar is inactive')) {
+            return next(
+              createError(
+                409,
+                'Linked GHL calendar is inactive. Booking was not confirmed and payment was refunded.'
+              )
+            )
+          }
+          if (syncReasonLower.includes('no longer available')) {
+            return next(
+              createError(
+                409,
+                'That slot was just taken in GoHighLevel. Booking was not confirmed and payment was refunded.'
+              )
+            )
+          }
+
+          return next(
+            createError(
+              409,
+              'Unable to confirm booking in GoHighLevel. Payment was refunded. Please try again.'
+            )
+          )
+        }
+
         const bookingService = await Service.findById(booking.serviceId)
         await activateMembershipForCustomer({
           customerId,
           booking,
           service: bookingService,
         })
-        await syncBookingToGhlWithRetry(booking, customerId)
 
         const customer = await User.findById(customerId)
         if (customer) {
@@ -4073,13 +4164,72 @@ async function handleCheckoutSessionCompleted(session) {
   booking.pointsEarned = payment.pointsEarned
   await booking.save()
 
+  const syncResult = await syncBookingToGhlWithRetry(booking, customerId)
+  if (!syncResult.ok) {
+    const syncReason = `${booking?.ghl?.syncError || 'Failed to sync booking to GHL'}`
+    const refundAmount = Number(amountTotalCents || 0)
+
+    if (refundAmount > 0 && fallbackPaymentIntentId) {
+      try {
+        const refund = await stripe.refunds.create({
+          payment_intent: fallbackPaymentIntentId,
+          amount: refundAmount,
+          reason: 'requested_by_customer',
+          metadata: {
+            bookingId: booking._id.toString(),
+            customerId: `${customerId || ''}`,
+            syncFailure: 'true',
+          },
+        })
+
+        payment.status = 'refunded'
+        payment.refund = {
+          amount: refundAmount,
+          reason: syncReason,
+          stripeRefundId: refund?.id || null,
+          refundedAt: new Date(),
+          refundedBy: null,
+        }
+        await payment.save()
+      } catch (refundError) {
+        console.error('[Stripe webhook] Auto-refund failed after GHL sync failure', {
+          bookingId: `${booking?._id || ''}`,
+          paymentIntentId: fallbackPaymentIntentId,
+          error: refundError?.response?.data || refundError?.message || refundError,
+        })
+      }
+    } else {
+      payment.status = 'refunded'
+      payment.refund = {
+        amount: 0,
+        reason: syncReason,
+        stripeRefundId: null,
+        refundedAt: new Date(),
+        refundedBy: null,
+      }
+      await payment.save()
+    }
+
+    booking.paymentStatus = 'refunded'
+    booking.status = 'cancelled'
+    booking.cancelledAt = new Date()
+    booking.cancelReason = `GHL sync failed: ${syncReason}`
+    booking.pointsEarned = 0
+    await booking.save()
+
+    console.warn('[Stripe webhook] Booking refunded due to GHL sync failure', {
+      bookingId: `${booking?._id || ''}`,
+      reason: syncReason,
+    })
+    return
+  }
+
   const bookingService = await Service.findById(booking.serviceId)
   await activateMembershipForCustomer({
     customerId,
     booking,
     service: bookingService,
   })
-  await syncBookingToGhlWithRetry(booking, customerId)
 
   // Award points to customer
   const customer = await User.findById(customerId)

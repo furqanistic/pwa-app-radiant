@@ -5,10 +5,34 @@ import Location from '../models/Location.js'
 // GoHighLevel API v1 configuration for Location API Keys
 const GHL_BASE_URL = 'https://rest.gohighlevel.com/v1'
 const GHL_V2_BASE_URL = 'https://services.leadconnectorhq.com'
-const GHL_API_VERSION = process.env.GHL_API_VERSION || '2021-07-28'
+const GHL_API_VERSION = '2021-07-28'
 const KNOWN_BOOKING_PATH_BY_LOCATION = {
   // Ageless Wellness Spa
   '6RL2MtUxqIc5fUgWRw1O': 'ageless-wellness-spa-fzvcfoccwov',
+}
+
+const resolveLocationIdFromRequest = (req) =>
+  `${
+    req?.query?.locationId ||
+    req?.body?.locationId ||
+    req?.params?.locationId ||
+    req?.user?.selectedLocation?.locationId ||
+    ''
+  }`.trim()
+
+const createPlainError = (message, statusCode = 400) => {
+  const error = new Error(message)
+  error.statusCode = statusCode
+  return error
+}
+
+const requireToken = (token, locationId = '') => {
+  const normalizedToken = `${token || ''}`.trim()
+  if (normalizedToken) return normalizedToken
+  if (locationId) {
+    throw createPlainError(`No GHL API key configured for location ${locationId}`, 400)
+  }
+  throw createPlainError('No GHL API key configured for this request', 400)
 }
 
 // Helper function to make GHL API requests
@@ -19,11 +43,12 @@ const makeGHLRequest = async (
   token = null
 ) => {
   try {
+    const authToken = requireToken(token)
     const config = {
       method,
       url: `${GHL_BASE_URL}${endpoint}`,
       headers: {
-        Authorization: `Bearer ${token || process.env.GHL_LOCATION_API}`,
+        Authorization: `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
     }
@@ -55,11 +80,12 @@ const makeGHLV2Request = async (
   } = {}
 ) => {
   try {
+    const authToken = requireToken(token)
     const config = {
       method,
       url: `${GHL_V2_BASE_URL}${endpoint}`,
       headers: {
-        Authorization: `Bearer ${token || process.env.GHL_LOCATION_API}`,
+        Authorization: `Bearer ${authToken}`,
         Version: GHL_API_VERSION,
         'Content-Type': 'application/json',
       },
@@ -80,35 +106,34 @@ const makeGHLV2Request = async (
   }
 }
 
-const getTokenForLocationFromEnv = (locationId) => {
-  const defaultToken = process.env.GHL_LOCATION_API || ''
-  const rawTokenMap = process.env.GHL_LOCATION_API_MAP
-  if (!rawTokenMap) return defaultToken
-
-  try {
-    const parsedMap = JSON.parse(rawTokenMap)
-    return parsedMap?.[locationId] || defaultToken
-  } catch (error) {
-    console.warn('Invalid GHL_LOCATION_API_MAP JSON:', error.message)
-    return defaultToken
-  }
-}
-
 const getTokenForLocation = async (locationId) => {
-  const envToken = getTokenForLocationFromEnv(locationId)
-  if (!locationId) return envToken
+  if (!locationId) return ''
 
   try {
     const location = await Location.findOne({ locationId }).select('ghlApiKey')
     const locationToken = location?.ghlApiKey?.trim()
-    return locationToken || envToken
+    return locationToken || ''
   } catch (error) {
     console.warn(
       `Failed loading location API key for ${locationId}:`,
       error.message
     )
-    return envToken
+    return ''
   }
+}
+
+const getTokenContextFromRequest = async (req) => {
+  const locationId = resolveLocationIdFromRequest(req)
+  if (!locationId) {
+    throw createPlainError('locationId is required', 400)
+  }
+
+  const token = await getTokenForLocation(locationId)
+  if (!token) {
+    throw createPlainError(`No GHL API key configured for location ${locationId}`, 400)
+  }
+
+  return { locationId, token }
 }
 
 const parseBookingPathFromUrl = (value = '') => {
@@ -123,17 +148,6 @@ const resolveBookingSubdomainForLocation = async (locationId) => {
 
   const mappedFromCode = `${KNOWN_BOOKING_PATH_BY_LOCATION[locationId] || ''}`.trim().toLowerCase()
   if (mappedFromCode) return mappedFromCode
-
-  try {
-    const rawMap = process.env.GHL_BOOKING_PATH_MAP
-    if (rawMap) {
-      const parsedMap = JSON.parse(rawMap)
-      const mapped = `${parsedMap?.[locationId] || ''}`.trim().toLowerCase()
-      if (mapped) return mapped
-    }
-  } catch (error) {
-    console.warn('Invalid GHL_BOOKING_PATH_MAP JSON:', error.message)
-  }
 
   try {
     const location = await Location.findOne({ locationId })
@@ -203,35 +217,7 @@ const applyBookingFallback = (service = null, bookingSubdomain = '') => {
   }
 }
 
-const getMappedEnvValue = (singleKey, mapKey, locationId) => {
-  const defaultValue = process.env[singleKey] || ''
-  const rawMap = process.env[mapKey]
-  if (!rawMap) return defaultValue
-
-  try {
-    const parsed = JSON.parse(rawMap)
-    return parsed?.[locationId] || defaultValue
-  } catch (error) {
-    console.warn(`Invalid ${mapKey} JSON:`, error.message)
-    return defaultValue
-  }
-}
-
 const resolveV1Selector = async (locationId, token) => {
-  const fromEnv = {
-    calendarId: getMappedEnvValue(
-      'GHL_CALENDAR_ID',
-      'GHL_CALENDAR_ID_MAP',
-      locationId
-    ),
-    userId: getMappedEnvValue('GHL_USER_ID', 'GHL_USER_ID_MAP', locationId),
-    teamId: getMappedEnvValue('GHL_TEAM_ID', 'GHL_TEAM_ID_MAP', locationId),
-  }
-
-  if (fromEnv.calendarId || fromEnv.userId || fromEnv.teamId) {
-    return fromEnv
-  }
-
   try {
     const v2CalendarsResponse = await makeGHLV2Request('/calendars/', {
       method: 'GET',
@@ -267,7 +253,11 @@ const resolveV1Selector = async (locationId, token) => {
       `Failed to auto-resolve calendar for location ${locationId}:`,
       error.response?.data || error.message
     )
-    return fromEnv
+    return {
+      calendarId: '',
+      userId: '',
+      teamId: '',
+    }
   }
 }
 
@@ -1519,16 +1509,17 @@ export const createGhlAppointmentForBooking = async ({
 // Test API connection
 export const testConnection = async (req, res, next) => {
   try {
-    const response = await makeGHLRequest('/contacts/')
+    const { locationId, token } = await getTokenContextFromRequest(req)
+    const response = await makeGHLRequest('/contacts/', 'GET', null, token)
 
     res.status(200).json({
       success: true,
       message: 'GHL Location API connection successful',
-      locationId: process.env.GHL_LOCATION_ID,
+      locationId,
       sampleData: response,
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to connect to GHL API',
       error: error.response?.data || error.message,
@@ -1540,14 +1531,15 @@ export const testConnection = async (req, res, next) => {
 export const getContacts = async (req, res, next) => {
   try {
     const { limit = 20, skip = 0 } = req.query
+    const { locationId, token } = await getTokenContextFromRequest(req)
 
     const endpoint = `/contacts/?limit=${limit}&skip=${skip}`
-    const response = await makeGHLRequest(endpoint)
+    const response = await makeGHLRequest(endpoint, 'GET', null, token)
 
     res.status(200).json({
       success: true,
       message: 'Contacts fetched successfully',
-      locationId: process.env.GHL_LOCATION_ID,
+      locationId,
       data: response,
       pagination: {
         limit: parseInt(limit),
@@ -1557,7 +1549,7 @@ export const getContacts = async (req, res, next) => {
       },
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to fetch contacts',
       error: error.response?.data || error.message,
@@ -1569,6 +1561,7 @@ export const getContacts = async (req, res, next) => {
 export const getAllContacts = async (req, res, next) => {
   try {
     const { maxContacts = 1000 } = req.query
+    const { locationId, token } = await getTokenContextFromRequest(req)
     let allContacts = []
     let skip = 0
     const limit = 100
@@ -1577,7 +1570,10 @@ export const getAllContacts = async (req, res, next) => {
     while (hasMore && allContacts.length < maxContacts) {
       try {
         const response = await makeGHLRequest(
-          `/contacts/?limit=${limit}&skip=${skip}`
+          `/contacts/?limit=${limit}&skip=${skip}`,
+          'GET',
+          null,
+          token
         )
 
         if (response.contacts && response.contacts.length > 0) {
@@ -1605,7 +1601,7 @@ export const getAllContacts = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'All contacts fetched successfully',
-      locationId: process.env.GHL_LOCATION_ID,
+      locationId,
       data: {
         contacts: allContacts,
         meta: {
@@ -1615,7 +1611,7 @@ export const getAllContacts = async (req, res, next) => {
       },
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to fetch all contacts',
       error: error.response?.data || error.message,
@@ -1627,6 +1623,7 @@ export const getAllContacts = async (req, res, next) => {
 export const getContactById = async (req, res, next) => {
   try {
     const { contactId } = req.params
+    const { token } = await getTokenContextFromRequest(req)
 
     if (!contactId) {
       return res.status(400).json({
@@ -1635,7 +1632,7 @@ export const getContactById = async (req, res, next) => {
       })
     }
 
-    const response = await makeGHLRequest(`/contacts/${contactId}`)
+    const response = await makeGHLRequest(`/contacts/${contactId}`, 'GET', null, token)
 
     res.status(200).json({
       success: true,
@@ -1643,7 +1640,7 @@ export const getContactById = async (req, res, next) => {
       data: response,
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to fetch contact',
       error: error.response?.data || error.message,
@@ -1655,6 +1652,7 @@ export const getContactById = async (req, res, next) => {
 export const lookupContact = async (req, res, next) => {
   try {
     const { email, phone } = req.query
+    const { token } = await getTokenContextFromRequest(req)
 
     if (!email && !phone) {
       return res.status(400).json({
@@ -1667,7 +1665,7 @@ export const lookupContact = async (req, res, next) => {
     if (email) endpoint += `email=${encodeURIComponent(email)}&`
     if (phone) endpoint += `phone=${encodeURIComponent(phone)}&`
 
-    const response = await makeGHLRequest(endpoint.slice(0, -1))
+    const response = await makeGHLRequest(endpoint.slice(0, -1), 'GET', null, token)
 
     res.status(200).json({
       success: true,
@@ -1676,7 +1674,7 @@ export const lookupContact = async (req, res, next) => {
       searchCriteria: { email, phone },
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to lookup contact',
       error: error.response?.data || error.message,
@@ -1688,6 +1686,7 @@ export const lookupContact = async (req, res, next) => {
 export const createContact = async (req, res, next) => {
   try {
     const contactData = req.body
+    const { token } = await getTokenContextFromRequest(req)
 
     if (
       !contactData.firstName &&
@@ -1702,7 +1701,7 @@ export const createContact = async (req, res, next) => {
       })
     }
 
-    const response = await makeGHLRequest('/contacts/', 'POST', contactData)
+    const response = await makeGHLRequest('/contacts/', 'POST', contactData, token)
 
     res.status(201).json({
       success: true,
@@ -1710,7 +1709,7 @@ export const createContact = async (req, res, next) => {
       data: response,
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to create contact',
       error: error.response?.data || error.message,
@@ -1723,6 +1722,7 @@ export const updateContact = async (req, res, next) => {
   try {
     const { contactId } = req.params
     const updateData = req.body
+    const { token } = await getTokenContextFromRequest(req)
 
     if (!contactId) {
       return res.status(400).json({
@@ -1741,7 +1741,8 @@ export const updateContact = async (req, res, next) => {
     const response = await makeGHLRequest(
       `/contacts/${contactId}`,
       'PUT',
-      updateData
+      updateData,
+      token
     )
 
     res.status(200).json({
@@ -1750,7 +1751,7 @@ export const updateContact = async (req, res, next) => {
       data: response,
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to update contact',
       error: error.response?.data || error.message,
@@ -1762,6 +1763,7 @@ export const updateContact = async (req, res, next) => {
 export const deleteContact = async (req, res, next) => {
   try {
     const { contactId } = req.params
+    const { token } = await getTokenContextFromRequest(req)
 
     if (!contactId) {
       return res.status(400).json({
@@ -1770,7 +1772,7 @@ export const deleteContact = async (req, res, next) => {
       })
     }
 
-    const response = await makeGHLRequest(`/contacts/${contactId}`, 'DELETE')
+    const response = await makeGHLRequest(`/contacts/${contactId}`, 'DELETE', null, token)
 
     res.status(200).json({
       success: true,
@@ -1778,7 +1780,7 @@ export const deleteContact = async (req, res, next) => {
       data: response,
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to delete contact',
       error: error.response?.data || error.message,
@@ -1790,9 +1792,10 @@ export const deleteContact = async (req, res, next) => {
 export const getOpportunities = async (req, res, next) => {
   try {
     const { limit = 20, skip = 0 } = req.query
+    const { token } = await getTokenContextFromRequest(req)
 
     const endpoint = `/opportunities/?limit=${limit}&skip=${skip}`
-    const response = await makeGHLRequest(endpoint)
+    const response = await makeGHLRequest(endpoint, 'GET', null, token)
 
     res.status(200).json({
       success: true,
@@ -1805,7 +1808,7 @@ export const getOpportunities = async (req, res, next) => {
       },
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to fetch opportunities',
       error: error.response?.data || error.message,
@@ -2060,7 +2063,8 @@ export const getCalendarServiceById = async (req, res, next) => {
 // Get custom fields
 export const getCustomFields = async (req, res, next) => {
   try {
-    const response = await makeGHLRequest('/custom-fields/')
+    const { token } = await getTokenContextFromRequest(req)
+    const response = await makeGHLRequest('/custom-fields/', 'GET', null, token)
 
     res.status(200).json({
       success: true,
@@ -2068,7 +2072,7 @@ export const getCustomFields = async (req, res, next) => {
       data: response,
     })
   } catch (error) {
-    res.status(error.response?.status || 500).json({
+    res.status(error.response?.status || error.statusCode || 500).json({
       success: false,
       message: 'Failed to fetch custom fields',
       error: error.response?.data || error.message,
