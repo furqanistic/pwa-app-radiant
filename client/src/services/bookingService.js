@@ -2,9 +2,18 @@
 import { axiosInstance } from "@/config";
 
 export const bookingService = {
+  buildQueryString: (filters = {}) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return
+      params.append(key, String(value))
+    })
+    return params.toString()
+  },
+
   // CLIENT ENDPOINTS
   getClientBookings: async (filters = {}) => {
-    const params = new URLSearchParams(filters).toString();
+    const params = bookingService.buildQueryString(filters);
     const response = await axiosInstance.get(`/bookings/upcoming?${params}`);
     return response.data;
   },
@@ -61,7 +70,7 @@ export const bookingService = {
 
   // ADMIN ENDPOINTS
   getAdminBookings: async (filters = {}) => {
-    const params = new URLSearchParams(filters).toString();
+    const params = bookingService.buildQueryString(filters);
     const response = await axiosInstance.get(`/bookings/admin/all?${params}`);
     return response.data;
   },

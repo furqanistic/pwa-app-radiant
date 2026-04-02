@@ -7,6 +7,8 @@ const MembershipPlansGrid = ({
   onSelectService,
   includeServiceMemberships = true,
   getPlanActionProps,
+  isProcessing = false,
+  processingSelectionKey = null,
   className = 'grid grid-cols-1 gap-6 md:px-8',
 }) => {
   const hasPlans = Array.isArray(plans) && plans.length > 0
@@ -69,6 +71,13 @@ const MembershipPlansGrid = ({
     return null
   }
 
+  const getSelectionKey = (service, plan) => {
+    const serviceId = `${service?._id || ''}`.trim()
+    const planId = `${plan?._id || plan?.planId || plan?.id || ''}`.trim()
+    const planName = normalizeText(plan?.name)
+    return `${serviceId}::${planId || planName || 'default'}`
+  }
+
   return (
     <div className={className}>
       {hasPlans &&
@@ -77,25 +86,31 @@ const MembershipPlansGrid = ({
           const actionProps = getPlanActionProps
             ? getPlanActionProps(plan, linkedService)
             : {}
+          const selectionKey = getSelectionKey(linkedService, plan)
+          const isCardProcessing =
+            Boolean(isProcessing) &&
+            Boolean(processingSelectionKey) &&
+            processingSelectionKey === selectionKey
 
           return (
-          <MembershipCard
-            service={{
-              _id: linkedService?._id || `location-membership-${index}`,
-              name: plan?.name,
-              description: plan?.description,
-              basePrice: plan?.price,
-              duration: 0,
-              categoryId: { name: 'Membership' },
-            }}
-            membership={plan}
-            key={`location-membership-plan-${index}`}
-            onSelect={linkedService ? onSelectService : undefined}
-            ctaLabel={actionProps?.ctaLabel}
-            disabled={Boolean(actionProps?.disabled)}
-            statusBadge={actionProps?.statusBadge}
-            helperText={actionProps?.helperText}
-          />
+            <MembershipCard
+              service={{
+                _id: linkedService?._id || `location-membership-${index}`,
+                name: plan?.name,
+                description: plan?.description,
+                basePrice: plan?.price,
+                duration: 0,
+                categoryId: { name: 'Membership' },
+              }}
+              membership={plan}
+              key={`location-membership-plan-${index}`}
+              onSelect={linkedService ? onSelectService : undefined}
+              ctaLabel={actionProps?.ctaLabel}
+              disabled={Boolean(actionProps?.disabled) || Boolean(isProcessing)}
+              isProcessing={isCardProcessing}
+              statusBadge={actionProps?.statusBadge}
+              helperText={actionProps?.helperText}
+            />
           )
         })}
 

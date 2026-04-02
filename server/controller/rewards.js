@@ -1149,9 +1149,9 @@ export const getUserRewards = async (req, res, next) => {
     ])
 
     // Separate by status
-    const activeRewards = userRewards.filter((ur) => ur.isValid())
+    const activeRewards = userRewards.filter((ur) => Boolean(ur?.isValid))
     const expiredRewards = userRewards.filter(
-      (ur) => !ur.isValid() && ur.status !== 'used'
+      (ur) => !Boolean(ur?.isValid) && ur.status !== 'used'
     )
     const usedRewards = userRewards.filter((ur) => ur.status === 'used')
 

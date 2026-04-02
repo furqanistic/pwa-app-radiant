@@ -380,19 +380,20 @@ const ServiceSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: {
       transform: function (doc, ret) {
+        const discount = ret?.discount || {}
         // Calculate discounted price if discount is active
-        if (ret.discount.active && ret.discount.percentage > 0) {
+        if (discount.active && Number(discount.percentage) > 0) {
           const now = new Date()
-          const startDate = ret.discount.startDate
-            ? new Date(ret.discount.startDate)
+          const startDate = discount.startDate
+            ? new Date(discount.startDate)
             : new Date()
-          const endDate = ret.discount.endDate
-            ? new Date(ret.discount.endDate)
+          const endDate = discount.endDate
+            ? new Date(discount.endDate)
             : new Date()
 
           if (now >= startDate && now <= endDate) {
             ret.discountedPrice =
-              ret.basePrice - (ret.basePrice * ret.discount.percentage) / 100
+              ret.basePrice - (ret.basePrice * Number(discount.percentage)) / 100
           }
         }
 

@@ -5,6 +5,7 @@ import {
     updateAvailability,
 } from '../controller/availability.js'
 import {
+    cancelBooking,
     createBooking,
     getAdminBookings,
     getBookedTimes,
@@ -13,6 +14,7 @@ import {
     getUserPastVisits,
     getUserUpcomingAppointments,
     rateVisit,
+    rescheduleBooking,
 } from '../controller/bookings.js'
 import { verifyToken } from '../middleware/authMiddleware.js'
 
@@ -33,6 +35,8 @@ router.get('/my-cycles', getTreatmentCycles)
 router.post('/create', createBooking)
 router.post('/rate/:bookingId', rateVisit)
 router.get('/booked-times', getBookedTimes)
+router.put('/:bookingId/reschedule', rescheduleBooking)
+router.delete('/:bookingId/cancel', cancelBooking)
 
 // Admin routes
 router.get('/admin/all', getAdminBookings)

@@ -45,11 +45,26 @@ const MembershipBillingSection = ({
   const [removingCardId, setRemovingCardId] = useState(null)
   const [showDetails, setShowDetails] = useState(false)
 
-  const paymentMethods = summary?.paymentMethods || []
+  const paymentMethods = Array.isArray(summary?.paymentMethods)
+    ? summary.paymentMethods
+    : []
+  const cardsCount = paymentMethods.length
   const membership = summary?.membership || {}
   const subscription = summary?.subscription || {}
   const pendingPlan = subscription?.pendingPlan || null
-  const hasPaymentMethod = Boolean(summary?.hasPaymentMethod)
+  const summaryDefaultMethod = summary?.defaultPaymentMethod || null
+  const derivedDefaultMethod =
+    (summaryDefaultMethod?.paymentMethodId || summaryDefaultMethod?.last4
+      ? summaryDefaultMethod
+      : null) ||
+    paymentMethods.find((method) => method?.isDefault) ||
+    paymentMethods[0] ||
+    null
+  const hasPaymentMethod = Boolean(
+    summary?.hasPaymentMethod ||
+      cardsCount > 0 ||
+      derivedDefaultMethod?.last4
+  )
   const membershipStatus = `${membership?.status || subscription?.status || 'inactive'}`
     .trim()
     .toLowerCase()
@@ -66,9 +81,12 @@ const MembershipBillingSection = ({
   }
 
   const defaultCardLabel = useMemo(() => {
-    if (!summary?.defaultPaymentMethod?.last4) return 'No card saved'
-    return `${summary.defaultPaymentMethod.brand || 'Card'} •••• ${summary.defaultPaymentMethod.last4}`
-  }, [summary?.defaultPaymentMethod])
+    if (!hasPaymentMethod) return 'No saved cards yet'
+    if (!derivedDefaultMethod?.last4) {
+      return `${cardsCount} saved card${cardsCount > 1 ? 's' : ''}`
+    }
+    return `${derivedDefaultMethod.brand || 'Card'} •••• ${derivedDefaultMethod.last4}`
+  }, [cardsCount, derivedDefaultMethod, hasPaymentMethod])
 
   const handleMakeDefault = async (paymentMethodId) => {
     try {
@@ -159,7 +177,9 @@ const MembershipBillingSection = ({
                       : 'bg-amber-100 text-amber-700'
                   }`}
                 >
-                  {hasPaymentMethod ? 'Card added' : 'Card needed'}
+                  {hasPaymentMethod
+                    ? `${cardsCount} saved card${cardsCount === 1 ? '' : 's'}`
+                    : 'Card needed'}
                 </span>
               </div>
               <p className="mt-1 text-[13px] font-medium text-slate-800">{defaultCardLabel}</p>
@@ -170,7 +190,7 @@ const MembershipBillingSection = ({
               onClick={() => setShowDetails((prev) => !prev)}
               className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--brand-primary)]"
             >
-              {showDetails ? 'Hide details' : 'More info'}
+              {showDetails ? 'Hide card details' : 'Manage cards'}
               <ChevronDown className={`h-4 w-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
             </button>
           </div>

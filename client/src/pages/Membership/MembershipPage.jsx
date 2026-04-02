@@ -10,7 +10,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import React, { useMemo, useState } from 'react'
 import { updateProfile } from '@/redux/userSlice'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 
@@ -26,7 +25,6 @@ const normalizeMembershipPlans = (membership) => {
 }
 
 const MembershipPage = () => {
-    const navigate = useNavigate()
     const dispatch = useDispatch()
     const queryClient = useQueryClient()
     const { currentUser } = useSelector((state) => state.user)
@@ -106,6 +104,7 @@ const MembershipPage = () => {
     const membershipSummary = membershipBillingResponse?.summary || null
     const membershipInvoices = membershipInvoicesResponse?.invoices || []
     const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false)
+    const [processingSelectionKey, setProcessingSelectionKey] = useState(null)
     const [cardDialogOpen, setCardDialogOpen] = useState(false)
     const [pendingDirectSubscriptionPayload, setPendingDirectSubscriptionPayload] = useState(null)
 
@@ -130,10 +129,18 @@ const MembershipPage = () => {
     }
 
     const normalizePlanValue = (value) => `${value || ''}`.trim().toLowerCase()
+    const getSelectionKey = (serviceId, planId, planName) =>
+        `${`${serviceId || ''}`.trim()}::${`${planId || ''}`.trim() || normalizePlanValue(planName) || 'default'}`
     const currentPlanId = membershipSummary?.membership?.planId || null
     const currentPlanName = membershipSummary?.membership?.planName || ''
     const currentPlanPrice = Number(membershipSummary?.membership?.price || 0)
-    const hasSavedCard = Boolean(membershipSummary?.hasPaymentMethod)
+    const hasSavedCard = Boolean(
+        membershipSummary?.hasPaymentMethod ||
+            (Array.isArray(membershipSummary?.paymentMethods) &&
+                membershipSummary.paymentMethods.length > 0) ||
+            membershipSummary?.defaultPaymentMethod?.paymentMethodId ||
+            membershipSummary?.defaultPaymentMethod?.last4
+    )
     const membershipStatus = `${membershipSummary?.membership?.status || membershipSummary?.subscription?.status || 'inactive'}`
         .trim()
         .toLowerCase()
@@ -218,6 +225,10 @@ const MembershipPage = () => {
     }
 
     const onServiceSelect = async (service, plan) => {
+        if (isCheckoutProcessing) {
+            return
+        }
+
         if (!service?._id) {
             toast.error('This plan is not linked to online checkout yet.')
             return
@@ -249,6 +260,9 @@ const MembershipPage = () => {
             }
 
             setIsCheckoutProcessing(true)
+            setProcessingSelectionKey(
+                getSelectionKey(payload.serviceId, payload.planId, payload.planName)
+            )
 
             if (hasExistingSubscription) {
                 const response = await stripeService.changeMembershipSubscriptionPlan(
@@ -281,12 +295,10 @@ const MembershipPage = () => {
             const message =
                 error?.response?.data?.message ||
                 'Failed to update membership.'
-            toast.error(
-                message
-            )
-            navigate(withSpaParam(`/services/${service._id}`))
+            toast.error(message)
         } finally {
             setIsCheckoutProcessing(false)
+            setProcessingSelectionKey(null)
         }
     }
 
@@ -296,6 +308,13 @@ const MembershipPage = () => {
         try {
             setCardDialogOpen(false)
             setIsCheckoutProcessing(true)
+            setProcessingSelectionKey(
+                getSelectionKey(
+                    pendingDirectSubscriptionPayload?.serviceId,
+                    pendingDirectSubscriptionPayload?.planId,
+                    pendingDirectSubscriptionPayload?.planName
+                )
+            )
             const response = hasExistingSubscription
                 ? await stripeService.changeMembershipSubscriptionPlan(
                     pendingDirectSubscriptionPayload
@@ -331,6 +350,7 @@ const MembershipPage = () => {
             )
         } finally {
             setIsCheckoutProcessing(false)
+            setProcessingSelectionKey(null)
         }
     }
 
@@ -409,6 +429,8 @@ const MembershipPage = () => {
                                 onSelectService={onServiceSelect}
                                 includeServiceMemberships={false}
                                 getPlanActionProps={getPlanActionProps}
+                                isProcessing={isCheckoutProcessing}
+                                processingSelectionKey={processingSelectionKey}
                                 className="grid grid-cols-1 gap-4 w-full"
                             />
                         )}

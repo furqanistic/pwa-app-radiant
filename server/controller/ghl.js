@@ -42,7 +42,13 @@ const makeGHLRequest = async (
 
 const makeGHLV2Request = async (
   endpoint,
-  { method = 'GET', params = null, data = null, token = null } = {}
+  {
+    method = 'GET',
+    params = null,
+    data = null,
+    token = null,
+    suppressErrorLog = false,
+  } = {}
 ) => {
   try {
     const config = {
@@ -63,7 +69,9 @@ const makeGHLV2Request = async (
     const response = await axios(config)
     return response.data
   } catch (error) {
-    console.error('GHL v2 API Error:', error.response?.data || error.message)
+    if (!suppressErrorLog) {
+      console.error('GHL v2 API Error:', error.response?.data || error.message)
+    }
     throw error
   }
 }
@@ -218,6 +226,25 @@ const resolveV1Selector = async (locationId, token) => {
 
   if (fromEnv.calendarId || fromEnv.userId || fromEnv.teamId) {
     return fromEnv
+  }
+
+  try {
+    const v2CalendarsResponse = await makeGHLV2Request('/calendars/', {
+      method: 'GET',
+      token,
+      params: { locationId },
+    })
+    const v2Calendars = normalizeCalendarsPayload(v2CalendarsResponse)
+    const firstV2Calendar = v2Calendars.find((calendar) => calendar?.id)
+    if (firstV2Calendar?.id) {
+      return {
+        calendarId: `${firstV2Calendar.id}`,
+        userId: '',
+        teamId: '',
+      }
+    }
+  } catch (error) {
+    // Fall through to v1 lookup below.
   }
 
   try {
@@ -1132,6 +1159,7 @@ export const fetchLocationCalendarEventsByDate = async (
       const response = await makeGHLV2Request(attempt.endpoint, {
         token,
         params: attempt.params,
+        suppressErrorLog: true,
       })
       hadV2Success = true
 
@@ -1274,6 +1302,33 @@ export const ensureGhlContactForLocation = async (
     throw new Error('Customer identity is required to sync a GHL contact')
   }
 
+  const { firstName, lastName } = splitFullName(name)
+  const baseContactPayload = {
+    locationId,
+    firstName,
+    lastName,
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+  }
+
+  // Prefer v2 contacts flow for Private Integration tokens.
+  try {
+    const upsertResponse = await makeGHLV2Request('/contacts/upsert', {
+      method: 'POST',
+      token,
+      data: baseContactPayload,
+    })
+    const upsertedContactId = extractContactId(upsertResponse)
+    if (upsertedContactId) {
+      return { token, contactId: upsertedContactId, created: true }
+    }
+  } catch (error) {
+    console.warn(
+      `GHL v2 contact upsert failed for ${locationId}:`,
+      error.response?.data || error.message
+    )
+  }
+
   let existing = null
 
   if (email || phone) {
@@ -1301,7 +1356,6 @@ export const ensureGhlContactForLocation = async (
     }
   }
 
-  const { firstName, lastName } = splitFullName(name)
   const createPayload = {
     firstName,
     lastName,
@@ -1363,6 +1417,8 @@ export const createGhlAppointmentForBooking = async ({
     contactId,
     startTime: window.start.toISOString(),
     endTime: window.end.toISOString(),
+    selectedSlot: window.start.toISOString(),
+    selectedTimezone: timeZone,
     title: booking.serviceName || service?.name || 'Appointment',
     appointmentTitle: booking.serviceName || service?.name || 'Appointment',
     appointmentStatus: 'confirmed',
@@ -1389,6 +1445,8 @@ export const createGhlAppointmentForBooking = async ({
           calendarId,
           contactId,
           title: basePayload.title,
+          selectedTimezone: timeZone,
+          selectedSlot: basePayload.selectedSlot,
           startTime: basePayload.startTime,
           endTime: basePayload.endTime,
           appointmentStatus: 'confirmed',
@@ -1426,6 +1484,18 @@ export const createGhlAppointmentForBooking = async ({
         response,
       }
     } catch (error) {
+      const message = `${error?.response?.data?.message || error?.message || ''}`.toLowerCase()
+      const isV2SlotUnavailable =
+        attempt.transport === 'v2' &&
+        error?.response?.status === 400 &&
+        message.includes('slot you have selected is no longer available')
+
+      // If v2 confirms a real business failure (slot no longer available),
+      // do not fall back to v1 because it produces misleading auth noise.
+      if (isV2SlotUnavailable) {
+        throw error
+      }
+
       lastError = error
     }
   }

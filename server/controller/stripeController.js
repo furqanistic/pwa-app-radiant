@@ -271,6 +271,77 @@ const resolvePurchasedMembershipPlan = (service, paidAmount) => {
   }
 }
 
+const MEMBERSHIP_PRICE_ELIGIBLE_STATUSES = new Set([
+  'active',
+  'trialing',
+  'paid',
+  'current',
+  'past_due',
+  'incomplete',
+  'unpaid',
+])
+
+const isUserEligibleForMembershipPricing = (user) => {
+  if (!user) return false
+
+  if (['super-admin', 'admin', 'spa', 'enterprise'].includes(user.role)) {
+    return true
+  }
+
+  if (user?.membership?.isActive || user?.activeMembership?.isActive) {
+    return true
+  }
+
+  const candidateStatuses = [
+    user?.membership?.status,
+    user?.membershipStatus,
+    user?.activeMembership?.status,
+    user?.subscription?.status,
+  ]
+    .filter(Boolean)
+    .map((status) => `${status}`.trim().toLowerCase())
+
+  return candidateStatuses.some((status) =>
+    MEMBERSHIP_PRICE_ELIGIBLE_STATUSES.has(status)
+  )
+}
+
+const resolveMemberPriceForUserAndService = ({ user, service }) => {
+  if (!user || !Array.isArray(service?.membershipPricing)) return null
+
+  const activeEntries = service.membershipPricing.filter((entry) => entry?.isActive !== false)
+  if (activeEntries.length === 0) return null
+
+  const userPlanId =
+    user?.membership?.planId ||
+    user?.membership?.plan?._id ||
+    user?.activeMembership?.planId ||
+    user?.activeMembership?.plan?._id ||
+    null
+  const userPlanName = user?.membership?.planName || user?.activeMembership?.planName || ''
+
+  const normalize = (value) => `${value || ''}`.trim().toLowerCase()
+  const matchedEntry = activeEntries.find((entry) => {
+    const entryPlanId = entry?.membershipPlanId || null
+    const entryPlanName = entry?.membershipPlanName || ''
+
+    const planIdMatch =
+      userPlanId && entryPlanId && `${userPlanId}`.trim() === `${entryPlanId}`.trim()
+    const planNameMatch =
+      normalize(userPlanName) &&
+      normalize(entryPlanName) &&
+      normalize(userPlanName) === normalize(entryPlanName)
+
+    return planIdMatch || planNameMatch
+  })
+
+  const numericPrice = Number(matchedEntry?.price)
+  if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+    return null
+  }
+  return numericPrice
+}
+
 const activateMembershipForCustomer = async ({ customerId, booking, service }) => {
   if (!customerId || !booking || !service) return false
   if (!isMembershipServicePurchase(service)) return false
@@ -564,6 +635,110 @@ const resolveMembershipPlanForLocation = ({ location, planId, planName }) => {
     resolvedPlanId: buildMembershipPlanId(matchedPlan, matchedPlan.name),
     numericPrice: Number(matchedPlan.price || 0),
     currency: `${matchedPlan.currency || 'usd'}`.toLowerCase(),
+  }
+}
+
+const isStripeMissingResourceError = (error, param = null) =>
+  error?.type === 'StripeInvalidRequestError' &&
+  error?.code === 'resource_missing' &&
+  (param ? error?.param === param : true)
+
+const isStripeMissingPriceError = (error) => {
+  if (error?.type !== 'StripeInvalidRequestError' || error?.code !== 'resource_missing') {
+    return false
+  }
+
+  const param = `${error?.param || ''}`.toLowerCase()
+  const message = `${error?.message || ''}`.toLowerCase()
+  return param.includes('price') || message.includes('no such price')
+}
+
+const isTestStripeSecretKey = () =>
+  `${process.env.STRIPE_SECRET_KEY || ''}`.trim().startsWith('sk_test_')
+
+const canAutoCreateMembershipTestPrice = () =>
+  process.env.NODE_ENV !== 'production' && isTestStripeSecretKey()
+
+const createEphemeralMembershipTestPrice = async ({
+  plan,
+  stripeAccountId,
+  locationId = '',
+}) => {
+  const safeCurrency = `${plan?.currency || 'usd'}`.trim().toLowerCase() || 'usd'
+  const safeAmount = Number(plan?.numericPrice || plan?.price || 0)
+  if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
+    throw createError(400, 'Invalid membership amount configured for this plan.')
+  }
+
+  const product = await stripe.products.create(
+    {
+      name: `${plan?.name || 'Membership Plan'} (Test)`,
+      description:
+        'Auto-generated test-mode product because the configured plan price does not exist in this Stripe mode.',
+      metadata: {
+        source: 'membership_test_price_fallback',
+        locationId: `${locationId || ''}`,
+        planId: `${plan?.resolvedPlanId || ''}`,
+        planName: `${plan?.name || ''}`,
+      },
+    },
+    { stripeAccount: stripeAccountId }
+  )
+
+  const price = await stripe.prices.create(
+    {
+      product: product.id,
+      unit_amount: Math.round(safeAmount * 100),
+      currency: safeCurrency,
+      recurring: { interval: 'month' },
+      metadata: {
+        source: 'membership_test_price_fallback',
+        locationId: `${locationId || ''}`,
+        planId: `${plan?.resolvedPlanId || ''}`,
+        planName: `${plan?.name || ''}`,
+      },
+    },
+    { stripeAccount: stripeAccountId }
+  )
+
+  return {
+    ...plan,
+    stripeProductId: product.id,
+    stripePriceId: price.id,
+    isEphemeralTestPrice: true,
+  }
+}
+
+const resolveBillableMembershipPlanForStripeAccount = async ({
+  plan,
+  stripeAccountId,
+  locationId = '',
+}) => {
+  if (!plan?.stripePriceId) {
+    throw createError(400, 'This membership plan is not connected to Stripe billing yet.')
+  }
+
+  try {
+    await stripe.prices.retrieve(plan.stripePriceId, {}, { stripeAccount: stripeAccountId })
+    return plan
+  } catch (error) {
+    if (!isStripeMissingResourceError(error, 'id') && !isStripeMissingPriceError(error)) {
+      throw error
+    }
+
+    if (!canAutoCreateMembershipTestPrice()) {
+      throw createError(
+        400,
+        'This membership plan is linked to a Stripe price from a different mode (live/test). Use matching Stripe keys or re-sync membership pricing for this environment.'
+      )
+    }
+
+    const fallbackPlan = await createEphemeralMembershipTestPrice({
+      plan,
+      stripeAccountId,
+      locationId,
+    })
+    return fallbackPlan
   }
 }
 
@@ -1600,10 +1775,15 @@ export const createMembershipSubscription = async (req, res, next) => {
       return next(createError(404, 'Membership service not found for this location'))
     }
 
-    const plan = resolveMembershipPlanForLocation({
+    const resolvedPlan = resolveMembershipPlanForLocation({
       location,
       planId,
       planName,
+    })
+    const plan = await resolveBillableMembershipPlanForStripeAccount({
+      plan: resolvedPlan,
+      stripeAccountId,
+      locationId,
     })
     const customerId = await ensureMembershipCustomer({
       user,
@@ -1642,24 +1822,52 @@ export const createMembershipSubscription = async (req, res, next) => {
       )
     }
 
-    const subscription = await stripe.subscriptions.create(
-      {
-        customer: customerId,
-        items: [{ price: plan.stripePriceId }],
-        default_payment_method: defaultPaymentMethodId,
-        collection_method: 'charge_automatically',
-        payment_behavior: 'error_if_incomplete',
-        metadata: {
-          userId: user._id.toString(),
-          locationId: `${locationId}`,
-          serviceId: service._id.toString(),
-          planId: `${plan.resolvedPlanId || ''}`,
-          planName: `${plan.name || ''}`,
-        },
-        expand: ['default_payment_method', 'items.data.price'],
-      },
-      { stripeAccount: stripeAccountId }
-    )
+    let activePlan = plan
+    let subscription = null
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        subscription = await stripe.subscriptions.create(
+          {
+            customer: customerId,
+            items: [{ price: activePlan.stripePriceId }],
+            default_payment_method: defaultPaymentMethodId,
+            collection_method: 'charge_automatically',
+            payment_behavior: 'error_if_incomplete',
+            metadata: {
+              userId: user._id.toString(),
+              locationId: `${locationId}`,
+              serviceId: service._id.toString(),
+              planId: `${activePlan.resolvedPlanId || ''}`,
+              planName: `${activePlan.name || ''}`,
+            },
+            expand: ['default_payment_method', 'items.data.price'],
+          },
+          { stripeAccount: stripeAccountId }
+        )
+        break
+      } catch (subscriptionCreateError) {
+        if (
+          attempt === 0 &&
+          !activePlan?.isEphemeralTestPrice &&
+          isStripeMissingPriceError(subscriptionCreateError) &&
+          canAutoCreateMembershipTestPrice()
+        ) {
+          activePlan = await createEphemeralMembershipTestPrice({
+            plan: activePlan,
+            stripeAccountId,
+            locationId,
+          })
+          continue
+        }
+
+        throw subscriptionCreateError
+      }
+    }
+
+    if (!subscription) {
+      throw createError(500, 'Unable to create membership subscription at the moment.')
+    }
 
     const defaultPaymentMethod = await stripe.paymentMethods.retrieve(
       defaultPaymentMethodId,
@@ -1674,7 +1882,7 @@ export const createMembershipSubscription = async (req, res, next) => {
       locationId,
       serviceId: service._id,
       subscription,
-      plan,
+      plan: activePlan,
       stripeAccountId,
       defaultPaymentMethod,
       clearPendingPlan: true,
@@ -1687,6 +1895,14 @@ export const createMembershipSubscription = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error creating membership subscription:', error)
+    if (isStripeMissingPriceError(error)) {
+      return next(
+        createError(
+          400,
+          'This membership plan pricing is out of sync with the current Stripe mode (test/live). Please retry after refreshing billing data.'
+        )
+      )
+    }
     next(error)
   }
 }
@@ -1709,8 +1925,13 @@ export const changeMembershipSubscriptionPlan = async (req, res, next) => {
 
     const locationId = getMembershipLocationIdFromRequest(req)
     const { location } = await resolveMembershipLocationAndOwner(locationId)
-    const plan = resolveMembershipPlanForLocation({ location, planId, planName })
+    const resolvedPlan = resolveMembershipPlanForLocation({ location, planId, planName })
     const stripeAccountId = user.membershipBilling.stripeAccountId
+    const plan = await resolveBillableMembershipPlanForStripeAccount({
+      plan: resolvedPlan,
+      stripeAccountId,
+      locationId,
+    })
 
     const subscription = await stripe.subscriptions.retrieve(
       user.membershipBilling.subscriptionId,
@@ -1774,43 +1995,72 @@ export const changeMembershipSubscriptionPlan = async (req, res, next) => {
       schedule?.current_phase?.start_date || currentPeriodStartUnix
     )
 
-    await stripe.subscriptionSchedules.update(
-      scheduleId,
-      {
-        end_behavior: 'release',
-        phases: [
+    let activePlan = plan
+    let updateApplied = false
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await stripe.subscriptionSchedules.update(
+          scheduleId,
           {
-            start_date: currentPhaseStartUnix,
-            end_date: currentPeriodEndUnix,
-            items: [
+            end_behavior: 'release',
+            phases: [
               {
-                price: currentPriceId,
-                quantity: Number.isFinite(subscriptionQuantity) ? subscriptionQuantity : 1,
+                start_date: currentPhaseStartUnix,
+                end_date: currentPeriodEndUnix,
+                items: [
+                  {
+                    price: currentPriceId,
+                    quantity: Number.isFinite(subscriptionQuantity) ? subscriptionQuantity : 1,
+                  },
+                ],
+                proration_behavior: 'none',
+              },
+              {
+                start_date: currentPeriodEndUnix,
+                items: [
+                  {
+                    price: activePlan.stripePriceId,
+                    quantity: Number.isFinite(subscriptionQuantity) ? subscriptionQuantity : 1,
+                  },
+                ],
+                proration_behavior: 'none',
               },
             ],
-            proration_behavior: 'none',
           },
-          {
-            start_date: currentPeriodEndUnix,
-            items: [
-              {
-                price: plan.stripePriceId,
-                quantity: Number.isFinite(subscriptionQuantity) ? subscriptionQuantity : 1,
-              },
-            ],
-            proration_behavior: 'none',
-          },
-        ],
-      },
-      { stripeAccount: stripeAccountId }
-    )
+          { stripeAccount: stripeAccountId }
+        )
+        updateApplied = true
+        break
+      } catch (scheduleUpdateError) {
+        if (
+          attempt === 0 &&
+          !activePlan?.isEphemeralTestPrice &&
+          isStripeMissingPriceError(scheduleUpdateError) &&
+          canAutoCreateMembershipTestPrice()
+        ) {
+          activePlan = await createEphemeralMembershipTestPrice({
+            plan: activePlan,
+            stripeAccountId,
+            locationId,
+          })
+          continue
+        }
+
+        throw scheduleUpdateError
+      }
+    }
+
+    if (!updateApplied) {
+      throw createError(500, 'Unable to update membership plan at the moment.')
+    }
 
     ensureMembershipBillingShape(user)
     user.set('membershipBilling.pendingPlan', {
-      planId: plan.resolvedPlanId,
-      planName: plan.name,
-      price: plan.numericPrice,
-      currency: plan.currency,
+      planId: activePlan.resolvedPlanId,
+      planName: activePlan.name,
+      price: activePlan.numericPrice,
+      currency: activePlan.currency,
       effectiveAt: toDateFromUnix(currentPeriodEndUnix),
     })
     await user.save()
@@ -1822,6 +2072,14 @@ export const changeMembershipSubscriptionPlan = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error changing membership subscription plan:', error)
+    if (isStripeMissingPriceError(error)) {
+      return next(
+        createError(
+          400,
+          'This membership plan pricing is out of sync with the current Stripe mode (test/live). Please retry after refreshing billing data.'
+        )
+      )
+    }
     next(error)
   }
 }
@@ -2235,6 +2493,7 @@ export const createCheckoutSession = async (req, res, next) => {
       userRewardId,
       rewardUsed,
       pointsUsed,
+      useSavedCardDirectCharge,
     } = req.body
 
     // Validate required fields
@@ -2244,6 +2503,7 @@ export const createCheckoutSession = async (req, res, next) => {
 
     // Fetch service details
     const service = await Service.findById(serviceId).populate('createdBy')
+    const customer = await User.findById(customerId)
 
     if (!service || service.status !== 'active' || service.isDeleted) {
       return next(createError(404, 'Service not found or inactive'))
@@ -2267,7 +2527,15 @@ export const createCheckoutSession = async (req, res, next) => {
     }
 
     // Calculate pricing
-    let subtotal = service.basePrice
+    let subtotal = Number(service.basePrice) || 0
+    const memberPrice = resolveMemberPriceForUserAndService({ user: customer, service })
+    if (
+      isUserEligibleForMembershipPricing(customer) &&
+      Number.isFinite(memberPrice) &&
+      memberPrice >= 0
+    ) {
+      subtotal = memberPrice
+    }
     let discountAmount = 0
     let isFreeGift = false
     let resolvedRewardUsed = rewardUsed || null
@@ -2311,7 +2579,6 @@ export const createCheckoutSession = async (req, res, next) => {
 
       // Apply points discount
       if (pointsUsed && pointsUsed > 0) {
-        const customer = await User.findById(customerId)
         if (customer && customer.points >= pointsUsed) {
           discountAmount += pointsUsed // $1 per point
         }
@@ -2378,6 +2645,163 @@ export const createCheckoutSession = async (req, res, next) => {
         teamId: ghlCalendar.teamId,
       },
     })
+
+    const shouldAttemptDirectCharge = Boolean(useSavedCardDirectCharge)
+    if (shouldAttemptDirectCharge) {
+      try {
+        let paymentMethodForReceipt = {
+          type: amount === 0 ? 'free' : 'card',
+          brand: null,
+          last4: null,
+          expMonth: null,
+          expYear: null,
+        }
+        let stripePaymentIntentId = `free_booking_${booking._id}_${Date.now()}`
+        let livemode = false
+        let hasConfirmedPayment = amount === 0
+
+        if (amount > 0) {
+          const user = await User.findById(customerId)
+          if (user) {
+            const customerStripeId = await ensureMembershipCustomer({
+              user,
+              stripeAccountId: spaOwner.stripe.accountId,
+              locationId,
+            })
+            const paymentMethodState = await listMembershipPaymentMethods({
+              customerId: customerStripeId,
+              stripeAccountId: spaOwner.stripe.accountId,
+            })
+            const defaultPaymentMethodId =
+              paymentMethodState.defaultPaymentMethodId ||
+              paymentMethodState.paymentMethods[0]?.id ||
+              null
+
+            if (defaultPaymentMethodId) {
+              const paymentIntent = await stripe.paymentIntents.create(
+                {
+                  amount,
+                  currency: 'usd',
+                  customer: customerStripeId,
+                  payment_method: defaultPaymentMethodId,
+                  confirm: true,
+                  off_session: true,
+                  metadata: {
+                    customerId: customerId.toString(),
+                    spaOwnerId: spaOwner._id.toString(),
+                    serviceId: serviceId.toString(),
+                    serviceName: service.name,
+                    bookingId: booking._id.toString(),
+                    userRewardId: resolvedRewardUsed || '',
+                    directSavedCardCharge: 'true',
+                  },
+                  description: `Direct booking charge for ${service.name}`,
+                },
+                { stripeAccount: spaOwner.stripe.accountId }
+              )
+
+              stripePaymentIntentId = paymentIntent.id
+              livemode = Boolean(paymentIntent.livemode)
+              hasConfirmedPayment = true
+
+              const defaultPaymentMethod = await stripe.paymentMethods.retrieve(
+                defaultPaymentMethodId,
+                {},
+                { stripeAccount: spaOwner.stripe.accountId }
+              )
+
+              paymentMethodForReceipt = {
+                type: 'card',
+                brand: defaultPaymentMethod?.card?.brand || null,
+                last4: defaultPaymentMethod?.card?.last4 || null,
+                expMonth: defaultPaymentMethod?.card?.exp_month || null,
+                expYear: defaultPaymentMethod?.card?.exp_year || null,
+              }
+            }
+          }
+        }
+
+        if (!hasConfirmedPayment) {
+          throw new Error('No saved payment method available for direct charge')
+        }
+
+        const pointsEarned = await resolvePurchasePoints(locationId, finalPrice)
+        const payment = await Payment.create({
+          stripePaymentIntentId,
+          customer: customerId,
+          spaOwner: spaOwner._id,
+          stripeAccountId: spaOwner.stripe.accountId,
+          service: serviceId,
+          booking: booking._id,
+          amount,
+          currency: 'usd',
+          subtotal: subtotal * 100,
+          discount: {
+            amount: discountAmount * 100,
+            type: discountAmount > 0 ? 'fixed' : null,
+            code: null,
+            description: discountAmount > 0 ? 'Service discount applied' : null,
+          },
+          tax: { amount: 0, rate: 0 },
+          platformFee: { amount: 0, percentage: 0 },
+          status: 'succeeded',
+          livemode,
+          processedAt: new Date(),
+          pointsEarned,
+          pointsUsed: pointsUsed || 0,
+          paymentMethod: paymentMethodForReceipt,
+        })
+
+        booking.paymentStatus = 'paid'
+        booking.paymentId = payment._id
+        booking.pointsEarned = pointsEarned
+        await booking.save()
+
+        const bookingService = await Service.findById(booking.serviceId)
+        await activateMembershipForCustomer({
+          customerId,
+          booking,
+          service: bookingService,
+        })
+        await syncBookingToGhlWithRetry(booking, customerId)
+
+        const customer = await User.findById(customerId)
+        if (customer) {
+          customer.points += pointsEarned
+          if (booking.pointsUsed > 0) {
+            customer.points = Math.max(0, customer.points - booking.pointsUsed)
+          }
+          await customer.save()
+        }
+
+        if (resolvedRewardUsed) {
+          await UserReward.findByIdAndUpdate(resolvedRewardUsed, {
+            status: 'used',
+            usedAt: new Date(),
+            usedBy: customerId,
+            actualValue: Number(booking.discountApplied) || 0,
+          })
+        }
+
+        return res.status(201).json({
+          success: true,
+          bookingConfirmed: true,
+          bookingId: booking._id,
+          message: 'Booking confirmed using your saved card.',
+        })
+      } catch (directChargeError) {
+        const directChargeMessage = `${directChargeError?.message || ''}`.toLowerCase()
+        const shouldFallbackToCheckout =
+          directChargeError?.code === 'authentication_required' ||
+          directChargeMessage.includes('no saved payment method') ||
+          directChargeMessage.includes('requires_action') ||
+          directChargeMessage.includes('authentication')
+
+        if (!shouldFallbackToCheckout) {
+          throw directChargeError
+        }
+      }
+    }
 
     // Create Stripe Checkout Session
     const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
@@ -2660,6 +3084,7 @@ export const createPaymentIntent = async (req, res, next) => {
 
     // Fetch service details
     const service = await Service.findById(serviceId).populate('createdBy')
+    const customer = await User.findById(customerId)
 
     if (!service || service.status !== 'active' || service.isDeleted) {
       return next(createError(404, 'Service not found or inactive'))
@@ -2677,7 +3102,15 @@ export const createPaymentIntent = async (req, res, next) => {
     }
 
     // Calculate pricing
-    let subtotal = service.basePrice
+    let subtotal = Number(service.basePrice) || 0
+    const memberPrice = resolveMemberPriceForUserAndService({ user: customer, service })
+    if (
+      isUserEligibleForMembershipPricing(customer) &&
+      Number.isFinite(memberPrice) &&
+      memberPrice >= 0
+    ) {
+      subtotal = memberPrice
+    }
     let discount = { amount: 0, type: null, code: null, description: null }
 
     // Apply service discount if active
@@ -3159,7 +3592,12 @@ async function syncBookingToGhl(booking, customerId) {
       `Failed syncing booking ${booking._id} to GHL:`,
       error.response?.data || error.message
     )
-    return { ok: false, retryable: true }
+    const errMessage = `${error.response?.data?.msg || error.message || ''}`.toLowerCase()
+    const retryable = !(
+      errMessage.includes('api key is invalid') ||
+      errMessage.includes('invalid jwt')
+    )
+    return { ok: false, retryable }
   }
 }
 
@@ -3184,21 +3622,55 @@ async function syncBookingToGhlWithRetry(booking, customerId, maxAttempts = 3) {
 }
 
 async function handleCheckoutSessionCompleted(session) {
-  const bookingId = session.metadata.bookingId
-  const bookingIds = session.metadata.bookingIds
-  const customerId = session.metadata.customerId
-  const userRewardId = session.metadata.userRewardId
-  const isCartCheckout = session.metadata.isCartCheckout === 'true'
-  const isMembershipCheckout = session.metadata.isMembershipCheckout === 'true'
+  const metadata = session?.metadata || {}
+  const bookingId = metadata.bookingId
+  const bookingIds = metadata.bookingIds
+  const customerId = metadata.customerId
+  const userRewardId = metadata.userRewardId
+  const isCartCheckout = metadata.isCartCheckout === 'true'
+  const isMembershipCheckout = metadata.isMembershipCheckout === 'true'
+  const paymentIntentId =
+    typeof session?.payment_intent === 'string' && session.payment_intent.trim()
+      ? session.payment_intent.trim()
+      : null
+  const fallbackPaymentIntentId = paymentIntentId || `checkout_session_${session.id}`
+  const amountTotalCents = Number(session?.amount_total || 0)
 
-  // Get payment intent details
-  const paymentIntentId = session.payment_intent
-  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+  let paymentIntent = null
+  if (paymentIntentId) {
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
+    } catch (error) {
+      console.error(
+        `Unable to retrieve payment intent ${paymentIntentId} for checkout session ${session.id}:`,
+        error?.message || error
+      )
+    }
+  }
+
+  const resolveSpaDestinationForLocation = async (locationId) => {
+    const spaOwner = await findStripeReadySpaOwnerByLocation(locationId)
+    if (!spaOwner?.stripe?.accountId) {
+      return { spaOwnerId: null, stripeAccountId: null }
+    }
+    return {
+      spaOwnerId: spaOwner._id,
+      stripeAccountId: spaOwner.stripe.accountId,
+    }
+  }
+
+  const paymentMethodType =
+    paymentIntent?.payment_method_types?.[0] || (amountTotalCents === 0 ? 'free' : 'card')
+  const paymentMethodBrand =
+    paymentIntent?.charges?.data[0]?.payment_method_details?.card?.brand || null
+  const paymentMethodLast4 =
+    paymentIntent?.charges?.data[0]?.payment_method_details?.card?.last4 || null
+  const livemode = paymentIntent?.livemode ?? Boolean(session?.livemode)
   const purchaseMethodCache = new Map()
 
   if (isMembershipCheckout) {
-    const serviceId = session.metadata.serviceId
-    const locationId = session.metadata.locationId
+    const serviceId = metadata.serviceId
+    const locationId = metadata.locationId
     const service = await Service.findById(serviceId)
 
     if (!service) {
@@ -3214,31 +3686,58 @@ async function handleCheckoutSessionCompleted(session) {
       purchaseMethodCache
     )
 
-    await Payment.create({
-      stripePaymentIntentId: paymentIntentId,
+    let spaOwnerId = paymentIntent?.metadata?.spaOwnerId || null
+    let stripeAccountId = paymentIntent?.transfer_data?.destination || null
+
+    if (!spaOwnerId || !stripeAccountId) {
+      const spaDestination = await resolveSpaDestinationForLocation(
+        locationId || service.locationId
+      )
+      spaOwnerId = spaOwnerId || spaDestination.spaOwnerId
+      stripeAccountId = stripeAccountId || spaDestination.stripeAccountId
+    }
+
+    if (!spaOwnerId || !stripeAccountId) {
+      console.error(
+        `Unable to resolve spa destination for membership checkout session ${session.id}`
+      )
+      return
+    }
+
+    const existingMembershipPayment = await Payment.findOne({
+      stripePaymentIntentId: fallbackPaymentIntentId,
       customer: customerId,
-      spaOwner: paymentIntent.metadata.spaOwnerId,
-      stripeAccountId: paymentIntent.transfer_data.destination,
+      service: service._id,
+      amount,
+    })
+    if (existingMembershipPayment) {
+      console.log(
+        `Membership checkout session ${session.id} already processed (payment ${existingMembershipPayment._id})`
+      )
+      return
+    }
+
+    await Payment.create({
+      stripePaymentIntentId: fallbackPaymentIntentId,
+      customer: customerId,
+      spaOwner: spaOwnerId,
+      stripeAccountId,
       service: service._id,
       booking: null,
       amount,
-      currency: session.currency,
+      currency: session.currency || 'usd',
       subtotal: amount,
       discount: { amount: 0, type: null, code: null, description: null },
       tax: { amount: 0, rate: 0 },
       platformFee: { amount: 0, percentage: 0 },
       status: 'succeeded',
-      livemode: paymentIntent.livemode,
+      livemode,
       processedAt: new Date(),
       pointsEarned,
       paymentMethod: {
-        type: paymentIntent.payment_method_types[0] || 'card',
-        brand:
-          paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand ||
-          null,
-        last4:
-          paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
-          null,
+        type: paymentMethodType,
+        brand: paymentMethodBrand,
+        last4: paymentMethodLast4,
       },
     })
 
@@ -3282,6 +3781,10 @@ async function handleCheckoutSessionCompleted(session) {
 
     // Create payment records and update each booking
     for (const booking of bookings) {
+      if (booking.paymentStatus === 'paid' && booking.paymentId) {
+        continue
+      }
+
       const pointsEarned = await resolvePurchasePoints(
         booking.locationId,
         booking.finalPrice,
@@ -3289,20 +3792,37 @@ async function handleCheckoutSessionCompleted(session) {
       )
       totalPointsEarned += pointsEarned
 
+      let spaOwnerId = paymentIntent?.metadata?.spaOwnerId || null
+      let stripeAccountId = paymentIntent?.transfer_data?.destination || null
+
+      if (!spaOwnerId || !stripeAccountId) {
+        const spaDestination = await resolveSpaDestinationForLocation(
+          booking.locationId
+        )
+        spaOwnerId = spaOwnerId || spaDestination.spaOwnerId
+        stripeAccountId = stripeAccountId || spaDestination.stripeAccountId
+      }
+
+      if (!spaOwnerId || !stripeAccountId) {
+        throw new Error(
+          `Unable to resolve spa destination for booking ${booking._id} in checkout session ${session.id}`
+        )
+      }
+
       // Create payment record for this booking
       const payment = await Payment.create({
-        stripePaymentIntentId: paymentIntentId,
+        stripePaymentIntentId: fallbackPaymentIntentId,
         customer: customerId,
-        spaOwner: paymentIntent.metadata.spaOwnerId,
-        stripeAccountId: paymentIntent.transfer_data.destination,
+        spaOwner: spaOwnerId,
+        stripeAccountId,
         service: booking.serviceId,
         booking: booking._id,
         amount: Math.round(booking.finalPrice * 100),
-        currency: session.currency,
+        currency: session.currency || 'usd',
         subtotal: booking.servicePrice * 100,
         discount: {
           amount: booking.discountApplied * 100,
-          type: booking.discountApplied > 0 ? 'service_discount' : null,
+          type: booking.discountApplied > 0 ? 'fixed' : null,
           code: null,
           description:
             booking.discountApplied > 0 ? 'Service discount applied' : null,
@@ -3313,17 +3833,13 @@ async function handleCheckoutSessionCompleted(session) {
           percentage: 0,
         },
         status: 'succeeded',
-        livemode: paymentIntent.livemode,
+        livemode,
         processedAt: new Date(),
         pointsEarned: pointsEarned,
         paymentMethod: {
-          type: paymentIntent.payment_method_types[0] || 'card',
-          brand:
-            paymentIntent.charges?.data[0]?.payment_method_details?.card
-              ?.brand || null,
-          last4:
-            paymentIntent.charges?.data[0]?.payment_method_details?.card
-              ?.last4 || null,
+          type: paymentMethodType,
+          brand: paymentMethodBrand,
+          last4: paymentMethodLast4,
         },
       })
 
@@ -3345,13 +3861,13 @@ async function handleCheckoutSessionCompleted(session) {
 
     // Award points to customer and handle deductions
     const customer = await User.findById(customerId)
-    if (customer) {
+    if (customer && totalPointsEarned > 0) {
       customer.points += totalPointsEarned
       await customer.save()
     }
 
     // Mark reward as used if provided
-    if (userRewardId) {
+    if (userRewardId && bookings.some((booking) => booking.paymentStatus === 'paid')) {
       const totalRewardValue = bookings.reduce(
         (sum, booking) => sum + (Number(booking.discountApplied) || 0),
         0
@@ -3384,6 +3900,25 @@ async function handleCheckoutSessionCompleted(session) {
     return
   }
 
+  if (booking.paymentStatus === 'paid' && booking.paymentId) {
+    console.log(`Booking ${bookingId} already marked as paid; skipping duplicate webhook`)
+    return
+  }
+
+  let spaOwnerId = paymentIntent?.metadata?.spaOwnerId || null
+  let stripeAccountId = paymentIntent?.transfer_data?.destination || null
+  if (!spaOwnerId || !stripeAccountId) {
+    const spaDestination = await resolveSpaDestinationForLocation(booking.locationId)
+    spaOwnerId = spaOwnerId || spaDestination.spaOwnerId
+    stripeAccountId = stripeAccountId || spaDestination.stripeAccountId
+  }
+
+  if (!spaOwnerId || !stripeAccountId) {
+    throw new Error(
+      `Unable to resolve spa destination for booking ${booking._id} in checkout session ${session.id}`
+    )
+  }
+
   // Create payment record
   const singleBookingPoints = await resolvePurchasePoints(
     booking.locationId,
@@ -3391,18 +3926,18 @@ async function handleCheckoutSessionCompleted(session) {
     purchaseMethodCache
   )
   const payment = await Payment.create({
-    stripePaymentIntentId: paymentIntentId,
+    stripePaymentIntentId: fallbackPaymentIntentId,
     customer: customerId,
-    spaOwner: paymentIntent.metadata.spaOwnerId,
-    stripeAccountId: paymentIntent.transfer_data.destination,
+    spaOwner: spaOwnerId,
+    stripeAccountId,
     service: booking.serviceId,
     booking: booking._id,
-    amount: session.amount_total,
-    currency: session.currency,
+    amount: amountTotalCents,
+    currency: session.currency || 'usd',
     subtotal: booking.servicePrice * 100,
     discount: {
       amount: booking.discountApplied * 100,
-      type: booking.discountApplied > 0 ? 'service_discount' : null,
+      type: booking.discountApplied > 0 ? 'fixed' : null,
       code: null,
       description:
         booking.discountApplied > 0 ? 'Service discount applied' : null,
@@ -3413,17 +3948,13 @@ async function handleCheckoutSessionCompleted(session) {
       percentage: 0,
     },
     status: 'succeeded',
-    livemode: paymentIntent.livemode,
+    livemode,
     processedAt: new Date(),
     pointsEarned: singleBookingPoints,
     paymentMethod: {
-      type: paymentIntent.payment_method_types[0] || 'card',
-      brand:
-        paymentIntent.charges?.data[0]?.payment_method_details?.card?.brand ||
-        null,
-      last4:
-        paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
-        null,
+      type: paymentMethodType,
+      brand: paymentMethodBrand,
+      last4: paymentMethodLast4,
     },
   })
 

@@ -16,6 +16,7 @@ import {
 
 const RECENT_QR_CLAIMS_WINDOW_DAYS = 3
 const RECENT_QR_CLAIMS_LIMIT = 250
+const TEST_EMAIL_REGEX = /@test\.com$/i
 
 const getRewardPreviewLabel = (reward) => {
   const snapshot = reward?.rewardSnapshot || {}
@@ -160,17 +161,28 @@ export const getDashboardData = async (req, res, next) => {
         .select('qrCode.lastResetAt')
         .lean()
 
-      // 1. Get stats
-      // Total Clients: users who have selected this spa
+      // 1. Build test-account scope once.
+      // Any dashboard metric derived from users/bookings should ignore *@test.com.
+      const testUsers = await User.find({
+        email: TEST_EMAIL_REGEX,
+      })
+        .select('_id')
+        .lean()
+
+      const testUserIds = testUsers.map((entry) => entry._id)
+      const productionBookingsScope = { locationId, userId: { $nin: testUserIds } }
+
+      // 2. Get stats
       const totalClients = await User.countDocuments({
         'selectedLocation.locationId': locationId,
         role: 'user',
-        isDeleted: false
+        isDeleted: false,
+        email: { $not: TEST_EMAIL_REGEX },
       })
 
       // Total Visits: completed bookings for this spa
       const totalVisits = await Booking.countDocuments({
-        locationId,
+        ...productionBookingsScope,
         status: 'completed',
         paymentStatus: 'paid',
       })
@@ -180,15 +192,15 @@ export const getDashboardData = async (req, res, next) => {
       // or simply count users who have a reward with type that could be membership (if we knew)
       // For now, let's count completed bookings for services with 'membership' in the name
       const activeMemberships = await Booking.countDocuments({
-        locationId,
+        ...productionBookingsScope,
         status: 'completed',
         paymentStatus: 'paid',
-        serviceName: { $regex: /membership/i }
+        serviceName: { $regex: /membership/i },
       })
 
-      // 2. Get Live Activity: Only paid bookings with a linked payment record
+      // 3. Get Live Activity: Only paid bookings with a linked payment record
       const liveActivity = await Booking.find({
-        locationId,
+        ...productionBookingsScope,
         paymentStatus: 'paid',
         paymentId: { $ne: null },
         status: 'completed',
@@ -212,7 +224,7 @@ export const getDashboardData = async (req, res, next) => {
       const recentQrScans = await QRCodeScan.find({
         locationId,
         status: 'verified',
-        scannedByUser: { $ne: null },
+        scannedByUser: { $nin: testUserIds, $ne: null },
         createdAt: { $gte: recentClaimsStart },
       })
         .sort({ createdAt: -1 })
@@ -282,7 +294,7 @@ export const getDashboardData = async (req, res, next) => {
         QRCodeScan.countDocuments({
           locationId,
           status: 'verified',
-          scannedByUser: { $ne: null },
+          scannedByUser: { $nin: testUserIds, $ne: null },
           createdAt: { $gte: recentClaimsStart },
         }),
         QRCodeScan.aggregate([
@@ -290,7 +302,7 @@ export const getDashboardData = async (req, res, next) => {
             $match: {
               locationId,
               status: 'verified',
-              scannedByUser: { $ne: null },
+              scannedByUser: { $nin: testUserIds, $ne: null },
               createdAt: { $gte: recentClaimsStart },
             },
           },
@@ -302,9 +314,9 @@ export const getDashboardData = async (req, res, next) => {
         ]),
       ])
 
-      // 3. Get Upcoming Bookings
+      // 4. Get Upcoming Bookings
       const currentBookings = await Booking.find({
-        locationId,
+        ...productionBookingsScope,
         date: { $gte: new Date().setHours(0, 0, 0, 0) },
         status: { $in: ['scheduled', 'confirmed'] },
         paymentStatus: 'paid',
@@ -314,7 +326,7 @@ export const getDashboardData = async (req, res, next) => {
         .populate('userId', 'name email avatar')
         .lean()
 
-      // 4. Get Analytics (Real data for charts)
+      // 5. Get Analytics (Real data for charts)
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -322,7 +334,7 @@ export const getDashboardData = async (req, res, next) => {
       const trendData = await Booking.aggregate([
         {
           $match: {
-            locationId,
+            ...productionBookingsScope,
             createdAt: { $gte: thirtyDaysAgo },
             status: 'completed',
             paymentStatus: 'paid',
@@ -342,7 +354,7 @@ export const getDashboardData = async (req, res, next) => {
       const topServices = await Booking.aggregate([
         {
           $match: {
-            locationId,
+            ...productionBookingsScope,
             status: 'completed',
             paymentStatus: 'paid',
           }
@@ -375,10 +387,32 @@ export const getDashboardData = async (req, res, next) => {
         return Math.round(((currentCount - prevCount) / prevCount) * 100)
       }
 
-      const clientGrowth = await getGrowth(User, { 'selectedLocation.locationId': locationId, role: 'user', isDeleted: false })
-      const visitGrowth = await getGrowth(Booking, { locationId, status: 'completed', paymentStatus: 'paid' })
-      const membershipGrowth = await getGrowth(Booking, { locationId, status: 'completed', paymentStatus: 'paid', serviceName: { $regex: /membership/i } })
-      const revenueGrowth = await getGrowth(Booking, { locationId, status: 'completed', paymentStatus: 'paid' }, 'createdAt')
+      const clientGrowth = await getGrowth(User, {
+        'selectedLocation.locationId': locationId,
+        role: 'user',
+        isDeleted: false,
+        email: { $not: TEST_EMAIL_REGEX },
+      })
+      const visitGrowth = await getGrowth(Booking, {
+        ...productionBookingsScope,
+        status: 'completed',
+        paymentStatus: 'paid',
+      })
+      const membershipGrowth = await getGrowth(Booking, {
+        ...productionBookingsScope,
+        status: 'completed',
+        paymentStatus: 'paid',
+        serviceName: { $regex: /membership/i },
+      })
+      const revenueGrowth = await getGrowth(
+        Booking,
+        {
+          ...productionBookingsScope,
+          status: 'completed',
+          paymentStatus: 'paid',
+        },
+        'createdAt'
+      )
 
       return res.status(200).json({
         status: 'success',

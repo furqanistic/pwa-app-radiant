@@ -706,11 +706,15 @@ const ServiceCatalogPage = () => {
           window.location.href = response.sessionUrl
           return
         }
+
+        toast.error('Failed to start membership checkout.')
+        return
       } catch (error) {
         toast.error(
           error?.response?.data?.message ||
             'Failed to start membership checkout.'
         )
+        return
       }
     }
 

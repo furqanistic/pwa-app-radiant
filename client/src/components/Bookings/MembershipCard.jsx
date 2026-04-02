@@ -1,5 +1,5 @@
 // client/src/components/Bookings/MembershipCard.jsx
-import { Crown, Sparkles, Zap } from 'lucide-react';
+import { Crown, Loader2, Sparkles, Zap } from 'lucide-react';
 import React from 'react';
 
 // Premium Membership Card - Dark "Black Card" Aesthetic
@@ -9,6 +9,7 @@ const MembershipCard = ({
     membership,
     ctaLabel = null,
     disabled = false,
+    isProcessing = false,
     statusBadge = null,
     helperText = null,
 }) => {
@@ -21,7 +22,7 @@ const MembershipCard = ({
     ];
     const membershipName = membership?.name ?? service.name ?? 'Gold Glow Membership';
     const description = membership?.description ?? service.description ?? 'Unlock exclusive perks and premium benefits';
-    const isSelectable = !disabled && typeof onSelect === 'function' && !!service?._id && !service._id.startsWith('location-membership');
+    const isSelectable = !disabled && !isProcessing && typeof onSelect === 'function' && !!service?._id && !service._id.startsWith('location-membership');
     const resolvedCtaLabel = ctaLabel || (isSelectable
         ? membership
             ? 'Buy This Plan'
@@ -115,14 +116,19 @@ const MembershipCard = ({
                         type="button"
                         disabled={!isSelectable}
                         aria-disabled={!isSelectable}
-                        title={!isSelectable ? (disabled ? 'Add a card before changing membership plans.' : 'This plan is not currently linked to online checkout.') : undefined}
+                        title={!isSelectable ? (isProcessing ? 'Processing membership update...' : (disabled ? 'Add a card before changing membership plans.' : 'This plan is not currently linked to online checkout.')) : undefined}
                         className={`w-full font-black py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 tracking-wide uppercase text-xs md:text-sm whitespace-nowrap ${
                             isSelectable
                                 ? 'bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 text-amber-950 shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 active:scale-95'
                                 : 'bg-white/8 text-white/60 border border-white/10'
                         }`}
                     >
-                        {resolvedCtaLabel}
+                        {isProcessing ? (
+                            <>
+                                <Loader2 size={14} className="animate-spin" />
+                                Processing...
+                            </>
+                        ) : resolvedCtaLabel}
                     </button>
                     {helperText ? (
                         <p className="mt-3 text-xs font-medium text-gray-400 leading-relaxed">

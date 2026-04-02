@@ -428,6 +428,16 @@ const ServiceDetailPage = () => {
     service?.locationId ||
     "";
 
+  const {
+    data: membershipBillingForCardStatus,
+    refetch: refetchMembershipBillingForCardStatus,
+  } = useQuery({
+    queryKey: ["service-detail-membership-card-status", activeLocationId],
+    queryFn: () => stripeService.getMembershipBillingSummary(activeLocationId),
+    enabled: Boolean(activeLocationId && currentUser?._id),
+    staleTime: 60 * 1000,
+  });
+
   const linkedGhlCalendarId = `${service?.ghlCalendar?.calendarId || ""}`.trim();
   const linkedGhlServiceId = `${service?.ghlService?.serviceId || ""}`.trim();
   const bookingSubdomain = `${branding?.subdomain || brandingSubdomain || ""}`.trim().toLowerCase();
@@ -453,6 +463,16 @@ const ServiceDetailPage = () => {
   const hasEmbeddedGhlBooking = Boolean(ghlBookingConfig.embedSrc);
   const shouldRenderEmbeddedBooking =
     hasEmbeddedGhlBooking && !isFrameLikelyBlocked(ghlBookingConfig.embedSrc);
+  const summaryCardStatus = membershipBillingForCardStatus?.summary || {};
+  const hasSavedMembershipCard = Boolean(
+    currentUser?.membershipBilling?.defaultPaymentMethod?.paymentMethodId ||
+      currentUser?.membershipBilling?.defaultPaymentMethod?.last4 ||
+      summaryCardStatus?.hasPaymentMethod ||
+      (Array.isArray(summaryCardStatus?.paymentMethods) &&
+        summaryCardStatus.paymentMethods.length > 0) ||
+      summaryCardStatus?.defaultPaymentMethod?.paymentMethodId ||
+      summaryCardStatus?.defaultPaymentMethod?.last4
+  );
 
   // ✅ DYNAMIC AVAILABILITY
   const { 
@@ -864,9 +884,21 @@ const ServiceDetailPage = () => {
   };
 
   const shouldRecommendAddingCard = async (locationId) => {
+    if (hasSavedMembershipCard) {
+      return false;
+    }
+
     try {
       const billing = await stripeService.getMembershipBillingSummary(locationId);
-      return !billing?.summary?.hasPaymentMethod;
+      const summary = billing?.summary || {};
+      const hasSavedCard = Boolean(
+        summary?.hasPaymentMethod ||
+          (Array.isArray(summary?.paymentMethods) &&
+            summary.paymentMethods.length > 0) ||
+          summary?.defaultPaymentMethod?.paymentMethodId ||
+          summary?.defaultPaymentMethod?.last4
+      );
+      return !hasSavedCard;
     } catch (error) {
       console.error("Unable to fetch card status before booking checkout:", error);
       return false;
@@ -941,12 +973,21 @@ const ServiceDetailPage = () => {
         totalPrice: calculateTotalPrice(),
         isBirthdayGift: isBirthdayGift,
         notificationId: birthdayNotificationId,
+        useSavedCardDirectCharge: hasSavedMembershipCard,
         checkoutUiMode: "embedded",
       };
 
       const response = await stripeService.createCheckoutSession(bookingData);
 
-      if (response.success && response.clientSecret) {
+      if (response?.success && response?.bookingConfirmed) {
+        toastSuccess(
+          response?.message || "Booking confirmed using your saved card."
+        );
+        const historyPath = activeLocationId
+          ? `/Booking?tab=history&spa=${encodeURIComponent(activeLocationId)}`
+          : "/Booking?tab=history";
+        navigate(historyPath);
+      } else if (response.success && response.clientSecret) {
         setCheckoutClientSecret(response.clientSecret);
         setCheckoutError("");
         setCheckoutOpen(true);
@@ -1675,12 +1716,14 @@ const ServiceDetailPage = () => {
                           >
                             {isProcessing ? "Processing..." : "Book Now"}
                           </button>
-                          <button
-                            onClick={() => setAddCardDialogOpen(true)}
-                            className="w-full py-3 bg-white border border-gray-200/70 text-gray-800 rounded-xl font-semibold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
-                          >
-                            <CreditCard className="w-4 h-4" /> Add Card (Recommended)
-                          </button>
+                          {!hasSavedMembershipCard && (
+                            <button
+                              onClick={() => setAddCardDialogOpen(true)}
+                              className="w-full py-3 bg-white border border-gray-200/70 text-gray-800 rounded-xl font-semibold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                            >
+                              <CreditCard className="w-4 h-4" /> Add Card (Recommended)
+                            </button>
+                          )}
                           <button
                             onClick={handleAddToCart}
                             className="w-full py-3.5 bg-white border border-gray-200/70 text-gray-900 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-200/70 transition-all flex items-center justify-center gap-2"
@@ -1720,7 +1763,13 @@ const ServiceDetailPage = () => {
                   ${totalPrice.toFixed(2)}
                </div>
             </div>
-            <div className="grid grid-cols-[3rem_3rem_minmax(0,1fr)] items-stretch gap-2">
+            <div
+              className={`grid items-stretch gap-2 ${
+                hasSavedMembershipCard
+                  ? "grid-cols-[3rem_minmax(0,1fr)]"
+                  : "grid-cols-[3rem_3rem_minmax(0,1fr)]"
+              }`}
+            >
                {hasGhlBooking ? (
                  <button
                     onClick={handleOpenGhlBooking}
@@ -1737,13 +1786,15 @@ const ServiceDetailPage = () => {
                    >
                       <Plus className="mx-auto h-5 w-5" />
                    </button>
-                   <button
-                      onClick={() => setAddCardDialogOpen(true)}
-                      className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 active:scale-[0.98]"
-                      aria-label="Add card"
-                   >
-                      <CreditCard className="mx-auto h-5 w-5" />
-                   </button>
+                   {!hasSavedMembershipCard && (
+                     <button
+                        onClick={() => setAddCardDialogOpen(true)}
+                        className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition-colors hover:bg-slate-100 active:scale-[0.98]"
+                        aria-label="Add card"
+                     >
+                        <CreditCard className="mx-auto h-5 w-5" />
+                     </button>
+                   )}
                    <button
                       onClick={handleBooking}
                       disabled={isProcessing}
@@ -1818,6 +1869,7 @@ const ServiceDetailPage = () => {
         locationId={activeLocationId || null}
         onSuccess={async () => {
           setAddCardDialogOpen(false);
+          await refetchMembershipBillingForCardStatus();
           await handleBooking({ skipCardRecommendation: true });
         }}
       />

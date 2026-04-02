@@ -90,7 +90,7 @@ export const getUserBookingStats = async (req, res, next) => {
   try {
     const userId = req.user.id
 
-    const [upcomingCount, pastCount, totalSpent, averageRating] =
+    const [upcomingCount, pastCount, totalSpent, averageRating, lifetimePoints] =
       await Promise.all([
         Booking.countDocuments({
           userId,
@@ -160,7 +160,7 @@ export const getUserBookingStats = async (req, res, next) => {
           totalSpent: totalSpent[0]?.total || 0,
           averageRating: averageRating[0]?.average || 0,
           totalRatings: averageRating[0]?.count || 0,
-          totalPointsEarned: arguments[0][4]?.[0]?.totalPoints || 0 // Access the 5th result from Promise.all
+          totalPointsEarned: lifetimePoints?.[0]?.totalPoints || 0,
         },
       },
     })
@@ -267,6 +267,98 @@ export const createBooking = async (req, res, next) => {
   } catch (error) {
     console.error('Error creating booking:', error)
     next(createError(500, 'Failed to create booking'))
+  }
+}
+
+export const rescheduleBooking = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params
+    const { date, time } = req.body
+
+    if (!date || !time) {
+      return next(createError(400, 'New date and time are required'))
+    }
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      userId: req.user.id,
+      status: { $in: ['scheduled', 'confirmed'] },
+    })
+
+    if (!booking) {
+      return next(createError(404, 'Booking not found or cannot be rescheduled'))
+    }
+
+    const now = new Date()
+    const existingBookingDate = new Date(booking.date)
+    if ((existingBookingDate - now) / (1000 * 60 * 60) <= 24) {
+      return next(createError(400, 'Bookings can only be rescheduled more than 24 hours in advance'))
+    }
+
+    const service = await Service.findById(booking.serviceId)
+    if (!service || service.isDeleted) {
+      return next(createError(404, 'Service not found for this booking'))
+    }
+
+    const normalizedDuration = Number.parseInt(booking.duration, 10) || service.duration
+    await assertSlotAvailable({
+      locationId: booking.locationId,
+      date,
+      time,
+      duration: normalizedDuration,
+      service,
+    })
+
+    booking.date = new Date(date)
+    booking.time = time
+    booking.duration = normalizedDuration
+    await booking.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Booking rescheduled successfully',
+      data: { booking },
+    })
+  } catch (error) {
+    console.error('Error rescheduling booking:', error)
+    next(createError(500, 'Failed to reschedule booking'))
+  }
+}
+
+export const cancelBooking = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params
+    const { reason = '' } = req.body || {}
+
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      userId: req.user.id,
+      status: { $nin: ['cancelled', 'completed', 'no-show'] },
+    })
+
+    if (!booking) {
+      return next(createError(404, 'Booking not found or cannot be cancelled'))
+    }
+
+    const now = new Date()
+    const bookingDate = new Date(booking.date)
+    if ((bookingDate - now) / (1000 * 60 * 60) <= 24) {
+      return next(createError(400, 'Bookings can only be cancelled more than 24 hours in advance'))
+    }
+
+    booking.status = 'cancelled'
+    booking.cancelledAt = new Date()
+    booking.cancelReason = `${reason || ''}`.trim() || null
+    await booking.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Booking cancelled successfully',
+      data: { booking },
+    })
+  } catch (error) {
+    console.error('Error cancelling booking:', error)
+    next(createError(500, 'Failed to cancel booking'))
   }
 }
 
@@ -402,6 +494,7 @@ export const getAdminBookings = async (req, res, next) => {
     const query = {}
     // Management views should only show fully paid bookings.
     query.paymentStatus = 'paid'
+    const testEmailRegex = /@test\.com$/i
 
     // Role-based filtering
     if (req.user.role === 'spa' || req.user.role === 'admin') {
@@ -417,7 +510,7 @@ export const getAdminBookings = async (req, res, next) => {
     }
 
     // Status filter
-    if (status) {
+    if (status && status !== 'undefined' && status !== 'null') {
       query.status = status
     }
 
@@ -434,6 +527,16 @@ export const getAdminBookings = async (req, res, next) => {
         { serviceName: { $regex: search, $options: 'i' } }
       ]
     }
+
+    // Exclude test accounts from management view.
+    // Covers both denormalized booking email and referenced user email.
+    const testUsers = await User.find({ email: testEmailRegex }).select('_id').lean()
+    const testUserIds = testUsers.map((u) => u._id)
+    query.$and = [
+      ...(Array.isArray(query.$and) ? query.$and : []),
+      { clientEmail: { $not: testEmailRegex } },
+      { userId: { $nin: testUserIds } },
+    ]
 
     const allowedSortFields = new Set(['date', 'time', 'createdAt', 'finalPrice', 'status'])
     const safeSortBy = allowedSortFields.has(sortBy) ? sortBy : 'date'

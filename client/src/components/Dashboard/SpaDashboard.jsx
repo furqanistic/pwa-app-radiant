@@ -312,6 +312,10 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
     )
   })
 
+  const filteredCurrentBookings = currentBookings.filter(
+    (booking) => !isTestEmail(booking?.userId?.email || '')
+  )
+
   const RewardSummaryChips = ({ rewardSummary, compact = false }) => {
     const labels = Array.isArray(rewardSummary?.labels)
       ? rewardSummary.labels
@@ -884,7 +888,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
         <h2 className="text-xl font-bold text-gray-900">Daily Schedule</h2>
       </div>
       <div className="space-y-4">
-        {currentBookings.map((booking) => (
+        {filteredCurrentBookings.map((booking) => (
           <div
             key={booking._id}
             className="flex items-center gap-4 p-4 rounded-2xl border border-gray-200/70 bg-white hover:bg-[color:var(--brand-primary)/0.06] transition-all"
@@ -923,7 +927,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
             </div>
           </div>
         ))}
-        {currentBookings.length === 0 && (
+        {filteredCurrentBookings.length === 0 && (
           <div className="text-center py-16">
             <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200/70">
               <Calendar className="w-6 h-6 text-gray-300" />
