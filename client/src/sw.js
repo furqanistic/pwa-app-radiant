@@ -122,7 +122,15 @@ self.addEventListener('notificationclick', (event) => {
 
   const notification = event.notification
   const action = event.action
-  const urlToOpen = notification.data?.url || '/dashboard'
+  const rawUrl = notification.data?.url || '/dashboard'
+  let urlToOpen = '/dashboard'
+
+  try {
+    urlToOpen = new URL(rawUrl, self.location.origin).href
+  } catch (err) {
+    console.warn('[Service Worker] Invalid notification URL, using fallback', err)
+    urlToOpen = new URL('/dashboard', self.location.origin).href
+  }
 
   notification.close()
 

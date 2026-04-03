@@ -2,6 +2,7 @@
 import dotenv from 'dotenv'
 import webpush from 'web-push'
 import { createError } from '../error.js'
+import Location from '../models/Location.js'
 import Notification from '../models/Notification.js'
 import PushSubscription from '../models/PushSubscription.js'
 import User from '../models/User.js'
@@ -23,6 +24,49 @@ if (hasVapidKeys) {
   console.warn(
     '[notifications] VAPID keys are missing. Push notifications are disabled.'
   )
+}
+
+const DEFAULT_APP_BASE_URL = (
+  process.env.CLIENT_URL || 'https://app.cxrsystems.com'
+).replace(/\/+$/, '')
+const SUBDOMAIN_ROOT_DOMAIN = (
+  process.env.SUBDOMAIN_ROOT_DOMAIN || 'cxrsystems.com'
+).trim()
+
+const joinUrl = (base, path = '') => {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return `${base.replace(/\/+$/, '')}${normalizedPath}`
+}
+
+const getRecipientLocationContext = (recipient) => {
+  const selectedLocationId = recipient?.selectedLocation?.locationId || null
+  const selectedSubdomain = recipient?.selectedLocation?.subdomain || null
+  const spaLocationId = recipient?.spaLocation?.locationId || null
+  const spaSubdomain = recipient?.spaLocation?.subdomain || null
+
+  // Prefer selected location for end users, fallback to spa location.
+  return {
+    locationId: selectedLocationId || spaLocationId || null,
+    subdomain: selectedSubdomain || spaSubdomain || null,
+  }
+}
+
+const buildRecipientNotificationUrl = (
+  recipient,
+  locationSubdomainById,
+  path = '/notifications'
+) => {
+  const { locationId, subdomain } = getRecipientLocationContext(recipient)
+  const resolvedSubdomain =
+    (subdomain && `${subdomain}`.trim().toLowerCase()) ||
+    (locationId ? locationSubdomainById.get(locationId) : null) ||
+    null
+
+  if (resolvedSubdomain) {
+    return `https://${resolvedSubdomain}.${SUBDOMAIN_ROOT_DOMAIN}${path}`
+  }
+
+  return joinUrl(DEFAULT_APP_BASE_URL, path)
 }
 
 // Helper function to send push notification
@@ -286,39 +330,85 @@ export const sendNotifications = async (req, res, next) => {
         user: { $in: recipientIds },
         isActive: true,
       })
+      const recipientById = new Map(
+        recipients.map((recipient) => [recipient._id.toString(), recipient])
+      )
+      const notificationIdByRecipient = new Map(
+        createdNotifications.map((notification) => [
+          notification.recipient?.toString(),
+          notification._id,
+        ])
+      )
 
-      const pushPayload = {
-        title: subject,
-        body: message,
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/badge-72x72.png',
-        tag: 'notification',
-        requireInteraction: priority === 'high' || priority === 'urgent',
-        actions: [
-          {
-            action: 'view',
-            title: 'View',
-            icon: '/icons/view-icon.png',
-          },
-          {
-            action: 'dismiss',
-            title: 'Dismiss',
-            icon: '/icons/dismiss-icon.png',
-          },
-        ],
-        data: {
-          notificationId: createdNotifications[0]._id,
-          category,
-          url: '/notifications',
-          timestamp: Date.now(),
-        },
-        vibrate: [200, 100, 200],
-        silent: priority === 'low',
+      const locationIdsNeedingLookup = Array.from(
+        new Set(
+          recipients
+            .map((recipient) => getRecipientLocationContext(recipient))
+            .filter((ctx) => ctx.locationId && !ctx.subdomain)
+            .map((ctx) => ctx.locationId)
+        )
+      )
+
+      const locationSubdomainById = new Map()
+      if (locationIdsNeedingLookup.length > 0) {
+        const locations = await Location.find({
+          locationId: { $in: locationIdsNeedingLookup },
+          isActive: true,
+        })
+          .select('locationId subdomain')
+          .lean()
+
+        locations.forEach((location) => {
+          const normalizedSubdomain = location?.subdomain?.trim()?.toLowerCase()
+          if (location?.locationId && normalizedSubdomain) {
+            locationSubdomainById.set(location.locationId, normalizedSubdomain)
+          }
+        })
       }
 
       // Send push notifications concurrently
       const pushResults = await Promise.allSettled(
-        pushSubscriptions.map((sub) => sendPushNotification(sub, pushPayload))
+        pushSubscriptions.map((sub) => {
+          const recipient = recipientById.get(sub.user?.toString?.())
+          const recipientUrl = buildRecipientNotificationUrl(
+            recipient,
+            locationSubdomainById,
+            '/notifications'
+          )
+
+          const pushPayload = {
+            title: subject,
+            body: message,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/badge-72x72.png',
+            tag: 'notification',
+            requireInteraction: priority === 'high' || priority === 'urgent',
+            actions: [
+              {
+                action: 'view',
+                title: 'View',
+                icon: '/icons/view-icon.png',
+              },
+              {
+                action: 'dismiss',
+                title: 'Dismiss',
+                icon: '/icons/dismiss-icon.png',
+              },
+            ],
+            data: {
+              notificationId:
+                notificationIdByRecipient.get(sub.user?.toString?.()) ||
+                createdNotifications[0]?._id,
+              category,
+              url: recipientUrl,
+              timestamp: Date.now(),
+            },
+            vibrate: [200, 100, 200],
+            silent: priority === 'low',
+          }
+
+          return sendPushNotification(sub, pushPayload)
+        })
       )
 
       const successfulPushes = pushResults.filter(
@@ -358,6 +448,32 @@ export const testPushNotification = async (req, res, next) => {
       return next(createError(404, 'No active push subscriptions found'))
     }
 
+    const currentUser = await User.findById(userId).lean()
+    const locationSubdomainById = new Map()
+
+    if (currentUser) {
+      const { locationId, subdomain } = getRecipientLocationContext(currentUser)
+      if (!subdomain && locationId) {
+        const location = await Location.findOne({
+          locationId,
+          isActive: true,
+        })
+          .select('locationId subdomain')
+          .lean()
+
+        const normalizedSubdomain = location?.subdomain?.trim()?.toLowerCase()
+        if (location?.locationId && normalizedSubdomain) {
+          locationSubdomainById.set(location.locationId, normalizedSubdomain)
+        }
+      }
+    }
+
+    const testUrl = buildRecipientNotificationUrl(
+      currentUser,
+      locationSubdomainById,
+      '/notifications'
+    )
+
     const testPayload = {
       title: '🎉 Test Notification',
       body: 'Your push notifications are working perfectly!',
@@ -365,7 +481,7 @@ export const testPushNotification = async (req, res, next) => {
       badge: '/icons/badge-72x72.png',
       tag: 'test-notification',
       data: {
-        url: '/notifications',
+        url: testUrl,
         test: true,
       },
     }
