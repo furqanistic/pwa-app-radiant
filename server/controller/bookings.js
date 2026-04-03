@@ -11,6 +11,7 @@ import {
   assertSlotAvailable,
   getServiceCalendarSelection,
 } from '../utils/bookingScheduling.js'
+import { cancelGhlAppointmentForBooking } from './ghl.js'
 import { getCycleWeeksForService, calculateNextRecommendedDate, getCycleUrgency, formatDaysUntilDue } from '../utils/treatmentCycles.js'
 
 // Get user's upcoming appointments
@@ -360,9 +361,61 @@ export const cancelBooking = async (req, res, next) => {
       return next(createError(400, 'Bookings can only be cancelled more than 24 hours in advance'))
     }
 
+    const cancelReason = `${reason || ''}`.trim()
+
+    // Keep source-of-truth in sync: paid bookings with linked GHL appointment
+    // must be cancelled in GHL before local status is updated.
+    if (`${booking.paymentStatus || ''}`.toLowerCase() === 'paid') {
+      const appointmentId = `${booking?.ghl?.appointmentId || ''}`.trim()
+      if (!appointmentId) {
+        return next(
+          createError(
+            409,
+            'This booking is paid but has no linked GoHighLevel appointment to cancel.'
+          )
+        )
+      }
+
+      try {
+        const cancelResult = await cancelGhlAppointmentForBooking({
+          booking,
+          reason: cancelReason,
+        })
+
+        if (cancelResult?.skipped) {
+          return next(
+            createError(
+              409,
+              cancelResult.reason || 'Unable to cancel booking in GoHighLevel.'
+            )
+          )
+        }
+
+        if (!booking.ghl || typeof booking.ghl !== 'object') booking.ghl = {}
+        booking.ghl.appointmentStatus = 'cancelled'
+        booking.ghl.syncError = ''
+        booking.ghl.syncedAt = new Date()
+      } catch (ghlCancelError) {
+        const rawMessage =
+          ghlCancelError?.response?.data?.message ||
+          ghlCancelError?.response?.data?.msg ||
+          ghlCancelError?.message ||
+          'Failed to cancel booking in GoHighLevel.'
+        const normalizedMessage = Array.isArray(rawMessage)
+          ? rawMessage.join(' ')
+          : `${rawMessage || ''}`
+        return next(
+          createError(
+            502,
+            `Failed to cancel appointment in GoHighLevel: ${normalizedMessage}`
+          )
+        )
+      }
+    }
+
     booking.status = 'cancelled'
     booking.cancelledAt = new Date()
-    booking.cancelReason = `${reason || ''}`.trim() || null
+    booking.cancelReason = cancelReason || null
     await booking.save()
 
     res.status(200).json({

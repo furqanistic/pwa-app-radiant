@@ -1779,6 +1779,98 @@ export const createGhlAppointmentForBooking = async ({
   throw lastError || new Error('Failed to create GHL appointment')
 }
 
+const normalizeErrorMessage = (value) => {
+  if (Array.isArray(value)) return value.join(' ')
+  return `${value || ''}`.trim()
+}
+
+export const cancelGhlAppointmentForBooking = async ({
+  booking,
+  reason = '',
+}) => {
+  const appointmentId = `${booking?.ghl?.appointmentId || ''}`.trim()
+  if (!appointmentId) {
+    return { skipped: true, reason: 'No GHL appointment linked to booking' }
+  }
+
+  const locationId = `${booking?.locationId || ''}`.trim()
+  if (!locationId) {
+    throw new Error('Booking location is required for GHL cancellation')
+  }
+
+  const token = await getTokenForLocation(locationId)
+  if (!token) {
+    throw new Error(`No GHL API key configured for location ${locationId}`)
+  }
+
+  const cancelNotes = `${reason || booking?.cancelReason || ''}`.trim()
+  const attempts = [
+    {
+      endpoint: `/calendars/events/appointments/${appointmentId}`,
+      method: 'PUT',
+      data: {
+        appointmentStatus: 'cancelled',
+        ...(cancelNotes ? { notes: cancelNotes } : {}),
+      },
+      transport: 'v2',
+    },
+    {
+      endpoint: `/calendars/events/appointments/${appointmentId}`,
+      method: 'PUT',
+      data: {
+        appointmentStatus: 'canceled',
+        ...(cancelNotes ? { notes: cancelNotes } : {}),
+      },
+      transport: 'v2',
+    },
+    {
+      endpoint: `/calendars/events/appointments/${appointmentId}`,
+      method: 'PUT',
+      data: {
+        status: 'cancelled',
+        ...(cancelNotes ? { notes: cancelNotes } : {}),
+      },
+      transport: 'v2',
+    },
+    {
+      endpoint: `/calendars/events/${appointmentId}`,
+      method: 'DELETE',
+      data: null,
+      transport: 'v2',
+    },
+  ]
+
+  let lastError = null
+  for (const attempt of attempts) {
+    try {
+      const response = await makeGHLV2Request(attempt.endpoint, {
+        method: attempt.method,
+        token,
+        ...(attempt.data ? { data: attempt.data } : {}),
+      })
+      return {
+        skipped: false,
+        appointmentId,
+        response,
+      }
+    } catch (error) {
+      lastError = error
+      console.warn('[GHL:CANCEL] Appointment cancel attempt failed', {
+        bookingId: `${booking?._id || ''}`,
+        appointmentId,
+        endpoint: attempt.endpoint,
+        method: attempt.method,
+        statusCode: error?.response?.status || error?.response?.data?.statusCode || null,
+        message: normalizeErrorMessage(
+          error?.response?.data?.message || error?.response?.data?.msg || error?.message
+        ),
+      })
+    }
+  }
+
+  throw lastError || new Error('Failed to cancel GHL appointment')
+}
+
 // Test API connection
 export const testConnection = async (req, res, next) => {
   try {
