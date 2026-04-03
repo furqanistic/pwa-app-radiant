@@ -438,12 +438,6 @@ const ServiceDetailPage = () => {
 
   const linkedGhlCalendarId = `${service?.ghlCalendar?.calendarId || ""}`.trim();
   const linkedGhlServiceId = `${service?.ghlService?.serviceId || ""}`.trim();
-  const isGhlDebugEnabled =
-    (typeof window !== "undefined" &&
-      ["1", "true"].includes(
-        `${window.localStorage.getItem("ghl-debug") || ""}`.toLowerCase()
-      )) ||
-    Boolean(import.meta.env.DEV);
   const bookingSubdomain = `${branding?.subdomain || brandingSubdomain || ""}`.trim().toLowerCase();
   const { data: liveCalendarsData } = useQuery({
     queryKey: ["ghl-calendars", "service-detail-page", activeLocationId, linkedGhlCalendarId],
@@ -501,57 +495,6 @@ const ServiceDetailPage = () => {
     liveGhlCalendar?.name ||
     liveGhlCalendar?.title ||
     "";
-
-  useEffect(() => {
-    if (!isGhlDebugEnabled) return;
-    console.log("[ServiceDetail][GHL] Linkage context", {
-      activeLocationId,
-      serviceId,
-      serviceName: service?.name || "",
-      linkedGhlServiceId,
-      linkedGhlServiceName: service?.ghlService?.name || "",
-      linkedGhlCalendarId,
-      linkedGhlCalendarName: service?.ghlCalendar?.name || "",
-      selectedDate,
-    });
-  }, [
-    isGhlDebugEnabled,
-    activeLocationId,
-    serviceId,
-    service?.name,
-    service?.ghlService?.name,
-    service?.ghlCalendar?.name,
-    linkedGhlServiceId,
-    linkedGhlCalendarId,
-    selectedDate,
-  ]);
-
-  useEffect(() => {
-    if (!isGhlDebugEnabled || !selectedDate) return;
-    const meta = availabilityData?.metadata || {};
-    const slotsCount = Array.isArray(availabilityData?.slots)
-      ? availabilityData.slots.length
-      : 0;
-    console.log("[ServiceDetail][GHL] Availability payload", {
-      selectedDate,
-      loadingAvailability,
-      availableSlotsCount: slotsCount,
-      externalSourceUnavailable,
-      externalBookingsCount,
-      requestedDate: availabilityData?.requestedDate || "",
-      reason: availabilityData?.reason || "",
-      day: availabilityData?.day || "",
-      hours: availabilityData?.hours || null,
-      metadata: meta,
-    });
-  }, [
-    isGhlDebugEnabled,
-    selectedDate,
-    loadingAvailability,
-    availabilityData,
-    externalSourceUnavailable,
-    externalBookingsCount,
-  ]);
 
   const handleOpenGhlBooking = () => {
     if (shouldRenderEmbeddedBooking) {

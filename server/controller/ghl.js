@@ -1630,22 +1630,6 @@ export const createGhlAppointmentForBooking = async ({
     return { skipped: true, reason: 'No usable GHL calendar found for location' }
   }
 
-  console.log('[GHL:SYNC] Preparing appointment payload', {
-    bookingId: `${booking?._id || ''}`,
-    serviceId: `${service?._id || ''}`,
-    locationId,
-    calendarId,
-    preferredCalendarId,
-    hasCalendarFallback,
-    time: booking?.time || '',
-    date: booking?.date || '',
-    timeZone:
-      `${resolvedCalendar?.timeZone || booking?.ghl?.timeZone || service?.ghlCalendar?.timeZone || ''}`.trim() ||
-      'UTC',
-    customerEmail: customer?.email || '',
-    customerName: customer?.name || '',
-  })
-
   const { token, contactId } = await ensureGhlContactForLocation(locationId, {
     email: customer?.email || '',
     phone: customer?.phone || '',
@@ -1684,15 +1668,6 @@ export const createGhlAppointmentForBooking = async ({
     ...(teamId ? { teamId } : {}),
   }
 
-  console.log('[GHL:SYNC] Computed booking window', {
-    bookingId: `${booking?._id || ''}`,
-    calendarId,
-    startTimeIso: window.start.toISOString(),
-    endTimeIso: window.end.toISOString(),
-    selectedTimezone: payloadTimeZone,
-    computationTimeZone: timeZone,
-  })
-
   if (booking && typeof booking === 'object') {
     if (!booking.ghl || typeof booking.ghl !== 'object') {
       booking.ghl = {}
@@ -1718,11 +1693,6 @@ export const createGhlAppointmentForBooking = async ({
 
   for (const attempt of attempts) {
     try {
-      console.log('[GHL:SYNC] Attempting appointment create', {
-        bookingId: `${booking?._id || ''}`,
-        transport: attempt.transport,
-        endpoint: attempt.endpoint,
-      })
       const response =
         attempt.transport === 'v2'
           ? await makeGHLV2Request(attempt.endpoint, {
@@ -1737,12 +1707,6 @@ export const createGhlAppointmentForBooking = async ({
               token
             )
 
-      console.log('[GHL:SYNC] Appointment created successfully', {
-        bookingId: `${booking?._id || ''}`,
-        transport: attempt.transport,
-        endpoint: attempt.endpoint,
-        appointmentId: extractAppointmentId(response),
-      })
       return {
         skipped: false,
         appointmentId: extractAppointmentId(response),

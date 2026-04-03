@@ -509,24 +509,13 @@ export const getBookedTimes = async (req, res, next) => {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    console.log("🔍 DEBUG - Fetching booked times:", {
-      serviceId,
-      date,
-      startOfDay,
-      endOfDay,
-    });
-
     const bookings = await Booking.find({
       serviceId,
       date: { $gte: startOfDay, $lte: endOfDay },
       status: { $nin: ["cancelled"] },
     }).select("time");
 
-    console.log("📝 Found bookings:", bookings);
-
     const bookedTimes = bookings.map((b) => b.time);
-
-    console.log("⏰ Booked times:", bookedTimes);
 
     // ✅ CORRECTED RESPONSE FORMAT
     res.status(200).json({
