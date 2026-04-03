@@ -4,8 +4,9 @@ import User from '../models/User.js'
 import {
   getConflictsForWindow,
   getDailySchedulingContext,
+  buildBookingWindow,
 } from '../utils/bookingScheduling.js'
-import { zonedDateTimeToUtc } from './ghl.js'
+import { fetchCalendarFreeSlotsForDate, zonedDateTimeToUtc } from './ghl.js'
 
 // Helper to calculate slots
 const formatMinutesAsTime = (totalMinutes) => {
@@ -97,22 +98,15 @@ export const getAvailability = async (req, res, next) => {
     }
     const duration = service.duration || 60
 
-    // 2. Get Location Business Hours (from Location Model)
-    // We should query the Location model directly as it is the source of truth
+    // 2. Ensure location exists, but do not apply location working-hours settings
+    // to service availability. Service booking availability is intentionally
+    // decoupled from location hours/timezone configuration.
     const Location = (await import('../models/Location.js')).default;
     const location = await Location.findOne({ locationId });
 
     if (!location) {
         return next(createError(404, 'Location not found'));
     }
-
-    if (!location.hours || location.hours.length === 0) {
-      return res.status(200).json({
-        status: 'success',
-        data: { slots: [], reason: 'No business hours configured' },
-      })
-    }
-
     const queryDate = parseDateOnly(date)
     const days = [
       'Sunday',
@@ -124,14 +118,6 @@ export const getAvailability = async (req, res, next) => {
       'Saturday',
     ]
     const dayName = days[queryDate.getDay()]
-    const dayConfig = location.hours.find(h => h.day === dayName);
-
-    if (!dayConfig || dayConfig.isClosed || !dayConfig.open || !dayConfig.close) {
-      return res.status(200).json({
-        status: 'success',
-        data: { slots: [], reason: 'Closed on this day' },
-      })
-    }
 
     // 3. Generate All Possible Slots
     const schedulingContext = await getDailySchedulingContext({
@@ -142,15 +128,49 @@ export const getAvailability = async (req, res, next) => {
 
     const effectiveTimeZone = schedulingContext.calendarSelection.timeZone || ''
 
-    const potentialSlots = generateSlots(
-      dayConfig.open,
-      dayConfig.close,
+    let potentialSlots = generateSlots(
+      '00:00',
+      '23:59',
       duration,
       date,
       effectiveTimeZone
     )
 
-    const hours = { open: dayConfig.open, close: dayConfig.close }
+    if (schedulingContext.calendarSelection.calendarId) {
+      try {
+        const freeSlots = await fetchCalendarFreeSlotsForDate(
+          locationId,
+          schedulingContext.calendarSelection.calendarId,
+          date
+        )
+
+        if (!schedulingContext.calendarSelection.timeZone && freeSlots.timeZone) {
+          schedulingContext.calendarSelection.timeZone = freeSlots.timeZone
+        }
+
+        if (Array.isArray(freeSlots.slots) && freeSlots.slots.length > 0) {
+          potentialSlots = freeSlots.slots.map((slotLabel) => {
+            const window = buildBookingWindow(
+              date,
+              slotLabel,
+              duration,
+              schedulingContext.calendarSelection.timeZone || ''
+            )
+            return {
+              time: slotLabel,
+              timestamp: window.start,
+              endTime: window.end,
+            }
+          })
+        }
+      } catch (slotError) {
+        console.warn(
+          `Failed loading free slots for ${schedulingContext.calendarSelection.calendarId}:`,
+          slotError.response?.data || slotError.message
+        )
+      }
+    }
+    const hours = { open: '00:00', close: '23:59' }
 
     // 4. Filter conflicts
     const availableSlots = potentialSlots

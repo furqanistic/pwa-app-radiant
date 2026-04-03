@@ -10,7 +10,6 @@ import {
     useUpdateService,
 } from '@/hooks/useServices'
 import ghlService from '@/services/ghlService'
-import { locationService } from '@/services/locationService'
 import { useQuery } from '@tanstack/react-query'
 import { uploadService } from '@/services/uploadService'
 import {
@@ -39,7 +38,6 @@ import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
 import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
 import { useBranding } from '@/context/BrandingContext'
-import { useLocation } from 'react-router-dom'
 
 const fallbackServiceImage =
   'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=500&h=300&fit=crop'
@@ -820,7 +818,6 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 
 // Complete Service Form with fixed linked services handling
 const ServiceForm = ({ service, onSave, onCancel }) => {
-  const location = useLocation()
   const { branding, locationId: brandedLocationId } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
@@ -879,19 +876,9 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
   // API hooks
   const { data: categories = [], isLoading: categoriesLoading } =
     useCategories(false)
-  const { data: locationData } = useQuery({
-    queryKey: ['my-location', 'service-management-form'],
-    queryFn: () => locationService.getMyLocation(),
-  })
-  const spaParamLocationId = useMemo(
-    () => `${new URLSearchParams(location.search).get('spa') || ''}`.trim(),
-    [location.search]
-  )
   const effectiveLocationId =
-    spaParamLocationId ||
     service?.locationId ||
     brandedLocationId ||
-    locationData?.data?.location?.locationId ||
     ''
   const { data: ghlCalendarServicesData, isLoading: ghlCalendarServicesLoading } = useQuery({
     queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
@@ -918,8 +905,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     ghlCalendarServices,
   ])
 
-  const locationMembership =
-    branding?.membership || locationData?.data?.location?.membership
+  const locationMembership = branding?.membership
   const membershipPlans = normalizeMembershipPlans(locationMembership)
   const membershipPlanOptions = membershipPlans.map((plan, index) => ({
     id: plan._id || plan.id || `membership-plan-${index}`,

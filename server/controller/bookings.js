@@ -194,7 +194,7 @@ export const createBooking = async (req, res, next) => {
 
     const effectiveDuration = Number.parseInt(req.body.duration, 10) || service.duration
 
-    await assertSlotAvailable({
+    const schedulingContext = await assertSlotAvailable({
       locationId: effectiveLocationId,
       date,
       time,
@@ -232,7 +232,10 @@ export const createBooking = async (req, res, next) => {
       }
     }
 
-    const ghlCalendar = getServiceCalendarSelection(service)
+    const ghlCalendar = {
+      ...getServiceCalendarSelection(service),
+      ...(schedulingContext?.calendarSelection || {}),
+    }
 
     const booking = await Booking.create({
       userId,

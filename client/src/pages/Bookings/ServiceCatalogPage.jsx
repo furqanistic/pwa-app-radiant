@@ -6,9 +6,7 @@ import {
   useCategories,
 } from '@/hooks/useServices'
 import { resolveImageUrl } from '@/lib/imageHelpers'
-import { locationService } from '@/services/locationService'
 import stripeService from '@/services/stripeService'
-import { useQuery } from '@tanstack/react-query'
 import {
   Clock,
   Crown,
@@ -383,15 +381,7 @@ const ServiceCatalog = ({ onServiceSelect }) => {
     locationId: effectiveLocationId
   })
 
-  // Fetch location data if needed (primarily for manager/admin to get latest edits)
-  const { data: locationData } = useQuery({
-    queryKey: ['my-location'],
-    queryFn: () => locationService.getMyLocation(),
-    enabled: !!(currentUser?.role === 'spa' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin'),
-  })
-
-  // Use branding membership as primary source for customers, or locationData for owners
-  const locationMembership = branding?.membership || locationData?.data?.location?.membership
+  const locationMembership = branding?.membership
   const locationMembershipPlans = useMemo(
     () => normalizeMembershipPlans(locationMembership),
     [locationMembership]
@@ -678,9 +668,6 @@ const ServiceCatalogPage = () => {
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId ||
     ''
-  const withSpaParam = (path) =>
-    effectiveLocationId ? `${path}?spa=${encodeURIComponent(effectiveLocationId)}` : path
-
   const handleServiceSelect = async (service, plan) => {
     if (plan && service?._id) {
       const checkoutLocationId =
@@ -718,7 +705,7 @@ const ServiceCatalogPage = () => {
       }
     }
 
-    navigate(withSpaParam(`/services/${service._id}`))
+    navigate(`/services/${service._id}`)
   }
 
   return (

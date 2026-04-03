@@ -1,8 +1,11 @@
 import Booking from '../models/Booking.js'
 import { createError } from '../error.js'
 import {
+  fetchCalendarFreeSlotsForDate,
   fetchLocationCalendarEventsByDate,
   resolveCalendarDetailsForLocation,
+  resolveUsableCalendarForLocation,
+  zonedDateTimeToUtc,
 } from '../controller/ghl.js'
 
 const parseDateOnly = (dateString) => {
@@ -49,12 +52,22 @@ const isExpectedGhlLookupFailure = (error) => {
   )
 }
 
-export const parseTimeStringOnDate = (dateInput, timeString) => {
-  const date = new Date(dateInput)
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Invalid booking date')
+const getDateKeyFromInput = (dateInput) => {
+  if (typeof dateInput === 'string') {
+    const trimmed = `${dateInput}`.trim()
+    const datePrefixMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (datePrefixMatch?.[1]) return datePrefixMatch[1]
   }
 
+  const date = new Date(dateInput)
+  if (!Number.isNaN(date.getTime())) {
+    return date.toISOString().slice(0, 10)
+  }
+
+  throw new Error('Invalid booking date')
+}
+
+export const parseTimeStringOnDate = (dateInput, timeString, timeZone = '') => {
   const [rawTime = '', rawPeriod = ''] = `${timeString || ''}`.trim().split(' ')
   const [hourText = '0', minuteText = '0'] = rawTime.split(':')
   let hour = Number.parseInt(hourText, 10)
@@ -68,12 +81,29 @@ export const parseTimeStringOnDate = (dateInput, timeString) => {
   if (period === 'PM' && hour !== 12) hour += 12
   if (period === 'AM' && hour === 12) hour = 0
 
+  if (timeZone) {
+    const dateKey = getDateKeyFromInput(dateInput)
+    const wallClock = `${dateKey}T${String(hour).padStart(2, '0')}:${String(
+      minute
+    ).padStart(2, '0')}:00`
+    return zonedDateTimeToUtc(wallClock, timeZone)
+  }
+
+  const date = new Date(dateInput)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid booking date')
+  }
   date.setHours(hour, minute, 0, 0)
   return date
 }
 
-export const buildBookingWindow = (dateInput, timeString, duration = 60) => {
-  const start = parseTimeStringOnDate(dateInput, timeString)
+export const buildBookingWindow = (
+  dateInput,
+  timeString,
+  duration = 60,
+  timeZone = ''
+) => {
+  const start = parseTimeStringOnDate(dateInput, timeString, timeZone)
   const safeDuration = Number.parseInt(duration, 10) || 60
   const end = new Date(start.getTime() + safeDuration * 60000)
 
@@ -165,6 +195,35 @@ export const getDailySchedulingContext = async ({
   )
 
   const calendarSelection = getServiceCalendarSelection(service)
+  if (!calendarSelection.calendarId && (calendarSelection.name || service?.ghlCalendar?.calendarId)) {
+    try {
+      const resolvedCalendar = await resolveUsableCalendarForLocation(locationId, {
+        preferredCalendarId: `${service?.ghlCalendar?.calendarId || ''}`.trim(),
+        preferredCalendarName: calendarSelection.name,
+      })
+      if (resolvedCalendar?.id) {
+        calendarSelection.calendarId = `${resolvedCalendar.id}`.trim()
+      }
+      if (resolvedCalendar?.name && !calendarSelection.name) {
+        calendarSelection.name = `${resolvedCalendar.name}`.trim()
+      }
+      if (resolvedCalendar?.timeZone) {
+        calendarSelection.timeZone = `${resolvedCalendar.timeZone}`.trim()
+      }
+      if (resolvedCalendar?.userId) {
+        calendarSelection.userId = `${resolvedCalendar.userId}`.trim()
+      }
+      if (resolvedCalendar?.teamId) {
+        calendarSelection.teamId = `${resolvedCalendar.teamId}`.trim()
+      }
+    } catch (error) {
+      console.warn(
+        `Failed resolving usable calendar for location ${locationId}:`,
+        error.response?.data || error.message
+      )
+    }
+  }
+
   if (calendarSelection.calendarId && !calendarSelection.timeZone) {
     try {
       const resolvedCalendar = await resolveCalendarDetailsForLocation(
@@ -237,7 +296,8 @@ export const getConflictsForWindow = ({ windowStart, windowEnd, context }) => {
     const bookingWindow = buildBookingWindow(
       booking.date,
       booking.time,
-      booking.duration
+      booking.duration,
+      context.calendarSelection.timeZone || ''
     )
 
     return doesTimeRangeOverlap(
@@ -284,7 +344,43 @@ export const assertSlotAvailable = async ({
     service,
     excludeBookingId,
   })
-  const requestedWindow = buildBookingWindow(date, time, duration)
+
+  if (context.calendarSelection.calendarId) {
+    try {
+      const freeSlots = await fetchCalendarFreeSlotsForDate(
+        locationId,
+        context.calendarSelection.calendarId,
+        date
+      )
+      if (!context.calendarSelection.timeZone && freeSlots.timeZone) {
+        context.calendarSelection.timeZone = freeSlots.timeZone
+      }
+      if (Array.isArray(freeSlots.slots) && freeSlots.slots.length > 0) {
+        const selectedTimeNormalized = `${time || ''}`.trim().toUpperCase()
+        const hasExactFreeSlot = freeSlots.slots.some(
+          (slot) => `${slot || ''}`.trim().toUpperCase() === selectedTimeNormalized
+        )
+        if (!hasExactFreeSlot) {
+          throw createError(409, 'Selected date and time are no longer available')
+        }
+      }
+    } catch (error) {
+      if (error?.status === 409 || error?.statusCode === 409) {
+        throw error
+      }
+      console.warn(
+        `Failed fetching GHL free slots for calendar ${context.calendarSelection.calendarId}:`,
+        error.response?.data || error.message
+      )
+    }
+  }
+
+  const requestedWindow = buildBookingWindow(
+    date,
+    time,
+    duration,
+    context.calendarSelection.timeZone || ''
+  )
   const conflicts = getConflictsForWindow({
     windowStart: requestedWindow.start,
     windowEnd: requestedWindow.end,

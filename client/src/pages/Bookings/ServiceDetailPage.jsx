@@ -345,7 +345,6 @@ const ServiceDetailPage = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const spaParamLocationId = new URLSearchParams(location.search).get("spa");
   const isBirthdayGift = location.state?.isBirthdayGift;
   const birthdayNotificationId = location.state?.notificationId;
   const giftType = location.state?.giftType || 'free';
@@ -421,11 +420,10 @@ const ServiceDetailPage = () => {
   })
 
   const activeLocationId =
-    spaParamLocationId ||
+    service?.locationId ||
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId ||
     brandedLocationId ||
-    service?.locationId ||
     "";
 
   const {
@@ -1041,9 +1039,7 @@ const ServiceDetailPage = () => {
         toastSuccess(
           response?.message || "Booking confirmed using your saved card."
         );
-        const historyPath = activeLocationId
-          ? `/Booking?tab=history&spa=${encodeURIComponent(activeLocationId)}`
-          : "/Booking?tab=history";
+        const historyPath = "/Booking?tab=history";
         navigate(historyPath);
       } else if (response.success && response.clientSecret) {
         setCheckoutClientSecret(response.clientSecret);
@@ -1120,9 +1116,7 @@ const ServiceDetailPage = () => {
   const shouldShowMembershipUpsell =
     hasMemberDeal && !isEligibleForMemberDeal && !isOnHighestMembershipPlan
   const membershipJoinPrice = Number(branding?.membership?.plans?.[0]?.price ?? branding?.membership?.price)
-  const membershipPath = activeLocationId
-    ? `/membership?spa=${encodeURIComponent(activeLocationId)}`
-    : '/membership'
+  const membershipPath = '/membership'
   const activeUserRewards = userRewardsData?.userRewards || []
   const availableServiceRewards = getApplicableRewardsForService({
     userRewards: activeUserRewards,

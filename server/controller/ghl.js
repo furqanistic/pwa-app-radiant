@@ -298,6 +298,41 @@ const getTzOffsetMs = (date, timeZone) => {
 
 const isOffsetTimeZone = (timeZone = '') => /^[+-]\d{2}:\d{2}$/.test(`${timeZone}`)
 
+const isValidIanaTimeZone = (timeZone = '') => {
+  const normalized = `${timeZone || ''}`.trim()
+  if (!normalized) return false
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: normalized })
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+const offsetToEtcGmtTimeZone = (offset = '') => {
+  const normalized = `${offset || ''}`.trim()
+  const match = normalized.match(/^([+-])(\d{2}):(\d{2})$/)
+  if (!match) return ''
+  const sign = match[1]
+  const hour = Number.parseInt(match[2], 10)
+  const minute = Number.parseInt(match[3], 10)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute) || minute !== 0) return ''
+  // Note: IANA Etc/GMT sign is inverted by convention.
+  const invertedSign = sign === '+' ? '-' : '+'
+  return `Etc/GMT${invertedSign}${hour}`
+}
+
+const normalizeTimeZoneForGhlPayload = (timeZone = '') => {
+  const normalized = `${timeZone || ''}`.trim()
+  if (!normalized) return 'UTC'
+  if (normalized.toUpperCase() === 'Z') return 'UTC'
+  if (isOffsetTimeZone(normalized)) {
+    return offsetToEtcGmtTimeZone(normalized) || 'UTC'
+  }
+  if (isValidIanaTimeZone(normalized)) return normalized
+  return 'UTC'
+}
+
 export const zonedDateTimeToUtc = (dateString, timeZone, endOfDay = false) => {
   const [datePart, timePart = ''] = `${dateString}`.split('T')
   const [year, month, day] = `${datePart}`.split('-').map(Number)
@@ -970,6 +1005,62 @@ const normalizeCalendarEntity = (calendar) => ({
   teamId: calendar?.teamId || '',
 })
 
+const isCalendarMarkedInactive = (calendar = {}) => {
+  const status = `${calendar?.status || calendar?.calendarStatus || ''}`
+    .trim()
+    .toLowerCase()
+
+  if (status) {
+    if (
+      status.includes('inactive') ||
+      status.includes('disabled') ||
+      status.includes('archived') ||
+      status.includes('deleted')
+    ) {
+      return true
+    }
+    if (status.includes('active')) {
+      return false
+    }
+  }
+
+  if (calendar?.isActive === false || calendar?.active === false) return true
+  if (calendar?.isDeleted === true || calendar?.deleted === true) return true
+  if (calendar?.archived === true || calendar?.disabled === true) return true
+
+  return false
+}
+
+const loadCalendarsForLocation = async (locationId, token) => {
+  let calendars = []
+  let source = 'ghl-v2'
+
+  try {
+    const v2Response = await makeGHLV2Request('/calendars/', {
+      token,
+      params: { locationId },
+    })
+    calendars = normalizeCalendarsPayload(v2Response)
+  } catch (v2Error) {
+    try {
+      const v2AltResponse = await makeGHLV2Request('/calendars', {
+        token,
+        params: { locationId },
+      })
+      calendars = normalizeCalendarsPayload(v2AltResponse)
+    } catch (v2AltError) {
+      source = 'ghl-v1'
+      const v1Response = await makeGHLRequest('/calendars/', 'GET', null, token)
+      calendars = normalizeCalendarsPayload(v1Response)
+    }
+  }
+
+  return {
+    source,
+    calendars: calendars.map(normalizeCalendarEntity),
+  }
+}
+
 const matchesCalendar = (eventCalendarId, selectedCalendarId) => {
   if (!selectedCalendarId) return true
   return `${eventCalendarId || ''}` === `${selectedCalendarId}`
@@ -1027,12 +1118,27 @@ const splitFullName = (fullName = '') => {
   }
 }
 
-const parseBookingDateTime = (dateInput, timeString, duration = 60) => {
-  const date = new Date(dateInput)
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Invalid booking date')
+const getDateKeyFromInput = (dateInput) => {
+  if (typeof dateInput === 'string') {
+    const trimmed = `${dateInput}`.trim()
+    const datePrefixMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (datePrefixMatch?.[1]) return datePrefixMatch[1]
   }
 
+  const date = new Date(dateInput)
+  if (!Number.isNaN(date.getTime())) {
+    return date.toISOString().slice(0, 10)
+  }
+
+  throw new Error('Invalid booking date')
+}
+
+const parseBookingDateTime = (
+  dateInput,
+  timeString,
+  duration = 60,
+  timeZone = ''
+) => {
   const [rawTime = '', rawPeriod = ''] = `${timeString || ''}`.trim().split(' ')
   const [hourText = '0', minuteText = '0'] = rawTime.split(':')
   let hour = Number.parseInt(hourText, 10)
@@ -1046,11 +1152,25 @@ const parseBookingDateTime = (dateInput, timeString, duration = 60) => {
   if (period === 'PM' && hour !== 12) hour += 12
   if (period === 'AM' && hour === 12) hour = 0
 
-  date.setHours(hour, minute, 0, 0)
+  let start
+  if (timeZone) {
+    const dateKey = getDateKeyFromInput(dateInput)
+    const wallClock = `${dateKey}T${String(hour).padStart(2, '0')}:${String(
+      minute
+    ).padStart(2, '0')}:00`
+    start = zonedDateTimeToUtc(wallClock, timeZone)
+  } else {
+    const date = new Date(dateInput)
+    if (Number.isNaN(date.getTime())) {
+      throw new Error('Invalid booking date')
+    }
+    date.setHours(hour, minute, 0, 0)
+    start = date
+  }
 
   return {
-    start: date,
-    end: new Date(date.getTime() + (Number.parseInt(duration, 10) || 60) * 60000),
+    start,
+    end: new Date(start.getTime() + (Number.parseInt(duration, 10) || 60) * 60000),
   }
 }
 
@@ -1074,6 +1194,89 @@ const extractAppointmentId = (payload) =>
   payload?.id ||
   payload?._id ||
   ''
+
+const to12HourLabelFrom24Hour = (hour24 = 0, minute = 0) => {
+  const safeHour = Number.isFinite(hour24) ? hour24 : 0
+  const safeMinute = Number.isFinite(minute) ? minute : 0
+  const suffix = safeHour >= 12 ? 'PM' : 'AM'
+  const hour12 = safeHour % 12 || 12
+  return `${hour12}:${String(safeMinute).padStart(2, '0')} ${suffix}`
+}
+
+const extractTimeLabelFromIsoLikeSlot = (slotValue = '') => {
+  const match = `${slotValue || ''}`.match(/T(\d{2}):(\d{2})/)
+  if (!match) return ''
+  const hour = Number.parseInt(match[1], 10)
+  const minute = Number.parseInt(match[2], 10)
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return ''
+  return to12HourLabelFrom24Hour(hour, minute)
+}
+
+const extractOffsetFromIsoLikeSlot = (slotValue = '') => {
+  const match = `${slotValue || ''}`.match(/([+-]\d{2}:\d{2}|Z)$/i)
+  if (!match) return ''
+  return match[1].toUpperCase() === 'Z' ? '+00:00' : match[1]
+}
+
+export const fetchCalendarFreeSlotsForDate = async (
+  locationId,
+  calendarId,
+  date
+) => {
+  if (!locationId || !calendarId || !date) {
+    return {
+      slots: [],
+      rawSlots: [],
+      timeZone: '',
+      source: 'ghl-v2-free-slots',
+    }
+  }
+
+  const token = await getTokenForLocation(locationId)
+  if (!token) {
+    return {
+      slots: [],
+      rawSlots: [],
+      timeZone: '',
+      source: 'ghl-v2-free-slots',
+      unavailable: true,
+      reason: `No GHL API key configured for location ${locationId}`,
+    }
+  }
+
+  const startMs = Date.parse(`${date}T00:00:00.000Z`)
+  const endMs = Date.parse(`${date}T23:59:59.999Z`)
+
+  const response = await makeGHLV2Request(`/calendars/${calendarId}/free-slots`, {
+    token,
+    params: {
+      startDate: startMs,
+      endDate: endMs,
+    },
+    suppressErrorLog: true,
+  })
+
+  const rawSlots = Object.values(response || {})
+    .filter((entry) => entry && typeof entry === 'object' && Array.isArray(entry.slots))
+    .flatMap((entry) => entry.slots || [])
+    .map((entry) => `${entry || ''}`.trim())
+    .filter(Boolean)
+
+  const slots = rawSlots
+    .map(extractTimeLabelFromIsoLikeSlot)
+    .filter(Boolean)
+
+  const timeZone =
+    extractOffsetFromIsoLikeSlot(rawSlots[0]) ||
+    ''
+
+  return {
+    slots,
+    rawSlots,
+    timeZone,
+    source: 'ghl-v2-free-slots',
+  }
+}
 
 export const fetchLocationCalendarEventsByDate = async (
   locationId,
@@ -1248,32 +1451,46 @@ export const resolveCalendarDetailsForLocation = async (locationId, calendarId) 
   const token = await getTokenForLocation(locationId)
   if (!token) return null
 
-  let calendars = []
-
-  try {
-    const v2Response = await makeGHLV2Request('/calendars/', {
-      token,
-      params: { locationId },
-    })
-    calendars = normalizeCalendarsPayload(v2Response)
-  } catch (v2Error) {
-    try {
-      const v2AltResponse = await makeGHLV2Request('/calendars', {
-        token,
-        params: { locationId },
-      })
-      calendars = normalizeCalendarsPayload(v2AltResponse)
-    } catch (v2AltError) {
-      const v1Response = await makeGHLRequest('/calendars/', 'GET', null, token)
-      calendars = normalizeCalendarsPayload(v1Response)
-    }
-  }
-
-  const match = calendars
-    .map(normalizeCalendarEntity)
-    .find((calendar) => `${calendar.id || ''}` === `${calendarId}`)
+  const { calendars } = await loadCalendarsForLocation(locationId, token)
+  const match = calendars.find((calendar) => `${calendar.id || ''}` === `${calendarId}`)
 
   return match || null
+}
+
+export const resolveUsableCalendarForLocation = async (
+  locationId,
+  {
+    preferredCalendarId = '',
+    preferredCalendarName = '',
+  } = {}
+) => {
+  if (!locationId) return null
+
+  const token = await getTokenForLocation(locationId)
+  if (!token) return null
+
+  const { calendars } = await loadCalendarsForLocation(locationId, token)
+  if (!calendars.length) return null
+
+  const preferred = preferredCalendarId
+    ? calendars.find((calendar) => `${calendar.id || ''}` === `${preferredCalendarId}`)
+    : null
+
+  if (preferred && !isCalendarMarkedInactive(preferred)) {
+    return preferred
+  }
+
+  const normalizedPreferredName = `${preferredCalendarName || ''}`.trim().toLowerCase()
+  if (normalizedPreferredName) {
+    const preferredByName = calendars.find((calendar) => {
+      if (isCalendarMarkedInactive(calendar)) return false
+      return `${calendar.name || ''}`.trim().toLowerCase() === normalizedPreferredName
+    })
+    if (preferredByName) return preferredByName
+  }
+
+  const firstActive = calendars.find((calendar) => !isCalendarMarkedInactive(calendar))
+  return firstActive || preferred || null
 }
 
 export const ensureGhlContactForLocation = async (
@@ -1378,14 +1595,39 @@ export const createGhlAppointmentForBooking = async ({
   service,
   customer,
 }) => {
-  const calendarId = `${booking?.ghl?.calendarId || service?.ghlCalendar?.calendarId || ''}`.trim()
-  if (!calendarId) {
-    return { skipped: true, reason: 'No GHL calendar linked to service' }
-  }
-
   const locationId = booking?.locationId || service?.locationId
   if (!locationId) {
     throw new Error('Booking location is required for GHL sync')
+  }
+
+  const preferredCalendarId = `${booking?.ghl?.calendarId || service?.ghlCalendar?.calendarId || ''}`.trim()
+  if (!preferredCalendarId) {
+    return { skipped: true, reason: 'No GHL calendar linked to service' }
+  }
+
+  let resolvedCalendar = null
+  try {
+    resolvedCalendar = await resolveUsableCalendarForLocation(
+      locationId,
+      {
+        preferredCalendarId,
+        preferredCalendarName:
+          `${booking?.ghl?.calendarName || service?.ghlCalendar?.name || ''}`.trim(),
+      }
+    )
+  } catch (calendarResolveError) {
+    console.warn(
+      `Unable to resolve usable calendar for location ${locationId}:`,
+      calendarResolveError?.response?.data || calendarResolveError?.message
+    )
+  }
+
+  const calendarId = `${resolvedCalendar?.id || preferredCalendarId}`.trim()
+  const hasCalendarFallback = Boolean(
+    resolvedCalendar?.id && `${resolvedCalendar.id}` !== preferredCalendarId
+  )
+  if (!calendarId) {
+    return { skipped: true, reason: 'No usable GHL calendar found for location' }
   }
 
   console.log('[GHL:SYNC] Preparing appointment payload', {
@@ -1393,8 +1635,13 @@ export const createGhlAppointmentForBooking = async ({
     serviceId: `${service?._id || ''}`,
     locationId,
     calendarId,
+    preferredCalendarId,
+    hasCalendarFallback,
     time: booking?.time || '',
     date: booking?.date || '',
+    timeZone:
+      `${resolvedCalendar?.timeZone || booking?.ghl?.timeZone || service?.ghlCalendar?.timeZone || ''}`.trim() ||
+      'UTC',
     customerEmail: customer?.email || '',
     customerName: customer?.name || '',
   })
@@ -1405,13 +1652,19 @@ export const createGhlAppointmentForBooking = async ({
     name: customer?.name || booking?.clientName || 'Guest',
   })
 
-  const window = parseBookingDateTime(booking.date, booking.time, booking.duration)
   const timeZone =
-    `${booking?.ghl?.timeZone || service?.ghlCalendar?.timeZone || ''}`.trim() ||
+    `${resolvedCalendar?.timeZone || booking?.ghl?.timeZone || service?.ghlCalendar?.timeZone || ''}`.trim() ||
     'UTC'
+  const payloadTimeZone = normalizeTimeZoneForGhlPayload(timeZone)
+  const window = parseBookingDateTime(
+    booking.date,
+    booking.time,
+    booking.duration,
+    timeZone
+  )
   const assignedUserId =
-    `${booking?.ghl?.userId || service?.ghlCalendar?.userId || ''}`.trim()
-  const teamId = `${booking?.ghl?.teamId || service?.ghlCalendar?.teamId || ''}`.trim()
+    `${resolvedCalendar?.userId || booking?.ghl?.userId || service?.ghlCalendar?.userId || ''}`.trim()
+  const teamId = `${resolvedCalendar?.teamId || booking?.ghl?.teamId || service?.ghlCalendar?.teamId || ''}`.trim()
 
   const basePayload = {
     locationId,
@@ -1420,15 +1673,35 @@ export const createGhlAppointmentForBooking = async ({
     startTime: window.start.toISOString(),
     endTime: window.end.toISOString(),
     selectedSlot: window.start.toISOString(),
-    selectedTimezone: timeZone,
+    selectedTimezone: payloadTimeZone,
     title: booking.serviceName || service?.name || 'Appointment',
     appointmentTitle: booking.serviceName || service?.name || 'Appointment',
     appointmentStatus: 'confirmed',
     notes: booking.notes || '',
-    timeZone,
+    timeZone: payloadTimeZone,
     source: 'pwa-radiant',
     ...(assignedUserId ? { assignedUserId } : {}),
     ...(teamId ? { teamId } : {}),
+  }
+
+  console.log('[GHL:SYNC] Computed booking window', {
+    bookingId: `${booking?._id || ''}`,
+    calendarId,
+    startTimeIso: window.start.toISOString(),
+    endTimeIso: window.end.toISOString(),
+    selectedTimezone: payloadTimeZone,
+    computationTimeZone: timeZone,
+  })
+
+  if (booking && typeof booking === 'object') {
+    if (!booking.ghl || typeof booking.ghl !== 'object') {
+      booking.ghl = {}
+    }
+    booking.ghl.calendarId = calendarId
+    booking.ghl.calendarName = `${resolvedCalendar?.name || booking?.ghl?.calendarName || service?.ghlCalendar?.name || ''}`.trim()
+    booking.ghl.timeZone = timeZone
+    booking.ghl.userId = assignedUserId
+    booking.ghl.teamId = teamId
   }
 
   // Booking sync is v2-only. Do not fall back to legacy v1 for location API keys.

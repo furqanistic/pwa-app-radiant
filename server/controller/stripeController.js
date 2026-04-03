@@ -2363,7 +2363,7 @@ export const createCheckoutSession = async (req, res, next) => {
         const itemFinalPrice = Math.max(0, item.price - itemDiscount)
         const itemDuration = Number.parseInt(item.duration, 10) || service.duration
 
-        await assertSlotAvailable({
+        const schedulingContext = await assertSlotAvailable({
           locationId: checkoutLocationId,
           date: item.date,
           time: item.time,
@@ -2371,7 +2371,10 @@ export const createCheckoutSession = async (req, res, next) => {
           service,
         })
 
-        const ghlCalendar = getServiceCalendarSelection(service)
+        const ghlCalendar = {
+          ...getServiceCalendarSelection(service),
+          ...(schedulingContext?.calendarSelection || {}),
+        }
 
         const amount = Math.round(itemFinalPrice * 100) // Convert to cents
 
@@ -2513,7 +2516,7 @@ export const createCheckoutSession = async (req, res, next) => {
 
     const effectiveDuration = Number.parseInt(duration, 10) || service.duration
 
-    await assertSlotAvailable({
+    const schedulingContext = await assertSlotAvailable({
       locationId,
       date,
       time,
@@ -2661,7 +2664,10 @@ export const createCheckoutSession = async (req, res, next) => {
     // Calculate final amount
     const finalPrice = Math.max(subtotal - discountAmount, 0)
     const amount = Math.round(finalPrice * 100) // Convert to cents
-    const ghlCalendar = getServiceCalendarSelection(service)
+    const ghlCalendar = {
+      ...getServiceCalendarSelection(service),
+      ...(schedulingContext?.calendarSelection || {}),
+    }
     const addOnsNote = normalizedAddOns.length
       ? `[Add-ons] ${normalizedAddOns
           .map((addOn) => `${addOn.name} ($${addOn.price.toFixed(2)})`)
@@ -3748,11 +3754,14 @@ async function syncBookingToGhl(booking, customerId) {
     return { ok: true, retryable: false }
   } catch (error) {
     if (!booking.ghl) booking.ghl = {}
-    booking.ghl.syncError =
+    const rawSyncError =
       error.response?.data?.message ||
       error.response?.data?.msg ||
       error.message ||
       'Failed to sync booking to GHL'
+    booking.ghl.syncError = Array.isArray(rawSyncError)
+      ? rawSyncError.join(' ')
+      : `${rawSyncError || ''}`
     await booking.save()
     console.error(
       `Failed syncing booking ${booking._id} to GHL:`,
@@ -3762,6 +3771,7 @@ async function syncBookingToGhl(booking, customerId) {
     const retryable = !(
       errMessage.includes('api key is invalid') ||
       errMessage.includes('invalid jwt') ||
+      errMessage.includes('valid iana timezone') ||
       errMessage.includes('calendar is inactive') ||
       errMessage.includes('slot you have selected is no longer available')
     )
