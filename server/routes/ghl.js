@@ -13,6 +13,7 @@ import {
   getContacts,
   getCustomFields,
   getOpportunities,
+  getWorkflows,
   lookupContact,
   testConnection,
   updateContact,
@@ -38,6 +39,7 @@ router.get('/calendars', getCalendars)
 router.get('/calendar-services', getCalendarServices)
 router.get('/calendar-services/:serviceId', getCalendarServiceById)
 router.get('/bookings', getLocationBookingsByDate)
+router.get('/workflows', getWorkflows)
 router.get('/custom-fields', getCustomFields)
 
 export default router

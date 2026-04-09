@@ -508,6 +508,66 @@ const normalizeCalendarServicesPayload = (payload) => {
   return []
 }
 
+const normalizeWorkflowsPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return []
+
+  const candidates = [
+    payload.workflows,
+    payload.items,
+    payload.data?.workflows,
+    payload.data?.items,
+    payload.data,
+  ]
+
+  for (const entry of candidates) {
+    if (Array.isArray(entry)) return entry
+  }
+
+  return []
+}
+
+const normalizeWorkflowEntity = (workflow, index = 0) => {
+  const statusText = `${
+    workflow?.status ||
+    workflow?.workflowStatus ||
+    workflow?.state ||
+    ''
+  }`
+    .trim()
+    .toLowerCase()
+
+  const hasBooleanStatus = typeof workflow?.isActive === 'boolean'
+  const isActive = hasBooleanStatus
+    ? workflow.isActive
+    : statusText
+      ? ['active', 'published', 'enabled', 'on', 'live'].some((value) =>
+          statusText.includes(value)
+        )
+      : false
+
+  return {
+    ...workflow,
+    id:
+      workflow?.id ||
+      workflow?._id ||
+      workflow?.workflowId ||
+      workflow?.automationId ||
+      `ghl-workflow-${index}`,
+    name:
+      workflow?.name ||
+      workflow?.title ||
+      workflow?.workflowName ||
+      workflow?.automationName ||
+      'Untitled Automation',
+    status: statusText || (isActive ? 'active' : 'inactive'),
+    isActive,
+    triggerName: workflow?.triggerName || workflow?.trigger?.name || '',
+    createdAt: workflow?.createdAt || workflow?.dateCreated || '',
+    updatedAt: workflow?.updatedAt || workflow?.dateUpdated || '',
+    description: workflow?.description || workflow?.notes || '',
+  }
+}
+
 const parseServiceDurationMinutes = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value
 
@@ -1590,6 +1650,64 @@ export const ensureGhlContactForLocation = async (
   }
 }
 
+export const enrollContactInWorkflowForLocation = async (
+  locationId,
+  {
+    workflowId = '',
+    contactId = '',
+    email = '',
+    phone = '',
+    name = '',
+  } = {}
+) => {
+  const normalizedLocationId = `${locationId || ''}`.trim()
+  const normalizedWorkflowId = `${workflowId || ''}`.trim()
+  const normalizedContactId = `${contactId || ''}`.trim()
+
+  if (!normalizedLocationId) {
+    throw new Error('Location ID is required for workflow enrollment')
+  }
+  if (!normalizedWorkflowId) {
+    throw new Error('Workflow ID is required for workflow enrollment')
+  }
+
+  const token = await getTokenForLocation(normalizedLocationId)
+  if (!token) {
+    throw new Error(`No GHL API key configured for location ${normalizedLocationId}`)
+  }
+
+  let finalContactId = normalizedContactId
+  if (!finalContactId) {
+    const ensured = await ensureGhlContactForLocation(normalizedLocationId, {
+      email,
+      phone,
+      name,
+    })
+    finalContactId = `${ensured?.contactId || ''}`.trim()
+  }
+
+  if (!finalContactId) {
+    throw new Error('Unable to resolve contact ID for workflow enrollment')
+  }
+
+  const response = await makeGHLV2Request(
+    `/contacts/${finalContactId}/workflow/${normalizedWorkflowId}`,
+    {
+      method: 'POST',
+      token,
+      data: { locationId: normalizedLocationId },
+      suppressErrorLog: true,
+    }
+  )
+
+  return {
+    locationId: normalizedLocationId,
+    workflowId: normalizedWorkflowId,
+    contactId: finalContactId,
+    response,
+  }
+}
+
 export const createGhlAppointmentForBooking = async ({
   booking,
   service,
@@ -2295,6 +2413,225 @@ export const getCalendarServices = async (req, res, next) => {
         source: 'ghl-v2',
         unavailable: true,
         error: error.response?.data || error.message,
+      },
+    })
+  }
+}
+
+export const getWorkflows = async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    res.set('Pragma', 'no-cache')
+    res.set('Expires', '0')
+    res.set('Surrogate-Control', 'no-store')
+
+    const { locationId } = req.query
+    if (!locationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'locationId is required',
+      })
+    }
+
+    const token = await getTokenForLocation(locationId)
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: `No GHL API key configured for location ${locationId}`,
+      })
+    }
+
+    const maskTokenForLogs = (value = '') => {
+      const normalized = `${value || ''}`.trim()
+      if (!normalized) return 'empty'
+      if (normalized.length <= 10) return `${normalized.slice(0, 2)}***${normalized.slice(-1)}`
+      return `${normalized.slice(0, 6)}...${normalized.slice(-4)}`
+    }
+    const summarizeError = (error) => ({
+      statusCode: error?.response?.status || error?.response?.data?.statusCode || null,
+      message: `${error?.response?.data?.message || error?.response?.data?.msg || error?.message || ''}`.trim(),
+      data: error?.response?.data || null,
+    })
+
+    console.info('[GHL:getWorkflows] starting fetch', {
+      locationId,
+      tokenPreview: maskTokenForLogs(token),
+      tokenLength: token.length,
+    })
+
+    const attempts = [
+      { endpoint: '/workflows/', source: 'ghl-v2' },
+      { endpoint: '/workflows', source: 'ghl-v2' },
+    ]
+
+    let lastError = null
+    let hasScopeAuthorizationError = false
+    let hasInvalidApiKeyError = false
+    let hasNotFoundError = false
+    const attemptErrors = []
+
+    for (const attempt of attempts) {
+      try {
+        console.info('[GHL:getWorkflows] trying endpoint', {
+          locationId,
+          source: attempt.source,
+          endpoint: attempt.endpoint,
+        })
+        const response = await makeGHLV2Request(attempt.endpoint, {
+          token,
+          params: { locationId },
+          suppressErrorLog: true,
+        })
+
+        const workflows = normalizeWorkflowsPayload(response).map(
+          normalizeWorkflowEntity
+        )
+
+        console.info('[GHL:getWorkflows] endpoint success', {
+          locationId,
+          source: attempt.source,
+          endpoint: attempt.endpoint,
+          total: workflows.length,
+        })
+
+        return res.status(200).json({
+          success: true,
+          message: 'Automations fetched successfully',
+          data: {
+            workflows,
+            total: workflows.length,
+            source: attempt.source,
+          },
+        })
+      } catch (error) {
+        lastError = error
+        const summary = summarizeError(error)
+        const responseMessage = summary.message
+        const responseStatus = summary.statusCode
+        if (
+          responseStatus === 401 &&
+          responseMessage.toLowerCase().includes('scope')
+        ) {
+          hasScopeAuthorizationError = true
+        }
+        if (responseStatus === 404) {
+          hasNotFoundError = true
+        }
+        if (
+          responseStatus === 401 &&
+          responseMessage.toLowerCase().includes('api key is invalid')
+        ) {
+          hasInvalidApiKeyError = true
+        }
+        attemptErrors.push({
+          endpoint: attempt.endpoint,
+          source: attempt.source,
+          statusCode: responseStatus,
+          message: responseMessage,
+        })
+        console.warn('[GHL:getWorkflows] endpoint failed', {
+          locationId,
+          source: attempt.source,
+          endpoint: attempt.endpoint,
+          ...summary,
+        })
+      }
+    }
+
+    try {
+      console.info('[GHL:getWorkflows] falling back to v1 endpoint', {
+        locationId,
+        endpoint: '/workflows/',
+      })
+      const v1Response = await makeGHLRequest('/workflows/', 'GET', null, token)
+      const workflows = normalizeWorkflowsPayload(v1Response).map(
+        normalizeWorkflowEntity
+      )
+
+      console.info('[GHL:getWorkflows] v1 fallback success', {
+        locationId,
+        source: 'ghl-v1',
+        endpoint: '/workflows/',
+        total: workflows.length,
+      })
+
+      return res.status(200).json({
+        success: true,
+        message: 'Automations fetched successfully',
+        data: {
+          workflows,
+          total: workflows.length,
+          source: 'ghl-v1',
+        },
+      })
+    } catch (v1Error) {
+      lastError = v1Error
+      const summary = summarizeError(v1Error)
+      if (
+        summary.statusCode === 401 &&
+        summary.message.toLowerCase().includes('api key is invalid')
+      ) {
+        hasInvalidApiKeyError = true
+      }
+      attemptErrors.push({
+        endpoint: '/workflows/',
+        source: 'ghl-v1',
+        statusCode: summary.statusCode,
+        message: summary.message,
+      })
+      console.warn('[GHL:getWorkflows] v1 fallback failed', {
+        locationId,
+        source: 'ghl-v1',
+        endpoint: '/workflows/',
+        ...summary,
+      })
+    }
+
+    const diagnosis = {
+      missingWorkflowScope: hasScopeAuthorizationError,
+      invalidApiKeyForV1: hasInvalidApiKeyError,
+      notFoundOnV2Route: hasNotFoundError,
+      likelyCause:
+        hasScopeAuthorizationError && hasInvalidApiKeyError
+          ? 'Mixed token compatibility: v2 token lacks workflows scope and cannot be used as v1 API key.'
+          : hasScopeAuthorizationError
+            ? 'Token is valid but missing workflows.readonly scope.'
+            : hasInvalidApiKeyError
+              ? 'Configured credential is not valid for legacy v1 endpoint.'
+              : hasNotFoundError
+                ? 'Workflow route may be unavailable for this account/token type.'
+                : 'Unknown error. See attemptErrors details.',
+    }
+
+    console.warn('[GHL:getWorkflows] all attempts failed', {
+      locationId,
+      diagnosis,
+      attemptErrors,
+    })
+
+    if (hasScopeAuthorizationError) {
+      throw createPlainError(
+        'The configured GHL token is missing the workflows.readonly scope.',
+        403
+      )
+    }
+
+    throw lastError || new Error('Failed to fetch GHL automations')
+  } catch (error) {
+    const fallbackReason = error?.response?.data || error.message
+    console.warn('[GHL:getWorkflows] returning fallback response', {
+      locationId: `${req?.query?.locationId || ''}`.trim(),
+      reason: fallbackReason,
+    })
+    res.status(200).json({
+      success: true,
+      message: 'Automations unavailable, using fallback',
+      data: {
+        workflows: [],
+        total: 0,
+        source: 'ghl-v2',
+        unavailable: true,
+        error: fallbackReason,
       },
     })
   }

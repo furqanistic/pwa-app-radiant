@@ -26,6 +26,7 @@ import BookingsDatabasePage from './pages/Management/BookingsDatabasePage'
 import ClientRevenuePage from './pages/Management/ClientRevenuePage'
 import ManagementPage from './pages/Management/ManagementPage'
 import CalendarManagementPage from './pages/Management/CalendarManagementPage'
+import AutomationsManagementPage from './pages/Management/AutomationsManagementPage'
 import MembershipManagementPage from './pages/Management/MembershipManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import ServicesDatabasePage from './pages/Management/ServicesDatabasePage'
@@ -187,6 +188,7 @@ const WelcomeRoute = () => {
 const LegacySpaSubdomainRedirect = () => {
   const location = useLocation()
   const inFlightRef = useRef(false)
+  const AUTH_SPA_CLEANUP_ID = '6RL2MtUxqIc5fUgWRw1O'
 
   useEffect(() => {
     const redirectToSpaSubdomain = async () => {
@@ -209,6 +211,15 @@ const LegacySpaSubdomainRedirect = () => {
       const params = new URLSearchParams(location.search)
       const spaLocationId = params.get('spa')?.trim()
       const qrId = params.get('qrId')?.trim()
+
+      // Keep app auth entry URL clean only for one specific legacy spa ID.
+      if (hostname === 'app.cxrsystems.com' && location.pathname === '/auth') {
+        if (spaLocationId === AUTH_SPA_CLEANUP_ID) {
+          const cleanedUrl = `${window.location.protocol}//${hostname}${location.pathname}`
+          window.location.replace(cleanedUrl)
+        }
+        return
+      }
 
       if (!spaLocationId && !qrId) return
 
@@ -645,6 +656,15 @@ const App = () => {
           element={
             <RoleProtectedRoute allowedRoles={["admin", "spa"]}>
               <CalendarManagementPage />
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/management/automations"
+          element={
+            <RoleProtectedRoute allowedRoles={["super-admin"]}>
+              <AutomationsManagementPage />
             </RoleProtectedRoute>
           }
         />

@@ -309,6 +309,19 @@ const ManagementPage = () => {
           },
         ]
       : []),
+    ...(isSuperAdmin
+      ? [
+          {
+            key: "view-automations",
+            title: "View Automations",
+            description: "See all available GoHighLevel automations.",
+            icon: Zap,
+            onClick: () => navigateWithSpa("/management/automations"),
+            className:
+              "border-indigo-100 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900",
+          },
+        ]
+      : []),
     ...(["super-admin", "spa"].includes(currentUser?.role)
       ? [
           {

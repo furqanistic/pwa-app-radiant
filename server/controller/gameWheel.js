@@ -7,12 +7,18 @@ import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 import { createSystemNotification } from './notification.js'
 
+const isVerboseServerLogsEnabled =
+  String(process.env.VERBOSE_SERVER_LOGS || '').toLowerCase() === 'true'
+const debugLog = (...args) => {
+  if (isVerboseServerLogsEnabled) console.log(...args)
+}
+
 // =============================================================================
 // HELPER FUNCTIONS - CLEANED UP AND OPTIMIZED
 // =============================================================================
 
 const getUserLocationInfo = (user) => {
-  console.log('getUserLocationInfo called for user:', {
+  debugLog('getUserLocationInfo called for user:', {
     id: user.id,
     email: user.email,
     role: user.role,
@@ -28,7 +34,7 @@ const getUserLocationInfo = (user) => {
   if (user.role === 'spa') {
     // spa users are spa owners - use their spa location
     if (!user.spaLocation?.locationId) {
-      console.log('spa user missing spa location:', user.spaLocation)
+      debugLog('spa user missing spa location:', user.spaLocation)
       throw new Error(
         'Your spa location is not configured. Please contact support to set up your spa location.'
       )
@@ -41,13 +47,13 @@ const getUserLocationInfo = (user) => {
   }
 
   // Regular users use their selected location
-  console.log('Checking regular user selected location:', user.selectedLocation)
+  debugLog('Checking regular user selected location:', user.selectedLocation)
 
   if (
     !user.selectedLocation?.locationId ||
     !user.selectedLocation?.locationName
   ) {
-    console.log(
+    debugLog(
       'User missing proper location selection:',
       user.selectedLocation
     )
@@ -83,7 +89,7 @@ const buildLocationQuery = (userLocationInfo, requestLocationId = null) => {
 
 // Helper function to check play eligibility based on reset period
 const checkPlayEligibility = async (userId, gameId, game) => {
-  console.log(
+  debugLog(
     `Checking play eligibility for user ${userId}, game ${gameId} (${game.type})`
   )
 
@@ -104,7 +110,7 @@ const checkPlayEligibility = async (userId, gameId, game) => {
     }
   }
 
-  console.log('Game settings:', settings)
+  debugLog('Game settings:', settings)
 
   // FIXED: Use correct field name based on game type
   const maxPlays =
@@ -114,7 +120,7 @@ const checkPlayEligibility = async (userId, gameId, game) => {
 
   const resetPeriod = settings.resetPeriod || 'daily'
 
-  console.log(`Max plays: ${maxPlays}, Reset period: ${resetPeriod}`)
+  debugLog(`Max plays: ${maxPlays}, Reset period: ${resetPeriod}`)
 
   if (resetPeriod === 'never' && maxPlays === 0) {
     return { canPlay: true, playsRemaining: 999 }
@@ -142,7 +148,7 @@ const checkPlayEligibility = async (userId, gameId, game) => {
       break
   }
 
-  console.log('Period start:', periodStart)
+  debugLog('Period start:', periodStart)
 
   // FIXED: Count plays in current period using correct query structure
   const playsInPeriod = await UserReward.countDocuments({
@@ -152,12 +158,12 @@ const checkPlayEligibility = async (userId, gameId, game) => {
     claimedAt: { $gte: periodStart },
   })
 
-  console.log(`Plays in current period: ${playsInPeriod}`)
+  debugLog(`Plays in current period: ${playsInPeriod}`)
 
   const playsRemaining = Math.max(0, maxPlays - playsInPeriod)
   const canPlay = playsRemaining > 0
 
-  console.log(`Can play: ${canPlay}, Plays remaining: ${playsRemaining}`)
+  debugLog(`Can play: ${canPlay}, Plays remaining: ${playsRemaining}`)
 
   // Calculate next reset time
   let nextReset = null
@@ -200,7 +206,7 @@ export const getAvailableGames = async (req, res, next) => {
   try {
     const { type } = req.query
 
-    console.log('getAvailableGames called by user:', {
+    debugLog('getAvailableGames called by user:', {
       userId: req.user.id,
       email: req.user.email,
       role: req.user.role,
@@ -211,15 +217,15 @@ export const getAvailableGames = async (req, res, next) => {
     let userLocationInfo
     try {
       userLocationInfo = getUserLocationInfo(req.user)
-      console.log('User location info:', userLocationInfo)
+      debugLog('User location info:', userLocationInfo)
     } catch (error) {
-      console.log('Location error:', error.message)
+      debugLog('Location error:', error.message)
       return next(createError(400, error.message))
     }
 
     // Only regular users should access available games
     if (userLocationInfo.type !== 'customer') {
-      console.log(
+      debugLog(
         'Non-customer trying to access available games:',
         req.user.role
       )
@@ -259,17 +265,17 @@ export const getAvailableGames = async (req, res, next) => {
       },
     ]
 
-    console.log('Available games query:', JSON.stringify(query, null, 2))
+    debugLog('Available games query:', JSON.stringify(query, null, 2))
 
     const games = await GameWheel.find(query).sort({ createdAt: -1 })
-    console.log(
+    debugLog(
       `Found ${games.length} games for location ${userLocationInfo.locationId}`
     )
 
     // For each game, check if user can play and add eligibility info
     const gamesWithEligibility = await Promise.all(
       games.map(async (game) => {
-        console.log(
+        debugLog(
           `Checking eligibility for game: ${game.title} (${game.type})`
         )
         const eligibility = await checkPlayEligibility(
@@ -277,7 +283,7 @@ export const getAvailableGames = async (req, res, next) => {
           game._id,
           game
         )
-        console.log(`Eligibility for ${game.title}:`, eligibility)
+        debugLog(`Eligibility for ${game.title}:`, eligibility)
         return {
           ...game.toObject(),
           eligibility,
@@ -285,7 +291,7 @@ export const getAvailableGames = async (req, res, next) => {
       })
     )
 
-    console.log('Final games with eligibility:', gamesWithEligibility.length)
+    debugLog('Final games with eligibility:', gamesWithEligibility.length)
 
     res.status(200).json({
       status: 'success',
@@ -473,7 +479,7 @@ export const getAllGames = async (req, res, next) => {
       limit = 10,
     } = req.query
 
-    console.log(
+    debugLog(
       'Getting all games for user:',
       req.user.email,
       'Role:',
@@ -484,9 +490,9 @@ export const getAllGames = async (req, res, next) => {
     let userLocationInfo
     try {
       userLocationInfo = getUserLocationInfo(req.user)
-      console.log('User location info:', userLocationInfo)
+      debugLog('User location info:', userLocationInfo)
     } catch (error) {
-      console.log('Error getting user location info:', error.message)
+      debugLog('Error getting user location info:', error.message)
       // For management interface, if location error occurs, still allow admin to proceed
       if (req.user.role === 'super-admin' || req.user.role === 'admin') {
         userLocationInfo = {
@@ -508,7 +514,7 @@ export const getAllGames = async (req, res, next) => {
     if (isPublished !== undefined) query.isPublished = isPublished === 'true'
     if (category) query.category = category
 
-    console.log('Games query:', JSON.stringify(query, null, 2))
+    debugLog('Games query:', JSON.stringify(query, null, 2))
 
     // Execute query with pagination
     const skip = (parseInt(page) - 1) * parseInt(limit)
@@ -520,7 +526,7 @@ export const getAllGames = async (req, res, next) => {
 
     const total = await GameWheel.countDocuments(query)
 
-    console.log(`Found ${games.length} games out of ${total} total`)
+    debugLog(`Found ${games.length} games out of ${total} total`)
 
     res.status(200).json({
       status: 'success',
@@ -550,7 +556,7 @@ export const playGame = async (req, res, next) => {
     const { gameId } = req.params
     const userId = req.user.id
 
-    console.log(`User ${userId} attempting to play game ${gameId}`)
+    debugLog(`User ${userId} attempting to play game ${gameId}`)
 
     const game = await GameWheel.findById(gameId)
     if (!game) {
@@ -620,7 +626,7 @@ export const playGame = async (req, res, next) => {
       return next(createError(500, 'No active items found in this game'))
     }
 
-    console.log('Winning item:', winningItem)
+    debugLog('Winning item:', winningItem)
 
     const isPointReward = winningItem.valueType === 'points'
     const rewardValidDays = isPointReward
@@ -643,7 +649,7 @@ export const playGame = async (req, res, next) => {
         // Deduct required points from user
         if (requiredPoints > 0) {
           user.points -= requiredPoints
-          console.log(
+          debugLog(
             `Deducted ${requiredPoints} points. New balance: ${user.points}`
           )
         }
@@ -652,7 +658,7 @@ export const playGame = async (req, res, next) => {
         if (winningItem.valueType === 'points') {
           pointsWon = parseInt(winningItem.value) || 0
           user.points += pointsWon
-          console.log(
+          debugLog(
             `Awarded ${pointsWon} points. Final balance: ${user.points}`
           )
         }
@@ -712,7 +718,7 @@ export const playGame = async (req, res, next) => {
           }),
         }
 
-        console.log(
+        debugLog(
           'Creating UserReward with data:',
           JSON.stringify(gameRewardData, null, 2)
         )
@@ -721,7 +727,7 @@ export const playGame = async (req, res, next) => {
           session,
         })
         userRewardId = userReward[0]._id
-        console.log('Created user reward:', userRewardId)
+        debugLog('Created user reward:', userRewardId)
 
         // Create point transaction records with correct field names
         if (requiredPoints > 0) {
@@ -752,7 +758,7 @@ export const playGame = async (req, res, next) => {
             ],
             { session }
           )
-          console.log(
+          debugLog(
             `Created point transaction for spending ${requiredPoints} points`
           )
         }
@@ -783,13 +789,13 @@ export const playGame = async (req, res, next) => {
             ],
             { session }
           )
-          console.log(
+          debugLog(
             `Created point transaction for earning ${pointsWon} points`
           )
         }
       })
 
-      console.log('Transaction completed successfully')
+      debugLog('Transaction completed successfully')
     } catch (error) {
       console.error('Transaction failed:', error)
       throw error
@@ -837,7 +843,7 @@ export const playGame = async (req, res, next) => {
       }
     )
 
-    console.log('Game play completed successfully')
+    debugLog('Game play completed successfully')
 
     res.status(200).json({
       status: 'success',
@@ -888,7 +894,7 @@ export const getUserGameHistory = async (req, res, next) => {
     const userId = req.user.id
     const { page = 1, limit = 20, gameType, status } = req.query
 
-    console.log(`Fetching game history for user ${userId}`)
+    debugLog(`Fetching game history for user ${userId}`)
 
     // Build filter for game rewards
     const filter = {
@@ -1137,16 +1143,16 @@ export const updateGame = async (req, res, next) => {
     const { gameId } = req.params
     const updateData = req.body
 
-    console.log('Updating game:', gameId, 'User role:', req.user.role)
-    console.log('Update data received:', JSON.stringify(updateData, null, 2))
+    debugLog('Updating game:', gameId, 'User role:', req.user.role)
+    debugLog('Update data received:', JSON.stringify(updateData, null, 2))
 
     const game = await GameWheel.findById(gameId)
     if (!game) {
-      console.log('Game not found:', gameId)
+      debugLog('Game not found:', gameId)
       return next(createError(404, 'Game not found'))
     }
 
-    console.log(
+    debugLog(
       'Found game:',
       game.title,
       'Type:',
@@ -1159,15 +1165,15 @@ export const updateGame = async (req, res, next) => {
     let userLocationInfo
     try {
       userLocationInfo = getUserLocationInfo(req.user)
-      console.log('User location info:', userLocationInfo)
+      debugLog('User location info:', userLocationInfo)
     } catch (error) {
-      console.log('Error getting user location info:', error.message)
+      debugLog('Error getting user location info:', error.message)
       return next(createError(400, error.message))
     }
 
     // Permission check with location validation
     if (userLocationInfo.type === 'admin') {
-      console.log('Admin/Super-admin updating game')
+      debugLog('Admin/Super-admin updating game')
     } else if (userLocationInfo.type === 'spa_owner') {
       if (game.locationId !== userLocationInfo.locationId) {
         return next(createError(403, 'You can only update games from your spa'))
@@ -1180,14 +1186,14 @@ export const updateGame = async (req, res, next) => {
 
     // FIXED: Properly handle settings updates with correct field names
     if (updateData.settings) {
-      console.log('Settings update detected:', updateData.settings)
+      debugLog('Settings update detected:', updateData.settings)
 
       // Merge with existing settings to preserve other settings
       const existingSettings = game.settings || {}
       let updatedSettings = { ...existingSettings }
 
       if (game.type === 'spin' && updateData.settings.spinSettings) {
-        console.log('Updating spin settings:', updateData.settings.spinSettings)
+        debugLog('Updating spin settings:', updateData.settings.spinSettings)
 
         // FIXED: Ensure correct field mapping for spin wheel
         const spinSettings = updateData.settings.spinSettings
@@ -1199,11 +1205,11 @@ export const updateGame = async (req, res, next) => {
           spinDuration: spinSettings.spinDuration || 3000,
         }
 
-        console.log('Final spin settings:', updatedSettings.spinSettings)
+        debugLog('Final spin settings:', updatedSettings.spinSettings)
       }
 
       if (game.type === 'scratch' && updateData.settings.scratchSettings) {
-        console.log(
+        debugLog(
           'Updating scratch settings:',
           updateData.settings.scratchSettings
         )
@@ -1217,7 +1223,7 @@ export const updateGame = async (req, res, next) => {
             updateData.settings.scratchSettings.requirePoints || 10,
         }
 
-        console.log('Final scratch settings:', updatedSettings.scratchSettings)
+        debugLog('Final scratch settings:', updatedSettings.scratchSettings)
       }
 
       updateData.settings = updatedSettings
@@ -1234,7 +1240,7 @@ export const updateGame = async (req, res, next) => {
       }
     }
 
-    console.log('Final update data:', JSON.stringify(updateData, null, 2))
+    debugLog('Final update data:', JSON.stringify(updateData, null, 2))
 
     const updatedGame = await GameWheel.findByIdAndUpdate(
       gameId,
@@ -1242,8 +1248,8 @@ export const updateGame = async (req, res, next) => {
       { new: true, runValidators: true }
     )
 
-    console.log('Game updated successfully:', updatedGame.title)
-    console.log(
+    debugLog('Game updated successfully:', updatedGame.title)
+    debugLog(
       'Updated settings:',
       JSON.stringify(updatedGame.settings, null, 2)
     )

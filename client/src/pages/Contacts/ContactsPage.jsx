@@ -179,6 +179,17 @@ const ContactsPage = () => {
     },
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: authService.deleteUser,
+    onSuccess: () => {
+      toast.success("User permanently deleted from database.");
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || "Failed to delete user");
+    },
+  });
+
   // Pagination
   const pagination = usersData?.data?.pagination || {};
   const users = usersData?.data?.users || [];
@@ -196,6 +207,33 @@ const ContactsPage = () => {
   const handleCreateUser = async (userData) => {
     await createUserMutation.mutateAsync(userData);
     setIsAddUserOpen(false);
+  };
+
+  const handleDeleteUser = async (user) => {
+    if (!isSuperAdmin) {
+      toast.error("Only super-admin can delete users.");
+      return;
+    }
+
+    const userId = user?._id || user?.userId || user?.id;
+    if (!userId) {
+      toast.error("Unable to delete this user.");
+      return;
+    }
+
+    if (userId === currentUser?._id || userId === currentUser?.id) {
+      toast.error("You cannot delete your own account.");
+      return;
+    }
+
+    const displayName = user?.name || user?.email || "this user";
+    const confirmed = window.confirm(
+      `Delete ${displayName} permanently?\n\nThis action cannot be undone and will remove the user from the database.`
+    );
+
+    if (!confirmed) return;
+
+    await deleteUserMutation.mutateAsync(userId);
   };
 
   const handleOpenNotificationSender = (user = null) => {
@@ -571,7 +609,11 @@ const ContactsPage = () => {
                                   <MoreVertical className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent
+                                align="end"
+                                onClick={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
+                              >
                                 {isSuperAdmin && (
                                   <DropdownMenuItem
                                     onClick={(e) => {
@@ -610,14 +652,18 @@ const ContactsPage = () => {
                                 {isSuperAdmin && (
                                   <DropdownMenuItem
                                     className="text-red-600"
-                                    onClick={(e) => {
+                                    disabled={deleteUserMutation.isPending}
+                                    onSelect={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
-                                      // Implementation for delete would go here
-                                      toast.error("Delete functionality pending");
+                                      void handleDeleteUser(user);
                                     }}
                                   >
                                     <Trash2 className="w-4 h-4 mr-2" />
-                                    Delete User
+                                    {deleteUserMutation.isPending &&
+                                    deleteUserMutation.variables === userId
+                                      ? "Deleting..."
+                                      : "Delete User"}
                                   </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>

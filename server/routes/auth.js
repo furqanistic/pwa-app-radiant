@@ -79,7 +79,7 @@ router.get('/all-users', checkManagementAccess, canViewUsers, getAllUsers)
 // Delete user account
 router.delete(
   '/delete/:id',
-  requireAdminOrAbove,
+  requireSuperAdmin,
   canManageUser,
   auditLog('user_delete'),
   deleteUser

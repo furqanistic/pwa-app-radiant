@@ -9,8 +9,21 @@ import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import { processPendingQrClaimsForUser } from '../utils/qrPendingClaims.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
+import { enrollContactInWorkflowForLocation } from './ghl.js'
 import { createSystemNotification } from './notification.js'
 import { updateUserTier } from './referral.js'
+
+const isVerboseServerLogsEnabled =
+  String(process.env.VERBOSE_SERVER_LOGS || '').toLowerCase() === 'true'
+const debugLog = (...args) => {
+  if (isVerboseServerLogsEnabled) console.log(...args)
+}
+const debugInfo = (...args) => {
+  if (isVerboseServerLogsEnabled) console.info(...args)
+}
+const debugWarn = (...args) => {
+  if (isVerboseServerLogsEnabled) console.warn(...args)
+}
 
 const signToken = (id) => {
   const jwtSecret = process.env.JWT_SECRET
@@ -29,7 +42,7 @@ const signToken = (id) => {
   })
 }
 
-const createSendToken = (user, statusCode, res) => {
+const createSendToken = (user, statusCode, res, extraData = null) => {
   try {
     const token = signToken(user._id)
     const useExpiringSessions =
@@ -52,6 +65,7 @@ const createSendToken = (user, statusCode, res) => {
       token,
       data: {
         user,
+        ...(extraData && typeof extraData === 'object' ? extraData : {}),
       },
     })
   } catch (error) {
@@ -83,6 +97,137 @@ const generateUniqueReferralCode = async () => {
   }
 
   return code
+}
+
+const parseCsvEnv = (value = '') =>
+  `${value || ''}`
+    .split(',')
+    .map((entry) => `${entry || ''}`.trim())
+    .filter(Boolean)
+
+const SIGNUP_WORKFLOW_PRIMARY_ID =
+  `${process.env.GHL_SIGNUP_WORKFLOW_ID || ''}`.trim()
+const SIGNUP_WORKFLOW_FALLBACK_ID =
+  `${process.env.GHL_SIGNUP_WORKFLOW_FALLBACK_ID || ''}`.trim()
+const SIGNUP_WORKFLOW_IDS = Array.from(
+  new Set(
+    [
+      ...parseCsvEnv(process.env.GHL_SIGNUP_WORKFLOW_IDS),
+      SIGNUP_WORKFLOW_PRIMARY_ID,
+      SIGNUP_WORKFLOW_FALLBACK_ID,
+    ].filter(Boolean)
+  )
+)
+
+const summarizeGhlError = (error) => {
+  const statusCode = error?.response?.status || error?.response?.data?.statusCode || null
+  const message = `${error?.response?.data?.message || error?.response?.data?.msg || error?.message || ''}`.trim()
+  return {
+    statusCode,
+    message,
+  }
+}
+
+const attemptSignupWorkflowEnrollment = async ({
+  user = null,
+  locationId = '',
+} = {}) => {
+  const normalizedLocationId = `${locationId || ''}`.trim()
+  const normalizedEmail = `${user?.email || ''}`.trim().toLowerCase()
+  const normalizedPhone = `${user?.phone || ''}`.trim()
+
+  if (
+    !user?._id ||
+    !normalizedLocationId ||
+    (!normalizedPhone && !normalizedEmail)
+  ) {
+    const skipInfo = {
+      userId: `${user?._id || ''}`,
+      locationId: normalizedLocationId,
+      hasEmail: Boolean(normalizedEmail),
+      hasPhone: Boolean(normalizedPhone),
+      reason: 'Missing user, location, or contact identity (email/phone)',
+    }
+    debugInfo('[Auth:SignupWorkflow] Enrollment skipped', skipInfo)
+    console.warn('[Auth:SignupWorkflow] Enrollment skipped', skipInfo)
+    return {
+      attempted: false,
+      success: false,
+      reason: 'Missing user, location, or contact identity (email/phone)',
+    }
+  }
+
+  if (!SIGNUP_WORKFLOW_IDS.length) {
+    const skipInfo = {
+      userId: `${user?._id || ''}`,
+      locationId: normalizedLocationId,
+      hasEmail: Boolean(normalizedEmail),
+      hasPhone: Boolean(normalizedPhone),
+      reason: 'No signup workflow IDs configured',
+    }
+    debugInfo('[Auth:SignupWorkflow] Enrollment skipped', skipInfo)
+    console.warn('[Auth:SignupWorkflow] Enrollment skipped', skipInfo)
+    return {
+      attempted: false,
+      success: false,
+      reason: 'No signup workflow IDs configured',
+    }
+  }
+
+  debugInfo('[Auth:SignupWorkflow] Enrollment start', {
+    userId: `${user?._id || ''}`,
+    locationId: normalizedLocationId,
+    hasEmail: Boolean(normalizedEmail),
+    hasPhone: Boolean(normalizedPhone),
+    workflowIds: SIGNUP_WORKFLOW_IDS,
+  })
+
+  const attemptErrors = []
+  for (const workflowId of SIGNUP_WORKFLOW_IDS) {
+    try {
+      const result = await enrollContactInWorkflowForLocation(normalizedLocationId, {
+        workflowId,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        name: user.name,
+      })
+
+      debugInfo('[Auth:SignupWorkflow] Enrollment success', {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        workflowId,
+        contactId: result?.contactId || '',
+      })
+
+      return {
+        attempted: true,
+        success: true,
+        workflowId,
+        contactId: result?.contactId || '',
+      }
+    } catch (error) {
+      const summary = summarizeGhlError(error)
+      attemptErrors.push({
+        workflowId,
+        ...summary,
+      })
+      const failureInfo = {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        workflowId,
+        ...summary,
+      }
+      debugWarn('[Auth:SignupWorkflow] Enrollment failed', failureInfo)
+      console.warn('[Auth:SignupWorkflow] Enrollment failed', failureInfo)
+    }
+  }
+
+  return {
+    attempted: true,
+    success: false,
+    reason: 'All configured signup workflows failed',
+    errors: attemptErrors,
+  }
 }
 
 const USERS_LIST_CACHE_TTL_MS = 60 * 1000
@@ -505,7 +650,7 @@ export const changeUserRole = async (req, res, next) => {
     )
 
     // Log the role change
-    console.log(
+    debugLog(
       `Role change: ${targetUser.email} (${previousRole} → ${newRole}) by ${currentUser.email}`
     )
 
@@ -828,6 +973,12 @@ export const signup = async (req, res, next) => {
     if (locationData) userData.selectedLocation = locationData
 
     const newUser = await User.create(userData)
+    debugInfo('[Auth:Signup] User created', {
+      userId: `${newUser?._id || ''}`,
+      email: newUser?.email || '',
+      hasPhone: Boolean(`${newUser?.phone || ''}`.trim()),
+      assignedLocation: locationData?.locationId || '',
+    })
 
     // If this email scanned a QR before account creation, auto-claim those
     // pending rewards immediately after signup.
@@ -842,6 +993,21 @@ export const signup = async (req, res, next) => {
       )
     }
 
+    const signupWorkflowResult = await attemptSignupWorkflowEnrollment({
+      user: newUser,
+      locationId: locationData?.locationId || '',
+    })
+    if (!signupWorkflowResult?.success && signupWorkflowResult?.attempted) {
+      const incompleteInfo = {
+        userId: `${newUser?._id || ''}`,
+        locationId: locationData?.locationId || '',
+        reason: signupWorkflowResult?.reason || 'Unknown',
+        errors: signupWorkflowResult?.errors || [],
+      }
+      debugWarn('[Auth:SignupWorkflow] Enrollment not completed after signup', incompleteInfo)
+      console.warn('[Auth:SignupWorkflow] Enrollment not completed after signup', incompleteInfo)
+    }
+
     const responseUser = {
       ...newUser.toObject(),
       password: undefined,
@@ -849,7 +1015,9 @@ export const signup = async (req, res, next) => {
       referralMessage: referralResult.message,
     }
 
-    createSendToken(responseUser, 201, res)
+    createSendToken(responseUser, 201, res, {
+      signupWorkflow: signupWorkflowResult,
+    })
   } catch (err) {
     console.error('Error in signup:', err)
     next(createError(500, 'An unexpected error occurred during signup'))
@@ -1233,7 +1401,7 @@ export const getOnboardingStatus = async (req, res, next) => {
     }
 
     // Debug logging to see what we're checking
-    console.log('Onboarding Status Debug:', {
+    debugLog('Onboarding Status Debug:', {
       userId: user._id,
       hasSelectedLocation: !!user.selectedLocation,
       locationId: user.selectedLocation?.locationId,
@@ -1261,7 +1429,7 @@ export const getOnboardingStatus = async (req, res, next) => {
               user.markModified('selectedLocation');
             }
             await user.save({ validateBeforeSave: false });
-            console.log(`Auto-synced logo for user ${user.email}`);
+            debugLog(`Auto-synced logo for user ${user.email}`);
           }
         }
       } catch (syncError) {
@@ -1639,21 +1807,8 @@ export const deleteUser = async (req, res, next) => {
   try {
     const userId = req.params.id
 
-    if (
-      req.user.id !== userId &&
-      !['admin', 'super-admin'].includes(req.user.role)
-    ) {
-      return next(createError(403, 'You can only delete your own account'))
-    }
-
-    const targetUser = await User.findById(userId)
-    if (!targetUser) {
-      return next(createError(404, 'No user found with that ID'))
-    }
-
-    // Prevent non-super-admins from deleting super-admins
-    if (targetUser.role === 'super-admin' && req.user.role !== 'super-admin') {
-      return next(createError(403, 'Cannot delete super-admin user'))
+    if (req.user.role !== 'super-admin') {
+      return next(createError(403, 'Super-Admin access required'))
     }
 
     // Prevent deleting yourself
@@ -1661,15 +1816,21 @@ export const deleteUser = async (req, res, next) => {
       return next(createError(400, 'Cannot delete your own account'))
     }
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { isDeleted: true },
-      { new: true }
-    )
+    const targetUser = await User.findById(userId)
+    if (!targetUser) {
+      return next(createError(404, 'No user found with that ID'))
+    }
+
+    // Keep super-admin accounts protected from deletion.
+    if (targetUser.role === 'super-admin') {
+      return next(createError(403, 'Cannot delete super-admin user'))
+    }
+
+    await User.findByIdAndDelete(userId)
 
     res.status(200).json({
       status: 'success',
-      message: 'User deleted successfully',
+      message: 'User permanently deleted successfully',
     })
   } catch (error) {
     next(error)
@@ -1758,7 +1919,7 @@ export const selectSpa = async (req, res, next) => {
     const { locationId, referralCode } = req.body
     const userId = req.user.id
 
-    console.log('selectSpa called with:', { locationId, referralCode, userId })
+    debugLog('selectSpa called with:', { locationId, referralCode, userId })
 
     if (!locationId) {
       return next(createError(400, 'Location ID is required'))
@@ -1780,7 +1941,7 @@ export const selectSpa = async (req, res, next) => {
       return next(createError(404, 'Location not found or inactive'))
     }
 
-    console.log('Found location:', location)
+    debugLog('Found location:', location)
 
     const alreadyAwardedProfileCompletion = Boolean(
       user.onboardingRewards?.profileCompletion?.awarded
@@ -1820,7 +1981,7 @@ export const selectSpa = async (req, res, next) => {
 
     await user.save()
 
-    console.log('User updated with location:', user.selectedLocation)
+    debugLog('User updated with location:', user.selectedLocation)
 
     const profileCompletionMethod = await getPointsMethodForLocation(
       location.locationId,
@@ -1846,7 +2007,7 @@ export const selectSpa = async (req, res, next) => {
           referralCode.trim()
         )
         rewardResponse.referral = referralResult
-        console.log('Referral processing result:', referralResult)
+        debugLog('Referral processing result:', referralResult)
       } catch (error) {
         console.error('Referral processing error:', error)
         // Don't fail the entire request if referral fails

@@ -34,7 +34,7 @@ import {
     User,
     Zap,
 } from 'lucide-react'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
     useLocation,
@@ -239,6 +239,34 @@ const AuthPage = () => {
   })
 
   const [searchTerm, setSearchTerm] = useState('')
+  const isAuthDebugEnabled = useMemo(() => {
+    if (typeof window === 'undefined') return true
+    const authDebug = window.localStorage.getItem('auth-debug')
+    const ghlDebug = window.localStorage.getItem('ghl-debug')
+    if (
+      authDebug === '1' ||
+      authDebug === 'true' ||
+      ghlDebug === '1' ||
+      ghlDebug === 'true'
+    ) {
+      return true
+    }
+    return Boolean(import.meta.env.DEV)
+  }, [])
+  const logAuthDebug = useCallback(
+    (...args) => {
+      if (!isAuthDebugEnabled) return
+      console.log('[AuthPage][SignupAutomation]', ...args)
+    },
+    [isAuthDebugEnabled]
+  )
+  const warnAuthDebug = useCallback(
+    (...args) => {
+      if (!isAuthDebugEnabled) return
+      console.warn('[AuthPage][SignupAutomation]', ...args)
+    },
+    [isAuthDebugEnabled]
+  )
 
   // Fetch active locations for the selector
   const {
@@ -324,16 +352,42 @@ const AuthPage = () => {
   const signupMutation = useMutation({
     mutationFn: signupUser,
     onMutate: () => {
+      logAuthDebug('Signup mutation started', {
+        locationId: locationId || '',
+        email: formData.email || '',
+        hasPhone: Boolean(`${formData.phone || ''}`.trim()),
+      })
       dispatch(loginStart())
       setLocalError(null)
       setSuccess(null)
     },
     onSuccess: async (data) => {
+      const signupWorkflow =
+        data?.data?.signupWorkflow || data?.signupWorkflow || null
       if (data.token) {
         localStorage.setItem('token', data.token)
       }
       dispatch(loginSuccess(data))
       const role = getRoleFromAuthPayload(data)
+      logAuthDebug('Signup response received', {
+        hasToken: Boolean(data?.token),
+        role: role || '',
+        locationId: locationId || '',
+        signupWorkflow,
+      })
+      if (signupWorkflow?.attempted && !signupWorkflow?.success) {
+        console.warn(
+          '[AuthPage][SignupAutomation] Signup workflow enrollment failed',
+          signupWorkflow
+        )
+        warnAuthDebug('Signup workflow enrollment failed', signupWorkflow)
+      } else if (!signupWorkflow?.attempted) {
+        console.warn(
+          '[AuthPage][SignupAutomation] Signup workflow enrollment skipped',
+          signupWorkflow
+        )
+        warnAuthDebug('Signup workflow enrollment skipped', signupWorkflow)
+      }
 
       if (locationId && shouldSyncSelectedLocationForRole(role)) {
         try {
@@ -373,6 +427,11 @@ const AuthPage = () => {
         error.response?.data?.message ||
         error.message ||
         'Signup failed. Please try again.'
+      warnAuthDebug('Signup request failed', {
+        locationId: locationId || '',
+        message: errorMessage,
+        response: error?.response?.data || null,
+      })
       setLocalError(errorMessage)
       dispatch(loginFailure(errorMessage))
     },
@@ -477,6 +536,13 @@ const AuthPage = () => {
         assignedLocation: locationId,
         dateOfBirth: formData.birthdate,
       }
+      logAuthDebug('Submitting signup payload', {
+        locationId: locationId || '',
+        assignedLocation: signupData.assignedLocation || '',
+        email: signupData.email || '',
+        hasPhone: Boolean(`${signupData.phone || ''}`.trim()),
+        hasDateOfBirth: Boolean(`${signupData.dateOfBirth || ''}`.trim()),
+      })
       signupMutation.mutate(signupData)
     } else {
       const signinData = {
