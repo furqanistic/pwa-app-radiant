@@ -51,7 +51,8 @@ const ClaimRewardPage = () => {
         try {
             const response = await qrCodeService.scanQRCode(
                 qrId,
-                email.trim().toLowerCase()
+                email.trim().toLowerCase(),
+                "claim"
             );
 
             if (response.status === "success" || response.status === "verified") {

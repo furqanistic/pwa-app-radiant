@@ -45,6 +45,12 @@ const QRCodeScanSchema = new mongoose.Schema(
       enum: ["pending", "verified", "rejected"],
       default: "pending",
     },
+    scanType: {
+      type: String,
+      enum: ["claim", "checkin"],
+      default: "claim",
+      index: true,
+    },
     // Track the transactions created
     userTransactionId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -85,5 +91,6 @@ QRCodeScanSchema.index({ spaOwnerId: 1, createdAt: -1 });
 QRCodeScanSchema.index({ scannedByUser: 1, createdAt: -1 });
 QRCodeScanSchema.index({ qrId: 1, createdAt: -1 });
 QRCodeScanSchema.index({ status: 1, createdAt: -1 });
+QRCodeScanSchema.index({ scanType: 1, createdAt: -1 });
 
 export default mongoose.model("QRCodeScan", QRCodeScanSchema);

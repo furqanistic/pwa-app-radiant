@@ -32,6 +32,8 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
   const dispatch = useDispatch()
   const { branding } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
+  const scannedPurpose = scannedData?.purpose || 'claim'
+  const isCheckInScan = scannedPurpose === 'checkin'
   // Start camera
   const startCamera = async () => {
     try {
@@ -106,7 +108,9 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
               const url = new URL(code.data)
               const qrId = url.searchParams.get('qrId')
               if (qrId) {
-                setScannedData({ qrId })
+                const urlPath = `${url.pathname || ''}`.toLowerCase()
+                const purpose = urlPath.includes('/check-in') ? 'checkin' : 'claim'
+                setScannedData({ qrId, purpose })
                 stopCamera()
                 setStep('email')
                 toast.success('QR code detected!')
@@ -121,7 +125,11 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
           try {
             const qrData = JSON.parse(code.data)
             if (qrData.qrId) {
-              setScannedData(qrData)
+              const purpose =
+                `${qrData?.purpose || qrData?.type || ''}`.toLowerCase() === 'checkin'
+                  ? 'checkin'
+                  : 'claim'
+              setScannedData({ ...qrData, purpose })
               stopCamera()
               setStep('email')
               toast.success('QR code detected!')
@@ -130,7 +138,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
           } catch (e) {
             // Handle raw QR ID
             if (code.data.startsWith('QR_')) {
-              setScannedData({ qrId: code.data })
+              setScannedData({ qrId: code.data, purpose: 'claim' })
               stopCamera()
               setStep('email')
               toast.success('QR code detected!')
@@ -160,7 +168,8 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
    try {
      const response = await qrCodeService.scanQRCode(
        scannedData.qrId,
-       normalizedEmail
+       normalizedEmail,
+       scannedData?.purpose || 'claim'
      );
 
      if (response.status === "success" || response.status === "verified") {
@@ -168,7 +177,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
        console.log("Total points:", response.data?.user?.totalPoints);
 
        // ✅ UPDATE REDUX WITH TOTAL POINTS
-       if (response.data?.user?.totalPoints) {
+       if (typeof response.data?.user?.totalPoints === 'number') {
          console.log(
            "Dispatching setPoints with:",
            response.data.user.totalPoints
@@ -181,7 +190,11 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
          message: response.message,
          data: response.data,
        });
-       toast.success("Points awarded!");
+       toast.success(
+         response?.data?.scanType === 'checkin'
+           ? 'Check-in recorded!'
+           : 'Points awarded!'
+       );
      } else if (response.status === "pending") {
        setResult({
          success: false,
@@ -202,7 +215,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
    } finally {
      setLoading(false);
    }
- }, [dispatch, scannedData?.qrId])
+ }, [dispatch, scannedData?.purpose, scannedData?.qrId])
 
   // Handle scan submission
  const handleScanSubmit = async (e) => {
@@ -279,7 +292,9 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
             <div className="bg-white px-6 py-5 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 tracking-tight">Scan QR Code</h2>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mt-0.5">Earn points per scan</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mt-0.5">
+                        Scan rewards or check-in QR
+                      </p>
               </div>
               <button
                 onClick={handleClose}
@@ -385,7 +400,7 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                       ) : (
                         <>
                           <Check className="w-4 h-4" />
-                          CONFIRM & EARN
+                          {isCheckInScan ? 'CONFIRM CHECK-IN' : 'CONFIRM & EARN'}
                         </>
                       )}
                     </button>
@@ -420,12 +435,12 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                           <Check className="w-10 h-10 text-white" strokeWidth={4} />
                         </motion.div>
                         <h3 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">
-                          Verification Success!
+                          {isCheckInScan ? 'Check-In Success!' : 'Verification Success!'}
                         </h3>
                         <p className="text-sm font-medium text-gray-500 mb-8">{result.message}</p>
                       </div>
 
-                      {result.data?.user && (
+                      {result.data?.user && !isCheckInScan && (
                         <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 space-y-4">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">

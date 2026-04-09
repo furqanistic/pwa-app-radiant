@@ -7,6 +7,8 @@ import {
     AlertCircle,
     Calendar,
     Check,
+    ChevronDown,
+    ChevronUp,
     Crown,
     Download,
     Edit3,
@@ -507,7 +509,10 @@ const ProfilePage = () => {
 
   const [editingField, setEditingField] = useState(null);
   const [tempValues, setTempValues] = useState({});
-  const [spaQrImage, setSpaQrImage] = useState(null);
+  const [spaClaimQrImage, setSpaClaimQrImage] = useState(null);
+  const [spaCheckInQrImage, setSpaCheckInQrImage] = useState(null);
+  const [isQrDownloadPanelOpen, setIsQrDownloadPanelOpen] = useState(false);
+  const [generatingSpaQrPurpose, setGeneratingSpaQrPurpose] = useState(null);
 
   // Format user data
   const user = userData
@@ -537,45 +542,79 @@ const ProfilePage = () => {
   const spaBusinessLocationId = user?.spaLocation?.locationId || null;
 
   const {
-    data: spaQrData,
-    isLoading: isLoadingSpaQr,
-    error: spaQrError,
+    data: spaClaimQrData,
+    isLoading: isLoadingSpaClaimQr,
+    error: spaClaimQrError,
   } = useQuery({
-    queryKey: ["profile-location-qr", spaLocationDbId, spaBusinessLocationId],
+    queryKey: ["profile-location-qr", "claim", spaLocationDbId, spaBusinessLocationId],
     queryFn: () => {
       if (spaLocationDbId) {
-        return qrCodeService.getLocationQRCode(spaLocationDbId);
+        return qrCodeService.getLocationQRCode(spaLocationDbId, "claim");
       }
-      return qrCodeService.getLocationQRCodeByBusinessId(spaBusinessLocationId);
+      return qrCodeService.getLocationQRCodeByBusinessId(spaBusinessLocationId, "claim");
     },
     enabled: isSpaUser && (!!spaLocationDbId || !!spaBusinessLocationId),
     retry: false,
   });
 
-  const spaQr = spaQrData?.data || null;
+  const {
+    data: spaCheckInQrData,
+    isLoading: isLoadingSpaCheckInQr,
+    error: spaCheckInQrError,
+  } = useQuery({
+    queryKey: ["profile-location-qr", "checkin", spaLocationDbId, spaBusinessLocationId],
+    queryFn: () => {
+      if (spaLocationDbId) {
+        return qrCodeService.getLocationQRCode(spaLocationDbId, "checkin");
+      }
+      return qrCodeService.getLocationQRCodeByBusinessId(spaBusinessLocationId, "checkin");
+    },
+    enabled: isSpaUser && (!!spaLocationDbId || !!spaBusinessLocationId),
+    retry: false,
+  });
+
+  const spaClaimQr = spaClaimQrData?.data || null;
+  const spaCheckInQr = spaCheckInQrData?.data || null;
+
+  const buildSpaQrUrl = (purpose, qrId) => {
+    if (!qrId) return null;
+    const path = purpose === "checkin" ? "/check-in" : "/claim-reward";
+    return `${FRONTEND_URL}${path}?qrId=${qrId}`;
+  };
+
+  const generateSpaQrImageFromUrl = async (url, width = 300) => {
+    if (!url) return null;
+    return QRCodeLib.toDataURL(url, {
+      width,
+      margin: 1,
+      errorCorrectionLevel: "H",
+      color: {
+        dark: "#000000",
+        light: "#FFFFFF",
+      },
+    });
+  };
 
   useEffect(() => {
-    const generateSpaQrImage = async () => {
-      if (!spaQr?.qrId) {
-        setSpaQrImage(null);
-        return;
-      }
-
+    const generateSpaPreviewQrImages = async () => {
       try {
-        const claimUrl = `${FRONTEND_URL}/claim-reward?qrId=${spaQr.qrId}`;
-        const image = await QRCodeLib.toDataURL(claimUrl, {
-          width: 280,
-          margin: 2,
-        });
-        setSpaQrImage(image);
+        const claimUrl = buildSpaQrUrl("claim", spaClaimQr?.qrId);
+        const checkInUrl = buildSpaQrUrl("checkin", spaCheckInQr?.qrId);
+        const [claimImage, checkInImage] = await Promise.all([
+          generateSpaQrImageFromUrl(claimUrl, 320),
+          generateSpaQrImageFromUrl(checkInUrl, 320),
+        ]);
+        setSpaClaimQrImage(claimImage);
+        setSpaCheckInQrImage(checkInImage);
       } catch (qrGenerationError) {
         console.error("Failed to generate profile QR image:", qrGenerationError);
-        setSpaQrImage(null);
+        setSpaClaimQrImage(null);
+        setSpaCheckInQrImage(null);
       }
     };
 
-    generateSpaQrImage();
-  }, [spaQr?.qrId]);
+    generateSpaPreviewQrImages();
+  }, [spaClaimQr?.qrId, spaCheckInQr?.qrId]);
     
   const getMembershipDisplay = (user) => {
     const membershipStatus = String(
@@ -702,20 +741,64 @@ const ProfilePage = () => {
     setTempValues({ ...tempValues, [field]: value });
   };
 
-  const handleDownloadSpaQr = () => {
-    if (!spaQrImage) return;
+  const handleGenerateSpaQr = async (purpose) => {
+    if (!spaLocationDbId) {
+      toastError("Location not loaded yet. Please try again.");
+      return;
+    }
 
-    const link = document.createElement("a");
-    link.href = spaQrImage;
-    const locationName =
-      myLocation?.name || user?.spaLocation?.locationName || "location";
-    const safeLocationName = locationName.trim().replace(/\s+/g, "-").toLowerCase();
-    link.download = `${safeLocationName}-qr-code.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      setGeneratingSpaQrPurpose(purpose);
+      await qrCodeService.generateQRCode(spaLocationDbId, purpose);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["profile-location-qr", "claim", spaLocationDbId, spaBusinessLocationId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["profile-location-qr", "checkin", spaLocationDbId, spaBusinessLocationId],
+        }),
+      ]);
+      toastSuccess(
+        purpose === "checkin"
+          ? "Check-in QR generated successfully"
+          : "Claim rewards QR generated successfully"
+      );
+    } catch (generationError) {
+      toastError(
+        generationError?.response?.data?.message || "Could not generate QR code."
+      );
+    } finally {
+      setGeneratingSpaQrPurpose(null);
+    }
+  };
 
-    toastSuccess("QR code downloaded successfully");
+  const handleDownloadSpaQr = async (purpose) => {
+    const qrId = purpose === "checkin" ? spaCheckInQr?.qrId : spaClaimQr?.qrId;
+    if (!qrId) {
+      toastError("QR code is not available yet.");
+      return;
+    }
+
+    try {
+      const locationName =
+        myLocation?.name || user?.spaLocation?.locationName || "location";
+      const safeLocationName = locationName.trim().replace(/\s+/g, "-").toLowerCase();
+      const filenameSuffix = purpose === "checkin" ? "check-in" : "claim-rewards";
+      const downloadUrl = buildSpaQrUrl(purpose, qrId);
+      const highResImage = await generateSpaQrImageFromUrl(downloadUrl, 1400);
+
+      const link = document.createElement("a");
+      link.href = highResImage;
+      link.download = `${safeLocationName}-${filenameSuffix}-qr-high-res.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toastSuccess("High-resolution QR code downloaded successfully");
+    } catch (downloadError) {
+      console.error("Failed to download high-res QR:", downloadError);
+      toastError("Could not download QR code. Please try again.");
+    }
   };
 
   if (isLoading) return <LoadingState />;
@@ -746,7 +829,7 @@ const ProfilePage = () => {
               <div className="space-y-3">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">
                   <Sparkles size={12} className="text-yellow-200 fill-yellow-200" />
-                  {getMembershipDisplay(user)}
+                  {isSpaUser ? "Spa Account" : getMembershipDisplay(user)}
                 </div>
                 <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight">
                   Hello, {user.name.split(" ")[0]}
@@ -773,68 +856,70 @@ const ProfilePage = () => {
           </motion.div>
 
           <div className="mt-6 grid grid-cols-1 xl:grid-cols-12 gap-6">
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.03 }}
-              className="xl:col-span-12"
-            >
-              <div className="bg-white rounded-2xl border-2 border-gray-200/70 p-6 lg:p-7">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
-                      <Crown className="w-5 h-5" />
+            {!isSpaUser && (
+              <motion.div
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.03 }}
+                className="xl:col-span-12"
+              >
+                <div className="bg-white rounded-2xl border-2 border-gray-200/70 p-6 lg:p-7">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
+                        <Crown className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-gray-900">
+                          Membership Status
+                        </h3>
+                        <p className="text-sm text-gray-500 font-medium">
+                          Plan and billing period details
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-xl font-black text-gray-900">
-                        Membership Status
-                      </h3>
-                      <p className="text-sm text-gray-500 font-medium">
-                        Plan and billing period details
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                        isMembershipActive
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {isMembershipActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold">
+                        Plan
+                      </p>
+                      <p className="text-sm font-extrabold text-gray-900 mt-1">
+                        {membershipPlanName}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        Start Date
+                      </p>
+                      <p className="text-sm font-extrabold text-gray-900 mt-1">
+                        {formatMembershipDate(membershipStartDate)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        End Date
+                      </p>
+                      <p className="text-sm font-extrabold text-gray-900 mt-1">
+                        {formatMembershipDate(membershipEndDate)}
                       </p>
                     </div>
                   </div>
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
-                      isMembershipActive
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {isMembershipActive ? "Active" : "Inactive"}
-                  </span>
                 </div>
-
-                <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold">
-                      Plan
-                    </p>
-                    <p className="text-sm font-extrabold text-gray-900 mt-1">
-                      {membershipPlanName}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Start Date
-                    </p>
-                    <p className="text-sm font-extrabold text-gray-900 mt-1">
-                      {formatMembershipDate(membershipStartDate)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      End Date
-                    </p>
-                    <p className="text-sm font-extrabold text-gray-900 mt-1">
-                      {formatMembershipDate(membershipEndDate)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            )}
 
             <motion.div
               initial={{ opacity: 0, y: 18 }}
@@ -902,59 +987,170 @@ const ProfilePage = () => {
                   transition={{ delay: 0.09 }}
                   className="bg-white rounded-2xl border-2 border-gray-200/70 p-6"
                 >
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
-                      <QrCode className="w-5 h-5" />
+                  <div className="flex items-center justify-between gap-3 mb-5">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
+                        <QrCode className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-gray-900">QR Download Center</h3>
+                        <p className="text-sm text-gray-500 font-medium">Claim and check-in codes for your location</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-xl font-black text-gray-900">Location QR</h3>
-                      <p className="text-sm text-gray-500 font-medium">Share or print for in-person scans</p>
+                    <div className="hidden md:inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700">
+                      <MapPin className="w-3.5 h-3.5 text-[color:var(--brand-primary)]" />
+                      <span className="max-w-[160px] truncate">{activeLocationName}</span>
                     </div>
                   </div>
 
-                  {isLoadingMyLocation || isLoadingSpaQr ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading QR code...
-                    </div>
-                  ) : !myLocation && !spaBusinessLocationId ? (
+                  {!myLocation && !spaBusinessLocationId ? (
                     <p className="text-sm text-gray-500">
                       No assigned location found for your account.
                     </p>
-                  ) : spaQr?.qrId && spaQrImage ? (
-                    <div className="space-y-5">
-                      <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 grid place-items-center">
-                        <img
-                          src={spaQrImage}
-                          alt={`QR for ${myLocation?.name || "assigned location"}`}
-                          className="w-52 h-52 object-contain"
-                        />
-                      </div>
-                      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
-                        <MapPin className="h-4 w-4 text-[color:var(--brand-primary)]" />
-                        <span className="truncate">{activeLocationName}</span>
-                      </div>
-                      <Button
-                        onClick={handleDownloadSpaQr}
-                        aria-label="Download location QR code"
-                        className="w-full rounded-xl py-3 text-sm font-bold"
-                        style={{
-                          background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
-                          color: "#fff",
-                        }}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download QR Code
-                      </Button>
-                    </div>
-                  ) : spaQrError?.response?.status === 404 ? (
-                    <p className="text-sm text-gray-500">
-                      No QR code has been generated for your location yet.
-                    </p>
                   ) : (
-                    <p className="text-sm text-gray-500">
-                      Could not load your location QR code right now. Please try again.
-                    </p>
+                    <div className="space-y-4">
+                      <button
+                        onClick={() => setIsQrDownloadPanelOpen((prev) => !prev)}
+                        className="w-full rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white hover:from-gray-100 hover:to-white px-4 py-3.5 flex items-center justify-between text-left transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-black uppercase tracking-widest text-gray-500">
+                            Location QRs
+                          </p>
+                          <p className="text-sm font-extrabold text-gray-900 truncate">
+                            Download for {activeLocationName}
+                          </p>
+                        </div>
+                        {isQrDownloadPanelOpen ? (
+                          <ChevronUp className="w-4 h-4 text-gray-500 shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-500 shrink-0" />
+                        )}
+                      </button>
+
+                      {isQrDownloadPanelOpen && (
+                        <div className="space-y-4">
+                          {isLoadingMyLocation || isLoadingSpaClaimQr || isLoadingSpaCheckInQr ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Loading your QR codes...
+                            </div>
+                          ) : (
+                            <>
+                              <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                                    Claim Rewards
+                                  </p>
+                                  <span className="text-[10px] font-black uppercase tracking-widest rounded-full px-2 py-1 bg-pink-100 text-pink-700">
+                                    Points
+                                  </span>
+                                </div>
+                                {spaClaimQr?.qrId && spaClaimQrImage ? (
+                                  <>
+                                    <div className="grid place-items-center">
+                                      <img
+                                        src={spaClaimQrImage}
+                                        alt="Claim rewards QR"
+                                        className="w-44 h-44 object-contain"
+                                      />
+                                    </div>
+                                    <Button
+                                      onClick={() => handleDownloadSpaQr("claim")}
+                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      style={{
+                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        color: "#fff",
+                                      }}
+                                    >
+                                      <Download className="w-4 h-4 mr-2" />
+                                      Download Claim QR
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <p className="text-sm text-gray-500">
+                                      Claim QR not generated yet.
+                                    </p>
+                                    <Button
+                                      onClick={() => handleGenerateSpaQr("claim")}
+                                      disabled={generatingSpaQrPurpose === "claim" || !spaLocationDbId}
+                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      style={{
+                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        color: "#fff",
+                                      }}
+                                    >
+                                      {generatingSpaQrPurpose === "claim" ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <QrCode className="w-4 h-4 mr-2" />
+                                      )}
+                                      {spaLocationDbId ? "Generate Claim QR" : "Loading Location..."}
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 space-y-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                                    Check-In
+                                  </p>
+                                  <span className="text-[10px] font-black uppercase tracking-widest rounded-full px-2 py-1 bg-indigo-100 text-indigo-700">
+                                    Visit
+                                  </span>
+                                </div>
+                                {spaCheckInQr?.qrId && spaCheckInQrImage ? (
+                                  <>
+                                    <div className="grid place-items-center">
+                                      <img
+                                        src={spaCheckInQrImage}
+                                        alt="Check-in QR"
+                                        className="w-44 h-44 object-contain"
+                                      />
+                                    </div>
+                                    <Button
+                                      onClick={() => handleDownloadSpaQr("checkin")}
+                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      style={{
+                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        color: "#fff",
+                                      }}
+                                    >
+                                      <Download className="w-4 h-4 mr-2" />
+                                      Download Check-In QR
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <p className="text-sm text-gray-500">
+                                      Check-in QR not generated yet.
+                                    </p>
+                                    <Button
+                                      onClick={() => handleGenerateSpaQr("checkin")}
+                                      disabled={generatingSpaQrPurpose === "checkin" || !spaLocationDbId}
+                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      style={{
+                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        color: "#fff",
+                                      }}
+                                    >
+                                      {generatingSpaQrPurpose === "checkin" ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <QrCode className="w-4 h-4 mr-2" />
+                                      )}
+                                      {spaLocationDbId ? "Generate Check-In QR" : "Loading Location..."}
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </motion.div>
               </div>

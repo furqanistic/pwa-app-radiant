@@ -3,7 +3,6 @@ import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Location from '../models/Location.js'
-import PointTransaction from '../models/PointTransaction.js'
 import QRCodeScan from '../models/QRCodeScan.js'
 import Referral from '../models/Referral.js'
 import User from '../models/User.js'
@@ -158,7 +157,7 @@ export const getDashboardData = async (req, res, next) => {
       }
 
       const dashboardLocation = await Location.findOne({ locationId })
-        .select('qrCode.lastResetAt')
+        .select('qrCode.lastResetAt checkInQrCode.lastResetAt')
         .lean()
 
       // 1. Build test-account scope once.
@@ -223,6 +222,7 @@ export const getDashboardData = async (req, res, next) => {
 
       const recentQrScans = await QRCodeScan.find({
         locationId,
+        scanType: 'checkin',
         status: 'verified',
         scannedByUser: { $nin: testUserIds, $ne: null },
         createdAt: { $gte: recentClaimsStart },
@@ -293,6 +293,7 @@ export const getDashboardData = async (req, res, next) => {
       const [recentQrClaimsTotal, recentQrClaimVisitorRows] = await Promise.all([
         QRCodeScan.countDocuments({
           locationId,
+          scanType: 'checkin',
           status: 'verified',
           scannedByUser: { $nin: testUserIds, $ne: null },
           createdAt: { $gte: recentClaimsStart },
@@ -301,6 +302,7 @@ export const getDashboardData = async (req, res, next) => {
           {
             $match: {
               locationId,
+              scanType: 'checkin',
               status: 'verified',
               scannedByUser: { $nin: testUserIds, $ne: null },
               createdAt: { $gte: recentClaimsStart },
@@ -438,7 +440,10 @@ export const getDashboardData = async (req, res, next) => {
             totalClaims: recentQrClaimsTotal,
             uniqueVisitors: recentQrClaimVisitorRows.length,
             latestClaimAt: recentQrClaims[0]?.claimedAt || null,
-            lastResetAt: dashboardLocation?.qrCode?.lastResetAt || null,
+            lastResetAt:
+              dashboardLocation?.checkInQrCode?.lastResetAt ||
+              dashboardLocation?.qrCode?.lastResetAt ||
+              null,
           },
           currentBookings,
           spaLocation: user.spaLocation,
@@ -598,111 +603,21 @@ export const resetRecentCheckIns = async (req, res, next) => {
     )
 
     const lastResetAt = new Date()
-    const recentVerifiedScans = await QRCodeScan.find({
-      locationId,
-      status: 'verified',
-      createdAt: { $gte: resetWindowStart },
-    })
-      .select(
-        'scannedByUser spaOwnerId pointsAwarded pointsAwardedToSpaOwner createdAt'
-      )
-      .lean()
-
-    const userPointAdjustments = new Map()
-    const spaPointAdjustments = new Map()
-
-    recentVerifiedScans.forEach((scan) => {
-      const scannedByUserId = scan?.scannedByUser?.toString()
-      const spaOwnerId = scan?.spaOwnerId?.toString()
-      const userPoints = Number(scan?.pointsAwarded || 0)
-      const spaPoints = Number(scan?.pointsAwardedToSpaOwner || 0)
-
-      if (scannedByUserId && userPoints > 0) {
-        userPointAdjustments.set(
-          scannedByUserId,
-          (userPointAdjustments.get(scannedByUserId) || 0) + userPoints
-        )
-      }
-
-      if (spaOwnerId && spaPoints > 0) {
-        spaPointAdjustments.set(
-          spaOwnerId,
-          (spaPointAdjustments.get(spaOwnerId) || 0) + spaPoints
-        )
-      }
-    })
-
     const location = await Location.findOne({ locationId })
-
-    for (const [userId, pointsToReverse] of userPointAdjustments.entries()) {
-      const account = await User.findById(userId).select('points')
-      if (!account) continue
-
-      const previousBalance = account.points || 0
-      const newBalance = previousBalance - pointsToReverse
-
-      account.points = newBalance
-      await account.save()
-
-      await PointTransaction.create({
-        user: account._id,
-        type: 'adjustment',
-        points: -pointsToReverse,
-        balance: newBalance,
-        description: `QR reset on ${lastResetAt.toISOString()} for recent check-ins`,
-        processedBy: user._id,
-        locationId,
-        metadata: {
-          resetType: 'recent_check_ins',
-          previousBalance,
-          newBalance,
-          pointsReversed: pointsToReverse,
-          resetWindowDays: RECENT_QR_CLAIMS_WINDOW_DAYS,
-          resetAt: lastResetAt,
-          transactionType: 'debit',
-        },
-      })
-    }
-
-    for (const [spaOwnerId, pointsToReverse] of spaPointAdjustments.entries()) {
-      const account = await User.findById(spaOwnerId).select('points')
-      if (!account) continue
-
-      const previousBalance = account.points || 0
-      const newBalance = previousBalance - pointsToReverse
-
-      account.points = newBalance
-      await account.save()
-
-      await PointTransaction.create({
-        user: account._id,
-        type: 'adjustment',
-        points: -pointsToReverse,
-        balance: newBalance,
-        description: `QR reset on ${lastResetAt.toISOString()} for recent check-ins`,
-        processedBy: user._id,
-        locationId,
-        metadata: {
-          resetType: 'recent_check_ins',
-          previousBalance,
-          newBalance,
-          pointsReversed: pointsToReverse,
-          resetWindowDays: RECENT_QR_CLAIMS_WINDOW_DAYS,
-          resetAt: lastResetAt,
-          transactionType: 'debit',
-          appliesTo: 'spa_owner',
-        },
-      })
-    }
 
     const deletedScansResult = await QRCodeScan.deleteMany({
       locationId,
+      scanType: 'checkin',
       createdAt: { $gte: resetWindowStart },
     })
 
     if (location) {
       location.qrCode = {
         ...(location.qrCode || {}),
+        lastResetAt,
+      }
+      location.checkInQrCode = {
+        ...(location.checkInQrCode || {}),
         lastResetAt,
       }
       await location.save()
@@ -714,16 +629,9 @@ export const resetRecentCheckIns = async (req, res, next) => {
       data: {
         days: RECENT_QR_CLAIMS_WINDOW_DAYS,
         deletedScans: deletedScansResult.deletedCount || 0,
-        reversedUserCount:
-          userPointAdjustments.size + spaPointAdjustments.size,
-        reversedUserPoints: [...userPointAdjustments.values()].reduce(
-          (sum, value) => sum + value,
-          0
-        ),
-        reversedSpaPoints: [...spaPointAdjustments.values()].reduce(
-          (sum, value) => sum + value,
-          0
-        ),
+        reversedUserCount: 0,
+        reversedUserPoints: 0,
+        reversedSpaPoints: 0,
         lastResetAt,
       },
     })

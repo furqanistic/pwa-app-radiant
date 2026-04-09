@@ -275,6 +275,38 @@ const LocationSchema = new mongoose.Schema(
         default: null,
       },
     },
+    checkInQrCode: {
+      qrId: {
+        type: String,
+        unique: true,
+        sparse: true,
+        default: null,
+      },
+      qrData: {
+        type: String,
+        default: null,
+      },
+      isEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      createdAt: {
+        type: Date,
+        default: null,
+      },
+      scans: {
+        type: Number,
+        default: 0,
+      },
+      lastScannedAt: {
+        type: Date,
+        default: null,
+      },
+      lastResetAt: {
+        type: Date,
+        default: null,
+      },
+    },
     // ==================== END QR CODE FIELDS ====================
 
     // ==================== MEMBERSHIP FIELDS ====================

@@ -3,10 +3,11 @@ import { axiosInstance } from "@/config";
 
 export const qrCodeService = {
   // Scan a QR code
-  scanQRCode: async (qrId, email) => {
+  scanQRCode: async (qrId, email, purpose) => {
     const response = await axiosInstance.post("/qr-codes/scan", {
       qrId,
       email,
+      purpose,
     });
     return response.data;
   },
@@ -18,45 +19,55 @@ export const qrCodeService = {
   },
 
   // Get QR code details for a location
-  getLocationQRCode: async (locationId) => {
-    const response = await axiosInstance.get(`/qr-codes/${locationId}`);
+  getLocationQRCode: async (locationId, purpose = "claim") => {
+    const response = await axiosInstance.get(`/qr-codes/${locationId}`, {
+      params: { purpose },
+    });
     return response.data;
   },
 
   // Get QR code details using business locationId
-  getLocationQRCodeByBusinessId: async (locationId) => {
+  getLocationQRCodeByBusinessId: async (locationId, purpose = "claim") => {
     const response = await axiosInstance.get(
-      `/qr-codes/by-location-id/${locationId}`
+      `/qr-codes/by-location-id/${locationId}`,
+      {
+        params: { purpose },
+      }
     );
     return response.data;
   },
 
   // Get QR code statistics (admin only)
-  getQRCodeStats: async (locationId) => {
-    const response = await axiosInstance.get(`/qr-codes/${locationId}/stats`);
+  getQRCodeStats: async (locationId, purpose = "claim") => {
+    const response = await axiosInstance.get(`/qr-codes/${locationId}/stats`, {
+      params: { purpose },
+    });
     return response.data;
   },
 
   // Generate QR code for a location (admin only)
-  generateQRCode: async (locationId) => {
+  generateQRCode: async (locationId, purpose = "claim") => {
     const response = await axiosInstance.post(
-      `/qr-codes/${locationId}/generate`
+      `/qr-codes/${locationId}/generate`,
+      { purpose }
     );
     return response.data;
   },
 
   // Toggle QR code status (admin only)
-  toggleQRCodeStatus: async (locationId) => {
+  toggleQRCodeStatus: async (locationId, purpose = "claim") => {
     const response = await axiosInstance.patch(
-      `/qr-codes/${locationId}/toggle-status`
+      `/qr-codes/${locationId}/toggle-status`,
+      { purpose }
     );
     return response.data;
   },
 
   // Update QR ID (admin only)
-  updateQRCodeId: async (locationId, qrId) => {
+  updateQRCodeId: async (locationId, qrId, purpose = "claim") => {
     const response = await axiosInstance.patch(`/qr-codes/${locationId}/qr-id`, {
       qrId,
+      purpose,
     });
     return response.data;
   },

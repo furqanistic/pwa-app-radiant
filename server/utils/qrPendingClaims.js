@@ -4,6 +4,8 @@ import QRCodeScan from "../models/QRCodeScan.js";
 import User from "../models/User.js";
 import { createSystemNotification } from "../controller/notification.js";
 
+const CHECKIN_SCAN_TYPE = "checkin";
+
 export const processPendingQrClaimsForUser = async (user) => {
   if (!user?._id || !user?.email) {
     return { processedScans: 0, userPointsAwarded: 0, spaPointsAwarded: 0 };
@@ -25,9 +27,38 @@ export const processPendingQrClaimsForUser = async (user) => {
   let spaPointsAwarded = 0;
 
   for (const scan of pendingScans) {
-    const location = await Location.findOne({ locationId: scan.locationId })
-      .select("name locationId")
-      .lean();
+    const scanType = scan?.scanType || "claim";
+
+    const locationDoc = await Location.findOne({ locationId: scan.locationId });
+    const location = locationDoc
+      ? {
+          name: locationDoc?.name || "Unknown location",
+          locationId: locationDoc?.locationId || scan.locationId,
+        }
+      : {
+          name: "Unknown location",
+          locationId: scan.locationId,
+        };
+
+    if (scanType === CHECKIN_SCAN_TYPE) {
+      scan.status = "verified";
+      scan.scannedByUser = user._id;
+      scan.scannedByEmail = normalizedEmail;
+      scan.userTransactionId = null;
+      scan.spaOwnerTransactionId = null;
+      scan.pointsAwarded = 0;
+      scan.pointsAwardedToSpaOwner = 0;
+      await scan.save();
+
+      if (locationDoc?.checkInQrCode) {
+        locationDoc.checkInQrCode.scans = (locationDoc.checkInQrCode.scans || 0) + 1;
+        locationDoc.checkInQrCode.lastScannedAt = new Date();
+        await locationDoc.save();
+      }
+
+      processedScans += 1;
+      continue;
+    }
 
     const scanPoints = Number(scan.pointsAwarded || 0);
     const spaOwnerPoints = Number(scan.pointsAwardedToSpaOwner || scanPoints);
@@ -44,10 +75,10 @@ export const processPendingQrClaimsForUser = async (user) => {
         type: "qr_scan",
         points: scanPoints,
         balance: user.points,
-        description: `QR Code scan at ${location?.name || "Unknown location"}`,
+        description: `QR Code scan at ${location.name}`,
         locationId: scan.locationId,
         metadata: {
-          locationName: location?.name || null,
+          locationName: location.name,
           qrId: scan.qrId,
           source: "pending_claim_after_signup",
           scanId: scan._id.toString(),
@@ -75,10 +106,10 @@ export const processPendingQrClaimsForUser = async (user) => {
         type: "qr_scan_reward",
         points: spaOwnerPoints,
         balance: spaOwner.points,
-        description: `Visitor scanned your QR code at ${location?.name || "Unknown location"}`,
+        description: `Visitor scanned your QR code at ${location.name}`,
         locationId: scan.locationId,
         metadata: {
-          locationName: location?.name || null,
+          locationName: location.name,
           qrId: scan.qrId,
           visitorEmail: normalizedEmail,
           source: "pending_claim_after_signup",
@@ -98,12 +129,15 @@ export const processPendingQrClaimsForUser = async (user) => {
             metadata: {
               visitorEmail: normalizedEmail,
               points: spaOwnerPoints,
-              locationName: location?.name || null,
+              locationName: location.name,
             },
           }
         );
       } catch (notifError) {
-        console.error("Error sending spa owner pending-claim notification:", notifError);
+        console.error(
+          "Error sending spa owner pending-claim notification:",
+          notifError
+        );
       }
     }
 

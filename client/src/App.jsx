@@ -35,6 +35,7 @@ import MembershipPage from './pages/Membership/MembershipPage'
 import ClientProfile from './pages/Profile/ClientProfile'
 import ProfilePage from './pages/Profile/ProfilePage'
 import ClaimRewardPage from './pages/QRCode/ClaimRewardPage'
+import CheckInPage from './pages/QRCode/CheckInPage'
 import ManageReferralPage from './pages/Referral/ManageReferralPage'
 import ReferralPage from './pages/Referral/ReferralPage'
 import RewardManagement from './pages/Rewards/RewardManagement'
@@ -434,6 +435,13 @@ const App = () => {
           path="/claim-reward"
           element={
             <ClaimRewardPage />
+          }
+        />
+
+        <Route
+          path="/check-in"
+          element={
+            <CheckInPage />
           }
         />
 

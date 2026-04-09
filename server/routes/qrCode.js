@@ -30,7 +30,6 @@ router.get("/:locationId", verifyToken, getLocationQRCode);
 router.post(
   "/:locationId/generate",
   verifyToken,
-  requireAdminOrAbove,
   generateQRCodeForLocation
 );
 

@@ -7,6 +7,9 @@ import QRCodeScan from "../models/QRCodeScan.js";
 import User from "../models/User.js";
 import { createSystemNotification } from "./notification.js";
 
+const CLAIM_PURPOSE = "claim";
+const CHECKIN_PURPOSE = "checkin";
+
 // Generate unique QR ID
 const generateQRId = () => {
   return `QR_${Date.now()}_${crypto
@@ -20,6 +23,56 @@ const normalizeCustomQRId = (value) =>
     .trim()
     .replace(/\s+/g, "_")
     .toUpperCase();
+
+const resolveQrPurpose = (req) => {
+  const raw = `${req.query?.purpose || req.body?.purpose || ""}`
+    .trim()
+    .toLowerCase();
+
+  if (["claim", "reward", "rewards", "claim-reward"].includes(raw)) {
+    return CLAIM_PURPOSE;
+  }
+
+  if (["checkin", "check-in", "check_in", "checkins", "check-ins"].includes(raw)) {
+    return CHECKIN_PURPOSE;
+  }
+
+  return CLAIM_PURPOSE;
+};
+
+const getQrFieldForPurpose = (purpose) =>
+  purpose === CHECKIN_PURPOSE ? "checkInQrCode" : "qrCode";
+
+const getQrLabelForPurpose = (purpose) =>
+  purpose === CHECKIN_PURPOSE ? "check-in" : "claim reward";
+
+const buildQrDataPayload = ({ qrId, location, purpose }) => ({
+  qrId,
+  purpose,
+  locationId: location.locationId,
+  locationName: location.name,
+  timestamp: new Date().toISOString(),
+});
+
+const ensureQrIdIsUnique = async ({ qrId, ignoreLocationId = null }) => {
+  const existingLocation = await Location.findOne({
+    _id: ignoreLocationId ? { $ne: ignoreLocationId } : { $exists: true },
+    $or: [{ "qrCode.qrId": qrId }, { "checkInQrCode.qrId": qrId }],
+  })
+    .select("_id locationId name")
+    .lean();
+
+  return !existingLocation;
+};
+
+const parseQrDataSafe = (qrData) => {
+  if (!qrData) return null;
+  try {
+    return JSON.parse(qrData);
+  } catch {
+    return null;
+  }
+};
 
 const buildSpaSignupUrl = (location) => {
   const normalizedLocationId = location?.locationId
@@ -42,48 +95,67 @@ export const generateQRCodeForLocation = async (req, res, next) => {
   try {
     const { locationId } = req.params;
     const adminUser = req.user;
-
-    // Check if admin
-    if (!["admin", "super-admin"].includes(adminUser.role)) {
-      return next(createError(403, "Only admins can generate QR codes"));
-    }
+    const purpose = resolveQrPurpose(req);
+    const qrField = getQrFieldForPurpose(purpose);
 
     const location = await Location.findById(locationId);
     if (!location) {
       return next(createError(404, "Location not found"));
     }
 
-    // Generate new QR ID
-    const qrId = generateQRId();
-    const qrData = {
-      qrId,
-      locationId: location.locationId,
-      locationName: location.name,
-      timestamp: new Date().toISOString(),
-    };
+    const isAdminOrSuperAdmin = ["admin", "super-admin"].includes(adminUser.role);
+    const isSpaForThisLocation =
+      adminUser?.role === "spa" &&
+      `${adminUser?.spaLocation?.locationId || ""}`.trim() ===
+        `${location?.locationId || ""}`.trim();
 
-    // Update location with QR code data
-    location.qrCode = {
-      qrId,
-      qrData: JSON.stringify(qrData), // Store as JSON string
-      pointsValue: 50,
-      isEnabled: true,
-      createdAt: new Date(),
-      scans: 0,
-    };
+    if (!isAdminOrSuperAdmin && !isSpaForThisLocation) {
+      return next(
+        createError(403, "You are not allowed to generate QR codes for this location")
+      );
+    }
+
+    let qrId = generateQRId();
+    while (!(await ensureQrIdIsUnique({ qrId, ignoreLocationId: location._id }))) {
+      qrId = generateQRId();
+    }
+
+    const qrData = buildQrDataPayload({ qrId, location, purpose });
+
+    if (purpose === CHECKIN_PURPOSE) {
+      location.checkInQrCode = {
+        qrId,
+        qrData: JSON.stringify(qrData),
+        isEnabled: true,
+        createdAt: new Date(),
+        scans: 0,
+      };
+    } else {
+      location.qrCode = {
+        qrId,
+        qrData: JSON.stringify(qrData),
+        pointsValue: location.qrCode?.pointsValue || 50,
+        isEnabled: true,
+        createdAt: new Date(),
+        scans: 0,
+      };
+    }
 
     await location.save();
 
+    const qrState = location[qrField] || {};
+
     res.status(200).json({
       status: "success",
-      message: "QR code generated successfully",
+      message: `${getQrLabelForPurpose(purpose)} QR code generated successfully`,
       data: {
+        purpose,
         qrId,
         locationId: location.locationId,
         locationName: location.name,
         qrData,
-        pointsValue: 50,
-        isEnabled: true,
+        pointsValue: qrState.pointsValue,
+        isEnabled: qrState.isEnabled,
       },
     });
   } catch (error) {
@@ -96,31 +168,39 @@ export const generateQRCodeForLocation = async (req, res, next) => {
 export const getLocationQRCode = async (req, res, next) => {
   try {
     const { locationId } = req.params;
+    const purpose = resolveQrPurpose(req);
+    const qrField = getQrFieldForPurpose(purpose);
 
     const location = await Location.findById(locationId);
     if (!location) {
       return next(createError(404, "Location not found"));
     }
 
-    if (!location.qrCode?.qrId) {
-      return next(createError(404, "QR code not found for this location"));
+    const qrState = location[qrField];
+
+    if (!qrState?.qrId) {
+      return next(
+        createError(
+          404,
+          `${getQrLabelForPurpose(purpose)} QR code not found for this location`
+        )
+      );
     }
 
-    const qrData = location.qrCode.qrData
-      ? JSON.parse(location.qrCode.qrData)
-      : null;
+    const qrData = parseQrDataSafe(qrState.qrData);
 
     res.status(200).json({
       status: "success",
       data: {
-        qrId: location.qrCode.qrId,
+        purpose,
+        qrId: qrState.qrId,
         locationId: location.locationId,
         locationName: location.name,
         qrData,
-        pointsValue: location.qrCode.pointsValue,
-        isEnabled: location.qrCode.isEnabled,
-        scans: location.qrCode.scans,
-        lastScannedAt: location.qrCode.lastScannedAt,
+        pointsValue: qrState.pointsValue,
+        isEnabled: qrState.isEnabled,
+        scans: qrState.scans,
+        lastScannedAt: qrState.lastScannedAt,
       },
     });
   } catch (error) {
@@ -134,6 +214,8 @@ export const getLocationQRCodeByLocationId = async (req, res, next) => {
   try {
     const { locationId } = req.params;
     const currentUser = req.user;
+    const purpose = resolveQrPurpose(req);
+    const qrField = getQrFieldForPurpose(purpose);
 
     if (!locationId) {
       return next(createError(400, "Location ID is required"));
@@ -142,7 +224,9 @@ export const getLocationQRCodeByLocationId = async (req, res, next) => {
     if (currentUser?.role === "spa") {
       const spaLocationId = currentUser?.spaLocation?.locationId;
       if (!spaLocationId || spaLocationId !== locationId) {
-        return next(createError(403, "You can only access your assigned location QR code"));
+        return next(
+          createError(403, "You can only access your assigned location QR code")
+        );
       }
     }
 
@@ -151,25 +235,31 @@ export const getLocationQRCodeByLocationId = async (req, res, next) => {
       return next(createError(404, "Location not found"));
     }
 
-    if (!location.qrCode?.qrId) {
-      return next(createError(404, "QR code not found for this location"));
+    const qrState = location[qrField];
+
+    if (!qrState?.qrId) {
+      return next(
+        createError(
+          404,
+          `${getQrLabelForPurpose(purpose)} QR code not found for this location`
+        )
+      );
     }
 
-    const qrData = location.qrCode.qrData
-      ? JSON.parse(location.qrCode.qrData)
-      : null;
+    const qrData = parseQrDataSafe(qrState.qrData);
 
     res.status(200).json({
       status: "success",
       data: {
-        qrId: location.qrCode.qrId,
+        purpose,
+        qrId: qrState.qrId,
         locationId: location.locationId,
         locationName: location.name,
         qrData,
-        pointsValue: location.qrCode.pointsValue,
-        isEnabled: location.qrCode.isEnabled,
-        scans: location.qrCode.scans,
-        lastScannedAt: location.qrCode.lastScannedAt,
+        pointsValue: qrState.pointsValue,
+        isEnabled: qrState.isEnabled,
+        scans: qrState.scans,
+        lastScannedAt: qrState.lastScannedAt,
       },
     });
   } catch (error) {
@@ -187,18 +277,22 @@ export const resolveQRCodeLocation = async (req, res, next) => {
       return next(createError(400, "QR ID is required"));
     }
 
-    const location = await Location.findOne({ "qrCode.qrId": qrId }).select(
-      "locationId name subdomain isActive"
-    );
+    const location = await Location.findOne({
+      $or: [{ "qrCode.qrId": qrId }, { "checkInQrCode.qrId": qrId }],
+    }).select("locationId name subdomain isActive qrCode.qrId checkInQrCode.qrId");
 
     if (!location || !location.isActive) {
       return next(createError(404, "Invalid QR code"));
     }
 
+    const purpose =
+      location?.checkInQrCode?.qrId === qrId ? CHECKIN_PURPOSE : CLAIM_PURPOSE;
+
     return res.status(200).json({
       status: "success",
       data: {
         qrId,
+        purpose,
         locationId: location.locationId,
         locationName: location.name,
         subdomain: location.subdomain || null,
@@ -210,38 +304,57 @@ export const resolveQRCodeLocation = async (req, res, next) => {
   }
 };
 
-// Scan QR Code and award points
+// Scan QR code. Claim QR awards points, Check-in QR only creates check-in record.
 export const scanQRCode = async (req, res, next) => {
   try {
     const { qrId, email } = req.body;
+    const requestedPurpose = resolveQrPurpose(req);
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get("User-Agent");
 
-    // Validate input
     if (!qrId || !email) {
       return next(createError(400, "QR ID and email are required"));
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return next(createError(400, "Invalid email format"));
     }
 
-    // Find location by QR ID
-    const location = await Location.findOne({ "qrCode.qrId": qrId }).populate(
-      "addedBy"
-    );
+    const normalizedEmail = email.toLowerCase();
+
+    const location = await Location.findOne({
+      $or: [{ "qrCode.qrId": qrId }, { "checkInQrCode.qrId": qrId }],
+    }).populate("addedBy");
+
     if (!location) {
       return next(createError(404, "Invalid QR code"));
     }
 
-    // Check if QR code is enabled
-    if (!location.qrCode.isEnabled) {
-      return next(createError(400, "This QR code is disabled"));
+    const isCheckInQr = location?.checkInQrCode?.qrId === qrId;
+    const isClaimQr = location?.qrCode?.qrId === qrId;
+
+    if (!isCheckInQr && !isClaimQr) {
+      return next(createError(404, "Invalid QR code"));
     }
 
-    // Find spa owner (user with spa role assigned to this location)
+    const actualPurpose = isCheckInQr ? CHECKIN_PURPOSE : CLAIM_PURPOSE;
+
+    if (requestedPurpose && requestedPurpose !== CLAIM_PURPOSE && requestedPurpose !== actualPurpose) {
+      return next(createError(400, "QR code type does not match scan action"));
+    }
+
+    const qrState = isCheckInQr ? location.checkInQrCode : location.qrCode;
+
+    if (!qrState?.isEnabled) {
+      return next(
+        createError(
+          400,
+          `This ${getQrLabelForPurpose(actualPurpose)} QR code is disabled`
+        )
+      );
+    }
+
     const spaOwner = await User.findOne({
       role: "spa",
       "spaLocation.locationId": location.locationId,
@@ -256,29 +369,34 @@ export const scanQRCode = async (req, res, next) => {
       );
     }
 
-    // Find or create user by email
-    let user = await User.findOne({ email: email.toLowerCase() });
+    let user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       const signupUrl = buildSpaSignupUrl(location);
+      const duplicatePendingWindowMs = 5 * 60 * 1000;
 
-      // Prevent duplicate pending claims within 5 minutes for the same QR/email.
       const recentPendingScan = await QRCodeScan.findOne({
         qrId,
-        scannedByEmail: email.toLowerCase(),
+        scanType: actualPurpose,
+        scannedByEmail: normalizedEmail,
         scannedByUser: null,
         status: "pending",
-        createdAt: { $gt: new Date(Date.now() - 5 * 60 * 1000) },
+        createdAt: { $gt: new Date(Date.now() - duplicatePendingWindowMs) },
       });
+
       if (recentPendingScan) {
         return res.status(202).json({
           status: "pending",
           message:
-            "A pending claim already exists for this email. Create an account to claim your points.",
+            actualPurpose === CHECKIN_PURPOSE
+              ? "A pending check-in already exists for this email. Create an account to complete check-in."
+              : "A pending claim already exists for this email. Create an account to claim your points.",
           data: {
             scanId: recentPendingScan._id,
-            email: email.toLowerCase(),
-            pointsToEarn: location.qrCode.pointsValue,
+            scanType: actualPurpose,
+            email: normalizedEmail,
+            pointsToEarn:
+              actualPurpose === CLAIM_PURPOSE ? Number(location.qrCode?.pointsValue || 0) : 0,
             locationId: location.locationId,
             subdomain: location.subdomain || null,
             signupUrl,
@@ -286,15 +404,21 @@ export const scanQRCode = async (req, res, next) => {
         });
       }
 
-      // User doesn't exist - create a pending scan record
       const pendingScan = new QRCodeScan({
         qrId,
+        scanType: actualPurpose,
         locationId: location.locationId,
         spaOwnerId: spaOwner._id,
-        scannedByEmail: email.toLowerCase(),
+        scannedByEmail: normalizedEmail,
         scannedByUser: null,
-        pointsAwarded: location.qrCode.pointsValue,
-        pointsAwardedToSpaOwner: location.qrCode.pointsValue,
+        pointsAwarded:
+          actualPurpose === CLAIM_PURPOSE
+            ? Number(location.qrCode?.pointsValue || 0)
+            : 0,
+        pointsAwardedToSpaOwner:
+          actualPurpose === CLAIM_PURPOSE
+            ? Number(location.qrCode?.pointsValue || 0)
+            : 0,
         status: "pending",
         ipAddress,
         userAgent,
@@ -305,11 +429,15 @@ export const scanQRCode = async (req, res, next) => {
       return res.status(202).json({
         status: "pending",
         message:
-          "No account found for this email. Create an account to claim your points.",
+          actualPurpose === CHECKIN_PURPOSE
+            ? "No account found for this email. Create an account to complete check-in."
+            : "No account found for this email. Create an account to claim your points.",
         data: {
           scanId: pendingScan._id,
-          email: email.toLowerCase(),
-          pointsToEarn: location.qrCode.pointsValue,
+          scanType: actualPurpose,
+          email: normalizedEmail,
+          pointsToEarn:
+            actualPurpose === CLAIM_PURPOSE ? Number(location.qrCode?.pointsValue || 0) : 0,
           locationId: location.locationId,
           subdomain: location.subdomain || null,
           signupUrl,
@@ -317,29 +445,88 @@ export const scanQRCode = async (req, res, next) => {
       });
     }
 
-    // Check for duplicate scans in the last 5 minutes (fraud prevention)
+    const duplicateScanWindowMs = actualPurpose === CHECKIN_PURPOSE ? 2 * 60 * 1000 : 5 * 60 * 1000;
+
     const recentScan = await QRCodeScan.findOne({
       qrId,
+      scanType: actualPurpose,
       scannedByUser: user._id,
       status: "verified",
-      createdAt: { $gt: new Date(Date.now() - 5 * 60 * 1000) },
+      createdAt: { $gt: new Date(Date.now() - duplicateScanWindowMs) },
     });
 
     if (recentScan) {
       return next(
         createError(
           400,
-          "You already scanned this QR code recently. Please try again later."
+          actualPurpose === CHECKIN_PURPOSE
+            ? "You already checked in recently. Please try again shortly."
+            : "You already scanned this QR code recently. Please try again later."
         )
       );
     }
 
-    // Award points to user
-    const pointsToAward = location.qrCode.pointsValue;
+    if (actualPurpose === CHECKIN_PURPOSE) {
+      const scan = await QRCodeScan.create({
+        qrId,
+        scanType: CHECKIN_PURPOSE,
+        locationId: location.locationId,
+        spaOwnerId: spaOwner._id,
+        scannedByEmail: user.email,
+        scannedByUser: user._id,
+        pointsAwarded: 0,
+        pointsAwardedToSpaOwner: 0,
+        status: "verified",
+        ipAddress,
+        userAgent,
+      });
+
+      location.checkInQrCode.scans = (location.checkInQrCode?.scans || 0) + 1;
+      location.checkInQrCode.lastScannedAt = new Date();
+      await location.save();
+
+      try {
+        await createSystemNotification(
+          spaOwner._id,
+          "New Check-In Recorded ✅",
+          `${user.email} checked in at ${location.name}.`,
+          {
+            category: "alert",
+            priority: "normal",
+            metadata: {
+              visitorEmail: user.email,
+              locationName: location.name,
+            },
+          }
+        );
+      } catch (notifError) {
+        console.error("Error sending spa owner check-in notification:", notifError);
+      }
+
+      return res.status(200).json({
+        status: "success",
+        message: "Check-in recorded successfully!",
+        data: {
+          scanId: scan._id,
+          scanType: CHECKIN_PURPOSE,
+          user: {
+            name: user.name,
+            email: user.email,
+            totalPoints: user.points,
+          },
+          location: {
+            name: location.name,
+            address: location.address,
+          },
+        },
+      });
+    }
+
+    const pointsToAward = Number(location.qrCode?.pointsValue || 0);
+
     user.points = (user.points || 0) + pointsToAward;
     await user.save();
 
-    // Create transaction for user
     const userTransaction = await PointTransaction.create({
       user: user._id,
       type: "qr_scan",
@@ -353,11 +540,9 @@ export const scanQRCode = async (req, res, next) => {
       },
     });
 
-    // Award points to spa owner
     spaOwner.points = (spaOwner.points || 0) + pointsToAward;
     await spaOwner.save();
 
-    // Create transaction for spa owner
     const spaOwnerTransaction = await PointTransaction.create({
       user: spaOwner._id,
       type: "qr_scan_reward",
@@ -372,9 +557,9 @@ export const scanQRCode = async (req, res, next) => {
       },
     });
 
-    // Create scan record
     const scan = await QRCodeScan.create({
       qrId,
+      scanType: CLAIM_PURPOSE,
       locationId: location.locationId,
       spaOwnerId: spaOwner._id,
       scannedByEmail: user.email,
@@ -388,12 +573,10 @@ export const scanQRCode = async (req, res, next) => {
       userAgent,
     });
 
-    // Update location scan count
-    location.qrCode.scans = (location.qrCode.scans || 0) + 1;
+    location.qrCode.scans = (location.qrCode?.scans || 0) + 1;
     location.qrCode.lastScannedAt = new Date();
     await location.save();
 
-    // Send notification to user (non-blocking)
     try {
       await createSystemNotification(
         user._id,
@@ -410,10 +593,8 @@ export const scanQRCode = async (req, res, next) => {
       );
     } catch (notifError) {
       console.error("Error sending user notification:", notifError);
-      // Don't fail the scan if notification fails
     }
 
-    // Send notification to spa owner (non-blocking)
     try {
       await createSystemNotification(
         spaOwner._id,
@@ -431,7 +612,6 @@ export const scanQRCode = async (req, res, next) => {
       );
     } catch (notifError) {
       console.error("Error sending spa owner notification:", notifError);
-      // Don't fail the scan if notification fails
     }
 
     res.status(200).json({
@@ -439,6 +619,7 @@ export const scanQRCode = async (req, res, next) => {
       message: "Points awarded successfully!",
       data: {
         scanId: scan._id,
+        scanType: CLAIM_PURPOSE,
         user: {
           name: user.name,
           email: user.email,
@@ -467,8 +648,9 @@ export const getQRCodeStats = async (req, res, next) => {
   try {
     const { locationId } = req.params;
     const adminUser = req.user;
+    const purpose = resolveQrPurpose(req);
+    const qrField = getQrFieldForPurpose(purpose);
 
-    // Check if admin
     if (!["admin", "super-admin"].includes(adminUser.role)) {
       return next(createError(403, "Only admins can view QR code stats"));
     }
@@ -478,73 +660,80 @@ export const getQRCodeStats = async (req, res, next) => {
       return next(createError(404, "Location not found"));
     }
 
-    // NOTE:
-    // QRCodeScan documents auto-expire after 3 days, so they are only reliable for
-    // recent activity. For all-time analytics, use durable sources:
-    // - PointTransaction (qr_scan / qr_scan_reward)
-    // - location.qrCode.scans counter
-    const [
-      recentScans,
-      pendingScansCount,
-      rejectedScansCount,
-      verifiedScansFromTransactions,
-      uniqueVisitorsFromTransactions,
-      pointsDistributionAgg,
-    ] = await Promise.all([
-      QRCodeScan.find({ locationId: location.locationId })
-        .sort({ createdAt: -1 })
-        .limit(20),
-      QRCodeScan.countDocuments({
-        locationId: location.locationId,
-        status: "pending",
-      }),
-      QRCodeScan.countDocuments({
-        locationId: location.locationId,
-        status: "rejected",
-      }),
-      PointTransaction.countDocuments({
-        locationId: location.locationId,
-        type: "qr_scan",
-      }),
-      PointTransaction.distinct("user", {
-        locationId: location.locationId,
-        type: "qr_scan",
-      }),
-      PointTransaction.aggregate([
-        {
-          $match: {
-            locationId: location.locationId,
-            type: { $in: ["qr_scan", "qr_scan_reward"] },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            totalPoints: { $sum: "$points" },
-          },
-        },
-      ]),
+    const qrState = location[qrField] || {};
+    const scanTypeFilter =
+      purpose === CHECKIN_PURPOSE
+        ? { scanType: CHECKIN_PURPOSE }
+        : { scanType: { $ne: CHECKIN_PURPOSE } };
+
+    const baseScanMatch = {
+      locationId: location.locationId,
+      ...scanTypeFilter,
+    };
+
+    const [recentScans, pendingScansCount, rejectedScansCount] = await Promise.all([
+      QRCodeScan.find(baseScanMatch).sort({ createdAt: -1 }).limit(20),
+      QRCodeScan.countDocuments({ ...baseScanMatch, status: "pending" }),
+      QRCodeScan.countDocuments({ ...baseScanMatch, status: "rejected" }),
     ]);
 
-    const allTimeVerifiedScans = Math.max(
-      location.qrCode?.scans || 0,
-      verifiedScansFromTransactions || 0
-    );
-    const totalPointsDistributed =
-      pointsDistributionAgg?.[0]?.totalPoints ||
-      allTimeVerifiedScans * ((location.qrCode?.pointsValue || 0) * 2);
+    let allTimeVerifiedScans = Number(qrState?.scans || 0);
+    let uniqueVisitors = 0;
+    let totalPointsDistributed = 0;
+
+    if (purpose === CHECKIN_PURPOSE) {
+      const checkInUniqueUsers = await QRCodeScan.distinct("scannedByUser", {
+        ...baseScanMatch,
+        status: "verified",
+        scannedByUser: { $ne: null },
+      });
+      uniqueVisitors = checkInUniqueUsers.length;
+    } else {
+      const [verifiedScansFromTransactions, uniqueVisitorsFromTransactions, pointsDistributionAgg] =
+        await Promise.all([
+          PointTransaction.countDocuments({
+            locationId: location.locationId,
+            type: "qr_scan",
+          }),
+          PointTransaction.distinct("user", {
+            locationId: location.locationId,
+            type: "qr_scan",
+          }),
+          PointTransaction.aggregate([
+            {
+              $match: {
+                locationId: location.locationId,
+                type: { $in: ["qr_scan", "qr_scan_reward"] },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalPoints: { $sum: "$points" },
+              },
+            },
+          ]),
+        ]);
+
+      allTimeVerifiedScans = Math.max(allTimeVerifiedScans, verifiedScansFromTransactions || 0);
+      uniqueVisitors = uniqueVisitorsFromTransactions.length;
+      totalPointsDistributed =
+        pointsDistributionAgg?.[0]?.totalPoints ||
+        allTimeVerifiedScans * ((Number(location.qrCode?.pointsValue || 0)) * 2);
+    }
 
     res.status(200).json({
       status: "success",
       data: {
+        purpose,
         location: {
           name: location.name,
           locationId: location.locationId,
         },
         qrCode: {
-          qrId: location.qrCode?.qrId,
-          isEnabled: location.qrCode?.isEnabled,
-          pointsValue: location.qrCode?.pointsValue,
+          qrId: qrState?.qrId,
+          isEnabled: qrState?.isEnabled,
+          pointsValue: qrState?.pointsValue,
         },
         statistics: {
           totalScans: allTimeVerifiedScans,
@@ -552,7 +741,7 @@ export const getQRCodeStats = async (req, res, next) => {
           pendingScans: pendingScansCount,
           rejectedScans: rejectedScansCount,
           totalPointsDistributed,
-          uniqueVisitors: uniqueVisitorsFromTransactions.length,
+          uniqueVisitors,
         },
         recentScans: recentScans.map((scan) => ({
           email: scan.scannedByEmail,
@@ -573,6 +762,8 @@ export const toggleQRCodeStatus = async (req, res, next) => {
   try {
     const { locationId } = req.params;
     const adminUser = req.user;
+    const purpose = resolveQrPurpose(req);
+    const qrField = getQrFieldForPurpose(purpose);
 
     if (!["admin", "super-admin"].includes(adminUser.role)) {
       return next(createError(403, "Only admins can manage QR codes"));
@@ -583,20 +774,19 @@ export const toggleQRCodeStatus = async (req, res, next) => {
       return next(createError(404, "Location not found"));
     }
 
-    if (!location.qrCode?.qrId) {
+    if (!location[qrField]?.qrId) {
       return next(createError(404, "QR code not found. Generate one first."));
     }
 
-    location.qrCode.isEnabled = !location.qrCode.isEnabled;
+    location[qrField].isEnabled = !location[qrField].isEnabled;
     await location.save();
 
     res.status(200).json({
       status: "success",
-      message: `QR code ${
-        location.qrCode.isEnabled ? "enabled" : "disabled"
-      } successfully`,
+      message: `QR code ${location[qrField].isEnabled ? "enabled" : "disabled"} successfully`,
       data: {
-        isEnabled: location.qrCode.isEnabled,
+        purpose,
+        isEnabled: location[qrField].isEnabled,
       },
     });
   } catch (error) {
@@ -611,6 +801,8 @@ export const updateQRCodeId = async (req, res, next) => {
     const { locationId } = req.params;
     const { qrId } = req.body;
     const adminUser = req.user;
+    const purpose = resolveQrPurpose(req);
+    const qrField = getQrFieldForPurpose(purpose);
 
     if (!["admin", "super-admin"].includes(adminUser.role)) {
       return next(createError(403, "Only admins can manage QR codes"));
@@ -636,42 +828,31 @@ export const updateQRCodeId = async (req, res, next) => {
       return next(createError(404, "Location not found"));
     }
 
-    if (!location.qrCode?.qrId) {
+    if (!location[qrField]?.qrId) {
       return next(createError(404, "QR code not found. Generate one first."));
     }
 
-    const existingLocationWithQrId = await Location.findOne({
-      _id: { $ne: location._id },
-      "qrCode.qrId": normalizedQrId,
-    }).select("_id name locationId");
+    const isUnique = await ensureQrIdIsUnique({
+      qrId: normalizedQrId,
+      ignoreLocationId: location._id,
+    });
 
-    if (existingLocationWithQrId) {
+    if (!isUnique) {
       return next(createError(409, "This QR ID is already in use"));
     }
 
-    const previousQrId = location.qrCode.qrId;
-    location.qrCode.qrId = normalizedQrId;
+    const previousQrId = location[qrField].qrId;
+    location[qrField].qrId = normalizedQrId;
 
-    // Keep qrData in sync with the updated QR ID.
-    try {
-      const parsed = location.qrCode?.qrData
-        ? JSON.parse(location.qrCode.qrData)
-        : {};
-      location.qrCode.qrData = JSON.stringify({
-        ...parsed,
-        qrId: normalizedQrId,
-        locationId: location.locationId,
-        locationName: location.name,
-        timestamp: new Date().toISOString(),
-      });
-    } catch {
-      location.qrCode.qrData = JSON.stringify({
-        qrId: normalizedQrId,
-        locationId: location.locationId,
-        locationName: location.name,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    const parsed = parseQrDataSafe(location[qrField]?.qrData) || {};
+    location[qrField].qrData = JSON.stringify({
+      ...parsed,
+      qrId: normalizedQrId,
+      purpose,
+      locationId: location.locationId,
+      locationName: location.name,
+      timestamp: new Date().toISOString(),
+    });
 
     await location.save();
 
@@ -679,8 +860,9 @@ export const updateQRCodeId = async (req, res, next) => {
       status: "success",
       message: "QR ID updated successfully",
       data: {
+        purpose,
         previousQrId,
-        qrId: location.qrCode.qrId,
+        qrId: location[qrField].qrId,
         locationId: location.locationId,
       },
     });
@@ -690,7 +872,7 @@ export const updateQRCodeId = async (req, res, next) => {
   }
 };
 
-// Get all QR codes for admin
+// Get all QR codes for admin (claim + check-in)
 export const getAllQRCodes = async (req, res, next) => {
   try {
     const adminUser = req.user;
@@ -700,16 +882,18 @@ export const getAllQRCodes = async (req, res, next) => {
       return next(createError(403, "Only admins can view all QR codes"));
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
-    const locations = await Location.find({ "qrCode.qrId": { $exists: true } })
+    const locations = await Location.find({
+      $or: [{ "qrCode.qrId": { $exists: true } }, { "checkInQrCode.qrId": { $exists: true } }],
+    })
       .populate("addedBy", "name email")
-      .sort({ "qrCode.createdAt": -1 })
+      .sort({ "qrCode.createdAt": -1, "checkInQrCode.createdAt": -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit, 10));
 
     const total = await Location.countDocuments({
-      "qrCode.qrId": { $exists: true },
+      $or: [{ "qrCode.qrId": { $exists: true } }, { "checkInQrCode.qrId": { $exists: true } }],
     });
 
     const qrCodes = locations.map((loc) => ({
@@ -719,13 +903,20 @@ export const getAllQRCodes = async (req, res, next) => {
         locationId: loc.locationId,
         address: loc.address,
       },
-      qrCode: {
-        qrId: loc.qrCode.qrId,
-        isEnabled: loc.qrCode.isEnabled,
-        pointsValue: loc.qrCode.pointsValue,
-        scans: loc.qrCode.scans,
-        createdAt: loc.qrCode.createdAt,
-        lastScannedAt: loc.qrCode.lastScannedAt,
+      claimQrCode: {
+        qrId: loc.qrCode?.qrId,
+        isEnabled: loc.qrCode?.isEnabled,
+        pointsValue: loc.qrCode?.pointsValue,
+        scans: loc.qrCode?.scans,
+        createdAt: loc.qrCode?.createdAt,
+        lastScannedAt: loc.qrCode?.lastScannedAt,
+      },
+      checkInQrCode: {
+        qrId: loc.checkInQrCode?.qrId,
+        isEnabled: loc.checkInQrCode?.isEnabled,
+        scans: loc.checkInQrCode?.scans,
+        createdAt: loc.checkInQrCode?.createdAt,
+        lastScannedAt: loc.checkInQrCode?.lastScannedAt,
       },
     }));
 
@@ -733,8 +924,8 @@ export const getAllQRCodes = async (req, res, next) => {
       status: "success",
       results: qrCodes.length,
       total,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / parseInt(limit)),
+      page: parseInt(page, 10),
+      totalPages: Math.ceil(total / parseInt(limit, 10)),
       data: { qrCodes },
     });
   } catch (error) {
