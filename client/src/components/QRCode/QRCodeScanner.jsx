@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 // Simple QR code decoder (you'll need jsQR library)
 // Install with: npm install jsqr
 
-const QRCodeScanner = ({ isOpen, onClose, qrScanUrlOverrides = {} }) => {
+const QRCodeScanner = ({ isOpen, onClose }) => {
   const [scanning, setScanning] = useState(false)
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -98,14 +98,12 @@ const QRCodeScanner = ({ isOpen, onClose, qrScanUrlOverrides = {} }) => {
         )
 
         if (code && code.data) {
-          const rawData = `${code.data}`.trim()
-          const mappedData = qrScanUrlOverrides[rawData] || rawData
-          console.log('Detected QR:', mappedData)
+          console.log('Detected QR:', code.data)
           
           // Handle URL format: https://domain.com/claim-reward?qrId=QR_123
-          if (mappedData.includes('qrId=')) {
+          if (code.data.includes('qrId=')) {
             try {
-              const url = new URL(mappedData)
+              const url = new URL(code.data)
               const qrId = url.searchParams.get('qrId')
               if (qrId) {
                 setScannedData({ qrId })
@@ -121,7 +119,7 @@ const QRCodeScanner = ({ isOpen, onClose, qrScanUrlOverrides = {} }) => {
 
           // Handle JSON format (backward compatibility)
           try {
-            const qrData = JSON.parse(mappedData)
+            const qrData = JSON.parse(code.data)
             if (qrData.qrId) {
               setScannedData(qrData)
               stopCamera()
@@ -131,8 +129,8 @@ const QRCodeScanner = ({ isOpen, onClose, qrScanUrlOverrides = {} }) => {
             }
           } catch (e) {
             // Handle raw QR ID
-            if (mappedData.startsWith('QR_')) {
-              setScannedData({ qrId: mappedData })
+            if (code.data.startsWith('QR_')) {
+              setScannedData({ qrId: code.data })
               stopCamera()
               setStep('email')
               toast.success('QR code detected!')
@@ -149,7 +147,7 @@ const QRCodeScanner = ({ isOpen, onClose, qrScanUrlOverrides = {} }) => {
     intervalId = setInterval(scanInterval, 500)
 
     return () => clearInterval(intervalId)
-  }, [scanning, qrScanUrlOverrides])
+  }, [scanning])
 
   const submitScan = useCallback(async (rawEmail) => {
    const normalizedEmail = `${rawEmail || ''}`.trim().toLowerCase()
