@@ -61,6 +61,13 @@ const BottomNav = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const brandColor = branding?.themeColor || '#ec4899'
   const scanGradientEnd = darkenHex(brandColor, 22)
+  const qrScanUrlOverrides = useMemo(
+    () => ({
+      'https://app.cxrsystems.com/auth?spa=6RL2MtUxqIc5fUgWRw1O':
+        'https://ageless.cxrsystems.com/claim-reward?qrId=QR_1773091243001_9A760969372B7934',
+    }),
+    []
+  )
   
   const brandStyles = useMemo(() => {
     const rgba20 = hexToRgba(brandColor, 0.2)
@@ -414,6 +421,7 @@ const BottomNav = () => {
       <QRCodeScanner
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
+        qrScanUrlOverrides={qrScanUrlOverrides}
       />
     </>
   )

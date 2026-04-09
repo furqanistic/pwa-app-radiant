@@ -28,6 +28,22 @@ export const authService = {
     return response.data
   },
 
+  forgotPassword: async (email, locationId = null) => {
+    const response = await axiosInstance.post('/auth/forgot-password', {
+      email,
+      locationId,
+    })
+    return response.data
+  },
+
+  resetPassword: async (token, newPassword) => {
+    const response = await axiosInstance.post('/auth/reset-password', {
+      token,
+      newPassword,
+    })
+    return response.data
+  },
+
   getAllUsers: async (params = {}) => {
     const queryParams = new URLSearchParams({
       page: params.page || 1,

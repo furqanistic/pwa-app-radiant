@@ -1,5 +1,6 @@
 // File: server/controller/auth.js - COMPLETE VERSION WITH ALL FUNCTIONS
 import axios from 'axios'
+import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
@@ -8,6 +9,7 @@ import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
 import { processPendingQrClaimsForUser } from '../utils/qrPendingClaims.js'
+import { sendPasswordResetEmail } from '../utils/resendMailer.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { enrollContactInWorkflowForLocation } from './ghl.js'
 import { createSystemNotification } from './notification.js'
@@ -40,6 +42,102 @@ const signToken = (id) => {
   return jwt.sign({ id }, jwtSecret, {
     expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   })
+}
+
+const PASSWORD_RESET_TOKEN_TTL_MINUTES = Number(
+  process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || 30
+)
+
+const DEFAULT_APP_ROOT_DOMAIN = `${process.env.APP_ROOT_DOMAIN || 'cxrsystems.com'}`
+  .trim()
+  .toLowerCase()
+
+const isValidSubdomain = (value = '') =>
+  /^[a-z0-9][a-z0-9-]{1,18}[a-z0-9]$/.test(`${value}`.trim().toLowerCase())
+
+const buildPasswordResetUrl = ({
+  token,
+  locationId,
+  subdomain = '',
+} = {}) => {
+  const normalizedSubdomain = `${subdomain || ''}`.trim().toLowerCase()
+  const hasValidSubdomain = isValidSubdomain(normalizedSubdomain)
+  const subdomainBaseUrl =
+    hasValidSubdomain && DEFAULT_APP_ROOT_DOMAIN
+      ? `https://${normalizedSubdomain}.${DEFAULT_APP_ROOT_DOMAIN}`
+      : ''
+
+  const baseUrl =
+    subdomainBaseUrl ||
+    `${process.env.PASSWORD_RESET_URL || process.env.CLIENT_URL || ''}`.trim() ||
+    'http://localhost:5173'
+  const resetUrl = new URL('/auth', baseUrl)
+  resetUrl.searchParams.set('resetToken', token)
+  if (`${locationId || ''}`.trim()) {
+    resetUrl.searchParams.set('spa', `${locationId}`.trim())
+  }
+  return resetUrl.toString()
+}
+
+const resolvePasswordResetBranding = async ({
+  user,
+  locationId = '',
+  requestSubdomain = '',
+} = {}) => {
+  const normalizedLocationId = `${locationId || ''}`.trim()
+  const normalizedRequestSubdomain = `${requestSubdomain || ''}`
+    .trim()
+    .toLowerCase()
+
+  const candidateQueries = []
+
+  if (normalizedLocationId) {
+    candidateQueries.push({ locationId: normalizedLocationId, isActive: true })
+  }
+  if (isValidSubdomain(normalizedRequestSubdomain)) {
+    candidateQueries.push({
+      subdomain: normalizedRequestSubdomain,
+      isActive: true,
+    })
+  }
+  if (`${user?.selectedLocation?.locationId || ''}`.trim()) {
+    candidateQueries.push({
+      locationId: `${user.selectedLocation.locationId}`.trim(),
+      isActive: true,
+    })
+  }
+  if (`${user?.spaLocation?.locationId || ''}`.trim()) {
+    candidateQueries.push({
+      locationId: `${user.spaLocation.locationId}`.trim(),
+      isActive: true,
+    })
+  }
+
+  let resolvedLocation = null
+  for (const query of candidateQueries) {
+    resolvedLocation = await Location.findOne(query).select(
+      'locationId name subdomain themeColor logo logoPublicId'
+    )
+    if (resolvedLocation) break
+  }
+
+  const resolvedSubdomain =
+    `${resolvedLocation?.subdomain || normalizedRequestSubdomain || ''}`
+      .trim()
+      .toLowerCase() || ''
+  const resolvedLocationId =
+    `${resolvedLocation?.locationId || normalizedLocationId || ''}`.trim() || ''
+
+  return {
+    location: resolvedLocation,
+    locationId: resolvedLocationId,
+    subdomain: isValidSubdomain(resolvedSubdomain) ? resolvedSubdomain : '',
+    brandName:
+      `${resolvedLocation?.name || process.env.BRAND_APP_NAME || 'CXR Systems'}`.trim(),
+    brandColor: `${resolvedLocation?.themeColor || '#0f172a'}`.trim(),
+    logoUrl:
+      `${resolvedLocation?.logo || resolvedLocation?.logoPublicId || ''}`.trim(),
+  }
 }
 
 const createSendToken = (user, statusCode, res, extraData = null) => {
@@ -1908,6 +2006,127 @@ export const changePassword = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       message: 'Password changed successfully',
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const email = `${req.body?.email || ''}`.trim().toLowerCase()
+    const locationId = `${req.body?.locationId || ''}`.trim()
+    const requestSubdomain = `${req.subdomain || ''}`.trim().toLowerCase()
+
+    if (!email) {
+      return next(createError(400, 'Please provide your email address'))
+    }
+
+    const user = await User.findOne({
+      email,
+      isDeleted: { $ne: true },
+    }).select('+password')
+
+    // Always return the same message to prevent account enumeration.
+    const successMessage =
+      'If an account exists with this email, a password reset link has been sent.'
+
+    if (!user || !user.password) {
+      return res.status(200).json({
+        status: 'success',
+        message: successMessage,
+      })
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const hashedResetToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex')
+
+    user.passwordResetToken = hashedResetToken
+    user.passwordResetExpires = new Date(
+      Date.now() + PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000
+    )
+    await user.save({ validateBeforeSave: false })
+
+    const brandingContext = await resolvePasswordResetBranding({
+      user,
+      locationId,
+      requestSubdomain,
+    })
+
+    const resetUrl = buildPasswordResetUrl({
+      token: resetToken,
+      locationId: brandingContext.locationId,
+      subdomain: brandingContext.subdomain,
+    })
+
+    try {
+      await sendPasswordResetEmail({
+        to: user.email,
+        resetUrl,
+        appName: brandingContext.brandName,
+        brandColor: brandingContext.brandColor,
+        logoUrl: brandingContext.logoUrl,
+        subdomain: brandingContext.subdomain,
+        rootDomain: DEFAULT_APP_ROOT_DOMAIN,
+      })
+    } catch (mailError) {
+      console.error('Failed to send password reset email:', mailError)
+      user.passwordResetToken = undefined
+      user.passwordResetExpires = undefined
+      await user.save({ validateBeforeSave: false })
+      return next(
+        createError(
+          500,
+          'Unable to send password reset email right now. Please try again.'
+        )
+      )
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: successMessage,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const token = `${req.body?.token || ''}`.trim()
+    const newPassword = `${req.body?.newPassword || ''}`
+
+    if (!token || !newPassword) {
+      return next(createError(400, 'Token and new password are required'))
+    }
+
+    if (newPassword.length < 8) {
+      return next(createError(400, 'Password must be at least 8 characters long'))
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+      isDeleted: { $ne: true },
+    }).select('+passwordResetToken +passwordResetExpires +password')
+
+    if (!user) {
+      return next(createError(400, 'Reset link is invalid or has expired'))
+    }
+
+    user.password = newPassword
+    user.passwordResetToken = undefined
+    user.passwordResetExpires = undefined
+    await user.save()
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Your password has been reset successfully. Please sign in.',
     })
   } catch (error) {
     next(error)

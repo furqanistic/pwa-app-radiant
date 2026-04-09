@@ -9,12 +9,14 @@ import {
     changeUserRole,
     createSpaMember,
     deleteUser,
+    forgotPassword,
     getAllUsers,
     getAssignableUsers,
     getCurrentUser,
     getOnboardingStatus,
     getUserProfile,
     regenerateReferralCode,
+    resetPassword,
     selectSpa,
     signin,
     signup,
@@ -42,6 +44,10 @@ router.post('/signup', signup)
 
 // User login
 router.post('/signin', signin)
+
+// Password reset (public)
+router.post('/forgot-password', forgotPassword)
+router.post('/reset-password', resetPassword)
 
 // Google OAuth login initiation
 router.get(

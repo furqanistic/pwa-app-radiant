@@ -219,10 +219,13 @@ const AuthPage = () => {
   // Get branding context
   // const { branding, loading: brandingLoading, hasBranding, locationId } = useBranding()
 
-  const [view, setView] = useState('login') // 'signup' or 'login'
+  const resetTokenFromUrl = `${searchParams.get('resetToken') || ''}`.trim()
+  const [view, setView] = useState(resetTokenFromUrl ? 'reset' : 'login') // 'signup' | 'login' | 'forgot' | 'reset'
   const [signupStep, setSignupStep] = useState(1)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false)
   const [localError, setLocalError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [windowWidth, setWindowWidth] = useState(
@@ -236,6 +239,9 @@ const AuthPage = () => {
     birthdate: '',
     password: '',
     confirmPassword: '',
+    resetEmail: '',
+    resetPassword: '',
+    resetConfirmPassword: '',
   })
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -343,6 +349,15 @@ const AuthPage = () => {
     setSuccess(null)
     setSignupStep(1)
   }, [view])
+
+  useEffect(() => {
+    if (resetTokenFromUrl) {
+      setView('reset')
+      return
+    }
+
+    setView((prev) => (prev === 'reset' ? 'login' : prev))
+  }, [resetTokenFromUrl])
 
   const buildSpaPath = useMemo(() => {
     return (path) =>
@@ -494,6 +509,61 @@ const AuthPage = () => {
     },
   })
 
+  const forgotPasswordMutation = useMutation({
+    mutationFn: ({ email, locationId: selectedLocationId }) =>
+      authService.forgotPassword(email, selectedLocationId),
+    onMutate: () => {
+      setLocalError(null)
+      setSuccess(null)
+    },
+    onSuccess: (data) => {
+      setSuccess(
+        data?.message ||
+          'If an account exists, a reset link has been sent to your email.'
+      )
+      updateFormData('resetEmail', '')
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Unable to send reset link right now. Please try again.'
+      setLocalError(errorMessage)
+    },
+  })
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ token, newPassword }) =>
+      authService.resetPassword(token, newPassword),
+    onMutate: () => {
+      setLocalError(null)
+      setSuccess(null)
+    },
+    onSuccess: (data) => {
+      setSuccess(
+        data?.message || 'Password reset successful. Please sign in now.'
+      )
+      updateFormData('resetPassword', '')
+      updateFormData('resetConfirmPassword', '')
+      setTimeout(() => {
+        setView('login')
+        const nextParams = new URLSearchParams(location.search)
+        nextParams.delete('resetToken')
+        const nextQuery = nextParams.toString()
+        navigate(nextQuery ? `${location.pathname}?${nextQuery}` : location.pathname, {
+          replace: true,
+        })
+      }, 1200)
+    },
+    onError: (error) => {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        'Could not reset password. Please request a new link.'
+      setLocalError(errorMessage)
+    },
+  })
+
   const handleNextStep = () => {
     if (signupStep === 1) {
       if (!formData.fullName || !formData.phone) {
@@ -517,6 +587,40 @@ const AuthPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLocalError(null)
+
+    if (view === 'forgot') {
+      const email = `${formData.resetEmail || ''}`.trim()
+      if (!email) {
+        setLocalError('Please enter your email address.')
+        return
+      }
+
+      forgotPasswordMutation.mutate({ email, locationId })
+      return
+    }
+
+    if (view === 'reset') {
+      if (!resetTokenFromUrl) {
+        setLocalError('Reset token is missing. Please request a new link.')
+        return
+      }
+
+      if (formData.resetPassword !== formData.resetConfirmPassword) {
+        setLocalError('New passwords do not match!')
+        return
+      }
+
+      if (`${formData.resetPassword || ''}`.length < 8) {
+        setLocalError('Password must be at least 8 characters long!')
+        return
+      }
+
+      resetPasswordMutation.mutate({
+        token: resetTokenFromUrl,
+        newPassword: formData.resetPassword,
+      })
+      return
+    }
 
     if (view === 'signup') {
       if (formData.password !== formData.confirmPassword) {
@@ -567,6 +671,29 @@ const AuthPage = () => {
     localError || (typeof reduxError === 'string' ? reduxError : null)
 
   const brandColor = branding?.themeColor || '#ec4899'
+  const isBusy =
+    isLoading ||
+    forgotPasswordMutation.isPending ||
+    resetPasswordMutation.isPending
+  const shouldShowLocationPicker = !locationId && !['forgot', 'reset'].includes(view)
+  const authHeading = shouldShowLocationPicker
+    ? 'Choose your spa'
+    : view === 'signup'
+      ? 'Create Account'
+      : view === 'forgot'
+        ? 'Reset Password'
+        : view === 'reset'
+          ? 'Choose New Password'
+          : 'Welcome back'
+  const authSubheading = shouldShowLocationPicker
+    ? 'Select a location to continue to login.'
+    : view === 'signup'
+      ? 'Join our community of beauty enthusiasts.'
+      : view === 'forgot'
+        ? 'Enter your email and we will send a secure reset link.'
+        : view === 'reset'
+          ? 'Set a fresh password to keep your account secure.'
+          : 'Sign in to access your dashboard.'
 
   return (
     <div
@@ -605,7 +732,13 @@ const AuthPage = () => {
               </div>
 
               <h2 className='text-5xl font-extrabold text-gray-900 leading-tight mb-8 text-center'>
-                {view === 'signup' ? 'Join our community' : 'Welcome back'}
+                {view === 'signup'
+                  ? 'Join our community'
+                  : view === 'forgot'
+                    ? 'Recover access'
+                    : view === 'reset'
+                      ? 'Set your new password'
+                      : 'Welcome back'}
               </h2>
 
               <p className='text-lg text-gray-600 font-medium leading-relaxed text-center mx-auto max-w-sm'>
@@ -653,19 +786,15 @@ const AuthPage = () => {
               </div>
             )}
             <h3 className='text-3xl font-bold text-gray-900 mb-1'>
-            {!locationId ? 'Choose your spa' : view === 'signup' ? 'Create Account' : 'Welcome back'}
+              {authHeading}
             </h3>
             <p className='text-gray-500'>
-              {!locationId 
-                ? 'Select a location to continue to login.' 
-                : view === 'signup'
-                  ? 'Join our community of beauty enthusiasts.'
-                  : 'Sign in to access your dashboard.'}
+              {authSubheading}
             </p>
           </header>
 
-          {/* View Toggle - Only show if locationId is present */}
-          {locationId ? (
+          {/* View Toggle - Only show for primary auth modes */}
+          {locationId && !['forgot', 'reset'].includes(view) ? (
             <div className='bg-gray-50 p-1.5 rounded-2xl mb-6 flex gap-1 border border-gray-100'>
               <button
                 onClick={() => setView('signup')}
@@ -690,7 +819,7 @@ const AuthPage = () => {
                 Sign In
               </button>
             </div>
-          ) : (
+          ) : shouldShowLocationPicker ? (
             <div className='mb-8 px-2'>
               <div className='relative flex items-center bg-gray-100 rounded-full h-14 border border-transparent focus-within:bg-white focus-within:border-gray-200 focus-within:shadow-sm transition-all duration-200'>
                 <div className='pl-5'>
@@ -705,7 +834,7 @@ const AuthPage = () => {
                 />
               </div>
             </div>
-          )}
+          ) : null}
 
           {displayError && (
             <ErrorAlert
@@ -720,7 +849,7 @@ const AuthPage = () => {
 
           {/* Form Content or Location Selector */}
           <div className='relative overflow-hidden'>
-            {!locationId ? (
+            {shouldShowLocationPicker ? (
               <div className='space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar'>
                 {locationsLoading || shouldWaitForSubdomainResolution ? (
                   [1, 2, 3, 4].map((i) => (
@@ -803,7 +932,7 @@ const AuthPage = () => {
                                 }
                                 className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all placeholder:text-gray-400 text-base'
                                 required
-                                disabled={isLoading}
+                                disabled={isBusy}
                               />
                             </div>
                           </div>
@@ -822,7 +951,7 @@ const AuthPage = () => {
                                   updateFormData('phone', e.target.value)
                                 }
                                 className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all placeholder:text-gray-400 text-base'
-                                disabled={isLoading}
+                                disabled={isBusy}
                                 required
                               />
                             </div>
@@ -867,7 +996,7 @@ const AuthPage = () => {
                                   updateFormData('birthdate', e.target.value)
                                 }
                                 className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
-                                disabled={isLoading}
+                                disabled={isBusy}
                                 required
                               />
                             </div>
@@ -921,7 +1050,7 @@ const AuthPage = () => {
                                 }
                                 className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
                                 required
-                                disabled={isLoading}
+                                disabled={isBusy}
                               />
                             </div>
                           </div>
@@ -943,7 +1072,7 @@ const AuthPage = () => {
                                   className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
                                   required
                                   minLength={8}
-                                  disabled={isLoading}
+                                  disabled={isBusy}
                                 />
                                 <button
                                   type='button'
@@ -977,7 +1106,7 @@ const AuthPage = () => {
                                   }
                                   className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
                                   required
-                                  disabled={isLoading}
+                                  disabled={isBusy}
                                 />
                                 <button
                                   type='button'
@@ -1002,7 +1131,7 @@ const AuthPage = () => {
                               required
                               className='mt-1 w-5 h-5 rounded-lg border-gray-200 focus:ring-[color:var(--brand-primary)/0.25] transition-all'
                               style={{ color: 'var(--brand-primary)' }}
-                              disabled={isLoading}
+                              disabled={isBusy}
                             />
                             <label className='text-sm text-gray-500 leading-snug'>
                               I agree to the{' '}
@@ -1032,12 +1161,12 @@ const AuthPage = () => {
                             </button>
                             <button
                               type='submit'
-                              disabled={isLoading}
+                              disabled={isBusy}
                               className={`flex-[4] py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] ${
-                                isLoading ? 'bg-gray-300' : ''
+                                isBusy ? 'bg-gray-300' : ''
                               }`}
                               style={
-                                isLoading
+                                isBusy
                                   ? undefined
                                   : {
                                       background: 'var(--brand-primary)',
@@ -1046,7 +1175,7 @@ const AuthPage = () => {
                                     }
                               }
                             >
-                              {isLoading ? (
+                              {isBusy ? (
                                 <Loader2 className='w-6 h-6 animate-spin' />
                               ) : (
                                 <>
@@ -1058,6 +1187,173 @@ const AuthPage = () => {
                         </motion.div>
                       )}
                     </>
+                  ) : view === 'forgot' ? (
+                    <motion.div
+                      key='forgot-form'
+                      variants={stepVariants}
+                      initial='initial'
+                      animate='animate'
+                      exit='exit'
+                      transition={{ duration: 0.3 }}
+                      className='space-y-6'
+                    >
+                      <div className='group'>
+                        <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                          Email Address
+                        </label>
+                        <div className='relative'>
+                          <Mail className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                          <input
+                            type='email'
+                            placeholder='you@example.com'
+                            value={formData.resetEmail}
+                            onChange={(e) =>
+                              updateFormData('resetEmail', e.target.value)
+                            }
+                            className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                            required
+                            disabled={isBusy}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type='submit'
+                        disabled={isBusy}
+                        className={`w-full py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] mt-4 ${
+                          isBusy ? 'bg-gray-300' : ''
+                        }`}
+                        style={
+                          isBusy
+                            ? undefined
+                            : {
+                                background: 'var(--brand-primary)',
+                                boxShadow: '0 20px 45px rgba(0,0,0,0.12)',
+                              }
+                        }
+                      >
+                        {isBusy ? (
+                          <Loader2 className='w-6 h-6 animate-spin' />
+                        ) : (
+                          <>
+                            Send Reset Link
+                            <ArrowRight className='h-5 w-5' />
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type='button'
+                        onClick={() => setView('login')}
+                        className='w-full py-3 px-4 rounded-2xl font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors'
+                      >
+                        Back to sign in
+                      </button>
+                    </motion.div>
+                  ) : view === 'reset' ? (
+                    <motion.div
+                      key='reset-form'
+                      variants={stepVariants}
+                      initial='initial'
+                      animate='animate'
+                      exit='exit'
+                      transition={{ duration: 0.3 }}
+                      className='space-y-6'
+                    >
+                      <div className='group'>
+                        <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                          New Password
+                        </label>
+                        <div className='relative'>
+                          <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                          <input
+                            type={showResetPassword ? 'text' : 'password'}
+                            placeholder='At least 8 characters'
+                            value={formData.resetPassword}
+                            onChange={(e) =>
+                              updateFormData('resetPassword', e.target.value)
+                            }
+                            className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                            required
+                            minLength={8}
+                            disabled={isBusy}
+                          />
+                          <button
+                            type='button'
+                            onClick={() => setShowResetPassword(!showResetPassword)}
+                            className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
+                          >
+                            {showResetPassword ? (
+                              <EyeOff className='h-5 w-5' />
+                            ) : (
+                              <Eye className='h-5 w-5' />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className='group'>
+                        <label className='block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-[color:var(--brand-primary)] transition-colors'>
+                          Confirm New Password
+                        </label>
+                        <div className='relative'>
+                          <Lock className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
+                          <input
+                            type={showResetConfirmPassword ? 'text' : 'password'}
+                            placeholder='Repeat your new password'
+                            value={formData.resetConfirmPassword}
+                            onChange={(e) =>
+                              updateFormData(
+                                'resetConfirmPassword',
+                                e.target.value
+                              )
+                            }
+                            className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
+                            required
+                            minLength={8}
+                            disabled={isBusy}
+                          />
+                          <button
+                            type='button'
+                            onClick={() =>
+                              setShowResetConfirmPassword(!showResetConfirmPassword)
+                            }
+                            className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'
+                          >
+                            {showResetConfirmPassword ? (
+                              <EyeOff className='h-5 w-5' />
+                            ) : (
+                              <Eye className='h-5 w-5' />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        type='submit'
+                        disabled={isBusy}
+                        className={`w-full py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] mt-4 ${
+                          isBusy ? 'bg-gray-300' : ''
+                        }`}
+                        style={
+                          isBusy
+                            ? undefined
+                            : {
+                                background: 'var(--brand-primary)',
+                                boxShadow: '0 20px 45px rgba(0,0,0,0.12)',
+                              }
+                        }
+                      >
+                        {isBusy ? (
+                          <Loader2 className='w-6 h-6 animate-spin' />
+                        ) : (
+                          <>
+                            Update Password
+                            <ArrowRight className='h-5 w-5' />
+                          </>
+                        )}
+                      </button>
+                    </motion.div>
                   ) : (
                     <motion.div
                       key='login-form'
@@ -1083,7 +1379,7 @@ const AuthPage = () => {
                             }
                             className='w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
                             required
-                            disabled={isLoading}
+                            disabled={isBusy}
                           />
                         </div>
                       </div>
@@ -1095,10 +1391,14 @@ const AuthPage = () => {
                           </label>
                           <button
                             type='button'
+                            onClick={() => {
+                              updateFormData('resetEmail', formData.email || '')
+                              setView('forgot')
+                            }}
                             className='text-xs font-bold hover:text-[color:var(--brand-primary)]'
                             style={{ color: 'var(--brand-primary)' }}
                           >
-                            Forgot?
+                            Forgot password?
                           </button>
                         </div>
                         <div className='relative'>
@@ -1112,7 +1412,7 @@ const AuthPage = () => {
                             }
                             className='w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-[20px] shadow-sm focus:border-[color:var(--brand-primary)] focus:ring-4 focus:ring-[color:var(--brand-primary)/0.08] outline-none transition-all text-base'
                             required
-                            disabled={isLoading}
+                            disabled={isBusy}
                           />
                           <button
                             type='button'
@@ -1130,12 +1430,12 @@ const AuthPage = () => {
 
                       <button
                         type='submit'
-                        disabled={isLoading}
+                        disabled={isBusy}
                         className={`w-full py-4 px-6 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-3 transform hover:scale-[1.02] active:scale-[0.98] mt-4 ${
-                          isLoading ? 'bg-gray-300' : ''
+                          isBusy ? 'bg-gray-300' : ''
                         }`}
                         style={
-                          isLoading
+                          isBusy
                             ? undefined
                             : {
                                 background: 'var(--brand-primary)',
@@ -1144,7 +1444,7 @@ const AuthPage = () => {
                               }
                         }
                       >
-                        {isLoading ? (
+                        {isBusy ? (
                           <Loader2 className='w-6 h-6 animate-spin' />
                         ) : (
                           <>
