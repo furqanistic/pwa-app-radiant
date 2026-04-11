@@ -11,7 +11,10 @@ import User from '../models/User.js'
 import { processPendingQrClaimsForUser } from '../utils/qrPendingClaims.js'
 import { sendPasswordResetEmail } from '../utils/resendMailer.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
-import { enrollContactInWorkflowForLocation } from './ghl.js'
+import {
+  addTagsToContactForLocation,
+  enrollContactInWorkflowForLocation,
+} from './ghl.js'
 import { createSystemNotification } from './notification.js'
 import { updateUserTier } from './referral.js'
 
@@ -207,12 +210,23 @@ const SIGNUP_WORKFLOW_PRIMARY_ID =
   `${process.env.GHL_SIGNUP_WORKFLOW_ID || ''}`.trim()
 const SIGNUP_WORKFLOW_FALLBACK_ID =
   `${process.env.GHL_SIGNUP_WORKFLOW_FALLBACK_ID || ''}`.trim()
+const SIGNUP_TRIGGER_TAG_PRIMARY =
+  `${process.env.GHL_SIGNUP_TRIGGER_TAG || ''}`.trim()
 const SIGNUP_WORKFLOW_IDS = Array.from(
   new Set(
     [
       ...parseCsvEnv(process.env.GHL_SIGNUP_WORKFLOW_IDS),
       SIGNUP_WORKFLOW_PRIMARY_ID,
       SIGNUP_WORKFLOW_FALLBACK_ID,
+    ].filter(Boolean)
+  )
+)
+const SIGNUP_TRIGGER_TAGS = Array.from(
+  new Set(
+    [
+      ...parseCsvEnv(process.env.GHL_SIGNUP_TRIGGER_TAGS),
+      SIGNUP_TRIGGER_TAG_PRIMARY,
+      'app_signup',
     ].filter(Boolean)
   )
 )
@@ -255,32 +269,84 @@ const attemptSignupWorkflowEnrollment = async ({
     }
   }
 
-  if (!SIGNUP_WORKFLOW_IDS.length) {
-    const skipInfo = {
-      userId: `${user?._id || ''}`,
-      locationId: normalizedLocationId,
-      hasEmail: Boolean(normalizedEmail),
-      hasPhone: Boolean(normalizedPhone),
-      reason: 'No signup workflow IDs configured',
-    }
-    debugInfo('[Auth:SignupWorkflow] Enrollment skipped', skipInfo)
-    console.warn('[Auth:SignupWorkflow] Enrollment skipped', skipInfo)
-    return {
-      attempted: false,
-      success: false,
-      reason: 'No signup workflow IDs configured',
-    }
-  }
-
   debugInfo('[Auth:SignupWorkflow] Enrollment start', {
     userId: `${user?._id || ''}`,
     locationId: normalizedLocationId,
     hasEmail: Boolean(normalizedEmail),
     hasPhone: Boolean(normalizedPhone),
+    tags: SIGNUP_TRIGGER_TAGS,
     workflowIds: SIGNUP_WORKFLOW_IDS,
   })
 
   const attemptErrors = []
+
+  console.info('[Auth:SignupWorkflow] Trigger attempt started', {
+    userId: `${user?._id || ''}`,
+    locationId: normalizedLocationId,
+    email: normalizedEmail || '',
+    hasPhone: Boolean(normalizedPhone),
+    tags: SIGNUP_TRIGGER_TAGS,
+    workflowIds: SIGNUP_WORKFLOW_IDS,
+  })
+
+  if (SIGNUP_TRIGGER_TAGS.length) {
+    try {
+      const tagResult = await addTagsToContactForLocation(normalizedLocationId, {
+        tags: SIGNUP_TRIGGER_TAGS,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        name: user.name,
+      })
+
+      debugInfo('[Auth:SignupWorkflow] Signup tag trigger success', {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        contactId: tagResult?.contactId || '',
+        tags: tagResult?.tags || [],
+      })
+      console.info('[Auth:SignupWorkflow] Tag trigger success', {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        contactId: tagResult?.contactId || '',
+        tags: tagResult?.tags || [],
+      })
+
+      return {
+        attempted: true,
+        success: true,
+        mode: 'tag',
+        tags: tagResult?.tags || [],
+        contactId: tagResult?.contactId || '',
+      }
+    } catch (error) {
+      const summary = summarizeGhlError(error)
+      attemptErrors.push({
+        mode: 'tag',
+        tags: SIGNUP_TRIGGER_TAGS,
+        ...summary,
+      })
+      const failureInfo = {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        tags: SIGNUP_TRIGGER_TAGS,
+        ...summary,
+      }
+      debugWarn('[Auth:SignupWorkflow] Signup tag trigger failed', failureInfo)
+      console.warn('[Auth:SignupWorkflow] Signup tag trigger failed', failureInfo)
+    }
+  }
+
+  if (!SIGNUP_WORKFLOW_IDS.length) {
+    return {
+      attempted: attemptErrors.length > 0,
+      success: false,
+      reason: attemptErrors.length
+        ? 'Signup tag trigger failed'
+        : 'No signup workflow IDs configured',
+      errors: attemptErrors,
+    }
+  }
+
   for (const workflowId of SIGNUP_WORKFLOW_IDS) {
     try {
       const result = await enrollContactInWorkflowForLocation(normalizedLocationId, {
@@ -296,10 +362,17 @@ const attemptSignupWorkflowEnrollment = async ({
         workflowId,
         contactId: result?.contactId || '',
       })
+      console.info('[Auth:SignupWorkflow] Workflow fallback success', {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        workflowId,
+        contactId: result?.contactId || '',
+      })
 
       return {
         attempted: true,
         success: true,
+        mode: 'workflow',
         workflowId,
         contactId: result?.contactId || '',
       }
@@ -1018,6 +1091,12 @@ export const signup = async (req, res, next) => {
       dateOfBirth,
     } = req.body
 
+    console.info('[Auth:Signup] Incoming signup request', {
+      email: `${email || ''}`.trim().toLowerCase(),
+      hasPhone: Boolean(`${phone || ''}`.trim()),
+      assignedLocation: `${assignedLocation || ''}`.trim(),
+    })
+
     if (!name || !email || !password) {
       return next(createError(400, 'Please provide name, email and password'))
     }
@@ -1095,6 +1174,35 @@ export const signup = async (req, res, next) => {
       user: newUser,
       locationId: locationData?.locationId || '',
     })
+    console.info('[Auth:Signup] Signup automation result', {
+      userId: `${newUser?._id || ''}`,
+      locationId: locationData?.locationId || '',
+      attempted: Boolean(signupWorkflowResult?.attempted),
+      success: Boolean(signupWorkflowResult?.success),
+      mode: signupWorkflowResult?.mode || '',
+      contactId: `${signupWorkflowResult?.contactId || ''}`,
+      reason: `${signupWorkflowResult?.reason || ''}`,
+      errors: signupWorkflowResult?.errors || [],
+    })
+
+    if (
+      signupWorkflowResult?.success &&
+      `${signupWorkflowResult?.contactId || ''}`.trim() &&
+      `${newUser?.ghlContactId || ''}`.trim() !==
+        `${signupWorkflowResult.contactId}`.trim()
+    ) {
+      try {
+        newUser.ghlContactId = `${signupWorkflowResult.contactId}`.trim()
+        await newUser.save()
+      } catch (contactSaveError) {
+        debugWarn('[Auth:SignupWorkflow] Failed saving ghlContactId', {
+          userId: `${newUser?._id || ''}`,
+          contactId: `${signupWorkflowResult.contactId || ''}`,
+          error: contactSaveError?.message || 'Unknown error',
+        })
+      }
+    }
+
     if (!signupWorkflowResult?.success && signupWorkflowResult?.attempted) {
       const incompleteInfo = {
         userId: `${newUser?._id || ''}`,

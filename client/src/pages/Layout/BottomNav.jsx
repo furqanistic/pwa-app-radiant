@@ -159,9 +159,6 @@ const BottomNav = () => {
 
   // Filter items based on user role
   const allowedItems = baseNavigationItems.filter((item) => {
-    if (userRole === 'spa' && item.id === 'scan-qr') {
-      return false
-    }
     if (isRegularUser && item.elevatedAccessRequired) {
       return false
     }

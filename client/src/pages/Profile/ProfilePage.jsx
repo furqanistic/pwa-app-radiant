@@ -579,7 +579,23 @@ const ProfilePage = () => {
   const buildSpaQrUrl = (purpose, qrId) => {
     if (!qrId) return null;
     const path = purpose === "checkin" ? "/check-in" : "/claim-reward";
-    return `${FRONTEND_URL}${path}?qrId=${qrId}`;
+    const spaId = spaBusinessLocationId || myLocation?.locationId || null;
+    const fallbackOrigin =
+      typeof window !== "undefined" ? window.location.origin : FRONTEND_URL;
+
+    try {
+      const baseUrl = FRONTEND_URL || fallbackOrigin;
+      const url = new URL(path, baseUrl);
+      url.searchParams.set("qrId", qrId);
+      if (spaId) {
+        url.searchParams.set("spa", spaId);
+      }
+      return url.toString();
+    } catch {
+      const encodedQrId = encodeURIComponent(qrId);
+      const spaParam = spaId ? `&spa=${encodeURIComponent(spaId)}` : "";
+      return `${fallbackOrigin}${path}?qrId=${encodedQrId}${spaParam}`;
+    }
   };
 
   const generateSpaQrImageFromUrl = async (url, width = 300) => {

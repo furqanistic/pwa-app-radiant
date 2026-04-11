@@ -1561,6 +1561,13 @@ export const ensureGhlContactForLocation = async (
     name = '',
   } = {}
 ) => {
+  console.info('[GHL:Contact] Ensure contact start', {
+    locationId: `${locationId || ''}`.trim(),
+    email: `${email || ''}`.trim().toLowerCase(),
+    hasPhone: Boolean(`${phone || ''}`.trim()),
+    hasName: Boolean(`${name || ''}`.trim()),
+  })
+
   const token = await getTokenForLocation(locationId)
   if (!token) {
     throw new Error(`No GHL API key configured for location ${locationId}`)
@@ -1588,6 +1595,10 @@ export const ensureGhlContactForLocation = async (
     })
     const upsertedContactId = extractContactId(upsertResponse)
     if (upsertedContactId) {
+      console.info('[GHL:Contact] Ensure contact success via v2 upsert', {
+        locationId: `${locationId || ''}`.trim(),
+        contactId: `${upsertedContactId || ''}`,
+      })
       return { token, contactId: upsertedContactId, created: true }
     }
   } catch (error) {
@@ -1613,6 +1624,10 @@ export const ensureGhlContactForLocation = async (
       )
       const contactId = extractContactId(lookupResponse)
       if (contactId) {
+        console.info('[GHL:Contact] Found existing contact via lookup', {
+          locationId: `${locationId || ''}`.trim(),
+          contactId: `${contactId || ''}`,
+        })
         return { token, contactId, created: false }
       }
       existing = lookupResponse
@@ -1642,6 +1657,11 @@ export const ensureGhlContactForLocation = async (
   if (!createdContactId) {
     throw new Error('Failed to resolve GHL contact ID after contact creation')
   }
+
+  console.info('[GHL:Contact] Created contact via v1 fallback', {
+    locationId: `${locationId || ''}`.trim(),
+    contactId: `${createdContactId || ''}`,
+  })
 
   return {
     token,
@@ -1704,6 +1724,73 @@ export const enrollContactInWorkflowForLocation = async (
     locationId: normalizedLocationId,
     workflowId: normalizedWorkflowId,
     contactId: finalContactId,
+    response,
+  }
+}
+
+export const addTagsToContactForLocation = async (
+  locationId,
+  {
+    contactId = '',
+    tags = [],
+    email = '',
+    phone = '',
+    name = '',
+  } = {}
+) => {
+  const normalizedLocationId = `${locationId || ''}`.trim()
+  const normalizedContactId = `${contactId || ''}`.trim()
+  const normalizedTags = Array.from(
+    new Set(
+      (Array.isArray(tags) ? tags : [])
+        .map((tag) => `${tag || ''}`.trim())
+        .filter(Boolean)
+    )
+  )
+
+  if (!normalizedLocationId) {
+    throw new Error('Location ID is required to add contact tags')
+  }
+  if (!normalizedTags.length) {
+    throw new Error('At least one tag is required')
+  }
+
+  const token = await getTokenForLocation(normalizedLocationId)
+  if (!token) {
+    throw new Error(`No GHL API key configured for location ${normalizedLocationId}`)
+  }
+
+  let finalContactId = normalizedContactId
+  if (!finalContactId) {
+    const ensured = await ensureGhlContactForLocation(normalizedLocationId, {
+      email,
+      phone,
+      name,
+    })
+    finalContactId = `${ensured?.contactId || ''}`.trim()
+  }
+
+  if (!finalContactId) {
+    throw new Error('Unable to resolve contact ID before adding tags')
+  }
+
+  console.info('[GHL:Tags] Add tags request', {
+    locationId: normalizedLocationId,
+    contactId: finalContactId,
+    tags: normalizedTags,
+  })
+
+  const response = await makeGHLV2Request(`/contacts/${finalContactId}/tags`, {
+    method: 'POST',
+    token,
+    data: { tags: normalizedTags },
+    suppressErrorLog: true,
+  })
+
+  return {
+    locationId: normalizedLocationId,
+    contactId: finalContactId,
+    tags: normalizedTags,
     response,
   }
 }
