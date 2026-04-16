@@ -308,7 +308,7 @@ export const getDashboardData = async (req, res, next) => {
       })
         .sort({ createdAt: -1 })
         .limit(RECENT_QR_CLAIMS_LIMIT)
-        .populate('scannedByUser', 'name email avatar points')
+        .populate('scannedByUser', 'name email avatar points credits')
         .lean()
 
       const scannedUserIds = [
@@ -363,6 +363,7 @@ export const getDashboardData = async (req, res, next) => {
                 email: scannedByUser.email,
                 avatar: scannedByUser.avatar,
                 points: scannedByUser.points || 0,
+                credits: Number(scannedByUser.credits || 0),
               }
             : null,
           activeRewardSummary: rewardSummary,

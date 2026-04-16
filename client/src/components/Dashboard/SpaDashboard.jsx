@@ -76,6 +76,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   const queryClient = useQueryClient()
   const { branding, locationId } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
+  const creditSystemEnabled = Boolean(branding?.membership?.creditSystem?.isEnabled)
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
     if (cleaned.length !== 6) return '#b0164e'
@@ -263,6 +264,11 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
 
   const getClaimedCustomerName = (claim) => {
     return claim?.customer?.name || claim?.scannedByEmail || 'Guest visitor'
+  }
+
+  const getCustomerCredits = (claim) => {
+    const value = Number(claim?.customer?.credits)
+    return Number.isFinite(value) ? Math.max(0, value) : 0
   }
 
   const openClientProfile = (claim) => {
@@ -508,6 +514,11 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                     Claimed {latestVisibleQrClaim.pointsAwarded} points{' '}
                     {formatRelativeTime(latestVisibleQrClaim.claimedAt)}
                   </p>
+                  {creditSystemEnabled && (
+                    <p className="text-xs text-gray-500 font-bold mt-1">
+                      Available credits: {getCustomerCredits(latestVisibleQrClaim)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -536,7 +547,13 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
         )}
 
         <div className="rounded-[28px] border border-gray-100 overflow-hidden">
-          <div className="hidden md:grid grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_160px_52px] gap-4 bg-gray-50 px-5 py-4 border-b border-gray-100">
+          <div
+            className={`hidden md:grid gap-4 bg-gray-50 px-5 py-4 border-b border-gray-100 ${
+              creditSystemEnabled
+                ? 'grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_95px_110px_160px_52px]'
+                : 'grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_160px_52px]'
+            }`}
+          >
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
               Customer
             </span>
@@ -546,6 +563,11 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
               Points
             </span>
+            {creditSystemEnabled && (
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+                Credits
+              </span>
+            )}
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
               Scanned
             </span>
@@ -575,6 +597,11 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                       +{claim.pointsAwarded} pts
                     </span>
                   </div>
+                  {creditSystemEnabled && (
+                    <p className="text-[11px] font-bold text-gray-500">
+                      Credits: {getCustomerCredits(claim)}
+                    </p>
+                  )}
                   <RewardSummaryChips
                     rewardSummary={claim.activeRewardSummary}
                     compact
@@ -585,7 +612,13 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                   </div>
                 </div>
 
-                <div className="hidden md:grid grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_160px_52px] gap-4 items-center">
+                <div
+                  className={`hidden md:grid gap-4 items-center ${
+                    creditSystemEnabled
+                      ? 'grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_95px_110px_160px_52px]'
+                      : 'grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_160px_52px]'
+                  }`}
+                >
                   <div className="min-w-0">
                     <p className="text-sm font-black text-gray-900 truncate">
                       {getClaimedCustomerName(claim)}
@@ -601,6 +634,11 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                   <span className="text-sm font-black text-[color:var(--brand-primary)]">
                     +{claim.pointsAwarded}
                   </span>
+                  {creditSystemEnabled && (
+                    <span className="text-sm font-black text-gray-700">
+                      {getCustomerCredits(claim)}
+                    </span>
+                  )}
                   <div className="min-w-0">
                     <p className="text-sm font-black text-gray-900">
                       {formatDate(claim.claimedAt)}
