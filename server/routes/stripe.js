@@ -7,6 +7,8 @@ import {
     createMembershipSetupIntent,
     createMembershipBillingPortalSession,
     createMembershipCheckoutSession,
+    createCreditsCheckoutSession,
+    purchaseCredits,
     createMembershipSubscription,
     createConnectAccount,
     createPaymentIntent,
@@ -74,6 +76,12 @@ router.post(
   '/payment/membership/remove-payment-method',
   verifyToken,
   removeMembershipPaymentMethod
+);
+router.post('/payment/membership/credits/purchase', verifyToken, purchaseCredits);
+router.post(
+  '/payment/membership/credits/checkout-session',
+  verifyToken,
+  createCreditsCheckoutSession
 );
 router.post('/payment/membership/subscription', verifyToken, createMembershipSubscription);
 router.post(

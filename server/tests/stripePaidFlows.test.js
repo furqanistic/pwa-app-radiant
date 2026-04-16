@@ -6,7 +6,7 @@ process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_
 process.env.CLIENT_URL = process.env.CLIENT_URL || 'https://client.example.com'
 
 const [
-  { createCheckoutSession, handleWebhook },
+  { createCheckoutSession, createCreditsCheckoutSession, handleWebhook, purchaseCredits },
   { default: stripe },
   { default: Booking },
   { default: Payment },
@@ -317,6 +317,335 @@ test('createCheckoutSession creates cart paid checkout session for multiple serv
   assert.equal(createdSessions[0].line_items[1].price_data.unit_amount, 8000)
   assert.equal(createdSessions[0].metadata.isCartCheckout, 'true')
   assert.equal(createdSessions[0].mode, 'payment')
+})
+
+test('purchaseCredits charges saved default card and updates customer credits', async () => {
+  const createdPayments = []
+  const location = {
+    locationId: 'loc_credit_1',
+    name: 'Radiant Spa',
+    membership: {
+      isActive: true,
+      creditSystem: {
+        isEnabled: true,
+        pricePerCredit: 4,
+      },
+      plans: [
+        {
+          name: 'Glow',
+          price: 99,
+          currency: 'usd',
+          benefits: ['Priority booking'],
+        },
+      ],
+    },
+  }
+  const userDoc = {
+    _id: 'user_credit_1',
+    email: 'client@example.com',
+    name: 'Client',
+    credits: 12,
+    membership: {
+      currency: 'usd',
+      locationId: 'loc_credit_1',
+      status: 'inactive',
+    },
+    membershipBilling: {
+      stripeCustomerId: 'cus_credit_1',
+      stripeAccountId: 'acct_credit_1',
+      locationId: 'loc_credit_1',
+      defaultPaymentMethod: {},
+    },
+    set(path, value) {
+      const keys = path.split('.')
+      let cursor = this
+      for (let index = 0; index < keys.length - 1; index += 1) {
+        const key = keys[index]
+        cursor[key] = cursor[key] || {}
+        cursor = cursor[key]
+      }
+      cursor[keys[keys.length - 1]] = value
+    },
+    async save() {
+      return this
+    },
+  }
+
+  const { res, state } = createMockRes()
+  const nextErrors = []
+
+  await withPatched(
+    [
+      [User, 'findById', async () => userDoc],
+      [
+        User,
+        'findOne',
+        () => ({
+          sort: async () => ({
+            _id: 'spa_credit_1',
+            stripe: { accountId: 'acct_credit_1', chargesEnabled: true },
+          }),
+        }),
+      ],
+      [Location, 'findOne', () => asQueryLike(location)],
+      [stripe.customers, 'retrieve', async () => ({ id: 'cus_credit_1', invoice_settings: { default_payment_method: 'pm_default_1' } })],
+      [
+        stripe.paymentMethods,
+        'list',
+        async () => ({
+          data: [
+            {
+              id: 'pm_default_1',
+              card: { brand: 'visa', last4: '4242', exp_month: 1, exp_year: 2030 },
+            },
+          ],
+        }),
+      ],
+      [
+        stripe.paymentIntents,
+        'create',
+        async (payload) => {
+          assert.equal(payload.amount, 3200)
+          assert.equal(payload.customer, 'cus_credit_1')
+          assert.equal(payload.payment_method, 'pm_default_1')
+          assert.deepEqual(payload.payment_method_types, ['card'])
+          return {
+            id: 'pi_credit_1',
+            latest_charge: 'ch_credit_1',
+            livemode: false,
+          }
+        },
+      ],
+      [
+        stripe.paymentMethods,
+        'retrieve',
+        async () => ({
+          id: 'pm_default_1',
+          type: 'card',
+          card: { brand: 'visa', last4: '4242', exp_month: 1, exp_year: 2030 },
+        }),
+      ],
+      [
+        Payment,
+        'create',
+        async (payload) => {
+          createdPayments.push(payload)
+          return { _id: 'payment_credit_1', ...payload }
+        },
+      ],
+    ],
+    async () => {
+      await purchaseCredits(
+        {
+          user: { id: 'user_credit_1' },
+          body: {
+            locationId: 'loc_credit_1',
+            quantity: 8,
+          },
+        },
+        res,
+        (error) => {
+          if (error) nextErrors.push(error)
+        }
+      )
+    }
+  )
+
+  assert.equal(nextErrors.length, 0)
+  assert.equal(state.statusCode, 201)
+  assert.equal(state.jsonBody?.success, true)
+  assert.equal(state.jsonBody?.creditsBalance, 20)
+  assert.equal(createdPayments.length, 1)
+  assert.equal(createdPayments[0].paymentCategory, 'credits')
+  assert.equal(createdPayments[0].amount, 3200)
+  assert.equal(createdPayments[0].creditDetails.quantity, 8)
+  assert.equal(createdPayments[0].creditDetails.totalCreditsAfterPurchase, 20)
+  assert.equal(userDoc.credits, 20)
+})
+
+test('createCreditsCheckoutSession creates hosted checkout when no saved card exists', async () => {
+  const createdSessions = []
+  const location = {
+    locationId: 'loc_credit_checkout_1',
+    name: 'Radiant Spa',
+    membership: {
+      isActive: true,
+      creditSystem: {
+        isEnabled: true,
+        pricePerCredit: 4,
+      },
+      plans: [{ name: 'Glow', price: 99, currency: 'usd' }],
+    },
+  }
+
+  const { res, state } = createMockRes()
+  const nextErrors = []
+
+  await withPatched(
+    [
+      [
+        User,
+        'findById',
+        async () => ({
+          _id: 'user_credit_checkout_1',
+          email: 'credits@example.com',
+        }),
+      ],
+      [
+        User,
+        'findOne',
+        () => ({
+          sort: async () => ({
+            _id: 'spa_credit_checkout_1',
+            stripe: { accountId: 'acct_credit_checkout_1', chargesEnabled: true },
+          }),
+        }),
+      ],
+      [Location, 'findOne', () => asQueryLike(location)],
+      [
+        stripe.checkout.sessions,
+        'create',
+        async (payload) => {
+          createdSessions.push(payload)
+          return {
+            id: 'cs_credit_checkout_1',
+            url: 'https://checkout.stripe.com/pay/cs_credit_checkout_1',
+          }
+        },
+      ],
+    ],
+    async () => {
+      await createCreditsCheckoutSession(
+        {
+          user: { id: 'user_credit_checkout_1' },
+          body: {
+            locationId: 'loc_credit_checkout_1',
+            quantity: 8,
+          },
+        },
+        res,
+        (error) => {
+          if (error) nextErrors.push(error)
+        }
+      )
+    }
+  )
+
+  assert.equal(nextErrors.length, 0)
+  assert.equal(state.statusCode, 201)
+  assert.equal(state.jsonBody?.success, true)
+  assert.equal(state.jsonBody?.sessionId, 'cs_credit_checkout_1')
+  assert.equal(
+    state.jsonBody?.sessionUrl,
+    'https://checkout.stripe.com/pay/cs_credit_checkout_1'
+  )
+  assert.equal(createdSessions.length, 1)
+  assert.equal(createdSessions[0].line_items[0].price_data.unit_amount, 3200)
+  assert.equal(createdSessions[0].metadata.customerId, 'user_credit_checkout_1')
+  assert.equal(createdSessions[0].metadata.locationId, 'loc_credit_checkout_1')
+  assert.equal(createdSessions[0].metadata.creditsQuantity, '8')
+  assert.equal(createdSessions[0].metadata.isCreditsCheckout, 'true')
+  assert.equal(createdSessions[0].mode, 'payment')
+})
+
+test('handleWebhook applies hosted credits checkout and updates customer credits', async () => {
+  const createdPayments = []
+  const customerDoc = {
+    _id: 'user_credit_webhook_1',
+    credits: 12,
+    membershipBilling: {},
+    set(path, value) {
+      const keys = path.split('.')
+      let cursor = this
+      for (let index = 0; index < keys.length - 1; index += 1) {
+        const key = keys[index]
+        cursor[key] = cursor[key] || {}
+        cursor = cursor[key]
+      }
+      cursor[keys[keys.length - 1]] = value
+    },
+    async save() {
+      return this
+    },
+  }
+  const session = {
+    id: 'cs_credit_complete_1',
+    payment_intent: 'pi_credit_complete_1',
+    amount_total: 3200,
+    currency: 'usd',
+    livemode: false,
+    metadata: {
+      customerId: 'user_credit_webhook_1',
+      spaOwnerId: 'spa_credit_webhook_1',
+      locationId: 'loc_credit_webhook_1',
+      creditsQuantity: '8',
+      pricePerCredit: '4',
+      isCreditsCheckout: 'true',
+      type: 'credits_purchase',
+    },
+  }
+
+  const { res, state } = createMockRes()
+
+  await withPatched(
+    [
+      [
+        stripe.webhooks,
+        'constructEvent',
+        () => ({ type: 'checkout.session.completed', data: { object: session } }),
+      ],
+      [
+        stripe.paymentIntents,
+        'retrieve',
+        async () => ({
+          id: 'pi_credit_complete_1',
+          metadata: { spaOwnerId: 'spa_credit_webhook_1' },
+          transfer_data: { destination: 'acct_credit_webhook_1' },
+          payment_method_types: ['card'],
+          charges: {
+            data: [
+              {
+                id: 'ch_credit_complete_1',
+                payment_method_details: { card: { brand: 'visa', last4: '4242' } },
+              },
+            ],
+          },
+          livemode: false,
+        }),
+      ],
+      [Payment, 'findOne', async () => null],
+      [User, 'findById', async () => customerDoc],
+      [
+        Payment,
+        'create',
+        async (payload) => {
+          createdPayments.push(payload)
+          return { _id: 'payment_credit_complete_1', ...payload }
+        },
+      ],
+    ],
+    async () => {
+      await handleWebhook(
+        {
+          headers: { 'stripe-signature': 'sig' },
+          body: Buffer.from('raw-body'),
+        },
+        res,
+        () => {}
+      )
+    }
+  )
+
+  assert.equal(state.statusCode, 200)
+  assert.deepEqual(state.jsonBody, { received: true })
+  assert.equal(customerDoc.credits, 20)
+  assert.equal(customerDoc.membershipBilling.locationId, 'loc_credit_webhook_1')
+  assert.equal(customerDoc.membershipBilling.stripeAccountId, 'acct_credit_webhook_1')
+  assert.equal(createdPayments.length, 1)
+  assert.equal(createdPayments[0].paymentCategory, 'credits')
+  assert.equal(createdPayments[0].amount, 3200)
+  assert.equal(createdPayments[0].creditDetails.quantity, 8)
+  assert.equal(createdPayments[0].creditDetails.totalCreditsAfterPurchase, 20)
 })
 
 test('handleWebhook marks paid single booking for paid checkout session', async () => {

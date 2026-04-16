@@ -1,3 +1,4 @@
+import CreditsPurchaseDialog from '@/components/Membership/CreditsPurchaseDialog'
 import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
 import MembershipBillingSection from '@/components/Membership/MembershipBillingSection'
 import { useBranding } from '@/context/BrandingContext'
@@ -107,6 +108,7 @@ const MembershipPage = () => {
     const [processingSelectionKey, setProcessingSelectionKey] = useState(null)
     const [cardDialogOpen, setCardDialogOpen] = useState(false)
     const [pendingDirectSubscriptionPayload, setPendingDirectSubscriptionPayload] = useState(null)
+    const [creditsDialogOpen, setCreditsDialogOpen] = useState(false)
 
     const refreshCurrentUser = async () => {
         try {
@@ -147,6 +149,12 @@ const MembershipPage = () => {
     const hasExistingSubscription = Boolean(
         membershipSummary?.subscription?.id &&
             ['active', 'trialing', 'past_due', 'incomplete', 'unpaid'].includes(membershipStatus)
+    )
+    const creditSystemConfig = membershipSummary?.creditSystem || locationMembership?.creditSystem || {}
+    const creditSystemEnabled = Boolean(creditSystemConfig?.isEnabled)
+    const availableCredits = Math.max(
+        0,
+        Number(membershipSummary?.creditsBalance ?? currentUser?.credits ?? 0)
     )
 
     const getPlanActionProps = (plan, linkedService) => {
@@ -419,7 +427,43 @@ const MembershipPage = () => {
                         onCardAdded={handleCardAddedForDirectSubscription}
                     />
 
+                    <CreditsPurchaseDialog
+                        open={creditsDialogOpen}
+                        onOpenChange={setCreditsDialogOpen}
+                        locationId={activeLocationId}
+                        onPurchased={async () => {
+                            await refreshMembershipState()
+                        }}
+                    />
+
                     <div className="w-full relative z-10 animate-fadeIn">
+                        {creditSystemEnabled ? (
+                            <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-white/90 px-4 py-3 shadow-[0_10px_25px_rgba(15,23,42,0.04)] backdrop-blur sm:mb-5">
+                                <div className="min-w-0">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                                        Credits
+                                    </p>
+                                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                                        {availableCredits} credits available
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setCreditsDialogOpen(true)}
+                                    className="inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-white shadow-sm transition-transform hover:-translate-y-0.5 sm:px-4 sm:text-sm"
+                                    style={{
+                                        backgroundImage: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})`,
+                                    }}
+                                >
+                                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/20">
+                                        +
+                                    </span>
+                                    <span>Buy credits</span>
+                                </button>
+                            </div>
+                        ) : null}
+
                         {isLoading || isLoadingLocation ? (
                             <div className="w-full h-48 bg-gray-200 rounded-[1.75rem] animate-pulse" />
                         ) : (

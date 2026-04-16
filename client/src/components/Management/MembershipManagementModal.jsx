@@ -49,6 +49,9 @@ const normalizePlan = (plan = {}) => {
 const normalizeMembership = (membership) => {
   const normalizedCreditSystem = {
     isEnabled: Boolean(membership?.creditSystem?.isEnabled),
+    pricePerCredit: Number.isFinite(Number(membership?.creditSystem?.pricePerCredit))
+      ? Math.max(0, Number(membership.creditSystem.pricePerCredit))
+      : 1,
   };
 
   if (Array.isArray(membership?.plans) && membership.plans.length > 0) {
@@ -143,6 +146,7 @@ const MembershipManagementModal = ({
     isActive: false,
     creditSystem: {
       isEnabled: false,
+      pricePerCredit: 1,
     },
     plans: [normalizePlan(DEFAULT_PLAN)],
   });
@@ -278,6 +282,15 @@ const MembershipManagementModal = ({
       return;
     }
 
+    const creditPriceValue = Number(formData.creditSystem?.pricePerCredit)
+    if (
+      formData.creditSystem?.isEnabled &&
+      (!Number.isFinite(creditPriceValue) || creditPriceValue <= 0)
+    ) {
+      toast.error('Set a valid price per credit before enabling the credit system.');
+      return;
+    }
+
     for (const [index, plan] of formData.plans.entries()) {
       if (!plan.name?.trim()) {
         toast.error(`Plan ${index + 1}: name is required.`);
@@ -309,6 +322,7 @@ const MembershipManagementModal = ({
       isActive: submitIntent === 'activate' ? true : formData.isActive,
       creditSystem: {
         isEnabled: Boolean(formData.creditSystem?.isEnabled),
+        pricePerCredit: Number(formData.creditSystem?.pricePerCredit || 0),
       },
       pendingStripeActivation:
         submitIntent === 'save' &&
@@ -522,6 +536,34 @@ const MembershipManagementModal = ({
                   ? 'Subscribed users at this location can see their available credits in the top bar, and services can use their custom credit values.'
                   : 'Credits stay hidden for this location, and the credit system is effectively off for subscribers here.'}
               </div>
+              {formData.creditSystem?.isEnabled ? (
+                <div className="space-y-2 pt-1">
+                  <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                    Price Per Credit ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.creditSystem?.pricePerCredit ?? 1}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        creditSystem: {
+                          ...prev.creditSystem,
+                          pricePerCredit: e.target.value,
+                        },
+                      }))
+                    }
+                    disabled={isReadOnly}
+                    className="w-full max-w-xs px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
+                    min="0"
+                    step="0.01"
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Customers will be charged this amount for each credit they buy.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <div className={`flex items-center justify-between ${isPageMode ? 'pt-2' : ''}`}>

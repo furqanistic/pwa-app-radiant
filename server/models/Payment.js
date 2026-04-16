@@ -53,11 +53,11 @@ const PaymentSchema = new mongoose.Schema(
     service: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Service',
-      required: true,
+      default: null,
     },
     paymentCategory: {
       type: String,
-      enum: ['booking', 'membership'],
+      enum: ['booking', 'membership', 'credits'],
       default: 'booking',
       index: true,
     },
@@ -229,6 +229,24 @@ const PaymentSchema = new mongoose.Schema(
       invoiceStatus: {
         type: String,
         default: null,
+      },
+    },
+    creditDetails: {
+      locationId: {
+        type: String,
+        default: null,
+      },
+      quantity: {
+        type: Number,
+        default: 0,
+      },
+      unitPrice: {
+        type: Number,
+        default: 0,
+      },
+      totalCreditsAfterPurchase: {
+        type: Number,
+        default: 0,
       },
     },
 

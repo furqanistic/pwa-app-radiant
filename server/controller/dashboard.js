@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Location from '../models/Location.js'
+import Payment from '../models/Payment.js'
 import QRCodeScan from '../models/QRCodeScan.js'
 import Referral from '../models/Referral.js'
 import User from '../models/User.js'
@@ -80,6 +81,36 @@ const getDashboardLocationId = (user) => {
   }
 
   return null
+}
+
+const mergeRevenueTrendData = (bookingTrendRows = [], paymentTrendRows = []) => {
+  const trendMap = new Map()
+
+  bookingTrendRows.forEach((row) => {
+    const key = `${row?._id || ''}`
+    if (!key) return
+    trendMap.set(key, {
+      _id: key,
+      bookings: Number(row?.bookings || 0),
+      revenue: Number(row?.revenue || 0),
+    })
+  })
+
+  paymentTrendRows.forEach((row) => {
+    const key = `${row?._id || ''}`
+    if (!key) return
+
+    const current = trendMap.get(key) || {
+      _id: key,
+      bookings: 0,
+      revenue: 0,
+    }
+
+    current.revenue = Number(row?.revenue || 0)
+    trendMap.set(key, current)
+  })
+
+  return [...trendMap.values()].sort((a, b) => `${a._id}`.localeCompare(`${b._id}`))
 }
 
 // Get all dashboard data in one request
@@ -170,6 +201,11 @@ export const getDashboardData = async (req, res, next) => {
 
       const testUserIds = testUsers.map((entry) => entry._id)
       const productionBookingsScope = { locationId, userId: { $nin: testUserIds } }
+      const productionPaymentsScope = {
+        spaOwner: userId,
+        customer: { $nin: testUserIds },
+        status: 'succeeded',
+      }
 
       // 2. Get stats
       const totalClients = await User.countDocuments({
@@ -198,22 +234,65 @@ export const getDashboardData = async (req, res, next) => {
       })
 
       // 3. Get Live Activity: Only paid bookings with a linked payment record
-      const liveActivity = await Booking.find({
-        ...productionBookingsScope,
-        paymentStatus: 'paid',
-        paymentId: { $ne: null },
-        status: 'completed',
-      })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .populate('userId', 'name email avatar')
-        .populate('paymentId', 'livemode')
-        .lean()
+      const [liveBookingActivity, livePaymentActivity] = await Promise.all([
+        Booking.find({
+          ...productionBookingsScope,
+          paymentStatus: 'paid',
+          paymentId: { $ne: null },
+          status: 'completed',
+        })
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .populate('userId', 'name email avatar')
+          .populate('paymentId', 'livemode')
+          .lean(),
+        Payment.find({
+          ...productionPaymentsScope,
+          paymentCategory: { $in: ['credits', 'membership'] },
+          livemode: { $ne: false },
+        })
+          .sort({ createdAt: -1 })
+          .limit(10)
+          .populate('customer', 'name email avatar')
+          .lean(),
+      ])
 
-      const filteredLiveActivity = liveActivity.filter((activity) => {
+      const filteredLiveBookingActivity = liveBookingActivity.filter((activity) => {
         const payment = activity?.paymentId
         return !(payment && payment.livemode === false)
       })
+
+      const normalizedPaymentActivity = livePaymentActivity.map((payment) => {
+        const isCreditsPurchase = payment?.paymentCategory === 'credits'
+        const quantity = Number(payment?.creditDetails?.quantity || 0)
+        const planName = payment?.membershipDetails?.planName || 'Membership plan'
+
+        return {
+          _id: `payment-${payment?._id}`,
+          createdAt: payment?.createdAt,
+          userId: payment?.customer
+            ? {
+                _id: payment.customer._id,
+                name: payment.customer.name,
+                email: payment.customer.email,
+                avatar: payment.customer.avatar,
+              }
+            : null,
+          serviceName: isCreditsPurchase
+            ? `${quantity || ''} credit${quantity === 1 ? '' : 's'} purchased`.trim()
+            : planName,
+          finalPrice: Number(payment?.amount || 0) / 100,
+          status: 'completed',
+          activityType: payment?.paymentCategory || 'payment',
+          activityLabel: isCreditsPurchase ? 'Credit Purchase' : 'Membership Payment',
+          displayStatus: isCreditsPurchase ? 'paid' : 'paid',
+          paymentId: { livemode: payment?.livemode },
+        }
+      })
+
+      const filteredLiveActivity = [...filteredLiveBookingActivity, ...normalizedPaymentActivity]
+        .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
+        .slice(0, 10)
 
       const recentClaimsStart = new Date()
       recentClaimsStart.setDate(
@@ -333,24 +412,46 @@ export const getDashboardData = async (req, res, next) => {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
       // Bookings and Revenue Trend
-      const trendData = await Booking.aggregate([
-        {
-          $match: {
-            ...productionBookingsScope,
-            createdAt: { $gte: thirtyDaysAgo },
-            status: 'completed',
-            paymentStatus: 'paid',
-          }
-        },
-        {
-          $group: {
-            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            bookings: { $sum: 1 },
-            revenue: { $sum: "$finalPrice" }
-          }
-        },
-        { $sort: { _id: 1 } }
+      const [bookingTrendData, paymentRevenueTrendData] = await Promise.all([
+        Booking.aggregate([
+          {
+            $match: {
+              ...productionBookingsScope,
+              createdAt: { $gte: thirtyDaysAgo },
+              status: 'completed',
+              paymentStatus: 'paid',
+            }
+          },
+          {
+            $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+              bookings: { $sum: 1 },
+              revenue: { $sum: "$finalPrice" }
+            }
+          },
+          { $sort: { _id: 1 } }
+        ]),
+        Payment.aggregate([
+          {
+            $match: {
+              ...productionPaymentsScope,
+              createdAt: { $gte: thirtyDaysAgo },
+              livemode: { $ne: false },
+            },
+          },
+          {
+            $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+              revenue: { $sum: { $divide: ['$amount', 100] } },
+            },
+          },
+          { $sort: { _id: 1 } },
+        ]),
       ])
+      const trendData = mergeRevenueTrendData(
+        bookingTrendData,
+        paymentRevenueTrendData
+      )
 
       // Top Services
       const topServices = await Booking.aggregate([
@@ -406,14 +507,50 @@ export const getDashboardData = async (req, res, next) => {
         paymentStatus: 'paid',
         serviceName: { $regex: /membership/i },
       })
-      const revenueGrowth = await getGrowth(
-        Booking,
-        {
-          ...productionBookingsScope,
-          status: 'completed',
-          paymentStatus: 'paid',
-        },
-        'createdAt'
+      const getRevenueGrowth = async () => {
+        const [currentRevenueRows, previousRevenueRows] = await Promise.all([
+          Payment.aggregate([
+            {
+              $match: {
+                ...productionPaymentsScope,
+                createdAt: { $gte: thirtyDaysAgo },
+                livemode: { $ne: false },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: '$amount' },
+              },
+            },
+          ]),
+          Payment.aggregate([
+            {
+              $match: {
+                ...productionPaymentsScope,
+                createdAt: { $gte: prevMonthStart, $lt: thirtyDaysAgo },
+                livemode: { $ne: false },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: '$amount' },
+              },
+            },
+          ]),
+        ])
+
+        const currentRevenue = Number(currentRevenueRows[0]?.totalRevenue || 0)
+        const previousRevenue = Number(previousRevenueRows[0]?.totalRevenue || 0)
+        if (previousRevenue === 0) return currentRevenue > 0 ? 100 : 0
+        return Math.round(((currentRevenue - previousRevenue) / previousRevenue) * 100)
+      }
+
+      const revenueGrowth = await getRevenueGrowth()
+      const totalRevenue = trendData.reduce(
+        (sum, item) => sum + Number(item?.revenue || 0),
+        0
       )
 
       return res.status(200).json({
@@ -424,6 +561,7 @@ export const getDashboardData = async (req, res, next) => {
             totalClients,
             totalVisits,
             activeMemberships,
+            totalRevenue,
             clientGrowth,
             visitGrowth,
             membershipGrowth,

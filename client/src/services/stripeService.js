@@ -140,6 +140,28 @@ const stripeService = {
     return response.data
   },
 
+  purchaseCredits: async ({ locationId, quantity }) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/credits/purchase',
+      {
+        locationId,
+        quantity,
+      }
+    )
+    return response.data
+  },
+
+  createCreditsCheckoutSession: async ({ locationId, quantity }) => {
+    const response = await axiosInstance.post(
+      'stripe/payment/membership/credits/checkout-session',
+      {
+        locationId,
+        quantity,
+      }
+    )
+    return response.data
+  },
+
   createMembershipSubscription: async (payload) => {
     const response = await axiosInstance.post(
       'stripe/payment/membership/subscription',

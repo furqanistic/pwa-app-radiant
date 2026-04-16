@@ -43,12 +43,20 @@ const DEFAULT_MEMBERSHIP_PLAN = {
 const normalizeCreditSystemConfig = (creditSystemInput, existingCreditSystemInput = {}) => {
   const incoming = toPlainObject(creditSystemInput) || {};
   const existing = toPlainObject(existingCreditSystemInput) || {};
+  const resolvedPricePerCredit =
+    incoming.pricePerCredit !== undefined
+      ? Number(incoming.pricePerCredit)
+      : Number(existing.pricePerCredit);
 
   return {
     isEnabled:
       incoming.isEnabled !== undefined
         ? Boolean(incoming.isEnabled)
         : Boolean(existing.isEnabled),
+    pricePerCredit:
+      Number.isFinite(resolvedPricePerCredit) && resolvedPricePerCredit >= 0
+        ? resolvedPricePerCredit
+        : 1,
   };
 };
 

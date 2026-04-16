@@ -957,29 +957,29 @@ const NextRewardProgressSection = () => {
         onClick={() => navigate(withSpaParam('/rewards'))}
         className='w-full text-left rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
       >
-        <div className='flex items-start justify-between gap-3 mb-4'>
-          <div className='flex items-center gap-2'>
-            <div className='rounded-xl bg-white p-2 shadow-sm'>
-              <Star className='w-5 h-5 text-[color:var(--brand-primary)]' />
+        <div className='flex items-center justify-between gap-2 mb-4'>
+          <div className='flex items-center gap-2 min-w-0'>
+            <div className='flex-shrink-0 rounded-lg sm:rounded-xl bg-white p-1.5 sm:p-2 shadow-sm'>
+              <Star className='w-4 h-4 sm:w-5 sm:h-5 text-[color:var(--brand-primary)]' />
             </div>
-            <div>
-              <h2 className='text-lg font-bold text-gray-900'>Next Reward</h2>
-              <p className='text-xs text-gray-500'>Track your unlock progress</p>
+            <div className='min-w-0'>
+              <h2 className='text-base sm:text-lg font-bold text-gray-900 truncate'>Next Reward</h2>
+              <p className='text-[10px] sm:text-xs text-gray-500 truncate'>Track progress</p>
             </div>
           </div>
-          <div className='rounded-full border border-[color:var(--brand-primary)/0.2] bg-[color:var(--brand-primary)/0.08] px-3 py-1'>
-            <p className='text-[11px] font-semibold text-[color:var(--brand-primary)]'>
-              Current: {formatPoints(currentPoints)} pts
+          <div className='flex-shrink-0 rounded-full border border-[color:var(--brand-primary)/0.2] bg-[color:var(--brand-primary)/0.08] px-2 py-0.5 sm:px-3 sm:py-1'>
+            <p className='text-[10px] sm:text-[11px] font-bold text-[color:var(--brand-primary)] whitespace-nowrap'>
+              <span className="hidden sm:inline">Current: </span>{formatPoints(currentPoints)} pts
             </p>
           </div>
         </div>
 
-        <div className='rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-[color:var(--brand-primary)/0.02]'>
+        <div className='rounded-xl border border-gray-200 bg-white p-3 sm:p-4 transition-colors hover:bg-[color:var(--brand-primary)/0.02]'>
           <div className='flex items-center justify-between gap-3 mb-2'>
             <p className='text-sm font-semibold text-gray-900 line-clamp-1'>
               {nextReward.name || 'Reward'}
             </p>
-            <p className='text-sm font-semibold text-[color:var(--brand-primary)] whitespace-nowrap'>
+            <p className='text-[13px] sm:text-sm font-bold text-[color:var(--brand-primary)] whitespace-nowrap'>
               {formatPoints(targetPoints)} pts
             </p>
           </div>

@@ -566,6 +566,31 @@ const resolveMembershipLocationAndOwner = async (locationId) => {
   return { location, spaOwner, stripeAccountId: spaOwner.stripe.accountId }
 }
 
+const resolveCreditPurchaseLocationAndOwner = async (locationId) => {
+  if (!locationId) {
+    throw createError(400, 'Location ID is required for credit purchases.')
+  }
+
+  const [location, spaOwner] = await Promise.all([
+    Location.findOne({ locationId }),
+    findStripeReadySpaOwnerByLocation(locationId),
+  ])
+
+  if (!location) {
+    throw createError(404, 'Location not found')
+  }
+
+  if (!spaOwner) {
+    throw createError(400, 'No Stripe-ready spa account found for this location')
+  }
+
+  if (!location?.membership?.creditSystem?.isEnabled) {
+    throw createError(400, 'Credits are not enabled for this location yet.')
+  }
+
+  return { location, spaOwner, stripeAccountId: spaOwner.stripe.accountId }
+}
+
 const findMembershipServiceForLocation = async ({ locationId, serviceId, planName = null }) => {
   if (serviceId) {
     const service = await Service.findById(serviceId)
@@ -739,6 +764,24 @@ const resolveBillableMembershipPlanForStripeAccount = async ({
       locationId,
     })
     return fallbackPlan
+  }
+}
+
+const resolveCreditPurchaseConfig = (location) => {
+  const pricePerCredit = Number(location?.membership?.creditSystem?.pricePerCredit)
+  if (!Number.isFinite(pricePerCredit) || pricePerCredit <= 0) {
+    throw createError(
+      400,
+      'A valid price per credit must be configured before customers can buy credits.'
+    )
+  }
+
+  const firstPlan = getLocationMembershipPlans(location)[0] || null
+  return {
+    pricePerCredit,
+    currency: `${firstPlan?.currency || location?.membership?.currency || 'usd'}`
+      .trim()
+      .toLowerCase(),
   }
 }
 
@@ -1056,6 +1099,13 @@ const buildMembershipSummaryResponse = async ({
 }) => {
   const membership = user.membership || {}
   const billing = user.membershipBilling || {}
+  const resolvedLocationId =
+    locationId || billing.locationId || membership.locationId || null
+  const location = resolvedLocationId
+    ? await Location.findOne({ locationId: resolvedLocationId }).select(
+        'locationId membership.creditSystem membership.currency membership.plans membership.name membership.price'
+      )
+    : null
   const resolvedDefaultMethod =
     paymentMethods.find(
       (method) =>
@@ -1073,9 +1123,22 @@ const buildMembershipSummaryResponse = async ({
       : null)
 
   return {
-    locationId: locationId || billing.locationId || membership.locationId || null,
+    locationId: resolvedLocationId,
     stripeAccountId: stripeAccountId || billing.stripeAccountId || null,
     customerId: billing.stripeCustomerId || null,
+    creditsBalance: Math.max(0, Number(user?.credits || 0)),
+    creditSystem: {
+      isEnabled: Boolean(location?.membership?.creditSystem?.isEnabled),
+      pricePerCredit: Number(location?.membership?.creditSystem?.pricePerCredit || 0),
+      currency: `${
+        getLocationMembershipPlans(location)[0]?.currency ||
+        location?.membership?.currency ||
+        membership?.currency ||
+        'usd'
+      }`
+        .trim()
+        .toLowerCase(),
+    },
     paymentMethods,
     defaultPaymentMethod: resolvedDefaultMethod,
     hasPaymentMethod: paymentMethods.length > 0 || Boolean(resolvedDefaultMethod),
@@ -1749,6 +1812,265 @@ export const removeMembershipPaymentMethod = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error removing membership payment method:', error)
+    next(error)
+  }
+}
+
+export const purchaseCredits = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+    const requestedQuantity = Math.floor(Number(req.body?.quantity))
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+      return next(createError(400, 'Choose a valid credit amount to purchase.'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const { location, spaOwner, stripeAccountId } =
+      await resolveCreditPurchaseLocationAndOwner(locationId)
+    const { pricePerCredit, currency } = resolveCreditPurchaseConfig(location)
+    const customerId = await ensureMembershipCustomer({
+      user,
+      stripeAccountId,
+      locationId,
+    })
+    const paymentMethodState = await listMembershipPaymentMethods({
+      customerId,
+      stripeAccountId,
+    })
+
+    if (paymentMethodState.paymentMethods.length === 0) {
+      return next(createError(400, 'Add a card before buying credits.'))
+    }
+
+    const defaultPaymentMethodId =
+      paymentMethodState.defaultPaymentMethodId ||
+      paymentMethodState.paymentMethods[0]?.id ||
+      null
+
+    if (!defaultPaymentMethodId) {
+      return next(createError(400, 'No default card found for credit purchases.'))
+    }
+
+    const totalAmount = Number((requestedQuantity * pricePerCredit).toFixed(2))
+    const amountInCents = Math.round(totalAmount * 100)
+
+    if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
+      return next(createError(400, 'Invalid credit pricing configured for this location.'))
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: amountInCents,
+        currency,
+        customer: customerId,
+        payment_method: defaultPaymentMethodId,
+        payment_method_types: ['card'],
+        off_session: true,
+        confirm: true,
+        description: `${requestedQuantity} credit${requestedQuantity === 1 ? '' : 's'} for ${location?.name || locationId}`,
+        metadata: {
+          type: 'credits_purchase',
+          userId: user._id.toString(),
+          locationId: `${locationId}`,
+          creditsQuantity: `${requestedQuantity}`,
+          pricePerCredit: `${pricePerCredit}`,
+        },
+      },
+      {
+        stripeAccount: stripeAccountId,
+      }
+    )
+
+    const paymentMethod = await stripe.paymentMethods.retrieve(
+      defaultPaymentMethodId,
+      {},
+      {
+        stripeAccount: stripeAccountId,
+      }
+    )
+
+    ensureMembershipBillingShape(user)
+    user.set('membershipBilling.stripeAccountId', stripeAccountId)
+    user.set('membershipBilling.locationId', locationId)
+    user.set('membershipBilling.stripeCustomerId', customerId)
+    user.set('membershipBilling.defaultPaymentMethod', {
+      paymentMethodId: paymentMethod.id,
+      brand: paymentMethod.card?.brand || null,
+      last4: paymentMethod.card?.last4 || null,
+      expMonth: paymentMethod.card?.exp_month || null,
+      expYear: paymentMethod.card?.exp_year || null,
+    })
+
+    const nextCreditsBalance = Math.max(
+      0,
+      Number(user.credits || 0) + requestedQuantity
+    )
+    user.credits = nextCreditsBalance
+    await user.save()
+
+    const latestCharge =
+      typeof paymentIntent.latest_charge === 'string'
+        ? { id: paymentIntent.latest_charge }
+        : paymentIntent.latest_charge || null
+
+    const paymentRecord = await Payment.create({
+      stripePaymentIntentId: paymentIntent.id,
+      stripeChargeId: latestCharge?.id || null,
+      stripeInvoiceId: null,
+      stripeSubscriptionId: null,
+      customer: user._id,
+      spaOwner: spaOwner._id,
+      stripeAccountId,
+      booking: null,
+      service: null,
+      paymentCategory: 'credits',
+      amount: amountInCents,
+      currency,
+      subtotal: amountInCents,
+      discount: { amount: 0, type: null, code: null, description: null },
+      tax: { amount: 0, rate: 0 },
+      platformFee: { amount: 0, percentage: 0 },
+      status: 'succeeded',
+      livemode: paymentIntent.livemode,
+      processedAt: new Date(),
+      paymentMethod: {
+        type: paymentMethod.type || 'card',
+        brand: paymentMethod.card?.brand || null,
+        last4: paymentMethod.card?.last4 || null,
+        expMonth: paymentMethod.card?.exp_month || null,
+        expYear: paymentMethod.card?.exp_year || null,
+      },
+      creditDetails: {
+        locationId,
+        quantity: requestedQuantity,
+        unitPrice: pricePerCredit,
+        totalCreditsAfterPurchase: nextCreditsBalance,
+      },
+      metadata: {
+        locationId: `${locationId}`,
+        type: 'credits_purchase',
+      },
+    })
+
+    res.status(201).json({
+      success: true,
+      message: `${requestedQuantity} credit${requestedQuantity === 1 ? '' : 's'} added successfully.`,
+      creditsBalance: nextCreditsBalance,
+      payment: {
+        id: paymentRecord._id,
+        stripePaymentIntentId: paymentIntent.id,
+        amount: totalAmount,
+        currency,
+      },
+      summary: await buildMembershipSummaryResponse({
+        user,
+        locationId,
+        stripeAccountId,
+        paymentMethods: paymentMethodState.paymentMethods,
+      }),
+    })
+  } catch (error) {
+    console.error('Error purchasing credits:', error)
+    if (
+      error?.type === 'StripeCardError' ||
+      error?.type === 'StripeInvalidRequestError' ||
+      error?.type === 'StripeAuthenticationError'
+    ) {
+      return next(
+        createError(
+          400,
+          error?.message || 'Unable to charge the saved card for this credit purchase.'
+        )
+      )
+    }
+    next(error)
+  }
+}
+
+export const createCreditsCheckoutSession = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+    const requestedQuantity = Math.floor(Number(req.body?.quantity))
+
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+      return next(createError(400, 'Choose a valid credit amount to purchase.'))
+    }
+
+    const locationId = getMembershipLocationIdFromRequest(req)
+    const { location, spaOwner, stripeAccountId } =
+      await resolveCreditPurchaseLocationAndOwner(locationId)
+    const { pricePerCredit, currency } = resolveCreditPurchaseConfig(location)
+    const totalAmount = Number((requestedQuantity * pricePerCredit).toFixed(2))
+    const amountInCents = Math.round(totalAmount * 100)
+
+    if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
+      return next(createError(400, 'Invalid credit pricing configured for this location.'))
+    }
+
+    const successUrl = `${process.env.CLIENT_URL}/membership?credits=success`
+    const cancelUrl = `${process.env.CLIENT_URL}/membership?credits=cancelled`
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'afterpay_clearpay'],
+      line_items: [
+        {
+          price_data: {
+            currency,
+            product_data: {
+              name: `${requestedQuantity} Credit${requestedQuantity === 1 ? '' : 's'}`,
+              description: `Credit top-up for ${location?.name || locationId}`,
+            },
+            unit_amount: amountInCents,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      customer_email: user.email,
+      payment_intent_data: {
+        transfer_data: {
+          destination: stripeAccountId,
+        },
+        metadata: {
+          customerId: user._id.toString(),
+          spaOwnerId: spaOwner._id.toString(),
+          locationId: `${locationId}`,
+          creditsQuantity: `${requestedQuantity}`,
+          pricePerCredit: `${pricePerCredit}`,
+          type: 'credits_purchase',
+          isCreditsCheckout: 'true',
+        },
+      },
+      metadata: {
+        customerId: user._id.toString(),
+        spaOwnerId: spaOwner._id.toString(),
+        locationId: `${locationId}`,
+        creditsQuantity: `${requestedQuantity}`,
+        pricePerCredit: `${pricePerCredit}`,
+        type: 'credits_purchase',
+        isCreditsCheckout: 'true',
+      },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    })
+
+    res.status(201).json({
+      success: true,
+      checkoutMode: 'hosted',
+      sessionId: session.id,
+      sessionUrl: session.url || null,
+    })
+  } catch (error) {
+    console.error('Error creating credits checkout session:', error)
     next(error)
   }
 }
@@ -3818,6 +4140,7 @@ async function handleCheckoutSessionCompleted(session) {
   const userRewardId = metadata.userRewardId
   const isCartCheckout = metadata.isCartCheckout === 'true'
   const isMembershipCheckout = metadata.isMembershipCheckout === 'true'
+  const isCreditsCheckout = metadata.isCreditsCheckout === 'true'
   const paymentIntentId =
     typeof session?.payment_intent === 'string' && session.payment_intent.trim()
       ? session.payment_intent.trim()
@@ -3831,6 +4154,7 @@ async function handleCheckoutSessionCompleted(session) {
     customerId: customerId || '',
     isCartCheckout,
     isMembershipCheckout,
+    isCreditsCheckout,
     amountTotalCents,
   })
 
@@ -3865,6 +4189,107 @@ async function handleCheckoutSessionCompleted(session) {
     paymentIntent?.charges?.data[0]?.payment_method_details?.card?.last4 || null
   const livemode = paymentIntent?.livemode ?? Boolean(session?.livemode)
   const purchaseMethodCache = new Map()
+
+  if (isCreditsCheckout) {
+    const locationId = metadata.locationId
+    const requestedQuantity = Math.floor(Number(metadata.creditsQuantity || 0))
+    const pricePerCredit = Number(metadata.pricePerCredit || 0)
+
+    if (!customerId || !locationId || requestedQuantity <= 0) {
+      console.error('Credits checkout session missing required metadata:', {
+        sessionId: session?.id || '',
+        customerId: customerId || '',
+        locationId: locationId || '',
+        requestedQuantity,
+      })
+      return
+    }
+
+    const existingCreditsPayment = await Payment.findOne({
+      stripePaymentIntentId: fallbackPaymentIntentId,
+      customer: customerId,
+      paymentCategory: 'credits',
+    })
+    if (existingCreditsPayment) {
+      console.log(
+        `Credits checkout session ${session.id} already processed (payment ${existingCreditsPayment._id})`
+      )
+      return
+    }
+
+    const customer = await User.findById(customerId)
+    if (!customer) {
+      console.error('Customer not found for credits checkout session:', customerId)
+      return
+    }
+
+    let spaOwnerId = metadata.spaOwnerId || paymentIntent?.metadata?.spaOwnerId || null
+    let stripeAccountId = paymentIntent?.transfer_data?.destination || null
+
+    if (!spaOwnerId || !stripeAccountId) {
+      const spaDestination = await resolveSpaDestinationForLocation(locationId)
+      spaOwnerId = spaOwnerId || spaDestination.spaOwnerId
+      stripeAccountId = stripeAccountId || spaDestination.stripeAccountId
+    }
+
+    if (!spaOwnerId || !stripeAccountId) {
+      console.error(
+        `Unable to resolve spa destination for credits checkout session ${session.id}`
+      )
+      return
+    }
+
+    ensureMembershipBillingShape(customer)
+    customer.set('membershipBilling.stripeAccountId', stripeAccountId)
+    customer.set('membershipBilling.locationId', locationId)
+
+    const nextCreditsBalance = Math.max(
+      0,
+      Number(customer.credits || 0) + requestedQuantity
+    )
+    customer.credits = nextCreditsBalance
+    await customer.save()
+
+    await Payment.create({
+      stripePaymentIntentId: fallbackPaymentIntentId,
+      stripeChargeId: paymentIntent?.charges?.data?.[0]?.id || null,
+      stripeInvoiceId: null,
+      stripeSubscriptionId: null,
+      customer: customerId,
+      spaOwner: spaOwnerId,
+      stripeAccountId,
+      booking: null,
+      service: null,
+      paymentCategory: 'credits',
+      amount: amountTotalCents,
+      currency: session.currency || 'usd',
+      subtotal: amountTotalCents,
+      discount: { amount: 0, type: null, code: null, description: null },
+      tax: { amount: 0, rate: 0 },
+      platformFee: { amount: 0, percentage: 0 },
+      status: 'succeeded',
+      livemode,
+      processedAt: new Date(),
+      paymentMethod: {
+        type: paymentMethodType,
+        brand: paymentMethodBrand,
+        last4: paymentMethodLast4,
+      },
+      creditDetails: {
+        locationId,
+        quantity: requestedQuantity,
+        unitPrice: pricePerCredit,
+        totalCreditsAfterPurchase: nextCreditsBalance,
+      },
+      metadata: {
+        locationId: `${locationId}`,
+        type: 'credits_purchase',
+      },
+    })
+
+    console.log(`Credits checkout completed for customer ${customerId}`)
+    return
+  }
 
   if (isMembershipCheckout) {
     const serviceId = metadata.serviceId

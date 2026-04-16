@@ -376,10 +376,10 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
       />
       <StatCard
         title="Revenue"
-        value={`$${trendData.reduce(
-          (acc, curr) => acc + (curr.revenue || 0),
-          0
-        )}`}
+        value={`$${Number(
+          stats.totalRevenue ??
+            trendData.reduce((acc, curr) => acc + (curr.revenue || 0), 0)
+        ).toFixed(2)}`}
         icon={DollarSign}
         growth={stats.revenueGrowth}
       />
@@ -843,17 +843,18 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                 </p>
               </div>
               <p className="text-[11px] text-gray-500 font-bold leading-tight">
-                {activity.serviceName}
+                {activity.activityLabel || activity.serviceName}
               </p>
               <div className="mt-2 flex items-center justify-between">
                 <span
                   className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                    activity.status === 'completed'
+                    (activity.displayStatus || activity.status) === 'completed' ||
+                    (activity.displayStatus || activity.status) === 'paid'
                       ? 'bg-[color:var(--brand-primary)/0.15] text-[color:var(--brand-primary)]'
                       : 'bg-gray-100 text-gray-600'
                   }`}
                 >
-                  {activity.status}
+                  {activity.displayStatus || activity.status}
                 </span>
                 <span className="text-[11px] font-black text-gray-900">
                   ${activity.finalPrice}
