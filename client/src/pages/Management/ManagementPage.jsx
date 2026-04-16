@@ -5,25 +5,19 @@ import { locationService } from "@/services/locationService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
-  Building,
   Calendar,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Clock,
   Crown,
-  Edit2,
   Gift,
   MapPin,
-  QrCode,
-  RefreshCw,
   Settings,
   ShieldCheck,
   Sparkles,
   TrendingUp,
-  UserCheck,
   UserPlus,
-  XIcon,
   Zap,
 } from "lucide-react";
 import React, { useState } from "react";
@@ -37,19 +31,9 @@ import AddUserForm from "@/components/Management/AddUserForm";
 import AutomatedGiftSettings from "@/components/Management/AutomatedGiftSettings";
 import AvailabilitySettings from "@/components/Management/AvailabilitySettings"; // Import
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
-import LocationAssignmentForm from "@/components/Management/LocationAssignmentForm";
-import LocationForm from "@/components/Management/LocationForm";
 import PointsSettings from "@/components/Management/PointsSettings";
-import QRCodeManagement from "@/components/QRCode/QRCodeManagement";
 import StripeConnect from "@/components/Stripe/StripeConnect";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import Layout from "@/pages/Layout/Layout";
 
 const clampChannel = (value) => Math.max(0, Math.min(255, value));
@@ -79,15 +63,10 @@ const ManagementPage = () => {
 
   // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [isLocationFormOpen, setIsLocationFormOpen] = useState(false);
-  const [editingLocation, setEditingLocation] = useState(null);
-  const [isLocationAssignmentOpen, setIsLocationAssignmentOpen] =
-    useState(false);
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
   const [isPointsSettingsOpen, setIsPointsSettingsOpen] = useState(false);
-  const [selectedQRLocation, setSelectedQRLocation] = useState(null);
   const [showAllQuickActionsMobile, setShowAllQuickActionsMobile] = useState(false);
   const [showAllToolsMobile, setShowAllToolsMobile] = useState(false);
 
@@ -117,11 +96,7 @@ const ManagementPage = () => {
   };
 
   // Fetch locations (admin only)
-  const {
-    data: locationsData,
-    isLoading: isLoadingLocations,
-    refetch: refetchLocations,
-  } = useQuery({
+  const { data: locationsData } = useQuery({
     queryKey: ["locations"],
     queryFn: () => locationService.getAllLocations(),
     enabled: isTeamOrAbove,
@@ -210,8 +185,6 @@ const ManagementPage = () => {
   const sharedLocationStripeLinked = Boolean(
     currentLocation?.membershipStripeConnected
   );
-  const activeLocationsCount = locations.filter((location) => location.isActive).length;
-  const inactiveLocationsCount = locations.length - activeLocationsCount;
   const roleLabelByKey = {
     spa: "Spa Manager",
     admin: "Admin",
@@ -341,26 +314,26 @@ const ManagementPage = () => {
     ...(isSuperAdmin
       ? [
           {
-            key: "add-location",
-            title: "Add Location",
-            description: "Create and configure a new spa location.",
+            key: "location-settings",
+            title: "Location Settings",
+            description: "Create, edit, and review settings for each location.",
             icon: MapPin,
-            onClick: () => setIsLocationFormOpen(true),
+            onClick: () => navigateWithSpa("/management/locations"),
             className:
               "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900",
           },
         ]
       : []),
-    ...(isAdminOrAbove
+    ...(!isSuperAdmin && isTeamOrAbove
       ? [
           {
-            key: "assign-location",
-            title: "Assign Location",
-            description: "Grant users access to the right location.",
-            icon: UserCheck,
-            onClick: () => setIsLocationAssignmentOpen(true),
+            key: "location-settings",
+            title: "Location Settings",
+            description: "Review and update your location details in a dedicated page.",
+            icon: MapPin,
+            onClick: () => navigateWithSpa("/management/locations"),
             className:
-              "border-violet-100 bg-violet-50/70 hover:bg-violet-100/70 text-violet-900",
+              "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900",
           },
         ]
       : []),
@@ -591,205 +564,6 @@ const ManagementPage = () => {
               <StripeConnect sharedLocationStripeLinked={sharedLocationStripeLinked} />
             </div>
           )}
-
-          {/* Location Management Section - Super Admin Only */}
-          {isSuperAdmin && (
-            <div className="mt-8 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-              <div className="px-5 py-4 md:px-6 md:py-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">
-                    Location Management
-                  </h3>
-                  <p className="text-sm text-slate-600 mt-1">
-                    Track all locations and manage edits, status, and QR access.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                    Active: {activeLocationsCount}
-                  </span>
-                  <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">
-                    Inactive: {inactiveLocationsCount}
-                  </span>
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                    Total: {locations.length}
-                  </span>
-                </div>
-              </div>
-
-              <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-slate-700">
-                  Locations ({locations.length})
-                </h4>
-                <Button
-                  size="sm"
-                  onClick={() => refetchLocations()}
-                  variant="outline"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
-                </Button>
-              </div>
-
-              {isLoadingLocations ? (
-                <div className="px-5 py-6 space-y-3">
-                  {[...Array(4)].map((_, index) => (
-                    <div
-                      key={`location-skeleton-${index}`}
-                      className="h-14 rounded-lg bg-slate-100 animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : locations.length === 0 ? (
-                <div className="text-center py-12">
-                  <Building className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No locations found</p>
-                </div>
-              ) : (
-                <>
-                  <div className="md:hidden p-4 space-y-3">
-                    {locations.map((location) => (
-                      <div
-                        key={location._id}
-                        className="rounded-xl border border-slate-200 bg-slate-50/40 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h5 className="text-sm font-semibold text-slate-900">
-                              {location.name || "Unnamed Location"}
-                            </h5>
-                            <p className="text-xs text-slate-500 mt-1">
-                              ID: {location.locationId}
-                            </p>
-                          </div>
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                              location.isActive
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {location.isActive ? "Active" : "Inactive"}
-                          </span>
-                        </div>
-
-                        <p className="mt-3 text-sm text-slate-700">
-                          {location.address || "No address"}
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">
-                          Created: {new Date(location.createdAt).toLocaleDateString()}
-                        </p>
-
-                        <div className="mt-3 flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEditingLocation(location);
-                              setIsLocationFormOpen(true);
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedQRLocation(location)}
-                            className="flex-1 flex items-center justify-center gap-2 text-pink-600 border-pink-200 hover:bg-pink-50"
-                          >
-                            <QrCode className="w-4 h-4" />
-                            QR Code
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="hidden md:block overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Location
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Address
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Created
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {locations.map((location) => (
-                        <tr key={location._id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {location.name || "Unnamed Location"}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                ID: {location.locationId}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {location.address || "No address"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                                location.isActive
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {location.isActive ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(location.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingLocation(location);
-                                setIsLocationFormOpen(true);
-                              }}
-                              className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                              Edit
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedQRLocation(location)}
-                              className="flex items-center gap-2 text-pink-600 border-pink-200 hover:bg-pink-50"
-                            >
-                              <QrCode className="w-4 h-4" />
-                              QR Code
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Modals */}
@@ -824,82 +598,6 @@ const ManagementPage = () => {
           locations={locations}
           currentUser={currentUser}
         />
-
-        {/* QR Code Modal */}
-        <Dialog 
-            open={!!selectedQRLocation} 
-            onOpenChange={(open) => !open && setSelectedQRLocation(null)}
-        >
-            <DialogContent 
-                showCloseButton={false}
-                className="max-w-[95vw] md:max-w-[1100px] w-full p-0 border-none bg-transparent shadow-none"
-            >
-                    <div className="bg-white rounded-[2.5rem] md:rounded-[4rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]">
-                    {/* Header Area */}
-                    <div className="px-6 py-8 md:px-12 md:py-10 flex items-center justify-between border-b border-gray-50 shrink-0">
-                        <DialogHeader>
-                            <DialogTitle className="text-2xl md:text-3xl lg:text-4xl font-black text-gray-900 tracking-tight">
-                                {selectedQRLocation?.name}
-                            </DialogTitle>
-                            <DialogDescription className="sr-only">
-                              Manage QR code settings for the selected location.
-                            </DialogDescription>
-                        </DialogHeader>
-                        
-                        <button 
-                            onClick={() => setSelectedQRLocation(null)}
-                            className="p-3 rounded-full bg-gray-100/80 text-gray-500 hover:bg-pink-500 hover:text-white transition-all duration-300 shadow-sm hover:rotate-90 group shrink-0"
-                        >
-                            <XIcon className="w-6 h-6" />
-                        </button>
-                    </div>
-
-                    {/* Scrollable Content with room for shadows */}
-                    <div className="overflow-y-auto p-6 md:p-12 pt-4 md:pt-6">
-                        <div className="pb-10"> {/* Extra bottom padding to avoid clipping shadow */}
-                            {selectedQRLocation && (
-                                <QRCodeManagement
-                                    locationId={selectedQRLocation._id}
-                                    locationName={selectedQRLocation.name}
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </DialogContent>
-        </Dialog>
-
-        {isTeamOrAbove && (
-          <>
-            <LocationForm
-              isOpen={isLocationFormOpen}
-              initialData={editingLocation || (currentUser?.role === "spa" ? locations[0] : null)}
-              onClose={() => {
-                setIsLocationFormOpen(false);
-                setEditingLocation(null);
-              }}
-              onSuccess={() => {
-                setIsLocationFormOpen(false);
-                setEditingLocation(null);
-                toast.success(editingLocation ? "Location updated successfully!" : "Location created successfully!");
-                queryClient.invalidateQueries({ queryKey: ["locations"] });
-                refetchLocations();
-              }}
-            />
-
-            {isAdminOrAbove && (
-              <LocationAssignmentForm
-                isOpen={isLocationAssignmentOpen}
-                onClose={() => setIsLocationAssignmentOpen(false)}
-                onSuccess={() => {
-                  queryClient.invalidateQueries({ queryKey: ["all-users"] });
-                  queryClient.invalidateQueries({ queryKey: ["locations"] });
-                  refetchLocations();
-                }}
-              />
-            )}
-          </>
-        )}
       </div>
     </Layout>
   );

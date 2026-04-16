@@ -73,7 +73,7 @@ const adjustHex = (hex, amount) => {
 }
 
 const getDialogSheetClasses =
-  'p-0 overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] w-full sm:max-w-4xl rounded-t-[2.5rem] sm:rounded-[2rem] fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 border-0 shadow-2xl bg-white'
+  'p-0 overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh] !w-screen max-w-none sm:!w-full sm:max-w-4xl rounded-t-[2.5rem] sm:rounded-[2rem] fixed !left-0 !right-0 !bottom-0 !top-auto !translate-x-0 !translate-y-0 sm:!top-1/2 sm:!left-1/2 sm:!right-auto sm:!bottom-auto sm:!-translate-x-1/2 sm:!-translate-y-1/2 border-0 shadow-2xl bg-white'
 
 // Fix Leaflet icon issue
 delete L.Icon.Default.prototype._getIconUrl;
