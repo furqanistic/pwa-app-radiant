@@ -133,7 +133,7 @@ export const generateManifest = async (req, res, next) => {
 
     // Generate manifest
     const manifest = {
-      name: `${location.name} - RadiantAI`,
+      name: `${location.name} - CxR Systems`,
       short_name: location.name,
       description: `Beauty and wellness management for ${location.name}`,
       start_url: "/",

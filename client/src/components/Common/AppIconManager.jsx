@@ -1,9 +1,9 @@
 
-import React, { useEffect, useMemo, useRef } from 'react';
-import { useSelector } from 'react-redux';
 import { useBranding } from '@/context/BrandingContext';
 import { resolveImageUrl } from '@/lib/imageHelpers';
 import { getCurrentSubdomain } from '@/utils/subdomain';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useSelector } from 'react-redux';
 
 /**
  * AppIconManager dynamically updates the PWA manifest and icons based on the selected spa location.
@@ -71,7 +71,7 @@ const AppIconManager = () => {
         const DEFAULT_FAVICON = '/favicon_io/favicon.ico';
         const DEFAULT_APPLE_ICON = '/favicon_io/apple-touch-icon.png';
         const DEFAULT_MANIFEST = '/manifest.json';
-        const DEFAULT_APP_NAME = 'RadiantAI';
+        const DEFAULT_APP_NAME = 'CxR Systems';
         const DEFAULT_THEME_COLOR = '#ec4899';
 
         const updateMetadata = async () => {
@@ -90,7 +90,7 @@ const AppIconManager = () => {
             }
 
             // 1. Update Title
-            document.title = brandName ? `${brandName} | RadiantAI` : DEFAULT_APP_NAME;
+            document.title = brandName ? `${brandName} | CxR Systems` : DEFAULT_APP_NAME;
 
             // 2. Update Icon Links (Force refresh by replacing elements)
             const updateLink = (rel, href) => {

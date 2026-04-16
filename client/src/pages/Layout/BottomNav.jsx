@@ -400,7 +400,7 @@ const BottomNav = () => {
 
               <div className='mt-6 pt-6 border-t border-gray-100'>
                 <p className='text-center text-xs text-gray-400 font-medium'>
-                  RadiantAI • Beauty & Wellness v1.0
+                  CxR Systems • Beauty & Wellness v1.0
                 </p>
               </div>
             </motion.div>

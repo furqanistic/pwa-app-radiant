@@ -35,8 +35,8 @@ export default defineConfig({
         'icon.png',
       ],
       manifest: {
-        name: 'RadiantAI - Beauty & Wellness AI',
-        short_name: 'RadiantAI',
+        name: 'CxR Systems - Beauty & Wellness AI',
+        short_name: 'CxR Systems',
         description:
           'AI-powered beauty and wellness management platform for med spas and beauty clinics',
         theme_color: '#ec4899',

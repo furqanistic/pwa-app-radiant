@@ -130,7 +130,7 @@ const ReferralPage = () => {
     const uniqueLink = shareUrl || ''
     const uniqueLinkDisplay = uniqueLink.replace(/^https?:\/\//, '')
     const formatPoints = (value) => `${Number(value || 0).toLocaleString()} pts`
-    const brandName = branding?.name || 'RadiantAI'
+    const brandName = branding?.name || 'CxR Systems'
 
     const copyToClipboard = async (text, setter) => {
         if (!text) return
@@ -145,17 +145,17 @@ const ReferralPage = () => {
 
     const handleShare = (platform) => {
         if (!shareUrl) return
-        const text = 'Join me on RadiantAI and start your beauty transformation!'
+        const text = 'Join me on CxR Systems and start your beauty transformation!'
         const urls = {
             sms: `sms:?&body=${encodeURIComponent(text + ' ' + shareUrl)}`,
             whatsapp: `https://wa.me/?text=${encodeURIComponent(text + ' ' + shareUrl)}`,
-            email: `mailto:?subject=${encodeURIComponent('Join RadiantAI with me!')}&body=${encodeURIComponent(text + '\n\n' + shareUrl)}`,
+            email: `mailto:?subject=${encodeURIComponent('Join CxR Systems with me!')}&body=${encodeURIComponent(text + '\n\n' + shareUrl)}`,
         }
         if (urls[platform]) window.open(urls[platform], '_blank', 'width=600,height=400')
     }
     const handleNativeShare = async () => {
         if (!shareUrl) return
-        const text = 'Join me on RadiantAI and start your beauty transformation!'
+        const text = 'Join me on CxR Systems and start your beauty transformation!'
         try {
             if (navigator.share) {
                 await navigator.share({

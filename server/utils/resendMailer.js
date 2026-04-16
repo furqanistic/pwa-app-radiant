@@ -26,7 +26,7 @@ export const sendPasswordResetEmail = async ({
 
   const fromAddress =
     `${process.env.RESEND_FROM_EMAIL || ''}`.trim() ||
-    'RadiantAI <onboarding@resend.dev>'
+    'CxR Systems <onboarding@resend.dev>'
 
   const resend = getResendClient()
   const safeBrandColor = /^#[0-9A-Fa-f]{6}$/.test(`${brandColor || ''}`.trim())

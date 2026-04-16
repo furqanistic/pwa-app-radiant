@@ -104,7 +104,7 @@ const PushPrompt = () => {
       
       <p className="text-xs text-gray-500 leading-relaxed font-medium">
         {isSubscribed 
-          ? "Your device is perfectly synced with RadiantAI. We'll alert you for every beauty milestone."
+          ? "Your device is perfectly synced with CxR Systems. We'll alert you for every beauty milestone."
           : "Stay in the loop. Enable push alerts to get instant updates on bookings and exclusive rewards."}
       </p>
 
@@ -325,7 +325,7 @@ const NotificationPanel = ({ className = '' }) => {
                         {activeTab === 'notifications' ? 'Feed' : 'Settings'}
                       </h3>
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                        RadiantAI Updates
+                        CxR Systems Updates
                       </p>
                     </div>
                   </div>

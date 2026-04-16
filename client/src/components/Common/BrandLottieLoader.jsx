@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react'
 import { useBranding } from '@/context/BrandingContext'
 import { motion, useReducedMotion } from 'framer-motion'
+import React, { useEffect, useRef } from 'react'
 
 const Motion = motion
 
@@ -13,7 +13,7 @@ const BrandLottieLoader = ({
   const { branding } = useBranding()
   const spaName = branding?.name?.trim()
   const spaSubtitle = branding?.subtitle?.trim() || branding?.tagline?.trim() || ''
-  const showSpaMeta = Boolean(spaName && spaName.toLowerCase() !== 'radiantai')
+  const showSpaMeta = Boolean(spaName && spaName.toLowerCase() !== 'CxR Systems')
 
   useEffect(() => {
     const container = lottieRef.current

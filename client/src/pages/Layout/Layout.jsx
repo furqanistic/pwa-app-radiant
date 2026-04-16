@@ -423,7 +423,7 @@ const Layout = ({
           <div className='flex items-center space-x-2.5 pr-6'>
             <div className='min-w-0 flex-1'>
               <h1 className='text-base font-bold text-gray-900 truncate'>
-                {branding?.name || 'RadiantAI'}
+                {branding?.name || 'CxR Systems'}
               </h1>
               {sidebarSubtitle ? (
                 <p className='text-xs text-gray-500 font-medium truncate'>

@@ -1,7 +1,7 @@
 // File: client/src/context/BrandingContext.jsx
+import { resolveImageUrl } from '@/lib/imageHelpers';
 import { selectCurrentUser } from '@/redux/userSlice';
 import { brandingService } from '@/services/brandingService';
-import { resolveImageUrl } from '@/lib/imageHelpers';
 import { getCurrentSubdomain } from '@/utils/subdomain';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
@@ -134,7 +134,7 @@ export const BrandingProvider = ({ children }) => {
   useEffect(() => {
     if (branding) {
       // Update title
-      document.title = `${branding.name} - RadiantAI`;
+      document.title = `${branding.name} - CxR Systems`;
       
       // Update favicon
       if (branding.favicon || branding.faviconPublicId) {
@@ -157,7 +157,7 @@ export const BrandingProvider = ({ children }) => {
       }
     } else {
       // Primary default title
-      document.title = "RadiantAI - Luxury Beauty Management";
+      document.title = "CxR Systems - Luxury Beauty Management";
       document.documentElement.style.setProperty('--brand-primary', '#ec4899'); // Default pink
     }
   }, [branding]);
