@@ -440,14 +440,14 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
                         <p className="text-sm font-medium text-gray-500 mb-8">{result.message}</p>
                       </div>
 
-                      {result.data?.user && !isCheckInScan && (
+                      {result.data?.user && (
                         <div className="bg-gray-50 border border-gray-100 rounded-3xl p-6 space-y-4">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                              Points Awarded
+                              {isCheckInScan ? 'Check-In Reward' : 'Points Awarded'}
                             </span>
                             <span className="text-2xl font-bold" style={{ color: brandColor }}>
-                              +{result.data.user.pointsEarned}
+                              +{Number(result.data.user.pointsEarned || 0)}
                             </span>
                           </div>
                           

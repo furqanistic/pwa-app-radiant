@@ -511,7 +511,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                       latestVisibleQrClaim.scannedByEmail}
                   </p>
                   <p className="text-xs text-gray-400 font-bold mt-2">
-                    Claimed {latestVisibleQrClaim.pointsAwarded} points{' '}
+                    Earned {latestVisibleQrClaim.pointsAwarded} points{' '}
                     {formatRelativeTime(latestVisibleQrClaim.claimedAt)}
                   </p>
                   {creditSystemEnabled && (

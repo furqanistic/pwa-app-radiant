@@ -5,6 +5,11 @@ import User from "../models/User.js";
 import { createSystemNotification } from "../controller/notification.js";
 
 const CHECKIN_SCAN_TYPE = "checkin";
+const getStartOfUtcDay = (dateInput = new Date()) => {
+  const date = new Date(dateInput);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
 
 export const processPendingQrClaimsForUser = async (user) => {
   if (!user?._id || !user?.email) {
@@ -41,12 +46,52 @@ export const processPendingQrClaimsForUser = async (user) => {
         };
 
     if (scanType === CHECKIN_SCAN_TYPE) {
+      const scanPoints = Math.max(0, Number(scan.pointsAwarded || 0));
+      const startOfScanUtcDay = getStartOfUtcDay(scan.createdAt || new Date());
+
+      const alreadyRewardedOnScanDay =
+        scanPoints > 0
+          ? await QRCodeScan.exists({
+              _id: { $ne: scan._id },
+              locationId: scan.locationId,
+              scanType: CHECKIN_SCAN_TYPE,
+              status: "verified",
+              scannedByUser: user._id,
+              pointsAwarded: { $gt: 0 },
+              createdAt: { $gte: startOfScanUtcDay },
+            })
+          : null;
+
+      let userTransactionId = null;
+      const pointsToAward = alreadyRewardedOnScanDay ? 0 : scanPoints;
+
+      if (pointsToAward > 0) {
+        user.points = (user.points || 0) + pointsToAward;
+        userPointsAwarded += pointsToAward;
+
+        const userTransaction = await PointTransaction.create({
+          user: user._id,
+          type: "checkin",
+          points: pointsToAward,
+          balance: user.points,
+          description: `Daily check-in at ${location.name}`,
+          locationId: scan.locationId,
+          metadata: {
+            locationName: location.name,
+            qrId: scan.qrId,
+            source: "pending_checkin_after_signup",
+            scanId: scan._id.toString(),
+          },
+        });
+        userTransactionId = userTransaction._id;
+      }
+
       scan.status = "verified";
       scan.scannedByUser = user._id;
       scan.scannedByEmail = normalizedEmail;
-      scan.userTransactionId = null;
+      scan.userTransactionId = userTransactionId;
       scan.spaOwnerTransactionId = null;
-      scan.pointsAwarded = 0;
+      scan.pointsAwarded = pointsToAward;
       scan.pointsAwardedToSpaOwner = 0;
       await scan.save();
 

@@ -29,6 +29,7 @@ const PointTransactionSchema = new mongoose.Schema(
         "game_play", // For game-related transactions
         "qr_scan", // For user scanning QR code
         "qr_scan_reward", // For spa owner reward
+        "checkin", // For daily app check-in rewards
       ],
       required: true,
     },

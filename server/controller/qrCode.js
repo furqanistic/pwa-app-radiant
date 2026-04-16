@@ -6,9 +6,11 @@ import PointTransaction from "../models/PointTransaction.js";
 import QRCodeScan from "../models/QRCodeScan.js";
 import User from "../models/User.js";
 import { createSystemNotification } from "./notification.js";
+import { mergePointsMethodsWithDefaults } from "../utils/pointsSettings.js";
 
 const CLAIM_PURPOSE = "claim";
 const CHECKIN_PURPOSE = "checkin";
+const DAILY_CHECK_IN_METHOD_KEY = "daily_check_in";
 
 // Generate unique QR ID
 const generateQRId = () => {
@@ -88,6 +90,28 @@ const buildSpaSignupUrl = (location) => {
   }
 
   return `https://app.cxrsystems.com${pathWithSpa}`;
+};
+
+const getStartOfUtcDay = (dateInput = new Date()) => {
+  const date = new Date(dateInput);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+const resolveDailyCheckInPoints = (location) => {
+  const methods = mergePointsMethodsWithDefaults(
+    location?.pointsSettings?.methods || []
+  );
+
+  const dailyCheckInMethod = methods.find(
+    (method) => method?.key === DAILY_CHECK_IN_METHOD_KEY
+  );
+
+  if (!dailyCheckInMethod?.isActive) return 0;
+
+  const pointsValue = Number(dailyCheckInMethod?.pointsValue);
+  if (!Number.isFinite(pointsValue)) return 0;
+  return Math.max(0, pointsValue);
 };
 
 // Generate QR Code for a location
@@ -339,6 +363,7 @@ export const scanQRCode = async (req, res, next) => {
     }
 
     const actualPurpose = isCheckInQr ? CHECKIN_PURPOSE : CLAIM_PURPOSE;
+    const configuredCheckInPoints = resolveDailyCheckInPoints(location);
 
     if (requestedPurpose && requestedPurpose !== CLAIM_PURPOSE && requestedPurpose !== actualPurpose) {
       return next(createError(400, "QR code type does not match scan action"));
@@ -396,7 +421,9 @@ export const scanQRCode = async (req, res, next) => {
             scanType: actualPurpose,
             email: normalizedEmail,
             pointsToEarn:
-              actualPurpose === CLAIM_PURPOSE ? Number(location.qrCode?.pointsValue || 0) : 0,
+              actualPurpose === CLAIM_PURPOSE
+                ? Number(location.qrCode?.pointsValue || 0)
+                : configuredCheckInPoints,
             locationId: location.locationId,
             subdomain: location.subdomain || null,
             signupUrl,
@@ -414,7 +441,7 @@ export const scanQRCode = async (req, res, next) => {
         pointsAwarded:
           actualPurpose === CLAIM_PURPOSE
             ? Number(location.qrCode?.pointsValue || 0)
-            : 0,
+            : configuredCheckInPoints,
         pointsAwardedToSpaOwner:
           actualPurpose === CLAIM_PURPOSE
             ? Number(location.qrCode?.pointsValue || 0)
@@ -437,7 +464,9 @@ export const scanQRCode = async (req, res, next) => {
           scanType: actualPurpose,
           email: normalizedEmail,
           pointsToEarn:
-            actualPurpose === CLAIM_PURPOSE ? Number(location.qrCode?.pointsValue || 0) : 0,
+            actualPurpose === CLAIM_PURPOSE
+              ? Number(location.qrCode?.pointsValue || 0)
+              : configuredCheckInPoints,
           locationId: location.locationId,
           subdomain: location.subdomain || null,
           signupUrl,
@@ -467,6 +496,38 @@ export const scanQRCode = async (req, res, next) => {
     }
 
     if (actualPurpose === CHECKIN_PURPOSE) {
+      const dailyCheckInPoints = resolveDailyCheckInPoints(location);
+      const startOfTodayUtc = getStartOfUtcDay();
+
+      const alreadyRewardedToday = await QRCodeScan.exists({
+        locationId: location.locationId,
+        scanType: CHECKIN_PURPOSE,
+        status: "verified",
+        scannedByUser: user._id,
+        pointsAwarded: { $gt: 0 },
+        createdAt: { $gte: startOfTodayUtc },
+      });
+
+      const pointsToAward = alreadyRewardedToday ? 0 : dailyCheckInPoints;
+
+      if (pointsToAward > 0) {
+        user.points = (user.points || 0) + pointsToAward;
+        await user.save();
+
+        await PointTransaction.create({
+          user: user._id,
+          type: "checkin",
+          points: pointsToAward,
+          balance: user.points,
+          description: `Daily check-in at ${location.name}`,
+          locationId: location.locationId,
+          metadata: {
+            locationName: location.name,
+            qrId,
+          },
+        });
+      }
+
       const scan = await QRCodeScan.create({
         qrId,
         scanType: CHECKIN_PURPOSE,
@@ -474,7 +535,7 @@ export const scanQRCode = async (req, res, next) => {
         spaOwnerId: spaOwner._id,
         scannedByEmail: user.email,
         scannedByUser: user._id,
-        pointsAwarded: 0,
+        pointsAwarded: pointsToAward,
         pointsAwardedToSpaOwner: 0,
         status: "verified",
         ipAddress,
@@ -505,13 +566,17 @@ export const scanQRCode = async (req, res, next) => {
 
       return res.status(200).json({
         status: "success",
-        message: "Check-in recorded successfully!",
+        message:
+          pointsToAward > 0
+            ? `Check-in recorded! You earned ${pointsToAward} points.`
+            : "Check-in recorded successfully!",
         data: {
           scanId: scan._id,
           scanType: CHECKIN_PURPOSE,
           user: {
             name: user.name,
             email: user.email,
+            pointsEarned: pointsToAward,
             totalPoints: user.points,
           },
           location: {

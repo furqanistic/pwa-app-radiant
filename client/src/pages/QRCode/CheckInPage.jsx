@@ -176,6 +176,26 @@ const CheckInPage = () => {
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">Checked In!</h3>
                     <p className="text-gray-600">{result.message}</p>
                   </div>
+                  {typeof result?.data?.user?.pointsEarned === "number" && (
+                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 text-left">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                          Check-In Reward
+                        </span>
+                        <span className="text-xl font-bold" style={{ color: brandColor }}>
+                          +{result.data.user.pointsEarned}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                          New Balance
+                        </span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {Number(result?.data?.user?.totalPoints || 0)} points
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
