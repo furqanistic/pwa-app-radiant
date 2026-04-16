@@ -1,30 +1,30 @@
 // File: client/src/pages/Management/ManagementPage.jsx - UPDATED (CLEANUP)
 
+import { useBranding } from "@/context/BrandingContext";
 import { authService } from "@/services/authService";
 import { locationService } from "@/services/locationService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Award,
-  Calendar,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  Clock,
-  Crown,
-  Gift,
-  MapPin,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-  TrendingUp,
-  UserPlus,
-  Zap,
+    Award,
+    Calendar,
+    ChevronDown,
+    ChevronRight,
+    ChevronUp,
+    Clock,
+    Crown,
+    Gift,
+    MapPin,
+    Settings,
+    ShieldCheck,
+    Sparkles,
+    TrendingUp,
+    UserPlus,
+    Zap,
 } from "lucide-react";
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from 'sonner';
-import { useBranding } from "@/context/BrandingContext";
 
 // Import components
 import AddUserForm from "@/components/Management/AddUserForm";

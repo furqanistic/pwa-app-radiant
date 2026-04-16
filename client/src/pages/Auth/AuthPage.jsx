@@ -1,45 +1,45 @@
 // File: client/src/pages/Auth/AuthPage.jsx
 import { axiosInstance } from '@/config'
 import { useBranding } from '@/context/BrandingContext'
+import { resolveImageUrl } from '@/lib/imageHelpers'
 import {
-    loginFailure,
-    loginStart,
-    loginSuccess,
-    selectIsLoading,
-    updateProfile,
+  loginFailure,
+  loginStart,
+  loginSuccess,
+  selectIsLoading,
+  updateProfile,
 } from '@/redux/userSlice'
 import { authService } from '@/services/authService'
 import { locationService } from '@/services/locationService'
-import { resolveImageUrl } from '@/lib/imageHelpers'
 import { getCurrentSubdomain } from '@/utils/subdomain'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-    AlertCircle,
-    ArrowLeft,
-    ArrowRight,
-    Bot,
-    Calendar,
-    ChevronRight,
-    Eye,
-    EyeOff,
-    Heart,
-    Loader2,
-    Lock,
-    Mail,
-    MapPin,
-    Phone,
-    Search,
-    Sparkles,
-    User,
-    Zap,
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Bot,
+  Calendar,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Heart,
+  Loader2,
+  Lock,
+  Mail,
+  MapPin,
+  Phone,
+  Search,
+  Sparkles,
+  User,
+  Zap,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
-    useLocation,
-    useNavigate,
-    useSearchParams,
+  useLocation,
+  useNavigate,
+  useSearchParams,
 } from 'react-router-dom'
 
 const signupUser = async (userData) => {
@@ -726,7 +726,7 @@ const AuthPage = () => {
                   </div>
                 ) : (
                   <h1 className='text-6xl font-black text-gray-900 tracking-tighter'>
-                    Radiant<span style={{ color: '#000000' }}>AI</span>
+                    CxR <span style={{ color: '#000000' }}>Systems</span>
                   </h1>
                 )}
               </div>
