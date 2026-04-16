@@ -2,6 +2,7 @@ import { authService } from "@/services/authService";
 import { locationService } from "@/services/locationService";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+    BadgeCent,
     Bell,
     Calculator,
     Edit,
@@ -24,6 +25,7 @@ import { toast } from 'sonner';
 
 // Import components
 import AddUserForm from "@/components/Management/AddUserForm";
+import CreditsManager from "@/components/Management/CreditsManager";
 import NotificationSender from "@/components/Management/NotificationSender";
 import PointsManager from "@/components/Management/PointsManager";
 import { Button } from "@/components/ui/button";
@@ -46,8 +48,10 @@ const ContactsPage = () => {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isNotificationSenderOpen, setIsNotificationSenderOpen] = useState(false);
   const [isPointsManagerOpen, setIsPointsManagerOpen] = useState(false);
+  const [isCreditsManagerOpen, setIsCreditsManagerOpen] = useState(false);
   const [selectedUserForNotification, setSelectedUserForNotification] = useState(null);
   const [selectedUserForPoints, setSelectedUserForPoints] = useState(null);
+  const [selectedUserForCredits, setSelectedUserForCredits] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
@@ -254,6 +258,16 @@ const ContactsPage = () => {
   const handleClosePointsManager = () => {
     setSelectedUserForPoints(null);
     setIsPointsManagerOpen(false);
+  };
+
+  const handleOpenCreditsManager = (user = null) => {
+    setSelectedUserForCredits(user);
+    setIsCreditsManagerOpen(true);
+  };
+
+  const handleCloseCreditsManager = () => {
+    setSelectedUserForCredits(null);
+    setIsCreditsManagerOpen(false);
   };
 
   const renderPagination = () => {
@@ -526,6 +540,9 @@ const ContactsPage = () => {
                           Points
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Credits
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Joined
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -595,6 +612,9 @@ const ContactsPage = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {user.points || 0}
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {user.credits || 0}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(user.createdAt).toLocaleDateString()}
                           </td>
@@ -634,6 +654,17 @@ const ContactsPage = () => {
                                   >
                                     <Calculator className="w-4 h-4 mr-2" />
                                     Manage Points
+                                  </DropdownMenuItem>
+                                )}
+                                {isElevatedUser && (
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenCreditsManager(user);
+                                    }}
+                                  >
+                                    <BadgeCent className="w-4 h-4 mr-2" />
+                                    Manage Credits
                                   </DropdownMenuItem>
                                 )}
                                 {isElevatedUser && (
@@ -703,6 +734,14 @@ const ContactsPage = () => {
               isOpen={isPointsManagerOpen}
               onClose={handleClosePointsManager}
               user={selectedUserForPoints}
+            />
+          )}
+
+          {isElevatedUser && (
+            <CreditsManager
+              isOpen={isCreditsManagerOpen}
+              onClose={handleCloseCreditsManager}
+              user={selectedUserForCredits}
             />
           )}
         </div>

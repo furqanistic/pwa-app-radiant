@@ -7,6 +7,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+    BadgeCent,
     Bell,
     BellRing,
     CheckCheck,
@@ -235,6 +236,7 @@ const NotificationPanel = ({ className = '' }) => {
   const getNotificationIcon = (category) => {
     const icons = {
       points: <Crown className="h-4 w-4" />,
+      credits: <BadgeCent className="h-4 w-4" />,
       promotion: <Gift className="h-4 w-4" />,
       system: <Sparkles className="h-4 w-4" />,
       general: <Heart className="h-4 w-4" />,
@@ -245,6 +247,7 @@ const NotificationPanel = ({ className = '' }) => {
   const getIconContainerStyles = (category) => {
     const styles = {
       points: 'bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)]',
+      credits: 'bg-emerald-100 text-emerald-600',
       promotion: 'bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)]',
       system: 'bg-purple-100 text-purple-600',
       general: 'bg-[color:var(--brand-primary)/0.08] text-[color:var(--brand-primary)]',

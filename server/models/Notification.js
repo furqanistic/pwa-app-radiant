@@ -40,6 +40,7 @@ const NotificationSchema = new mongoose.Schema(
       enum: [
         'general',
         'points',
+        'credits',
         'system',
         'promotion',
         'alert',

@@ -2,6 +2,7 @@
 import express from 'express'
 import passport from 'passport'
 import {
+    adjustUserCredits,
     adjustUserPoints,
     assignLocationToUser,
     bulkUpdateUsers,
@@ -98,6 +99,14 @@ router.post(
   canManageUser,
   auditLog('points_adjustment'),
   adjustUserPoints
+)
+
+router.post(
+  '/users/:userId/credits',
+  requireSpaOrAdminOrAbove,
+  canManageUser,
+  auditLog('credits_adjustment'),
+  adjustUserCredits
 )
 
 // Regenerate referral code for any user

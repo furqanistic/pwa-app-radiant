@@ -1,24 +1,23 @@
-// File: client/src/components/Management/PointsManager.jsx
 import { useBranding } from '@/context/BrandingContext'
 import { authService } from '@/services/authService'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-    AlertTriangle,
-    Calculator,
-    Check,
-    Minus,
-    Plus,
-    Target,
-    X,
+  AlertTriangle,
+  BadgeCent,
+  Check,
+  Minus,
+  Plus,
+  Target,
+  X,
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '../ui/button'
 
-const PointsManager = ({
+const CreditsManager = ({
   isOpen,
   onClose,
-  user = null, // The user whose points we're managing
+  user = null,
 }) => {
   const queryClient = useQueryClient()
   const { branding } = useBranding()
@@ -37,25 +36,12 @@ const PointsManager = ({
   })()
 
   const [formData, setFormData] = useState({
-    type: 'add', // 'add', 'remove', 'set'
+    type: 'add',
     amount: '',
     reason: '',
   })
+  const [step, setStep] = useState(1)
 
-  const [step, setStep] = useState(1) // Step-based flow
-  const [isMobile, setIsMobile] = useState(false)
-
-  // Detect mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
-
-  // Prevent background scroll on mobile when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -67,17 +53,18 @@ const PointsManager = ({
     }
   }, [isOpen])
 
-  // Points adjustment mutation
-  const adjustPointsMutation = useMutation({
+  const adjustCreditsMutation = useMutation({
     mutationFn: ({ userId, type, amount, reason }) =>
-      authService.adjustUserPoints(userId, type, amount, reason),
-    onSuccess: (data) => {
-      toast.success('Points updated successfully!')
-      queryClient.invalidateQueries(['all-users'])
+      authService.adjustUserCredits(userId, type, amount, reason),
+    onSuccess: () => {
+      toast.success('Credits updated successfully!')
+      queryClient.invalidateQueries({ queryKey: ['all-users'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] })
       handleClose()
     },
     onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to update points')
+      toast.error(error.response?.data?.message || 'Failed to update credits')
     },
   })
 
@@ -92,12 +79,10 @@ const PointsManager = ({
   }
 
   const handleSubmit = async () => {
-    if (
-      !formData.amount ||
-      isNaN(formData.amount) ||
-      Number(formData.amount) <= 0
-    ) {
-      toast.error('Please enter a valid amount')
+    const amount = Number(formData.amount)
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Please enter a valid credit amount')
       return
     }
 
@@ -106,18 +91,18 @@ const PointsManager = ({
       return
     }
 
-    await adjustPointsMutation.mutateAsync({
+    await adjustCreditsMutation.mutateAsync({
       userId: user._id,
       type: formData.type,
-      amount: Number(formData.amount),
+      amount,
       reason: formData.reason.trim(),
     })
   }
 
-  const getOperationDetails = () => {
-    const currentPoints = user?.points || 0
-    const amount = Number(formData.amount) || 0
+  const currentCredits = Math.max(0, Number(user?.credits || 0))
+  const amount = Number(formData.amount) || 0
 
+  const getOperationDetails = () => {
     switch (formData.type) {
       case 'add':
         return {
@@ -125,10 +110,10 @@ const PointsManager = ({
           color: 'text-green-600',
           bgColor: 'bg-green-50',
           borderColor: 'border-green-200',
-          title: 'Add Points',
-          description: `Add ${amount} points to ${user?.name}'s account`,
-          newBalance: currentPoints + amount,
-          operation: `${currentPoints} + ${amount} = ${currentPoints + amount}`,
+          title: 'Add Credits',
+          description: `Add ${amount} credits to ${user?.name}'s account`,
+          newBalance: currentCredits + amount,
+          operation: `${currentCredits} + ${amount} = ${currentCredits + amount}`,
         }
       case 'remove':
         return {
@@ -136,13 +121,10 @@ const PointsManager = ({
           color: 'text-red-600',
           bgColor: 'bg-red-50',
           borderColor: 'border-red-200',
-          title: 'Remove Points',
-          description: `Remove ${amount} points from ${user?.name}'s account`,
-          newBalance: Math.max(0, currentPoints - amount),
-          operation: `${currentPoints} - ${amount} = ${Math.max(
-            0,
-            currentPoints - amount
-          )}`,
+          title: 'Remove Credits',
+          description: `Remove ${amount} credits from ${user?.name}'s account`,
+          newBalance: Math.max(0, currentCredits - amount),
+          operation: `${currentCredits} - ${amount} = ${Math.max(0, currentCredits - amount)}`,
         }
       case 'set':
         return {
@@ -150,20 +132,20 @@ const PointsManager = ({
           color: 'text-blue-600',
           bgColor: 'bg-blue-50',
           borderColor: 'border-blue-200',
-          title: 'Set Exact Points',
-          description: `Set ${user?.name}'s points to exactly ${amount}`,
+          title: 'Set Exact Credits',
+          description: `Set ${user?.name}'s credits to exactly ${amount}`,
           newBalance: amount,
-          operation: `Set to ${amount} points`,
+          operation: `Set to ${amount} credits`,
         }
       default:
         return {
-          icon: Calculator,
+          icon: BadgeCent,
           color: 'text-gray-600',
           bgColor: 'bg-gray-50',
           borderColor: 'border-gray-200',
-          title: 'Adjust Points',
+          title: 'Adjust Credits',
           description: '',
-          newBalance: currentPoints,
+          newBalance: currentCredits,
           operation: '',
         }
     }
@@ -172,18 +154,18 @@ const PointsManager = ({
   const operationTypes = [
     {
       value: 'add',
-      label: 'Add Points',
+      label: 'Add Credits',
       icon: Plus,
-      description: "Increase user's point balance",
+      description: "Increase user's credit balance",
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
     },
     {
       value: 'remove',
-      label: 'Remove Points',
+      label: 'Remove Credits',
       icon: Minus,
-      description: "Decrease user's point balance",
+      description: "Decrease user's credit balance",
       color: 'text-red-600',
       bgColor: 'bg-red-50',
       borderColor: 'border-red-200',
@@ -192,7 +174,7 @@ const PointsManager = ({
       value: 'set',
       label: 'Set Exact Amount',
       icon: Target,
-      description: 'Set specific point balance',
+      description: 'Set specific credit balance',
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
@@ -235,7 +217,7 @@ const PointsManager = ({
           Select Operation
         </h3>
         <p className='text-gray-600'>
-          Choose how you want to adjust {user?.name}'s points
+          Choose how you want to adjust {user?.name}'s credits
         </p>
       </div>
 
@@ -262,24 +244,8 @@ const PointsManager = ({
                 }`}
               />
               <div>
-                <div
-                  className={`font-medium ${
-                    formData.type === operation.value
-                      ? operation.color.replace('text-', 'text-')
-                      : 'text-gray-900'
-                  }`}
-                >
-                  {operation.label}
-                </div>
-                <div
-                  className={`text-sm ${
-                    formData.type === operation.value
-                      ? operation.color.replace('600', '700')
-                      : 'text-gray-500'
-                  }`}
-                >
-                  {operation.description}
-                </div>
+                <div className='font-medium text-gray-900'>{operation.label}</div>
+                <div className='text-sm text-gray-500'>{operation.description}</div>
               </div>
             </div>
           </button>
@@ -291,14 +257,14 @@ const PointsManager = ({
         style={{ backgroundColor: `${brandColor}12`, borderColor: `${brandColor}33` }}
       >
         <div className='flex items-start'>
-          <Calculator
+          <BadgeCent
             className='w-5 h-5 mt-0.5 mr-3 flex-shrink-0'
             style={{ color: brandColor }}
           />
           <div>
             <div className='font-medium text-gray-900'>Current Balance</div>
             <div className='text-lg font-bold' style={{ color: brandColorDark }}>
-              {user?.points || 0} points
+              {currentCredits} credits
             </div>
           </div>
         </div>
@@ -321,7 +287,7 @@ const PointsManager = ({
             {operation.title}
           </h3>
           <p className='text-gray-600'>
-            Enter the amount of points to{' '}
+            Enter the amount of credits to{' '}
             {formData.type === 'set' ? 'set' : formData.type}
           </p>
         </div>
@@ -329,7 +295,7 @@ const PointsManager = ({
         <div className='space-y-4'>
           <div>
             <label className='block text-sm font-medium text-gray-700 mb-2'>
-              {formData.type === 'set' ? 'Set Points To' : 'Point Amount'} *
+              {formData.type === 'set' ? 'Set Credits To' : 'Credit Amount'} *
             </label>
             <input
               type='number'
@@ -342,50 +308,47 @@ const PointsManager = ({
               placeholder={
                 formData.type === 'set'
                   ? 'Enter exact amount'
-                  : 'Enter amount to ' + formData.type
+                  : `Enter amount to ${formData.type}`
               }
               className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 text-base text-center text-lg font-medium'
               style={{ ['--tw-ring-color']: brandColor }}
             />
           </div>
 
-          {formData.amount &&
-            !isNaN(formData.amount) &&
-            Number(formData.amount) > 0 && (
-              <div
-                className={`${operation.bgColor} ${operation.borderColor} border rounded-lg p-4`}
-              >
-                <div className='text-center'>
-                  <div className='text-sm text-gray-600 mb-1'>Calculation</div>
-                  <div className={`text-lg font-medium ${operation.color}`}>
-                    {operation.operation}
-                  </div>
-                  <div className='mt-2 text-sm text-gray-600'>
-                    New Balance:{' '}
-                    <span className='font-semibold'>
-                      {operation.newBalance} points
-                    </span>
-                  </div>
+          {formData.amount && Number.isFinite(amount) && amount > 0 && (
+            <div
+              className={`${operation.bgColor} ${operation.borderColor} border rounded-lg p-4`}
+            >
+              <div className='text-center'>
+                <div className='text-sm text-gray-600 mb-1'>Calculation</div>
+                <div className={`text-lg font-medium ${operation.color}`}>
+                  {operation.operation}
+                </div>
+                <div className='mt-2 text-sm text-gray-600'>
+                  New Balance:{' '}
+                  <span className='font-semibold'>
+                    {operation.newBalance} credits
+                  </span>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-          {formData.type === 'remove' &&
-            Number(formData.amount) > (user?.points || 0) && (
-              <div className='bg-yellow-50 border border-yellow-200 rounded-lg p-4'>
-                <div className='flex'>
-                  <AlertTriangle className='w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5' />
-                  <div>
-                    <div className='font-medium text-yellow-800'>
-                      Balance Warning
-                    </div>
-                    <div className='text-sm text-yellow-700'>
-                      Amount exceeds current balance. Points will be set to 0.
-                    </div>
+          {formData.type === 'remove' && amount > currentCredits && (
+            <div className='bg-yellow-50 border border-yellow-200 rounded-lg p-4'>
+              <div className='flex'>
+                <AlertTriangle className='w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5' />
+                <div>
+                  <div className='font-medium text-yellow-800'>
+                    Balance Warning
+                  </div>
+                  <div className='text-sm text-yellow-700'>
+                    Amount exceeds current balance. Credits will be set to 0.
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -401,11 +364,10 @@ const PointsManager = ({
             Confirm Adjustment
           </h3>
           <p className='text-gray-600'>
-            Provide a reason for this points adjustment
+            Provide a reason for this credit adjustment
           </p>
         </div>
 
-        {/* Summary Card */}
         <div
           className={`${operation.bgColor} ${operation.borderColor} border-2 rounded-xl p-4`}
         >
@@ -425,7 +387,7 @@ const PointsManager = ({
             <div>
               <div className='text-sm text-gray-600'>Current</div>
               <div className='text-lg font-bold text-gray-900'>
-                {user?.points || 0}
+                {currentCredits}
               </div>
             </div>
             <div>
@@ -446,7 +408,7 @@ const PointsManager = ({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, reason: e.target.value }))
             }
-            placeholder='Enter the reason for this points adjustment...'
+            placeholder='Enter the reason for this credit adjustment...'
             rows={3}
             className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 resize-none text-base'
             style={{ ['--tw-ring-color']: brandColor }}
@@ -465,18 +427,17 @@ const PointsManager = ({
   return (
     <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center sm:justify-center'>
       <div className='bg-white w-full max-w-lg sm:rounded-xl max-h-[90vh] overflow-hidden flex flex-col sm:max-h-[85vh] rounded-t-3xl sm:rounded-t-xl'>
-        {/* Header */}
         <div className='flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0'>
           <div className='flex items-center space-x-3'>
             <div
               className='w-10 h-10 rounded-full flex items-center justify-center'
               style={{ backgroundColor: `${brandColor}18` }}
             >
-              <Calculator className='w-5 h-5' style={{ color: brandColor }} />
+              <BadgeCent className='w-5 h-5' style={{ color: brandColor }} />
             </div>
             <div>
               <h2 className='text-lg font-semibold text-gray-900'>
-                Manage Points
+                Manage Credits
               </h2>
               <p className='text-sm text-gray-600'>User: {user.name}</p>
             </div>
@@ -489,22 +450,19 @@ const PointsManager = ({
           </button>
         </div>
 
-        {/* Content */}
         <div className='flex-1 overflow-y-auto px-6 py-6'>
           {renderStepIndicator()}
-
           {step === 1 && renderOperationTypeStep()}
           {step === 2 && renderAmountStep()}
           {step === 3 && renderReasonStep()}
         </div>
 
-        {/* Footer */}
         <div className='px-6 py-4 border-t border-gray-200 flex gap-3 flex-shrink-0'>
           {step > 1 && (
             <Button
               variant='outline'
               onClick={() => setStep(step - 1)}
-              disabled={adjustPointsMutation.isLoading}
+              disabled={adjustCreditsMutation.isPending}
               className='flex-1 h-12'
             >
               Back
@@ -517,7 +475,7 @@ const PointsManager = ({
               disabled={
                 step === 2 &&
                 (!formData.amount ||
-                  isNaN(formData.amount) ||
+                  !Number.isFinite(Number(formData.amount)) ||
                   Number(formData.amount) <= 0)
               }
               className='flex-1 h-12'
@@ -531,10 +489,10 @@ const PointsManager = ({
             <Button
               onClick={handleSubmit}
               disabled={
-                adjustPointsMutation.isLoading ||
+                adjustCreditsMutation.isPending ||
                 !formData.reason.trim() ||
                 !formData.amount ||
-                isNaN(formData.amount) ||
+                !Number.isFinite(Number(formData.amount)) ||
                 Number(formData.amount) <= 0
               }
               className='flex-1 h-12'
@@ -542,7 +500,7 @@ const PointsManager = ({
                 backgroundImage: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
               }}
             >
-              {adjustPointsMutation.isLoading ? (
+              {adjustCreditsMutation.isPending ? (
                 <>
                   <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2' />
                   Processing...
@@ -561,4 +519,4 @@ const PointsManager = ({
   )
 }
 
-export default PointsManager
+export default CreditsManager

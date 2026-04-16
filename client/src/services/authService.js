@@ -98,6 +98,15 @@ export const authService = {
     return response.data
   },
 
+  adjustUserCredits: async (userId, type, amount, reason = '') => {
+    const response = await axiosInstance.post(`/auth/users/${userId}/credits`, {
+      type,
+      amount: Number(amount),
+      reason,
+    })
+    return response.data
+  },
+
   bulkUpdateUsers: async (userIds, action, data) => {
     const response = await axiosInstance.post('/auth/bulk-operations', {
       userIds,

@@ -1746,10 +1746,14 @@ export const adjustUserPoints = async (req, res, next) => {
     const { userId } = req.params
     const { type, amount, reason } = req.body
 
-    if (!['admin', 'super-admin'].includes(req.user.role)) {
+    if (!['spa', 'admin', 'super-admin'].includes(req.user.role)) {
       return next(
-        createError(403, 'Access denied. Admin or Super-Admin rights required.')
+        createError(403, 'Access denied. Spa, Admin, or Super-Admin rights required.')
       )
+    }
+
+    if (!reason || !`${reason}`.trim()) {
+      return next(createError(400, 'Reason is required for point adjustments'))
     }
 
     const user = await User.findById(userId)
@@ -1809,6 +1813,95 @@ export const adjustUserPoints = async (req, res, next) => {
           adjustment: amount,
           type,
           reason,
+          adjustedBy: req.user.name,
+        },
+      }
+    )
+
+    res.status(200).json({
+      status: 'success',
+      data: { user },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const adjustUserCredits = async (req, res, next) => {
+  try {
+    const { userId } = req.params
+    const { type, amount, reason } = req.body
+
+    if (!['spa', 'admin', 'super-admin'].includes(req.user.role)) {
+      return next(
+        createError(403, 'Access denied. Spa, Admin, or Super-Admin rights required.')
+      )
+    }
+
+    if (!reason || !`${reason}`.trim()) {
+      return next(createError(400, 'Reason is required for credit adjustments'))
+    }
+
+    const numericAmount = Number(amount)
+    if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+      return next(createError(400, 'Amount must be a valid non-negative number'))
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const oldCredits = Math.max(0, Number(user.credits || 0))
+    let newCredits = oldCredits
+
+    switch (type) {
+      case 'add':
+        newCredits += numericAmount
+        break
+      case 'remove':
+        newCredits = Math.max(0, oldCredits - numericAmount)
+        break
+      case 'set':
+        newCredits = numericAmount
+        break
+      default:
+        return next(createError(400, 'Invalid adjustment type'))
+    }
+
+    user.credits = newCredits
+    await user.save()
+
+    let notificationTitle = 'Credits Updated'
+    let notificationMessage = ''
+
+    switch (type) {
+      case 'add':
+        notificationMessage = `You received ${numericAmount} credits. Your balance is now ${newCredits} credits.`
+        break
+      case 'remove':
+        notificationMessage = `${numericAmount} credits were deducted from your account. Your balance is now ${newCredits} credits.`
+        break
+      case 'set':
+        notificationMessage = `Your credits balance has been set to ${newCredits} credits.`
+        break
+    }
+
+    notificationMessage += ` Reason: ${`${reason}`.trim()}`
+
+    await createSystemNotification(
+      userId,
+      notificationTitle,
+      notificationMessage,
+      {
+        category: 'credits',
+        priority: 'normal',
+        metadata: {
+          oldCredits,
+          newCredits,
+          adjustment: numericAmount,
+          type,
+          reason: `${reason}`.trim(),
           adjustedBy: req.user.name,
         },
       }
