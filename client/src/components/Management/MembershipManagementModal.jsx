@@ -47,9 +47,14 @@ const normalizePlan = (plan = {}) => {
 };
 
 const normalizeMembership = (membership) => {
+  const normalizedCreditSystem = {
+    isEnabled: Boolean(membership?.creditSystem?.isEnabled),
+  };
+
   if (Array.isArray(membership?.plans) && membership.plans.length > 0) {
     return {
       isActive: Boolean(membership.isActive),
+      creditSystem: normalizedCreditSystem,
       plans: membership.plans.map((plan) => normalizePlan(plan)),
     };
   }
@@ -57,12 +62,14 @@ const normalizeMembership = (membership) => {
   if (membership && (membership.name || membership.description || membership.price !== undefined)) {
     return {
       isActive: Boolean(membership.isActive),
+      creditSystem: normalizedCreditSystem,
       plans: [normalizePlan(membership)],
     };
   }
 
   return {
     isActive: false,
+    creditSystem: normalizedCreditSystem,
     plans: [normalizePlan(DEFAULT_PLAN)],
   };
 };
@@ -134,6 +141,9 @@ const MembershipManagementModal = ({
 
   const [formData, setFormData] = useState({
     isActive: false,
+    creditSystem: {
+      isEnabled: false,
+    },
     plans: [normalizePlan(DEFAULT_PLAN)],
   });
 
@@ -297,6 +307,9 @@ const MembershipManagementModal = ({
 
     const payload = {
       isActive: submitIntent === 'activate' ? true : formData.isActive,
+      creditSystem: {
+        isEnabled: Boolean(formData.creditSystem?.isEnabled),
+      },
       pendingStripeActivation:
         submitIntent === 'save' &&
         !formData.isActive &&
@@ -469,6 +482,46 @@ const MembershipManagementModal = ({
                   }`}
                 />
               </button>
+            </div>
+
+            <div className={`p-4 rounded-3xl border space-y-3 ${isPageMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50/70 border-slate-200'}`}>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <label className="text-sm font-black text-gray-900">
+                    Credit System
+                  </label>
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-1">
+                    Turn credits on or off for this location
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      creditSystem: {
+                        ...prev.creditSystem,
+                        isEnabled: !prev.creditSystem?.isEnabled,
+                      },
+                    }))
+                  }
+                  disabled={isReadOnly}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${
+                    formData.creditSystem?.isEnabled ? 'bg-emerald-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <div
+                    className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                      formData.creditSystem?.isEnabled ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="text-sm text-slate-600">
+                {formData.creditSystem?.isEnabled
+                  ? 'Subscribed users at this location can see their available credits in the top bar, and services can use their custom credit values.'
+                  : 'Credits stay hidden for this location, and the credit system is effectively off for subscribers here.'}
+              </div>
             </div>
 
             <div className={`flex items-center justify-between ${isPageMode ? 'pt-2' : ''}`}>

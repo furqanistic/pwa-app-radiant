@@ -264,6 +264,12 @@ const ServiceSchema = new mongoose.Schema(
     // Per-membership-plan service pricing
     membershipPricing: [MembershipPricingSchema],
 
+    creditValue: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
     // Service-specific GHL calendar routing
     ghlCalendar: {
       type: GhlCalendarSchema,

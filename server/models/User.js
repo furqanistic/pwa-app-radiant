@@ -44,6 +44,11 @@ const UserSchema = new mongoose.Schema(
       type: Number,
       default: 100,
     },
+    credits: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     lastLogin: {
       type: Date,
     },

@@ -1,7 +1,7 @@
 import { useBranding } from "@/context/BrandingContext";
 import { resolveImageUrl } from "@/lib/imageHelpers";
 import { selectIsElevatedUser, selectIsSuperAdmin } from "@/redux/userSlice";
-import { ShoppingCart } from "lucide-react";
+import { BadgeCent, ShoppingCart } from "lucide-react";
 import React from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,30 @@ import InstallButton from "./InstallButton";
 import NotificationPanel from "./NotificationPanel";
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
+
+const hasActiveMembership = (currentUser) => {
+  if (!currentUser) return false;
+
+  const membershipStatuses = [
+    currentUser?.membership?.status,
+    currentUser?.membershipStatus,
+    currentUser?.activeMembership?.status,
+    currentUser?.subscription?.status,
+  ]
+    .filter(Boolean)
+    .map((status) => `${status}`.toLowerCase());
+
+  if (
+    currentUser?.membership?.isActive ||
+    currentUser?.activeMembership?.isActive
+  ) {
+    return true;
+  }
+
+  return membershipStatuses.some((status) =>
+    ["active", "trialing", "past_due", "unpaid", "incomplete"].includes(status)
+  );
+};
 
 const Topbar = ({
   className = "",
@@ -24,6 +48,9 @@ const Topbar = ({
 
   // Hide cart for super-admin and admin/spa
   const showCart = !isSuperAdmin && !isElevatedUser;
+  const creditSystemEnabled = Boolean(branding?.membership?.creditSystem?.isEnabled);
+  const showCredits = showCart && creditSystemEnabled && hasActiveMembership(currentUser);
+  const availableCredits = Math.max(0, Number(currentUser?.credits || 0));
 
   return (
     <>
@@ -53,6 +80,15 @@ const Topbar = ({
 
             {/* Right side - Cart, Notifications and User Profile */}
             <div className="flex items-center space-x-2 lg:space-x-4">
+              {showCredits && (
+                <div className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+                  <BadgeCent className="h-4 w-4" />
+                  <span className="text-xs font-semibold">
+                    {availableCredits} credits
+                  </span>
+                </div>
+              )}
+
               {/* Shopping Cart */}
               {showCart && (
                 <button

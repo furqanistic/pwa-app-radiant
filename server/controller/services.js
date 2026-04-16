@@ -522,6 +522,7 @@ export const createService = async (req, res, next) => {
       defaultRewardValue = 10,
       defaultRewardPoints = 100,
       membershipPricing = [],
+      creditValue = 0,
       ghlCalendar = {},
       ghlService = {},
       ghlBooking = {},
@@ -577,6 +578,10 @@ export const createService = async (req, res, next) => {
       limit: parseInt(limit),
       subTreatments,
       membershipPricing: normalizeMembershipPricing(membershipPricing),
+      creditValue: Math.max(
+        0,
+        Number.isFinite(Number(creditValue)) ? Number(creditValue) : 0
+      ),
       ghlCalendar: {
         calendarId: `${ghlCalendar.calendarId || ''}`.trim(),
         name: `${ghlCalendar.name || ''}`.trim(),
@@ -746,6 +751,14 @@ export const updateService = async (req, res, next) => {
     if (updateData.membershipPricing !== undefined) {
       updateData.membershipPricing = normalizeMembershipPricing(
         updateData.membershipPricing
+      )
+    }
+    if (updateData.creditValue !== undefined) {
+      updateData.creditValue = Math.max(
+        0,
+        Number.isFinite(Number(updateData.creditValue))
+          ? Number(updateData.creditValue)
+          : 0
       )
     }
     if (updateData.ghlCalendar !== undefined) {

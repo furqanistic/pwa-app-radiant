@@ -17,6 +17,7 @@ export const validateServiceData = async (req, res, next) => {
       subTreatments,
       linkedServices, // NEW: Added linkedServices validation
       membershipPricing,
+      creditValue,
       ghlCalendar,
       ghlService,
       ghlBooking,
@@ -250,6 +251,13 @@ export const validateServiceData = async (req, res, next) => {
           )
         }
       })
+    }
+
+    if (creditValue !== undefined && creditValue !== null) {
+      const parsedCreditValue = Number(creditValue)
+      if (!Number.isFinite(parsedCreditValue) || parsedCreditValue < 0) {
+        errors.push('Credit value must be a valid non-negative number')
+      }
     }
 
     if (ghlCalendar && typeof ghlCalendar === 'object') {

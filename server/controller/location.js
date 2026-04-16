@@ -40,6 +40,18 @@ const DEFAULT_MEMBERSHIP_PLAN = {
   currency: 'usd',
 };
 
+const normalizeCreditSystemConfig = (creditSystemInput, existingCreditSystemInput = {}) => {
+  const incoming = toPlainObject(creditSystemInput) || {};
+  const existing = toPlainObject(existingCreditSystemInput) || {};
+
+  return {
+    isEnabled:
+      incoming.isEnabled !== undefined
+        ? Boolean(incoming.isEnabled)
+        : Boolean(existing.isEnabled),
+  };
+};
+
 const toPlainObject = (value) =>
   value && typeof value.toObject === 'function' ? value.toObject() : value;
 
@@ -105,6 +117,10 @@ const normalizeMembershipInput = (membershipInput, existingMembershipInput = {})
       incoming.isActive !== undefined
         ? Boolean(incoming.isActive)
         : Boolean(existing.isActive),
+    creditSystem: normalizeCreditSystemConfig(
+      incoming.creditSystem,
+      existing.creditSystem
+    ),
     pendingStripeActivation:
       incoming.pendingStripeActivation !== undefined
         ? Boolean(incoming.pendingStripeActivation)

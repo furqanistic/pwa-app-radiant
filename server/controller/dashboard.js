@@ -567,7 +567,7 @@ export const getDashboardData = async (req, res, next) => {
           referralCode: user.referralCode,
         },
         credits: {
-          available: activeCredits.length,
+          available: Math.max(0, Number(user.credits || 0)),
           gifts: giftCards,
           expiring: nearestExpiring ? nearestExpiring.expiresAt : null,
           expiringReward: nearestExpiring,

@@ -316,6 +316,12 @@ const LocationSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      creditSystem: {
+        isEnabled: {
+          type: Boolean,
+          default: false,
+        },
+      },
       pendingStripeActivation: {
         type: Boolean,
         default: false,

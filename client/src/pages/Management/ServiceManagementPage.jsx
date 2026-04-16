@@ -850,6 +850,9 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     subTreatments: service?.subTreatments || [],
     linkedServices: service?.linkedServices || [],
     membershipPricing: service?.membershipPricing || [],
+    creditValue: Number.isFinite(Number(service?.creditValue))
+      ? Number(service.creditValue)
+      : 0,
     ghlCalendar: service?.ghlCalendar || {
       calendarId: '',
       name: '',
@@ -995,6 +998,9 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               isActive: entry.isActive !== false,
             }))
           : [],
+        creditValue: Number.isFinite(Number(service.creditValue))
+          ? Number(service.creditValue)
+          : 0,
         ghlCalendar: {
           calendarId: service.ghlCalendar?.calendarId || '',
           name: service.ghlCalendar?.name || '',
@@ -1204,6 +1210,13 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               entry.price >= 0
           )
       }
+
+      submissionData.creditValue = Math.max(
+        0,
+        Number.isFinite(Number(submissionData.creditValue))
+          ? Number(submissionData.creditValue)
+          : 0
+      )
 
       submissionData.ghlCalendar = {
         calendarId: submissionData.ghlCalendar?.calendarId || '',
@@ -1702,6 +1715,38 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
             )}
             <p className='text-[11px] text-gray-400'>
               Tip: Upload low-size images (max 1MB) for faster loading.
+            </p>
+          </div>
+        </div>
+
+        <div className='bg-white rounded-lg p-6'>
+          <h2 className='text-lg font-bold text-gray-900 mb-2'>
+            Credit Settings
+          </h2>
+          <p className='text-sm text-gray-600 mb-5'>
+            Set how many credits this service uses when a location has the credit system enabled.
+          </p>
+
+          <div className='max-w-sm'>
+            <label className='block text-sm font-semibold text-gray-700 mb-2'>
+              Credit Value
+            </label>
+            <input
+              type='number'
+              min='0'
+              step='1'
+              value={formData.creditValue}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  creditValue: Math.max(0, Number(e.target.value) || 0),
+                })
+              }
+              className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+              disabled={isSubmitting}
+            />
+            <p className='text-[10px] text-gray-500 mt-1'>
+              Use `0` if this service should not consume credits.
             </p>
           </div>
         </div>

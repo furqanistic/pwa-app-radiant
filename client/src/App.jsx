@@ -69,6 +69,7 @@ const getUserSyncSignature = (user) =>
     name: user?.name || null,
     email: user?.email || null,
     points: user?.points ?? null,
+    credits: user?.credits ?? null,
     hasSelectedSpa: user?.hasSelectedSpa ?? null,
     selectedLocationId: user?.selectedLocation?.locationId || null,
     selectedLocationName: user?.selectedLocation?.locationName || null,
