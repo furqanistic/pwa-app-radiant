@@ -76,6 +76,7 @@ export const isPwaInstalled = () => {
   if (typeof window === 'undefined') return false
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
     window.matchMedia('(display-mode: minimal-ui)').matches ||
     window.navigator.standalone === true ||
     document.referrer.includes('android-app://')
@@ -83,7 +84,8 @@ export const isPwaInstalled = () => {
 }
 
 export const getPwaInstallState = () => ({
-  isInstalled: installed,
+  // Re-evaluate live display mode so UI doesn't rely on stale module state.
+  isInstalled: installed || isPwaInstalled(),
   hasNativePrompt: Boolean(installPromptEvent),
 })
 
