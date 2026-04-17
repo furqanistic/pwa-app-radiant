@@ -36,6 +36,7 @@ const DEFAULT_MEMBERSHIP_PLAN = {
   name: 'Gold Glow Membership',
   description: 'Unlock exclusive perks and premium benefits',
   price: 99,
+  creditsIncluded: 0,
   benefits: ['Priority Booking', 'Free Premium Facial', '15% Product Discount'],
   currency: 'usd',
 };
@@ -78,6 +79,14 @@ const normalizePlan = (planInput = {}, fallbackPlan = DEFAULT_MEMBERSHIP_PLAN) =
     price: Math.max(
       0,
       Number.isFinite(Number(base.price)) ? Number(base.price) : Number(fallback.price || DEFAULT_MEMBERSHIP_PLAN.price)
+    ),
+    creditsIncluded: Math.max(
+      0,
+      Math.floor(
+        Number.isFinite(Number(base.creditsIncluded))
+          ? Number(base.creditsIncluded)
+          : Number(fallback.creditsIncluded || 0)
+      )
     ),
     benefits: normalizedBenefits.length
       ? normalizedBenefits

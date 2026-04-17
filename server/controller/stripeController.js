@@ -21,6 +21,7 @@ const DEFAULT_MEMBERSHIP_PLAN = {
   name: 'Gold Glow Membership',
   description: 'Unlock exclusive perks and premium benefits',
   price: 99,
+  creditsIncluded: 0,
   benefits: ['Priority Booking', 'Free Premium Facial', '15% Product Discount'],
   currency: 'usd',
 }
@@ -43,6 +44,14 @@ const normalizeMembershipPlan = (planInput = {}, fallbackPlan = DEFAULT_MEMBERSH
       Number.isFinite(Number(base.price))
         ? Number(base.price)
         : Number(fallback.price || DEFAULT_MEMBERSHIP_PLAN.price)
+    ),
+    creditsIncluded: Math.max(
+      0,
+      Math.floor(
+        Number.isFinite(Number(base.creditsIncluded))
+          ? Number(base.creditsIncluded)
+          : Number(fallback.creditsIncluded || 0)
+      )
     ),
     benefits: normalizedBenefits.length
       ? normalizedBenefits
@@ -279,6 +288,11 @@ const MEMBERSHIP_PRICE_ELIGIBLE_STATUSES = new Set([
   'past_due',
   'incomplete',
   'unpaid',
+])
+
+const MEMBERSHIP_CREDIT_ELIGIBLE_BILLING_REASONS = new Set([
+  'subscription_create',
+  'subscription_cycle',
 ])
 
 const isUserEligibleForMembershipPricing = (user) => {
@@ -4801,7 +4815,9 @@ async function upsertMembershipInvoicePayment({
   status,
   errorMessage = null,
 }) {
-  if (!invoice || !user || !spaOwner || !service) return null
+  if (!invoice || !user || !spaOwner || !service) {
+    return { payment: null, isFirstSucceededPayment: false }
+  }
 
   const existingPayment = await Payment.findOne({ stripeInvoiceId: invoice.id })
     .select('status')
@@ -4897,7 +4913,12 @@ async function upsertMembershipInvoicePayment({
     await user.save()
   }
 
-  return payment
+  return {
+    payment,
+    isFirstSucceededPayment:
+      status === 'succeeded' &&
+      (!existingPayment || existingPayment.status !== 'succeeded'),
+  }
 }
 
 async function handleMembershipInvoicePaid(invoice, stripeAccountId) {
@@ -4933,7 +4954,7 @@ async function handleMembershipInvoicePaid(invoice, stripeAccountId) {
       planName: user.membershipBilling?.pendingPlan?.planName || user.membership?.planName,
     })
 
-  await upsertMembershipInvoicePayment({
+  const { isFirstSucceededPayment } = await upsertMembershipInvoicePayment({
     invoice,
     subscription,
     user,
@@ -4943,6 +4964,18 @@ async function handleMembershipInvoicePaid(invoice, stripeAccountId) {
     plan,
     status: 'succeeded',
   })
+
+  const invoiceBillingReason = `${invoice?.billing_reason || ''}`.trim().toLowerCase()
+  const isCreditSystemEnabled = Boolean(location?.membership?.creditSystem?.isEnabled)
+  const shouldAwardPlanCredits =
+    isCreditSystemEnabled &&
+    isFirstSucceededPayment &&
+    MEMBERSHIP_CREDIT_ELIGIBLE_BILLING_REASONS.has(invoiceBillingReason)
+  const planCreditsIncluded = Math.max(0, Math.floor(Number(plan?.creditsIncluded || 0)))
+
+  if (shouldAwardPlanCredits && planCreditsIncluded > 0) {
+    user.credits = Math.max(0, Number(user.credits || 0)) + planCreditsIncluded
+  }
 
   await applyMembershipStateToUser({
     user,

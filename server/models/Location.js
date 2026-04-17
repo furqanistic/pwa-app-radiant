@@ -349,6 +349,11 @@ const LocationSchema = new mongoose.Schema(
               default: 99,
               min: 0,
             },
+            creditsIncluded: {
+              type: Number,
+              default: 0,
+              min: 0,
+            },
             benefits: {
               type: [String],
               default: [
@@ -389,6 +394,7 @@ const LocationSchema = new mongoose.Schema(
             name: "Gold Glow Membership",
             description: "Unlock exclusive perks and premium benefits",
             price: 99,
+            creditsIncluded: 0,
             benefits: [
               "Priority Booking",
               "Free Premium Facial",

@@ -20,6 +20,9 @@ const MembershipCard = ({
         'Free Premium Facial',
         '15% Product Discount'
     ];
+    const includedCredits = Number.isFinite(Number(membership?.creditsIncluded))
+        ? Math.max(0, Math.floor(Number(membership.creditsIncluded)))
+        : 0;
     const membershipName = membership?.name ?? service.name ?? 'Gold Glow Membership';
     const description = membership?.description ?? service.description ?? 'Unlock exclusive perks and premium benefits';
     const isSelectable = !disabled && !isProcessing && typeof onSelect === 'function' && !!service?._id && !service._id.startsWith('location-membership');
@@ -73,6 +76,12 @@ const MembershipCard = ({
                         </h3>
                         <p className="text-gray-400 text-sm md:text-base font-medium leading-relaxed max-w-sm">
                             {description}
+                        </p>
+                        <p className="mt-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-emerald-200">
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500/25 px-1.5 text-[10px]">
+                                {includedCredits}
+                            </span>
+                            Credits Included / Renewal
                         </p>
                     </div>
 

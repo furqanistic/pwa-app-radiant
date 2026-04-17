@@ -14,6 +14,7 @@ const DEFAULT_PLAN = {
   name: 'Gold Glow Membership',
   description: 'Unlock exclusive perks and premium benefits',
   price: 99,
+  creditsIncluded: 0,
   benefits: ['Priority Booking', 'Free Premium Facial', '15% Product Discount'],
 };
 
@@ -42,6 +43,9 @@ const normalizePlan = (plan = {}) => {
     price: Number.isFinite(Number(plan.price))
       ? Math.max(0, Number(plan.price))
       : DEFAULT_PLAN.price,
+    creditsIncluded: Number.isFinite(Number(plan.creditsIncluded))
+      ? Math.max(0, Math.floor(Number(plan.creditsIncluded)))
+      : DEFAULT_PLAN.creditsIncluded,
     benefits: benefits.length > 0 ? benefits : [...DEFAULT_PLAN.benefits],
   };
 };
@@ -183,7 +187,12 @@ const MembershipManagementModal = ({
       const nextPlans = [...prev.plans];
       nextPlans[planIndex] = {
         ...nextPlans[planIndex],
-        [key]: key === 'price' ? Number(value) : value,
+        [key]:
+          key === 'price'
+            ? Number(value)
+            : key === 'creditsIncluded'
+              ? value
+              : value,
       };
       return {
         ...prev,
@@ -307,6 +316,14 @@ const MembershipManagementModal = ({
         return;
       }
 
+      if (formData.creditSystem?.isEnabled) {
+        const planCreditsIncluded = Number(plan.creditsIncluded)
+        if (!Number.isFinite(planCreditsIncluded) || planCreditsIncluded < 0) {
+          toast.error(`Plan ${index + 1}: included credits must be 0 or more.`);
+          return;
+        }
+      }
+
       if (!Array.isArray(plan.benefits) || plan.benefits.length < 1) {
         toast.error(`Plan ${index + 1}: add at least one feature point.`);
         return;
@@ -334,6 +351,9 @@ const MembershipManagementModal = ({
         name: plan.name.trim(),
         description: plan.description.trim(),
         price: Number(plan.price),
+        creditsIncluded: formData.creditSystem?.isEnabled
+          ? Math.max(0, Math.floor(Number(plan.creditsIncluded || 0)))
+          : 0,
         benefits: plan.benefits.map((benefit) => benefit.trim()),
       })),
     };
@@ -642,6 +662,25 @@ const MembershipManagementModal = ({
                       required
                     />
                   </div>
+
+                  {formData.creditSystem?.isEnabled ? (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Credits Included Per Renewal</label>
+                      <input
+                        type="number"
+                        value={plan.creditsIncluded ?? ''}
+                        onChange={(e) => handlePlanChange(planIndex, 'creditsIncluded', e.target.value)}
+                        disabled={isReadOnly}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                        placeholder="0"
+                        min="0"
+                        step="1"
+                      />
+                      <p className="text-xs text-slate-500">
+                        These credits are automatically added when this plan invoice is paid.
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
