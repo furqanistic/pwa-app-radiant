@@ -1,8 +1,26 @@
 
+import dotenv from 'dotenv';
 import cron from 'node-cron';
+import webpush from 'web-push';
+import Booking from '../models/Booking.js';
 import Location from '../models/Location.js';
 import Notification from '../models/Notification.js';
+import PushSubscription from '../models/PushSubscription.js';
 import User from '../models/User.js';
+
+dotenv.config()
+
+const hasVapidKeys = Boolean(
+  process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY
+)
+
+if (hasVapidKeys) {
+  webpush.setVapidDetails(
+    `mailto:${process.env.VAPID_MAILTO || 'your-email@example.com'}`,
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  )
+}
 
 // Run every day at 9:00 AM
 export const initScheduler = () => {
@@ -17,7 +35,132 @@ export const initScheduler = () => {
       console.error('❌ Error running birthday check:', error);
     }
   });
+
+  // Review reminder check every 30 minutes
+  cron.schedule('*/30 * * * *', async () => {
+    console.log('⭐ Running review reminder check...')
+    try {
+      await sendDueReviewReminders()
+    } catch (error) {
+      console.error('❌ Error running review reminder check:', error)
+    }
+  })
 };
+
+const sendDueReviewReminders = async () => {
+  const now = new Date()
+  const candidates = await Booking.find({
+    paymentStatus: 'paid',
+    status: { $nin: ['cancelled', 'no-show'] },
+    $or: [{ rating: null }, { rating: { $exists: false } }],
+    reviewReminderSentAt: null,
+    date: { $lte: now },
+  })
+    .select('_id userId serviceId serviceName date time reviewReminderSentAt rating paymentStatus status')
+    .lean()
+
+  if (candidates.length === 0) {
+    return
+  }
+
+  const candidateUserIds = Array.from(
+    new Set(candidates.map((booking) => `${booking.userId || ''}`).filter(Boolean))
+  )
+  const activeSubscriptions = candidateUserIds.length
+    ? await PushSubscription.find({
+        user: { $in: candidateUserIds },
+        isActive: true,
+      })
+        .select('user endpoint p256dh auth')
+        .lean()
+    : []
+  const subscriptionsByUserId = activeSubscriptions.reduce((acc, subscription) => {
+    const userKey = `${subscription.user || ''}`
+    if (!userKey) return acc
+    if (!acc.has(userKey)) acc.set(userKey, [])
+    acc.get(userKey).push(subscription)
+    return acc
+  }, new Map())
+
+  let remindersSent = 0
+  let pushSent = 0
+  for (const booking of candidates) {
+    const canRate = Booking.canRateBooking(booking)
+    if (!canRate) continue
+
+    const inAppNotification = await Notification.create({
+      recipient: booking.userId,
+      type: 'system',
+      title: `How was your ${booking.serviceName || 'service'}?`,
+      message: 'Please rate your recent appointment and share your feedback.',
+      priority: 'normal',
+      category: 'general',
+      metadata: {
+        type: 'service_review_prompt',
+        bookingId: booking._id,
+        serviceId: booking.serviceId,
+        actionPath: '/bookings?tab=history',
+      },
+    })
+
+    if (hasVapidKeys) {
+      const userSubscriptions = subscriptionsByUserId.get(`${booking.userId || ''}`) || []
+      if (userSubscriptions.length > 0) {
+        const payload = {
+          title: `How was your ${booking.serviceName || 'service'}?`,
+          body: 'Tap to leave a quick rating and feedback.',
+          icon: '/favicon_io/android-chrome-192x192.png',
+          badge: '/favicon_io/android-chrome-192x192.png',
+          tag: `service-review-${booking._id}`,
+          requireInteraction: false,
+          data: {
+            url: '/bookings?tab=history',
+            notificationId: inAppNotification?._id || null,
+            bookingId: booking._id,
+            serviceId: booking.serviceId,
+          },
+        }
+
+        for (const subscription of userSubscriptions) {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: subscription.endpoint,
+                keys: {
+                  p256dh: subscription.p256dh,
+                  auth: subscription.auth,
+                },
+              },
+              JSON.stringify(payload)
+            )
+            pushSent += 1
+          } catch (pushError) {
+            const statusCode = pushError?.statusCode
+            if (statusCode === 404 || statusCode === 410) {
+              await PushSubscription.updateOne(
+                { endpoint: subscription.endpoint },
+                { $set: { isActive: false } }
+              )
+            }
+            console.error('Failed to send review reminder push:', pushError?.message || pushError)
+          }
+        }
+      }
+    }
+
+    await Booking.updateOne(
+      { _id: booking._id, reviewReminderSentAt: null },
+      { $set: { reviewReminderSentAt: now } }
+    )
+    remindersSent += 1
+  }
+
+  if (remindersSent > 0) {
+    console.log(
+      `✅ Sent ${remindersSent} review reminder notifications (${pushSent} push deliveries).`
+    )
+  }
+}
 
 const checkBirthdays = async () => {
     const today = new Date();

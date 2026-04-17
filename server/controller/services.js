@@ -3,6 +3,7 @@
 import { createError } from '../error.js'
 import Category from '../models/Category.js'
 import Location from '../models/Location.js'
+import Booking from '../models/Booking.js'
 import Reward from '../models/Reward.js'
 import Service from '../models/Service.js'
 import UserReward from '../models/UserReward.js'
@@ -160,6 +161,63 @@ export const getService = async (req, res, next) => {
   } catch (error) {
     console.error('Error fetching service:', error)
     next(createError(500, 'Failed to fetch service'))
+  }
+}
+
+export const getServiceReviews = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1)
+    const requestedLimit = Number.parseInt(req.query.limit, 10)
+    const limit = Math.min(50, Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 3))
+    const skip = (page - 1) * limit
+
+    const service = await Service.findById(id).select('_id isDeleted')
+    if (!service || service.isDeleted) {
+      return next(createError(404, 'Service not found'))
+    }
+
+    const query = {
+      serviceId: id,
+      rating: { $exists: true, $ne: null },
+      paymentStatus: 'paid',
+      status: { $nin: ['cancelled'] },
+    }
+
+    const [reviews, totalReviews] = await Promise.all([
+      Booking.find(query)
+        .select('rating review ratedAt updatedAt createdAt serviceName')
+        .populate('userId', 'name')
+        .sort({ ratedAt: -1, updatedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Booking.countDocuments(query),
+    ])
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        reviews: reviews.map((entry) => ({
+          id: entry._id,
+          rating: Number(entry.rating) || 0,
+          review: `${entry.review || ''}`.trim(),
+          ratedAt: entry.ratedAt || entry.updatedAt || entry.createdAt || null,
+          serviceName: entry.serviceName || '',
+          userName: `${entry?.userId?.name || ''}`.trim() || 'Anonymous',
+        })),
+        totalReviews,
+        pagination: {
+          page,
+          limit,
+          totalPages: Math.ceil(totalReviews / limit) || 1,
+          hasNextPage: page * limit < totalReviews,
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching service reviews:', error)
+    next(createError(500, 'Failed to fetch service reviews'))
   }
 }
 

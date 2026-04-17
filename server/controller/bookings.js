@@ -14,6 +14,31 @@ import {
 import { cancelGhlAppointmentForBooking } from './ghl.js'
 import { getCycleWeeksForService, calculateNextRecommendedDate, getCycleUrgency, formatDaysUntilDue } from '../utils/treatmentCycles.js'
 
+const refreshServiceRatingStats = async (serviceId) => {
+  if (!serviceId) return
+
+  const [aggregate] = await Booking.aggregate([
+    {
+      $match: {
+        serviceId: new mongoose.Types.ObjectId(serviceId),
+        rating: { $exists: true, $ne: null },
+      },
+    },
+    {
+      $group: {
+        _id: '$serviceId',
+        averageRating: { $avg: '$rating' },
+        totalReviews: { $sum: 1 },
+      },
+    },
+  ])
+
+  await Service.findByIdAndUpdate(serviceId, {
+    rating: aggregate?.averageRating || 0,
+    totalReviews: aggregate?.totalReviews || 0,
+  })
+}
+
 // Get user's upcoming appointments
 export const getUserUpcomingAppointments = async (req, res, next) => {
   try {
@@ -56,16 +81,18 @@ export const getUserPastVisits = async (req, res, next) => {
       Booking.find({
         userId,
         date: { $lt: new Date() },
-        status: { $in: ['completed', 'no-show'] },
+        paymentStatus: 'paid',
+        status: { $nin: ['cancelled'] },
       })
         .populate('serviceId', 'name basePrice categoryId')
-        .sort({ date: -1 })
+        .sort({ date: -1, time: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
       Booking.countDocuments({
         userId,
         date: { $lt: new Date() },
-        status: { $in: ['completed', 'no-show'] },
+        paymentStatus: 'paid',
+        status: { $nin: ['cancelled'] },
       }),
     ])
 
@@ -442,20 +469,40 @@ export const rateVisit = async (req, res, next) => {
     const booking = await Booking.findOne({
       _id: bookingId,
       userId: req.user.id,
-      status: 'completed',
+      paymentStatus: 'paid',
+      status: { $nin: ['cancelled', 'no-show'] },
     })
 
     if (!booking) {
-      return next(createError(404, 'Booking not found or not completed'))
+      return next(createError(404, 'Booking not found or not eligible for review'))
     }
 
     if (booking.rating) {
       return next(createError(400, 'This visit has already been rated'))
     }
 
-    booking.rating = rating
-    booking.review = review
+    const canRate = Booking.canRateBooking({
+      date: booking.date,
+      time: booking.time,
+      rating: booking.rating,
+      status: booking.status,
+      paymentStatus: booking.paymentStatus,
+    })
+
+    if (!canRate) {
+      return next(
+        createError(
+          400,
+          'You can submit a review around 2 hours after your appointment time.'
+        )
+      )
+    }
+
+    booking.rating = Number(rating)
+    booking.review = `${review || ''}`.trim() || null
+    booking.ratedAt = new Date()
     await booking.save()
+    await refreshServiceRatingStats(booking.serviceId)
 
     // Award points for leaving a review only when the method is active
     const reviewMethod = await getPointsMethodForLocation(

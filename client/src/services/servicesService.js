@@ -26,6 +26,14 @@ export const servicesService = {
     return response.data
   },
 
+  // Get service reviews
+  getServiceReviews: async (id, params = {}) => {
+    const response = await axiosInstance.get(`/services/${id}/reviews`, {
+      params,
+    })
+    return response.data
+  },
+
   // Create new service
   createService: async (serviceData) => {
     const response = await axiosInstance.post('/services', serviceData)

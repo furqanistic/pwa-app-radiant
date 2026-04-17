@@ -735,6 +735,9 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
             <span className='text-sm font-semibold text-yellow-700'>
               {service.rating?.toFixed(1) || '5.0'}
             </span>
+            <span className='text-[10px] font-semibold text-yellow-600'>
+              ({Number(service.totalReviews || 0)})
+            </span>
           </div>
         </div>
 

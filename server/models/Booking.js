@@ -1,6 +1,60 @@
 // File: server/models/Booking.js
 import mongoose from 'mongoose'
 
+const buildBookingStartDateTime = (dateValue, timeValue) => {
+  const baseDate = new Date(dateValue)
+  if (Number.isNaN(baseDate.getTime())) return null
+
+  const rawTime = `${timeValue || ''}`.trim()
+  if (!rawTime) return baseDate
+
+  let hours = null
+  let minutes = 0
+
+  const ampmMatch = rawTime.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i)
+  if (ampmMatch) {
+    hours = Number(ampmMatch[1])
+    minutes = Number(ampmMatch[2] || '0')
+    const meridiem = ampmMatch[3].toUpperCase()
+    if (meridiem === 'PM' && hours < 12) hours += 12
+    if (meridiem === 'AM' && hours === 12) hours = 0
+  } else {
+    const twentyFourHourMatch = rawTime.match(/^(\d{1,2})(?::(\d{2}))?$/)
+    if (twentyFourHourMatch) {
+      hours = Number(twentyFourHourMatch[1])
+      minutes = Number(twentyFourHourMatch[2] || '0')
+    }
+  }
+
+  if (!Number.isFinite(hours) || hours < 0 || hours > 23) {
+    return baseDate
+  }
+
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 59) {
+    minutes = 0
+  }
+
+  const startDate = new Date(baseDate)
+  startDate.setHours(hours, minutes, 0, 0)
+  return startDate
+}
+
+const getReviewEligibilityDate = (dateValue, timeValue) => {
+  const start = buildBookingStartDateTime(dateValue, timeValue)
+  if (!start) return null
+  return new Date(start.getTime() + 2 * 60 * 60 * 1000)
+}
+
+const canRateBooking = (bookingLike = {}) => {
+  if (bookingLike.rating) return false
+  const normalizedStatus = `${bookingLike.status || ''}`.toLowerCase()
+  if (normalizedStatus === 'cancelled' || normalizedStatus === 'no-show') return false
+  if (`${bookingLike.paymentStatus || ''}`.toLowerCase() !== 'paid') return false
+  const eligibleAt = getReviewEligibilityDate(bookingLike.date, bookingLike.time)
+  if (!eligibleAt) return false
+  return Date.now() >= eligibleAt.getTime()
+}
+
 const BookingSchema = new mongoose.Schema(
   {
     userId: {
@@ -76,6 +130,14 @@ const BookingSchema = new mongoose.Schema(
     },
     review: {
       type: String,
+      default: null,
+    },
+    ratedAt: {
+      type: Date,
+      default: null,
+    },
+    reviewReminderSentAt: {
+      type: Date,
       default: null,
     },
     locationId: {
@@ -171,7 +233,8 @@ const BookingSchema = new mongoose.Schema(
       transform: function (doc, ret) {
         ret.isPast = new Date() > new Date(ret.date)
         ret.isUpcoming = new Date() <= new Date(ret.date)
-        ret.canRate = ret.status === 'completed' && !ret.rating
+        ret.reviewEligibleAt = getReviewEligibilityDate(ret.date, ret.time)
+        ret.canRate = canRateBooking(ret)
         return ret
       },
     },
@@ -214,5 +277,8 @@ BookingSchema.statics.getUserPastVisits = function (userId, limit = 10) {
     .sort({ date: -1 })
     .limit(limit)
 }
+
+BookingSchema.statics.getReviewEligibilityDate = getReviewEligibilityDate
+BookingSchema.statics.canRateBooking = canRateBooking
 
 export default mongoose.model('Booking', BookingSchema)

@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useBranding } from '@/context/BrandingContext';
 import { useAvailability } from "@/hooks/useAvailability";
 import { useUserRewards } from "@/hooks/useRewards";
-import { useService } from "@/hooks/useServices";
+import { useService, useServiceReviews } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
 import {
     calculateRewardDiscount,
@@ -40,6 +40,7 @@ import {
     Lock,
     Loader2,
     MapPin,
+    MessageSquare,
     Percent,
     Plus,
     Star,
@@ -404,6 +405,7 @@ const ServiceDetailPage = () => {
   const [addCardDialogOpen, setAddCardDialogOpen] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   const {
     data: service,
@@ -418,6 +420,19 @@ const ServiceDetailPage = () => {
     status: 'active',
     limit: 100,
   })
+  const { data: serviceReviewsPreviewData } = useServiceReviews(
+    serviceId,
+    { limit: 3, page: 1 },
+    { enabled: !!serviceId }
+  )
+  const {
+    data: serviceReviewsAllData,
+    isLoading: isLoadingAllReviews,
+  } = useServiceReviews(
+    serviceId,
+    { limit: 50, page: 1 },
+    { enabled: !!serviceId && showAllReviews }
+  )
 
   const activeLocationId =
     service?.locationId ||
@@ -1093,6 +1108,17 @@ const ServiceDetailPage = () => {
   const serviceReviewCount = Number(service?.totalReviews);
   const hasServiceReviewCount = Number.isFinite(serviceReviewCount) && serviceReviewCount > 0;
   const shouldShowServiceRating = hasServiceRating && hasServiceReviewCount;
+  const previewReviews = Array.isArray(serviceReviewsPreviewData?.reviews)
+    ? serviceReviewsPreviewData.reviews
+    : [];
+  const totalReviewCount = Number(
+    serviceReviewsPreviewData?.totalReviews ?? service?.totalReviews ?? 0
+  );
+  const hasReviews = previewReviews.length > 0;
+  const shouldShowViewAllReviews = totalReviewCount > previewReviews.length;
+  const allReviews = Array.isArray(serviceReviewsAllData?.reviews)
+    ? serviceReviewsAllData.reviews
+    : [];
   const serviceDescription = `${service?.description || "No description available."}`.trim();
   const canExpandDescription = serviceDescription.length > 180;
 
@@ -1262,6 +1288,82 @@ const ServiceDetailPage = () => {
                     </div>
                  </div>
               </div>
+
+              {hasReviews && (
+                <div
+                  className="rounded-2xl p-6 shadow-sm border"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 7%, #ffffff) 0%, #ffffff 42%)",
+                    borderColor: "color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)",
+                  }}
+                >
+                  <div className="mb-5 flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Recent Reviews</h2>
+                      <p className="text-sm text-gray-500">
+                        {totalReviewCount} review{totalReviewCount === 1 ? "" : "s"} from real bookings
+                      </p>
+                    </div>
+                    {shouldShowViewAllReviews && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllReviews(true)}
+                        className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition-colors"
+                        style={{
+                          border: "1px solid color-mix(in srgb, var(--brand-primary) 24%, #d1d5db)",
+                          color: "color-mix(in srgb, var(--brand-primary-dark) 82%, #1f2937)",
+                          background: "color-mix(in srgb, var(--brand-primary) 10%, #ffffff)",
+                        }}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        View all
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {previewReviews.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="rounded-xl border p-4"
+                        style={{
+                          borderColor: "color-mix(in srgb, var(--brand-primary) 16%, #d1d5db)",
+                          background:
+                            "linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 8%, #ffffff) 0%, #ffffff 66%)",
+                        }}
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {entry.userName || "Anonymous"}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {entry.ratedAt
+                              ? new Date(entry.ratedAt).toLocaleDateString()
+                              : ""}
+                          </div>
+                        </div>
+                        <div className="mb-2 flex items-center gap-1.5 text-yellow-500">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={`${entry.id}-${star}`}
+                              className={`w-4 h-4 ${Number(entry.rating) >= star ? "fill-current" : ""}`}
+                            />
+                          ))}
+                          <span className="ml-1 text-xs font-semibold text-gray-700">
+                            {Number(entry.rating).toFixed(1)}
+                          </span>
+                        </div>
+                        {entry.review ? (
+                          <p className="text-sm leading-relaxed text-gray-700">{entry.review}</p>
+                        ) : (
+                          <p className="text-sm italic text-gray-500">No written feedback provided.</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {hasGhlBooking ? (
                 <div
@@ -1809,6 +1911,86 @@ const ServiceDetailPage = () => {
          </div>
          {/* Safe area is handled by padding-bottom now, removed separate spacer div to avoid double spacing if any */}
       </div>
+      {showAllReviews && (
+        <div className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm p-4">
+          <div className="mx-auto mt-8 max-h-[82vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div
+              className="flex items-center justify-between border-b px-5 py-4"
+              style={{
+                borderColor: "color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)",
+                background:
+                  "linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 8%, #ffffff) 0%, #ffffff 100%)",
+              }}
+            >
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">All Reviews</h3>
+                <p className="text-xs text-gray-500">
+                  {totalReviewCount} review{totalReviewCount === 1 ? "" : "s"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllReviews(false)}
+                className="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-gray-200"
+                aria-label="Close reviews"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="max-h-[68vh] overflow-y-auto px-5 py-4">
+              {isLoadingAllReviews ? (
+                <div className="py-12 text-center text-sm text-gray-500">Loading reviews...</div>
+              ) : allReviews.length > 0 ? (
+                <div className="space-y-3">
+                  {allReviews.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-xl border p-4"
+                      style={{
+                        borderColor: "color-mix(in srgb, var(--brand-primary) 16%, #d1d5db)",
+                        background:
+                          "linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 8%, #ffffff) 0%, #ffffff 66%)",
+                      }}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-gray-900">
+                          {entry.userName || "Anonymous"}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {entry.ratedAt
+                            ? new Date(entry.ratedAt).toLocaleDateString()
+                            : ""}
+                        </div>
+                      </div>
+                      <div className="mb-2 flex items-center gap-1.5 text-yellow-500">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={`${entry.id}-all-${star}`}
+                            className={`w-4 h-4 ${Number(entry.rating) >= star ? "fill-current" : ""}`}
+                          />
+                        ))}
+                        <span className="ml-1 text-xs font-semibold text-gray-700">
+                          {Number(entry.rating).toFixed(1)}
+                        </span>
+                      </div>
+                      {entry.review ? (
+                        <p className="text-sm leading-relaxed text-gray-700">{entry.review}</p>
+                      ) : (
+                        <p className="text-sm italic text-gray-500">No written feedback provided.</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-sm text-gray-500">
+                  No reviews yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <EmbeddedStripeCheckoutDialog
         open={checkoutOpen}
         onOpenChange={(nextOpen) => {

@@ -13,6 +13,7 @@ import {
   getAvailableAddOnServices,
   getCategories,
   getService,
+  getServiceReviews,
   getServicesDatabase,
   getServices,
   getServiceStats,
@@ -51,6 +52,9 @@ router.get('/database/all', restrictTo('super-admin'), getServicesDatabase)
 
 // Get single service by ID
 router.get('/:id', getService)
+
+// Get reviews for a specific service
+router.get('/:id/reviews', getServiceReviews)
 
 // Get rewards available for a specific service
 router.get('/:serviceId/rewards', getServiceRewards)

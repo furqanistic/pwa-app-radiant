@@ -66,7 +66,12 @@ const BookingCard = ({
   const today = new Date();
   const canCancel = (bookingDate - today) / (1000 * 60 * 60) > 24;
   const isPast = bookingDate < today;
-  const canReview = isPast && booking.status === "completed" && !booking.rating;
+  const canReview =
+    Boolean(booking?.canRate) ||
+    (isPast &&
+      booking.status !== "cancelled" &&
+      booking.paymentStatus === "paid" &&
+      !booking.rating);
 
     // Derived Status for Label
     let statusLabel = booking.status || "Confirmed";

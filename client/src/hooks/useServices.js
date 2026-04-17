@@ -35,6 +35,12 @@ export const serviceQueryKeys = {
     'with-linked',
     serviceId,
   ],
+  reviews: (serviceId, params) => [
+    ...serviceQueryKeys.all,
+    'reviews',
+    serviceId,
+    params,
+  ],
 }
 
 // ===============================================
@@ -106,6 +112,17 @@ export const useService = (id, options = {}) => {
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000,
+    ...options,
+  })
+}
+
+export const useServiceReviews = (serviceId, params = {}, options = {}) => {
+  return useQuery({
+    queryKey: serviceQueryKeys.reviews(serviceId, params),
+    queryFn: () => servicesService.getServiceReviews(serviceId, params),
+    select: (data) => data?.data || { reviews: [], totalReviews: 0, pagination: null },
+    enabled: !!serviceId,
+    staleTime: 2 * 60 * 1000,
     ...options,
   })
 }
