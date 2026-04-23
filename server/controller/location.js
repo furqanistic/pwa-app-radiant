@@ -606,6 +606,35 @@ export const updateLocation = async (req, res, next) => {
         } catch (regularSyncError) {
             console.error('Error syncing regular users:', regularSyncError);
         }
+
+        try {
+            const assignedUsersResult = await User.updateMany(
+                { 'assignedLocations.locationId': updatedLocation.locationId },
+                {
+                    $set: {
+                        'assignedLocations.$[location].locationName': updatedLocation.name,
+                        'assignedLocations.$[location].locationAddress': updatedLocation.address,
+                        'assignedLocations.$[location].locationPhone': updatedLocation.phone,
+                        'assignedLocations.$[location].reviewLink': updatedLocation.reviewLink,
+                        'assignedLocations.$[location].logo': updatedLocation.logo,
+                        'assignedLocations.$[location].subtitle': updatedLocation.subtitle,
+                        'assignedLocations.$[location].subdomain': updatedLocation.subdomain,
+                        'assignedLocations.$[location].favicon': updatedLocation.favicon,
+                        'assignedLocations.$[location].themeColor': updatedLocation.themeColor
+                    }
+                },
+                {
+                    arrayFilters: [
+                        { 'location.locationId': updatedLocation.locationId }
+                    ]
+                }
+            );
+            if (assignedUsersResult.modifiedCount > 0) {
+                console.log(`Synced ${assignedUsersResult.modifiedCount} multi-location assignments for location ${updatedLocation.locationId}`);
+            }
+        } catch (assignedSyncError) {
+            console.error('Error syncing assigned locations:', assignedSyncError);
+        }
     }
 
     res.status(200).json({
@@ -758,11 +787,30 @@ export const getMyLocation = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const user = req.user;
+    const requestedLocationId = `${req.query?.locationId || ''}`.trim()
+    const assignedLocationIds = Array.isArray(user.assignedLocations)
+      ? user.assignedLocations.map((location) => location?.locationId).filter(Boolean)
+      : []
+    const accessibleLocationIds = [
+      user.spaLocation?.locationId,
+      user.selectedLocation?.locationId,
+      ...assignedLocationIds,
+    ].filter(Boolean)
 
     let location = null
 
+    if (requestedLocationId) {
+      if (
+        user.role !== 'super-admin' &&
+        !accessibleLocationIds.includes(requestedLocationId)
+      ) {
+        return next(createError(403, 'You cannot access this location'))
+      }
+      location = await Location.findOne({ locationId: requestedLocationId })
+    }
+
     // Prefer the spa's configured location for spa users to avoid ambiguous matches.
-    if (user.role === 'spa' && user.spaLocation?.locationId) {
+    if (!location && user.role === 'spa' && user.spaLocation?.locationId) {
       location = await Location.findOne({ locationId: user.spaLocation.locationId })
     }
 

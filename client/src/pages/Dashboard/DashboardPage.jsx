@@ -42,7 +42,7 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -1022,7 +1022,13 @@ const DashboardPage = () => {
 
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
-  const dashboardFilters = DASHBOARD_DATA_FILTERS
+  const dashboardFilters = useMemo(
+    () => ({
+      ...DASHBOARD_DATA_FILTERS,
+      ...(locationId ? { locationId } : {}),
+    }),
+    [locationId]
+  )
 
   // Fetch dashboard data
   const { data: dashboardData, isLoading, error, refetch } = useDashboardData(

@@ -89,11 +89,12 @@ export const authService = {
     return response.data
   },
 
-  adjustUserPoints: async (userId, type, amount, reason = '') => {
+  adjustUserPoints: async (userId, type, amount, reason = '', locationId = '') => {
     const response = await axiosInstance.post(`/auth/users/${userId}/points`, {
       type,
       amount: parseInt(amount),
       reason,
+      locationId,
     })
     return response.data
   },
@@ -201,16 +202,6 @@ export const authService = {
       { value: 'super-admin', label: 'Super Admin', level: 5 },
     ]
 
-    const roleHierarchy = {
-      'super-admin': 5,
-      admin: 4,
-      spa: 3,
-      enterprise: 2,
-      user: 1,
-    }
-
-    const currentLevel = roleHierarchy[currentUserRole] || 0
-
     return allRoles.filter((role) => {
       if (currentUserRole === 'super-admin') {
         return role.value !== 'super-admin'
@@ -221,10 +212,14 @@ export const authService = {
       return false
     })
   },
-  assignLocationToUser: async (userId, locationId) => {
+  assignLocationToUser: async (userId, locationIdOrIds) => {
+    const locationIds = Array.isArray(locationIdOrIds)
+      ? locationIdOrIds
+      : [locationIdOrIds]
     const response = await axiosInstance.post('/auth/assign-location', {
       userId,
-      locationId,
+      locationId: locationIds[0],
+      locationIds,
     })
     return response.data
   },

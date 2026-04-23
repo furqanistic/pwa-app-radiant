@@ -115,6 +115,52 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
+    // For staff/admins who can be attached to more than one operating location.
+    assignedLocations: [
+      {
+        locationId: {
+          type: String,
+          default: null,
+        },
+        locationName: {
+          type: String,
+          default: null,
+        },
+        locationAddress: {
+          type: String,
+          default: null,
+        },
+        locationPhone: {
+          type: String,
+          default: null,
+        },
+        reviewLink: {
+          type: String,
+          default: null,
+        },
+        logo: {
+          type: String,
+          default: null,
+        },
+        subdomain: {
+          type: String,
+          default: null,
+        },
+        favicon: {
+          type: String,
+          default: null,
+        },
+        themeColor: {
+          type: String,
+          default: '#ec4899',
+        },
+        assignedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
     // Review reward tracking (once-per-lifetime rewards)
     reviewRewards: {
       googleReview: {
@@ -576,6 +622,7 @@ const UserSchema = new mongoose.Schema(
 // Add indexes for better performance
 UserSchema.index({ 'selectedLocation.locationId': 1 })
 UserSchema.index({ 'spaLocation.locationId': 1 })
+UserSchema.index({ 'assignedLocations.locationId': 1 })
 UserSchema.index({ role: 1 })
 UserSchema.index({ profileCompleted: 1 })
 UserSchema.index({ email: 1, role: 1 })

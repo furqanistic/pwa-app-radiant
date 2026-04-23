@@ -1,5 +1,6 @@
 import { authService } from "@/services/authService";
 import { locationService } from "@/services/locationService";
+import { useBranding } from "@/context/BrandingContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     BadgeCent,
@@ -42,7 +43,8 @@ const ContactsPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
-  const brandColor = "var(--brand-primary)";
+  const { branding, locationId: brandedLocationId } = useBranding();
+  const brandColor = branding?.themeColor || "var(--brand-primary)";
 
   // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
@@ -70,10 +72,24 @@ const ContactsPage = () => {
   const isSuperAdmin = currentUser?.role === "super-admin";
 
   const currentUserLocationId =
+    brandedLocationId ||
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId;
-  const scopedLocationId = isSuperAdmin ? "" : currentUserLocationId;
-  const effectiveLocationFilter = isSuperAdmin ? locationFilter : scopedLocationId;
+  const scopedLocationId = currentUserLocationId || "";
+  const effectiveLocationFilter = isSuperAdmin
+    ? locationFilter || scopedLocationId
+    : scopedLocationId;
+  const activeLocationName =
+    branding?.name ||
+    currentUser?.selectedLocation?.locationName ||
+    currentUser?.spaLocation?.locationName ||
+    effectiveLocationFilter;
+
+  const withSpaParam = (path) => {
+    if (!brandedLocationId) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}spa=${encodeURIComponent(brandedLocationId)}`;
+  };
 
   const roleFilterOptions = isSuperAdmin
     ? ["all", "super-admin", "admin", "spa", "enterprise", "user"]
@@ -383,14 +399,13 @@ const ContactsPage = () => {
             </h1>
             <p className="text-gray-600">
               Manage your spa members, clients, and notifications
-              {!isSuperAdmin && currentUserLocationId && (
+              {effectiveLocationFilter && (
                 <span className="block text-sm mt-1 text-[var(--brand-primary)]">
                   Showing contacts from:{" "}
-                  {currentUser?.selectedLocation?.locationName ||
-                    currentUser?.spaLocation?.locationName}
+                  {activeLocationName}
                 </span>
               )}
-              {isSuperAdmin && (
+              {isSuperAdmin && !effectiveLocationFilter && (
                 <span className="block text-sm mt-1 text-[var(--brand-primary)]">
                   Showing contacts from all locations
                 </span>
@@ -562,7 +577,7 @@ const ContactsPage = () => {
                               toast.error("Unable to open profile for this user.");
                               return;
                             }
-                            navigate(`/client/${userId}`, { state: { user } });
+                            navigate(withSpaParam(`/client/${userId}`), { state: { user } });
                           }}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -638,7 +653,7 @@ const ContactsPage = () => {
                                   <DropdownMenuItem
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigate(`/client/${user._id}`);
+                                      navigate(withSpaParam(`/client/${user._id}`));
                                     }}
                                   >
                                     <Edit className="w-4 h-4 mr-2" />
@@ -734,6 +749,7 @@ const ContactsPage = () => {
               isOpen={isPointsManagerOpen}
               onClose={handleClosePointsManager}
               user={selectedUserForPoints}
+              locationId={effectiveLocationFilter}
             />
           )}
 

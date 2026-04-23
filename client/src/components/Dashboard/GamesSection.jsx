@@ -359,7 +359,7 @@ const GamesSection = () => {
   const [gameResult, setGameResult] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isAnimationComplete, setIsAnimationComplete] = useState(false)
-  const { branding } = useBranding()
+  const { branding, locationId } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -381,7 +381,7 @@ const GamesSection = () => {
   }
 
   const { data: gamesData, isLoading, isFetching, refetch } =
-    useAvailableGames()
+    useAvailableGames({ locationId })
 
   const playGameMutation = usePlayGame({
     onSuccess: (data) => {
@@ -417,7 +417,10 @@ const GamesSection = () => {
       setGameResult(null)
       setShowResult(false)
       setIsAnimationComplete(false)
-      const response = await playGameMutation.mutateAsync(gameId)
+      const response = await playGameMutation.mutateAsync({
+        gameId,
+        locationId,
+      })
       return response
     } catch (error) {
       setIsPlaying(false)

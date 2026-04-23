@@ -245,7 +245,7 @@ const BookingsPage = () => {
 
   const { currentUser } = useSelector((state) => state.user);
   const cartItems = useSelector((state) => state.cart?.items || []);
-  const { branding } = useBranding();
+  const { branding, locationId } = useBranding();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '');
@@ -290,19 +290,20 @@ const BookingsPage = () => {
 
   const sessionId = searchParams.get("session_id");
   const tabParam = searchParams.get("tab");
+  const activeLocationFilter = locationId ? { locationId } : {};
 
   // ✅ Fetch upcoming bookings
   const {
     data: upcomingData,
     isLoading: upcomingLoading,
     refetch: refetchUpcoming,
-  } = useUpcomingBookings(currentUser?._id);
+  } = useUpcomingBookings(currentUser?._id, activeLocationFilter);
 
   // ✅ Fetch past bookings
   const { 
     data: pastData, 
     isLoading: pastLoading 
-  } = usePastBookings(currentUser?._id);
+  } = usePastBookings(currentUser?._id, 1, 20, activeLocationFilter);
 
   // ✅ Fetch notifications to check for birthday gift
   const { data: notificationsData } = useQuery({
@@ -315,8 +316,14 @@ const BookingsPage = () => {
     (n) => n.metadata?.isBirthdayGift && !n.read
   );
 
-  const upcomingBookings = upcomingData?.data?.appointments || [];
-  const pastBookings = pastData?.data?.visits || [];
+  const upcomingBookings = React.useMemo(
+    () => upcomingData?.data?.appointments || [],
+    [upcomingData]
+  );
+  const pastBookings = React.useMemo(
+    () => pastData?.data?.visits || [],
+    [pastData]
+  );
 
   // ✅ Payment success redirection
   useEffect(() => {
@@ -379,11 +386,19 @@ const BookingsPage = () => {
     isPending: true,
   });
 
+  const scopedCartItems = React.useMemo(
+    () =>
+      locationId
+        ? cartItems.filter((item) => !item.locationId || item.locationId === locationId)
+        : cartItems,
+    [cartItems, locationId]
+  );
+
   const allBookings = React.useMemo(() => [
-    ...cartItems.map(normalizeCartItem),
+    ...scopedCartItems.map(normalizeCartItem),
     ...upcomingBookings,
     ...pastBookings,
-  ], [cartItems, upcomingBookings, pastBookings]);
+  ], [scopedCartItems, upcomingBookings, pastBookings]);
 
   // ✅ Filter Logic (2-Tab System)
   const filteredBookings = React.useMemo(() => {
@@ -420,7 +435,7 @@ const BookingsPage = () => {
   const isListLoading = (activeTab === 'history' && pastLoading) || (activeTab === 'upcoming' && upcomingLoading);
 
   // ✅ Fetch booking stats for total points
-  const { data: statsData } = useBookingStats(currentUser?._id);
+  const { data: statsData } = useBookingStats(currentUser?._id, activeLocationFilter);
   const totalPointsEarned = statsData?.data?.stats?.totalPointsEarned || 0;
 
   const rateBookingMutation = useRateBooking({

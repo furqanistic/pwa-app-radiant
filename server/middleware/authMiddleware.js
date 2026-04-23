@@ -26,6 +26,41 @@ const isTransientAuthInfraError = (error) => {
   )
 }
 
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids]
+}
+
+const getPrimaryUserLocationId = (user) =>
+  user?.selectedLocation?.locationId || user?.spaLocation?.locationId || ''
+
+const resolveUserScopeLocationId = (user, requestedLocationId = '') => {
+  const normalizedLocationId = `${requestedLocationId || ''}`.trim()
+  if (user?.role === 'super-admin') return normalizedLocationId
+  if (
+    normalizedLocationId &&
+    getUserAccessibleLocationIds(user).includes(normalizedLocationId)
+  ) {
+    return normalizedLocationId
+  }
+  return getPrimaryUserLocationId(user)
+}
+
+const buildUserLocationFilter = (locationId) => ({
+  $or: [
+    { 'selectedLocation.locationId': locationId },
+    { 'spaLocation.locationId': locationId },
+    { 'assignedLocations.locationId': locationId },
+  ],
+})
+
 // Verify JWT token and attach user to request
 export const verifyToken = async (req, res, next) => {
   try {
@@ -184,11 +219,16 @@ export const canManageUser = async (req, res, next) => {
         return next(createError(404, 'Target user not found'))
       }
 
-      // Check if target user is in the same spa
-      if (
-        targetUser.selectedLocation?.locationId !==
-        currentUser.spaLocation?.locationId
-      ) {
+      const requestedLocationId = `${req.body?.locationId || req.query?.locationId || ''}`.trim()
+      const activeLocationId = resolveUserScopeLocationId(
+        currentUser,
+        requestedLocationId
+      )
+      if (!activeLocationId) {
+        return next(createError(400, 'Spa user must have spa location configured'))
+      }
+
+      if (!getUserAccessibleLocationIds(targetUser).includes(activeLocationId)) {
         return next(createError(403, 'Can only manage users in your spa'))
       }
 
@@ -227,14 +267,18 @@ export const canViewUsers = (req, res, next) => {
 
   // Spa users can only see users in their spa
   if (userRole === 'spa') {
-    if (!req.user.spaLocation?.locationId) {
+    const activeLocationId = resolveUserScopeLocationId(
+      req.user,
+      req.query?.locationId
+    )
+    if (!activeLocationId) {
       return next(
         createError(400, 'Spa user must have spa location configured')
       )
     }
 
     req.userFilters = {
-      'selectedLocation.locationId': req.user.spaLocation.locationId,
+      ...buildUserLocationFilter(activeLocationId),
       role: 'user',
     }
     return next()

@@ -11,6 +11,39 @@ import { awardPoints } from '../utils/rewardHelpers.js'
 const escapeRegex = (value = '') =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const getUserLocationId = (user) =>
+  user?.selectedLocation?.locationId || user?.spaLocation?.locationId || ''
+
+const applyLocationFilter = (filter, locationId) => {
+  if (locationId) filter.locationId = locationId
+}
+
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids]
+}
+
+const canAccessLocation = (user, locationId) => {
+  if (!locationId) return false
+  if (['super-admin', 'admin'].includes(user?.role)) return true
+  return getUserAccessibleLocationIds(user).includes(locationId)
+}
+
+const resolveManagementLocationId = (user, requestedLocationId = '') => {
+  const normalizedLocationId = `${requestedLocationId || ''}`.trim()
+  if (normalizedLocationId && canAccessLocation(user, normalizedLocationId)) {
+    return normalizedLocationId
+  }
+  return getUserLocationId(user)
+}
+
 // Get all rewards with filtering, sorting, and searching
 export const getRewards = async (req, res, next) => {
   try {
@@ -27,20 +60,7 @@ export const getRewards = async (req, res, next) => {
     // Build filter object
     const filter = { isDeleted: false }
 
-    // Location filter
-    if (locationId) {
-      filter.$or = [
-        { locationId: locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    } else if (req.user.selectedLocation?.locationId) {
-      filter.$or = [
-        { locationId: req.user.selectedLocation.locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    }
+    applyLocationFilter(filter, resolveManagementLocationId(req.user, locationId))
 
     // Type filter
     if (type) {
@@ -261,12 +281,11 @@ export const createReward = async (req, res, next) => {
     if (excludeServices.length > 0) rewardData.excludeServices = excludeServices
     if (includeServices.length > 0) rewardData.includeServices = includeServices
 
-    // Add location if provided or use user's location
-    if (locationId) {
-      rewardData.locationId = locationId
-    } else if (req.user.selectedLocation?.locationId) {
-      rewardData.locationId = req.user.selectedLocation.locationId
+    const resolvedLocationId = resolveManagementLocationId(req.user, locationId)
+    if (!resolvedLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
+    rewardData.locationId = resolvedLocationId
 
     const reward = await Reward.create(rewardData)
 
@@ -301,9 +320,21 @@ export const updateReward = async (req, res, next) => {
     if (!existingReward || existingReward.isDeleted) {
       return next(createError(404, 'Reward not found'))
     }
+    if (
+      existingReward.locationId &&
+      !canAccessLocation(req.user, existingReward.locationId)
+    ) {
+      return next(createError(403, 'You cannot manage rewards for this location'))
+    }
 
     // Add update tracking
     updateData.updatedBy = req.user.id
+    if (updateData.locationId) {
+      updateData.locationId = resolveManagementLocationId(
+        req.user,
+        updateData.locationId
+      )
+    }
 
     // Handle numeric fields
     if (updateData.pointCost)
@@ -363,6 +394,9 @@ export const deleteReward = async (req, res, next) => {
     if (!reward || reward.isDeleted) {
       return next(createError(404, 'Reward not found'))
     }
+    if (reward.locationId && !canAccessLocation(req.user, reward.locationId)) {
+      return next(createError(403, 'You cannot manage rewards for this location'))
+    }
 
     // Soft delete
     reward.isDeleted = true
@@ -385,21 +419,8 @@ export const getRewardStats = async (req, res, next) => {
   try {
     const { locationId } = req.query
 
-    // Build filter based on location
     const filter = { isDeleted: false }
-    if (locationId) {
-      filter.$or = [
-        { locationId: locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    } else if (req.user.selectedLocation?.locationId) {
-      filter.$or = [
-        { locationId: req.user.selectedLocation.locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    }
+    applyLocationFilter(filter, resolveManagementLocationId(req.user, locationId))
 
     const stats = await Reward.aggregate([
       { $match: filter },
@@ -474,11 +495,16 @@ export const getServiceRewards = async (req, res, next) => {
     }
 
     // Get rewards applicable to this service
+    const requestedLocationId = `${req.query.locationId || ''}`.trim()
+    const activeLocationId = resolveManagementLocationId(
+      req.user,
+      requestedLocationId
+    )
     const rewards = await Reward.getRewardsForService(
       serviceId,
       service.categoryId._id,
       parseInt(userPoints),
-      req.user.selectedLocation?.locationId
+      activeLocationId
     )
 
     // Get user's monthly claim counts for each reward
@@ -569,12 +595,14 @@ export const createServiceReward = async (req, res, next) => {
       createdBy: req.user.id,
     }
 
-    // Add location if provided or use user's location
-    if (rewardData.locationId) {
-      enhancedRewardData.locationId = rewardData.locationId
-    } else if (req.user.selectedLocation?.locationId) {
-      enhancedRewardData.locationId = req.user.selectedLocation.locationId
+    const resolvedLocationId = resolveManagementLocationId(
+      req.user,
+      rewardData.locationId || service.locationId
+    )
+    if (!resolvedLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
+    enhancedRewardData.locationId = resolvedLocationId
 
     const reward = await Reward.create(enhancedRewardData)
 
@@ -694,23 +722,10 @@ export const getServicesWithRewards = async (req, res, next) => {
       ]
     }
 
-    // Add location filter
-    if (req.user.selectedLocation?.locationId) {
-      filter.$or = filter.$or || []
-      const locationFilter = {
-        $or: [
-          { locationId: req.user.selectedLocation.locationId },
-          { locationId: { $exists: false } },
-          { locationId: null },
-        ],
-      }
-      if (filter.$or.length > 0) {
-        filter.$and = [{ $or: filter.$or }, locationFilter]
-        delete filter.$or
-      } else {
-        Object.assign(filter, locationFilter)
-      }
-    }
+    applyLocationFilter(
+      filter,
+      resolveManagementLocationId(req.user, req.query.locationId)
+    )
 
     const pageNum = parseInt(page)
     const limitNum = parseInt(limit)
@@ -765,6 +780,7 @@ export const getRewardsCatalog = async (req, res, next) => {
       limit = 50,
       excludeTestUsers = 'false',
       excludeEmailDomain = '',
+      locationId = '',
     } = req.query
 
     const userId = req.user.id
@@ -783,14 +799,7 @@ export const getRewardsCatalog = async (req, res, next) => {
       filter.status = 'active'
     }
 
-    // Add location filter
-    if (req.user.selectedLocation?.locationId) {
-      filter.$or = [
-        { locationId: req.user.selectedLocation.locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    }
+    applyLocationFilter(filter, resolveManagementLocationId(req.user, locationId))
 
     // Service filter
     if (serviceId) {
@@ -1352,21 +1361,15 @@ export const getSpaUserRewards = async (req, res, next) => {
       dateTo,
     } = req.query
 
-    // Get spa owner's location
-    let spaLocationId
-    if (req.user.role === 'admin') {
-      spaLocationId = req.query.locationId || req.params.locationId
-      if (!spaLocationId) {
-        return next(createError(400, 'Location ID required for admin'))
-      }
-    } else if (req.user.role === 'spa') {
-      // spa users see rewards from their spa only
-      if (!req.user.spaLocation?.locationId) {
-        return next(createError(400, 'Your spa location is not configured'))
-      }
-      spaLocationId = req.user.spaLocation.locationId
-    } else {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
+    }
+    const spaLocationId = resolveManagementLocationId(
+      req.user,
+      req.query.locationId || req.params.locationId
+    )
+    if (!spaLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
 
     // Build filter
@@ -1484,10 +1487,7 @@ export const markRewardAsUsed = async (req, res, next) => {
       // Admin can mark any reward as used
     } else if (req.user.role === 'spa') {
       // spa members can only mark rewards used at their spa
-      if (!req.user.spaLocation?.locationId) {
-        return next(createError(400, 'Your spa location is not configured'))
-      }
-      if (userReward.locationId !== req.user.spaLocation.locationId) {
+      if (!canAccessLocation(req.user, userReward.locationId)) {
         return next(
           createError(403, 'You can only manage rewards from your spa')
         )
@@ -1557,19 +1557,15 @@ export const markRewardAsUsed = async (req, res, next) => {
 // Get spa reward analytics
 export const getSpaRewardAnalytics = async (req, res, next) => {
   try {
-    let spaLocationId
-    if (req.user.role === 'admin') {
-      spaLocationId = req.query.locationId || req.params.locationId
-      if (!spaLocationId) {
-        return next(createError(400, 'Location ID required for admin'))
-      }
-    } else if (req.user.role === 'spa') {
-      if (!req.user.spaLocation?.locationId) {
-        return next(createError(400, 'Your spa location is not configured'))
-      }
-      spaLocationId = req.user.spaLocation.locationId
-    } else {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
+    }
+    const spaLocationId = resolveManagementLocationId(
+      req.user,
+      req.query.locationId || req.params.locationId
+    )
+    if (!spaLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
 
     const { dateFrom, dateTo } = req.query
@@ -1703,18 +1699,19 @@ export const giveManulaRewardToUser = async (req, res, next) => {
       )
     }
 
-    // Get spa location
-    let spaLocationId
-    let spaLocationName
-    if (req.user.role === 'admin') {
-      spaLocationId = req.body.locationId
-      spaLocationName = req.body.locationName || 'Admin Given'
-    } else if (req.user.role === 'spa') {
-      if (!req.user.spaLocation?.locationId) {
-        return next(createError(400, 'Your spa location is not configured'))
-      }
-      spaLocationId = req.user.spaLocation.locationId
-      spaLocationName = req.user.spaLocation.locationName
+    const spaLocationId = resolveManagementLocationId(
+      req.user,
+      req.body.locationId
+    )
+    const spaLocationName =
+      req.body.locationName ||
+      req.user.assignedLocations?.find(
+        (location) => location.locationId === spaLocationId
+      )?.locationName ||
+      req.user.spaLocation?.locationName ||
+      'Admin Given'
+    if (!spaLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
 
     // Validate user exists
@@ -1783,19 +1780,15 @@ export const giveManulaRewardToUser = async (req, res, next) => {
 // Get pending rewards that need attention (active, about to expire)
 export const getPendingSpaRewards = async (req, res, next) => {
   try {
-    let spaLocationId
-    if (req.user.role === 'admin') {
-      spaLocationId = req.query.locationId || req.params.locationId
-      if (!spaLocationId) {
-        return next(createError(400, 'Location ID required for admin'))
-      }
-    } else if (req.user.role === 'spa') {
-      if (!req.user.spaLocation?.locationId) {
-        return next(createError(400, 'Your spa location is not configured'))
-      }
-      spaLocationId = req.user.spaLocation.locationId
-    } else {
+    if (!['admin', 'spa'].includes(req.user.role)) {
       return next(createError(403, 'Access denied'))
+    }
+    const spaLocationId = resolveManagementLocationId(
+      req.user,
+      req.query.locationId || req.params.locationId
+    )
+    if (!spaLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
 
     const now = new Date()
@@ -1875,12 +1868,17 @@ export const searchUsersForReward = async (req, res, next) => {
       ]
     }
 
-    // Location filter for spa members
-    if (req.user.role === 'spa' && req.user.spaLocation?.locationId) {
-      searchQuery['selectedLocation.locationId'] =
-        req.user.spaLocation.locationId
-    } else if (locationId) {
-      searchQuery['selectedLocation.locationId'] = locationId
+    const activeLocationId = resolveManagementLocationId(req.user, locationId)
+    if (activeLocationId) {
+      searchQuery.$and = [
+        ...(searchQuery.$and || []),
+        {
+          $or: [
+            { 'selectedLocation.locationId': activeLocationId },
+            { 'assignedLocations.locationId': activeLocationId },
+          ],
+        },
+      ]
     }
 
     const users = await User.find(searchQuery)
@@ -1925,23 +1923,26 @@ export const giveManualRewardToUser = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
-    // Get spa location
-    let spaLocationId, spaLocationName
-    if (req.user.role === 'admin') {
-      spaLocationId = req.body.locationId || user.selectedLocation?.locationId
-      spaLocationName =
-        req.body.locationName || user.selectedLocation?.locationName || 'Admin'
-    } else if (req.user.role === 'spa') {
-      // spa members can only give rewards to users in their spa
-      if (
-        user.selectedLocation?.locationId !== req.user.spaLocation?.locationId
-      ) {
-        return next(
-          createError(403, 'You can only give rewards to users in your spa')
-        )
-      }
-      spaLocationId = req.user.spaLocation.locationId
-      spaLocationName = req.user.spaLocation.locationName
+    const spaLocationId = resolveManagementLocationId(
+      req.user,
+      req.body.locationId || user.selectedLocation?.locationId
+    )
+    const spaLocationName =
+      req.body.locationName ||
+      req.user.assignedLocations?.find(
+        (location) => location.locationId === spaLocationId
+      )?.locationName ||
+      user.selectedLocation?.locationName ||
+      req.user.spaLocation?.locationName ||
+      'Admin'
+    if (!spaLocationId) {
+      return next(createError(400, 'Location ID is required'))
+    }
+    const userLocationIds = getUserAccessibleLocationIds(user)
+    if (req.user.role === 'spa' && !userLocationIds.includes(spaLocationId)) {
+      return next(
+        createError(403, 'You can only give rewards to users in this location')
+      )
     }
 
     // Validate required fields
@@ -2101,18 +2102,17 @@ export const bulkGiveRewards = async (req, res, next) => {
     // Process each user
     for (const user of users) {
       try {
-        // Check spa location for spa members
-        if (req.user.role === 'spa') {
-          if (
-            user.selectedLocation?.locationId !==
-            req.user.spaLocation?.locationId
-          ) {
-            errors.push({
-              email: user.email,
-              error: 'User not in your spa',
-            })
-            continue
-          }
+        const activeLocationId = resolveManagementLocationId(
+          req.user,
+          req.body.locationId || user.selectedLocation?.locationId
+        )
+        const userLocationIds = getUserAccessibleLocationIds(user)
+        if (!activeLocationId || !userLocationIds.includes(activeLocationId)) {
+          errors.push({
+            email: user.email,
+            error: 'User not in this location',
+          })
+          continue
         }
 
         // Create reward for user
@@ -2132,9 +2132,7 @@ export const bulkGiveRewards = async (req, res, next) => {
           userId: user._id,
           rewardId: null,
           rewardSnapshot,
-          locationId:
-            req.user.spaLocation?.locationId ||
-            user.selectedLocation?.locationId,
+          locationId: activeLocationId,
           status: 'active',
           isManualReward: true,
           givenBy: req.user._id,

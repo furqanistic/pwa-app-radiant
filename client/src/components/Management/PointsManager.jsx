@@ -19,6 +19,7 @@ const PointsManager = ({
   isOpen,
   onClose,
   user = null, // The user whose points we're managing
+  locationId = '',
 }) => {
   const queryClient = useQueryClient()
   const { branding } = useBranding()
@@ -43,17 +44,6 @@ const PointsManager = ({
   })
 
   const [step, setStep] = useState(1) // Step-based flow
-  const [isMobile, setIsMobile] = useState(false)
-
-  // Detect mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
 
   // Prevent background scroll on mobile when modal is open
   useEffect(() => {
@@ -69,9 +59,9 @@ const PointsManager = ({
 
   // Points adjustment mutation
   const adjustPointsMutation = useMutation({
-    mutationFn: ({ userId, type, amount, reason }) =>
-      authService.adjustUserPoints(userId, type, amount, reason),
-    onSuccess: (data) => {
+    mutationFn: ({ userId, type, amount, reason, locationId }) =>
+      authService.adjustUserPoints(userId, type, amount, reason, locationId),
+    onSuccess: () => {
       toast.success('Points updated successfully!')
       queryClient.invalidateQueries(['all-users'])
       handleClose()
@@ -111,6 +101,7 @@ const PointsManager = ({
       type: formData.type,
       amount: Number(formData.amount),
       reason: formData.reason.trim(),
+      locationId,
     })
   }
 

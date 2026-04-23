@@ -12,6 +12,42 @@ import UserReward from '../models/UserReward.js'
 // SERVICE MANAGEMENT (ENHANCED WITH REWARDS)
 // ===============================================
 
+const getUserLocationId = (user) =>
+  user?.selectedLocation?.locationId || user?.spaLocation?.locationId || ''
+
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids]
+}
+
+const canAccessLocation = (user, locationId) => {
+  if (!locationId) return false
+  if (['super-admin', 'admin'].includes(user?.role)) return true
+  return getUserAccessibleLocationIds(user).includes(locationId)
+}
+
+const resolveManagementLocationId = (user, requestedLocationId = '') => {
+  const normalizedLocationId = `${requestedLocationId || ''}`.trim()
+  if (normalizedLocationId && canAccessLocation(user, normalizedLocationId)) {
+    return normalizedLocationId
+  }
+  return getUserLocationId(user)
+}
+
+const applyLocationFilter = (filter, locationId) => {
+  if (locationId) {
+    // Multi-location users must see only the explicitly selected spa's data.
+    filter.locationId = locationId
+  }
+}
+
 const normalizeMembershipPricing = (pricingInput = []) => {
   if (!Array.isArray(pricingInput)) return []
 
@@ -239,20 +275,10 @@ export const getServices = async (req, res, next) => {
     // Build filter object
     const filter = { isDeleted: false }
 
-    // Location filter
-    if (locationId) {
-      filter.$or = [
-        { locationId: locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    } else if (req.user?.selectedLocation?.locationId) {
-      filter.$or = [
-        { locationId: req.user.selectedLocation.locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    }
+    applyLocationFilter(
+      filter,
+      resolveManagementLocationId(req.user, locationId)
+    )
 
     // Category filter
     if (category) {
@@ -664,12 +690,11 @@ export const createService = async (req, res, next) => {
       hasActiveRewards: false,
     }
 
-    // Add location if provided or use user's location
-    if (locationId) {
-      serviceData.locationId = locationId
-    } else if (req.user.selectedLocation?.locationId) {
-      serviceData.locationId = req.user.selectedLocation.locationId
+    const resolvedLocationId = resolveManagementLocationId(req.user, locationId)
+    if (!resolvedLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
+    serviceData.locationId = resolvedLocationId
 
     const service = await Service.create(serviceData)
 
@@ -744,6 +769,18 @@ export const updateService = async (req, res, next) => {
     const existingService = await Service.findById(id)
     if (!existingService || existingService.isDeleted) {
       return next(createError(404, 'Service not found'))
+    }
+    if (
+      existingService.locationId &&
+      !canAccessLocation(req.user, existingService.locationId)
+    ) {
+      return next(createError(403, 'You cannot manage services for this location'))
+    }
+    if (updateData.locationId) {
+      updateData.locationId = resolveManagementLocationId(
+        req.user,
+        updateData.locationId
+      )
     }
 
     // Validate category if being updated
@@ -947,6 +984,9 @@ export const deleteService = async (req, res, next) => {
     if (!service || service.isDeleted) {
       return next(createError(404, 'Service not found'))
     }
+    if (service.locationId && !canAccessLocation(req.user, service.locationId)) {
+      return next(createError(403, 'You cannot manage services for this location'))
+    }
 
     // ✅ NEW: Handle associated rewards
     const associatedRewards = await Reward.find({
@@ -1025,12 +1065,8 @@ export const getCategories = async (req, res, next) => {
           $match: {
             isActive: true,
             isDeleted: false,
-            ...(locationId && {
-              $or: [
-                { locationId: locationId },
-                { locationId: { $exists: false } },
-                { locationId: null },
-              ],
+            ...((locationId || getUserLocationId(req.user)) && {
+              locationId: resolveManagementLocationId(req.user, locationId),
             }),
           },
         },
@@ -1111,13 +1147,10 @@ export const getCategories = async (req, res, next) => {
         isDeleted: false,
       }
 
-      if (locationId) {
-        filter.$or = [
-          { locationId: locationId },
-          { locationId: { $exists: false } },
-          { locationId: null },
-        ]
-      }
+      applyLocationFilter(
+        filter,
+        resolveManagementLocationId(req.user, locationId)
+      )
 
       categories = await Category.find(filter).sort({ order: 1, name: 1 })
     }
@@ -1175,14 +1208,11 @@ export const createCategory = async (req, res, next) => {
       createdBy: req.user.id,
     }
 
-    // Add location if provided or use user's assigned location
-    if (locationId) {
-      categoryData.locationId = locationId
-    } else if (req.user.spaLocation?.locationId) {
-      categoryData.locationId = req.user.spaLocation.locationId
-    } else if (req.user.selectedLocation?.locationId) {
-      categoryData.locationId = req.user.selectedLocation.locationId
+    const resolvedLocationId = resolveManagementLocationId(req.user, locationId)
+    if (!resolvedLocationId) {
+      return next(createError(400, 'Location ID is required'))
     }
+    categoryData.locationId = resolvedLocationId
 
     const category = await Category.create(categoryData)
 
@@ -1349,21 +1379,11 @@ export const getServiceStats = async (req, res, next) => {
   try {
     const { locationId } = req.query
 
-    // Build filter based on location
     const filter = { isDeleted: false }
-    if (locationId) {
-      filter.$or = [
-        { locationId: locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    } else if (req.user.selectedLocation?.locationId) {
-      filter.$or = [
-        { locationId: req.user.selectedLocation.locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    }
+    applyLocationFilter(
+      filter,
+      resolveManagementLocationId(req.user, locationId)
+    )
 
     // ✅ ENHANCED: Service stats with reward data
     const stats = await Service.aggregate([
@@ -1530,17 +1550,7 @@ export const getServicesWithRewards = async (req, res, next) => {
       ]
     }
 
-    // Add location filter
-    if (req.user.selectedLocation?.locationId) {
-      filter.$and = filter.$and || []
-      filter.$and.push({
-        $or: [
-          { locationId: req.user.selectedLocation.locationId },
-          { locationId: { $exists: false } },
-          { locationId: null },
-        ],
-      })
-    }
+    applyLocationFilter(filter, resolveManagementLocationId(req.user))
 
     const pageNum = parseInt(page)
     const limitNum = parseInt(limit)
@@ -1839,20 +1849,10 @@ export const getAvailableAddOnServices = async (req, res, next) => {
       _id: { $ne: id }, // Exclude the current service
     }
 
-    // Location filter
-    if (locationId) {
-      filter.$or = [
-        { locationId: locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    } else if (req.user.selectedLocation?.locationId) {
-      filter.$or = [
-        { locationId: req.user.selectedLocation.locationId },
-        { locationId: { $exists: false } },
-        { locationId: null },
-      ]
-    }
+    applyLocationFilter(
+      filter,
+      resolveManagementLocationId(req.user, locationId)
+    )
 
     // Category filter
     if (category) {

@@ -87,6 +87,48 @@ const buildLocationQuery = (userLocationInfo, requestLocationId = null) => {
   return { locationId: userLocationInfo.locationId }
 }
 
+const canUserAccessLocation = (user, locationId) => {
+  if (!locationId) return false
+  if (['admin', 'super-admin'].includes(user?.role)) return true
+
+  const assignedLocations = Array.isArray(user?.assignedLocations)
+    ? user.assignedLocations
+    : []
+
+  return [
+    user?.selectedLocation?.locationId,
+    user?.spaLocation?.locationId,
+    ...assignedLocations.map((location) => location?.locationId),
+  ]
+    .filter(Boolean)
+    .some((candidate) => `${candidate}` === `${locationId}`)
+}
+
+const resolveRequestedCustomerLocationInfo = (req, fallbackLocationInfo) => {
+  const requestedLocationId = `${req.query?.locationId || req.body?.locationId || ''}`.trim()
+
+  if (!requestedLocationId || requestedLocationId === fallbackLocationInfo.locationId) {
+    return fallbackLocationInfo
+  }
+
+  if (!canUserAccessLocation(req.user, requestedLocationId)) {
+    throw new Error('You do not have access to this spa location')
+  }
+
+  const matchedLocation = (req.user.assignedLocations || []).find(
+    (location) => `${location?.locationId || ''}` === requestedLocationId
+  )
+
+  return {
+    ...fallbackLocationInfo,
+    locationId: requestedLocationId,
+    locationName:
+      matchedLocation?.locationName ||
+      req.user.selectedLocation?.locationName ||
+      fallbackLocationInfo.locationName,
+  }
+}
+
 // Helper function to check play eligibility based on reset period
 const checkPlayEligibility = async (userId, gameId, game) => {
   debugLog(
@@ -217,6 +259,7 @@ export const getAvailableGames = async (req, res, next) => {
     let userLocationInfo
     try {
       userLocationInfo = getUserLocationInfo(req.user)
+      userLocationInfo = resolveRequestedCustomerLocationInfo(req, userLocationInfo)
       debugLog('User location info:', userLocationInfo)
     } catch (error) {
       debugLog('Location error:', error.message)
@@ -345,6 +388,7 @@ export const createGame = async (req, res, next) => {
     let userLocationInfo
     try {
       userLocationInfo = getUserLocationInfo(req.user)
+      userLocationInfo = resolveRequestedCustomerLocationInfo(req, userLocationInfo)
     } catch (error) {
       return next(createError(400, error.message))
     }
@@ -572,6 +616,7 @@ export const playGame = async (req, res, next) => {
     let userLocationInfo
     try {
       userLocationInfo = getUserLocationInfo(req.user)
+      userLocationInfo = resolveRequestedCustomerLocationInfo(req, userLocationInfo)
     } catch (error) {
       return next(createError(400, error.message))
     }

@@ -217,7 +217,9 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   const handleResetRecentCheckIns = async () => {
     try {
       setIsResettingCheckIns(true)
-      const response = await dashboardService.resetRecentCheckIns()
+      const response = await dashboardService.resetRecentCheckIns(
+        locationId ? { locationId } : {}
+      )
       const resetPayload = response?.data || {}
 
       queryClient.setQueryData(

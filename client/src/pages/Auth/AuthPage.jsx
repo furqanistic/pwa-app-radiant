@@ -412,9 +412,16 @@ const AuthPage = () => {
             dispatch(
               updateProfile({
                 selectedLocation,
+                assignedLocations:
+                  selectionResponse?.data?.user?.assignedLocations,
                 profileCompleted:
                   selectionResponse?.data?.user?.profileCompleted ?? true,
-                points: selectionResponse?.data?.user?.points,
+                points:
+                  selectionResponse?.data?.user?.locationPoints ??
+                  selectionResponse?.data?.user?.points,
+                locationPoints:
+                  selectionResponse?.data?.user?.locationPoints ??
+                  selectionResponse?.data?.user?.points,
                 hasSelectedSpa: true,
               })
             )
@@ -474,9 +481,16 @@ const AuthPage = () => {
             dispatch(
               updateProfile({
                 selectedLocation,
+                assignedLocations:
+                  selectionResponse?.data?.user?.assignedLocations,
                 profileCompleted:
                   selectionResponse?.data?.user?.profileCompleted ?? true,
-                points: selectionResponse?.data?.user?.points,
+                points:
+                  selectionResponse?.data?.user?.locationPoints ??
+                  selectionResponse?.data?.user?.points,
+                locationPoints:
+                  selectionResponse?.data?.user?.locationPoints ??
+                  selectionResponse?.data?.user?.points,
                 hasSelectedSpa: true,
               })
             )

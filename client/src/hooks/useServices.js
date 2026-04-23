@@ -168,10 +168,11 @@ export const useServiceWithLinkedServices = (serviceId) => {
 // ===============================================
 
 // Get all categories
-export const useCategories = (includeCount = false) => {
+export const useCategories = (includeCount = false, params = {}) => {
+  const queryParams = { includeCount, ...params }
   return useQuery({
-    queryKey: serviceQueryKeys.categoriesList(includeCount),
-    queryFn: () => servicesService.getCategories({ includeCount }),
+    queryKey: [...serviceQueryKeys.categoriesList(includeCount), queryParams],
+    queryFn: () => servicesService.getCategories(queryParams),
     select: (data) => data?.data?.categories || [],
     staleTime: 10 * 60 * 1000, // 10 minutes
   })
@@ -524,28 +525,20 @@ export const useServiceLinkingWorkflow = (serviceId) => {
   const unlinkMutation = useUnlinkServiceFromService()
 
   const linkServices = async (serviceIds, options = {}) => {
-    try {
-      const result = await linkMutation.mutateAsync({
-        serviceId,
-        serviceIds,
-        customOptions: options,
-      })
-      return result
-    } catch (error) {
-      throw error
-    }
+    const result = await linkMutation.mutateAsync({
+      serviceId,
+      serviceIds,
+      customOptions: options,
+    })
+    return result
   }
 
   const unlinkService = async (linkedServiceId) => {
-    try {
-      const result = await unlinkMutation.mutateAsync({
-        serviceId,
-        linkedServiceId,
-      })
-      return result
-    } catch (error) {
-      throw error
-    }
+    const result = await unlinkMutation.mutateAsync({
+      serviceId,
+      linkedServiceId,
+    })
+    return result
   }
 
   return {
@@ -568,30 +561,22 @@ export const useServiceFormWithLinking = (serviceId = null) => {
   const { linkServices } = useServiceLinkingWorkflow(serviceId)
 
   const handleSaveService = async (formData, linkedServiceIds = []) => {
-    try {
-      let savedService
+    let savedService
 
-      if (serviceId) {
-        // Update existing service
-        savedService = await updateMutation.mutateAsync({
-          id: serviceId,
-          ...formData,
-        })
-      } else {
-        // Create new service
-        savedService = await createMutation.mutateAsync(formData)
-      }
-
-      // Link services if any are selected
-      if (linkedServiceIds.length > 0) {
-        const serviceIdToLink = serviceId || savedService.data.service._id
-        await linkServices(linkedServiceIds)
-      }
-
-      return savedService
-    } catch (error) {
-      throw error
+    if (serviceId) {
+      savedService = await updateMutation.mutateAsync({
+        id: serviceId,
+        ...formData,
+      })
+    } else {
+      savedService = await createMutation.mutateAsync(formData)
     }
+
+    if (linkedServiceIds.length > 0) {
+      await linkServices(linkedServiceIds)
+    }
+
+    return savedService
   }
 
   return {

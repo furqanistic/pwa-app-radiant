@@ -10,9 +10,9 @@ export const locationService = {
   },
 
   // Get my location (spa/Manager)
-  getMyLocation: async () => {
+  getMyLocation: async (locationId = '') => {
     const response = await axiosInstance.get('/locations/my-location', {
-      params: { _ts: Date.now() },
+      params: { _ts: Date.now(), ...(locationId ? { locationId } : {}) },
     })
     return response.data;
   },

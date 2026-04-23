@@ -276,6 +276,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
 
   const createLocationMutation = useMutation({
     mutationFn: locationService.createLocation,
+    onMutate: () => {
+      const toastId = toast.loading('Creating location...')
+      return { toastId }
+    },
     onSuccess: (data) => {
       syncLocationsCache(data, 'create')
       queryClient.invalidateQueries({ queryKey: ['locations'] })
@@ -284,14 +288,23 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       onSuccess?.(data)
       resetForm()
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
       console.error('Create location error:', error)
-      toast.error(error.response?.data?.message || 'Failed to create location')
+      toast.error(error.response?.data?.message || 'Failed to create location', {
+        id: context?.toastId,
+      })
+    },
+    onSettled: (_data, error, _variables, context) => {
+      if (!error && context?.toastId) toast.dismiss(context.toastId)
     },
   })
 
   const updateLocationMutation = useMutation({
     mutationFn: ({ id, data }) => locationService.updateLocation(id, data),
+    onMutate: () => {
+      const toastId = toast.loading('Updating location...')
+      return { toastId }
+    },
     onSuccess: (data) => {
       syncLocationsCache(data, 'update')
       queryClient.invalidateQueries({ queryKey: ['locations'] })
@@ -300,9 +313,14 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
       onSuccess?.(data)
       resetForm()
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
       console.error('Update location error:', error)
-      toast.error(error.response?.data?.message || 'Failed to update location')
+      toast.error(error.response?.data?.message || 'Failed to update location', {
+        id: context?.toastId,
+      })
+    },
+    onSettled: (_data, error, _variables, context) => {
+      if (!error && context?.toastId) toast.dismiss(context.toastId)
     },
   })
 
@@ -615,6 +633,17 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
         </div>
 
         <form onSubmit={handleSubmit} className='flex flex-1 min-h-0 flex-col'>
+          {isPending && (
+            <div className='mx-6 mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 sm:mx-8'>
+              <div className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                {initialData ? 'Updating location details...' : 'Creating location...'}
+              </div>
+              <div className='mt-3 h-1.5 overflow-hidden rounded-full bg-blue-100'>
+                <div className='h-full w-1/2 animate-pulse rounded-full bg-blue-500' />
+              </div>
+            </div>
+          )}
           <div className='space-y-8 px-6 sm:px-8 pt-6 overflow-y-auto overflow-x-hidden flex-1 min-h-0'>
           <div className='bg-gray-50 p-4 rounded-2xl space-y-4'>
             <div className='space-y-2'>

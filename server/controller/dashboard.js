@@ -71,7 +71,32 @@ const buildRewardSummary = (rewards = []) => {
   }
 }
 
-const getDashboardLocationId = (user) => {
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids]
+}
+
+const canAccessLocation = (user, locationId) => {
+  if (!locationId) return false
+  if (['super-admin', 'admin'].includes(user?.role)) return true
+  return getUserAccessibleLocationIds(user).includes(locationId)
+}
+
+const getDashboardLocationId = (user, requestedLocationId = '') => {
+  const normalizedRequestedLocationId = `${requestedLocationId || ''}`.trim()
+  if (normalizedRequestedLocationId) {
+    return canAccessLocation(user, normalizedRequestedLocationId)
+      ? normalizedRequestedLocationId
+      : null
+  }
+
   if (user?.role === 'spa') {
     return user.spaLocation?.locationId
   }
@@ -80,7 +105,7 @@ const getDashboardLocationId = (user) => {
     return user.selectedLocation?.locationId || user.spaLocation?.locationId
   }
 
-  return null
+  return user?.selectedLocation?.locationId || user?.spaLocation?.locationId || null
 }
 
 const mergeRevenueTrendData = (bookingTrendRows = [], paymentTrendRows = []) => {
@@ -132,9 +157,8 @@ export const getDashboardData = async (req, res, next) => {
     // Get automated gifts from user's relevant location
     let automatedGifts = []
     let pointsMethods = mergePointsMethodsWithDefaults([])
-    const targetLocationId = user.role === 'spa' 
-      ? user.spaLocation?.locationId 
-      : user.selectedLocation?.locationId
+    const requestedLocationId = `${req.query?.locationId || ''}`.trim()
+    const targetLocationId = getDashboardLocationId(user, requestedLocationId)
 
     if (targetLocationId) {
       const location = await Location.findOne({
@@ -179,7 +203,7 @@ export const getDashboardData = async (req, res, next) => {
 
     // Branch based on user role
     if (['spa', 'admin'].includes(user.role)) {
-      const locationId = getDashboardLocationId(user)
+      const locationId = getDashboardLocationId(user, requestedLocationId)
       
       if (!locationId) {
         return next(
@@ -730,7 +754,10 @@ export const resetRecentCheckIns = async (req, res, next) => {
       return next(createError(403, 'Management access required'))
     }
 
-    const locationId = getDashboardLocationId(user)
+    const locationId = getDashboardLocationId(
+      user,
+      `${req.query?.locationId || ''}`.trim()
+    )
 
     if (!locationId) {
       return next(createError(400, 'Spa location not configured for this account'))

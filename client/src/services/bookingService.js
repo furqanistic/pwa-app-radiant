@@ -18,15 +18,15 @@ export const bookingService = {
     return response.data;
   },
 
-  getPastBookings: async (page = 1, limit = 10) => {
-    const response = await axiosInstance.get(
-      `/bookings/past?page=${page}&limit=${limit}`
-    );
+  getPastBookings: async (page = 1, limit = 10, filters = {}) => {
+    const params = bookingService.buildQueryString({ page, limit, ...filters });
+    const response = await axiosInstance.get(`/bookings/past?${params}`);
     return response.data;
   },
 
-  getBookingStats: async () => {
-    const response = await axiosInstance.get("/bookings/stats");
+  getBookingStats: async (filters = {}) => {
+    const params = bookingService.buildQueryString(filters);
+    const response = await axiosInstance.get(`/bookings/stats?${params}`);
     return response.data;
   },
 

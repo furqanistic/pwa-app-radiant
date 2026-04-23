@@ -43,12 +43,20 @@ const MembershipPage = () => {
             .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
     })()
 
-    const { services, isLoading } = useActiveServices({ locationId })
+    const activeLocationId =
+        locationId ||
+        currentUser?.membershipBilling?.locationId ||
+        currentUser?.membership?.locationId ||
+        currentUser?.selectedLocation?.locationId ||
+        currentUser?.spaLocation?.locationId ||
+        null
+
+    const { services, isLoading } = useActiveServices({ locationId: activeLocationId })
 
     // Fetch location data if needed (primarily for manager/admin to get latest edits)
     const { data: locationData, isLoading: isLoadingLocation } = useQuery({
-        queryKey: ['my-location'],
-        queryFn: () => locationService.getMyLocation(),
+        queryKey: ['my-location', activeLocationId],
+        queryFn: () => locationService.getMyLocation(activeLocationId),
         enabled: !!(currentUser?.role === 'spa' || currentUser?.role === 'admin' || currentUser?.role === 'super-admin'),
     })
 
@@ -72,15 +80,7 @@ const MembershipPage = () => {
     }, [services])
 
     const withSpaParam = (path) =>
-        locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
-
-    const activeLocationId =
-        locationId ||
-        currentUser?.membershipBilling?.locationId ||
-        currentUser?.membership?.locationId ||
-        currentUser?.selectedLocation?.locationId ||
-        currentUser?.spaLocation?.locationId ||
-        null
+        activeLocationId ? `${path}?spa=${encodeURIComponent(activeLocationId)}` : path
 
     const {
         data: membershipBillingResponse,
@@ -242,10 +242,7 @@ const MembershipPage = () => {
             return
         }
 
-        const checkoutLocationId =
-            locationId ||
-            currentUser?.selectedLocation?.locationId ||
-            currentUser?.spaLocation?.locationId
+        const checkoutLocationId = activeLocationId
 
         if (!checkoutLocationId) {
             toast.error('Please select a location first.')

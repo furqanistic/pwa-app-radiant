@@ -376,6 +376,7 @@ const RewardForm = ({
   onSave,
   membershipPlanOptions = [],
   serviceOptions = [],
+  locationId = '',
 }) => {
   const isEditing = !!reward
   const [isUploadingImage, setIsUploadingImage] = useState(false)
@@ -495,6 +496,7 @@ const RewardForm = ({
       limit: Number(formData.limitCount),
       eligibleMemberTypes:
         formData.claimAudience === 'members_only' ? ['members'] : ['all_clients'],
+      locationId: locationId || undefined,
       serviceId: formData.serviceId || undefined,
     }
 
@@ -1109,7 +1111,7 @@ const RewardManagement = () => {
   const [selectedRedeemedReward, setSelectedRedeemedReward] = useState(null)
 
   const { currentUser } = useSelector((state) => state.user)
-  const { branding } = useBranding()
+  const { branding, locationId } = useBranding()
   const userRole = currentUser?.role || 'user'
   const canManageRewards = userRole === 'admin' || userRole === 'spa'
 
@@ -1133,11 +1135,13 @@ const RewardManagement = () => {
   } = useEnhancedRewardsCatalog({
     search: searchTerm,
     status: canManageRewards ? 'all' : 'active',
+    locationId,
     excludeTestUsers: true,
     excludeEmailDomain: 'test.com',
   })
   const { data: servicesData } = useServices({
     status: 'active',
+    locationId,
     limit: 300,
     excludeTestUsers: true,
     excludeEmailDomain: 'test.com',
@@ -1152,11 +1156,16 @@ const RewardManagement = () => {
     isLoading: isRedeemedUsersLoading,
     error: redeemedUsersError,
   } = useQuery({
-    queryKey: ['reward-redeemers', selectedRedeemedReward?._id || selectedRedeemedReward?.id],
+    queryKey: [
+      'reward-redeemers',
+      selectedRedeemedReward?._id || selectedRedeemedReward?.id,
+      locationId,
+    ],
     queryFn: () =>
       rewardsService.getSpaUserRewards({
         rewardId: selectedRedeemedReward?._id || selectedRedeemedReward?.id,
         status: 'all',
+        locationId,
         limit: 100,
       }),
     enabled:
@@ -1346,6 +1355,7 @@ const RewardManagement = () => {
         onSave={handleFormSave}
         membershipPlanOptions={membershipPlanOptions}
         serviceOptions={serviceOptions}
+        locationId={locationId}
       />
       <RedeemedUsersModal
         isOpen={isRedeemedUsersOpen}

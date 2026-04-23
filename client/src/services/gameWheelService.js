@@ -5,11 +5,11 @@ export const gameWheelService = {
   // Get available games for user's location
   getAvailableGames: async (params = {}) => {
     try {
-      const { type } = params
+      const { type, locationId } = params
       console.log('Fetching available games with params:', params)
 
       const response = await axiosInstance.get('/games/available', {
-        params: { type },
+        params: { type, locationId },
       })
 
       console.log('Available games response:', response.data)
@@ -126,10 +126,14 @@ export const gameWheelService = {
   },
 
   // Play a game
-  playGame: async (gameId) => {
+  playGame: async (payload) => {
     try {
+      const gameId = typeof payload === 'object' ? payload.gameId : payload
+      const locationId = typeof payload === 'object' ? payload.locationId : null
       console.log('Playing game:', gameId)
-      const response = await axiosInstance.post(`/games/${gameId}/play`)
+      const response = await axiosInstance.post(`/games/${gameId}/play`, {
+        locationId,
+      })
       console.log('Play game response:', response.data)
       return response.data
     } catch (error) {

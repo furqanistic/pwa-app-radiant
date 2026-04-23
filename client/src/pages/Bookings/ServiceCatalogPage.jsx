@@ -375,7 +375,9 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
-  const { data: categories = [] } = useCategories(true) // Enable counts
+  const { data: categories = [] } = useCategories(true, {
+    locationId: effectiveLocationId,
+  })
   const { services, isLoading, isFetching } = useActiveServices({
     search: debouncedSearchTerm,
     locationId: effectiveLocationId

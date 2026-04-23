@@ -28,6 +28,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { toast } from 'sonner'
 
 const PAGE_SIZE = 20
 
@@ -42,8 +43,24 @@ const adjustHex = (hex, amount) => {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
 }
 
-const getAssignedLocationName = (user) =>
-  user?.selectedLocation?.locationName || user?.spaLocation?.locationName || ''
+const getAssignedLocations = (user) => {
+  const locations = Array.isArray(user?.assignedLocations)
+    ? user.assignedLocations.filter((location) => location?.locationId)
+    : []
+
+  if (locations.length > 0) return locations
+
+  const legacyLocation = user?.spaLocation?.locationId
+    ? user.spaLocation
+    : user?.selectedLocation
+
+  return legacyLocation?.locationId ? [legacyLocation] : []
+}
+
+const getAssignedLocationNames = (user) =>
+  getAssignedLocations(user)
+    .map((location) => location?.locationName || location?.locationId)
+    .filter(Boolean)
 
 const getRoleBadgeClass = (role) => {
   if (role === 'admin') return 'bg-purple-100 text-purple-800'
@@ -73,7 +90,7 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
   const [mode, setMode] = useState('assign')
   const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedUserSnapshot, setSelectedUserSnapshot] = useState(null)
-  const [selectedLocationId, setSelectedLocationId] = useState('')
+  const [selectedLocationIds, setSelectedLocationIds] = useState([])
   const [locationOpen, setLocationOpen] = useState(false)
 
   const [assignSearch, setAssignSearch] = useState('')
@@ -124,8 +141,8 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
   })
 
   const assignLocationMutation = useMutation({
-    mutationFn: ({ userId, locationId }) =>
-      authService.assignLocationToUser(userId, locationId),
+    mutationFn: ({ userId, locationIds }) =>
+      authService.assignLocationToUser(userId, locationIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-users'] })
       queryClient.invalidateQueries({ queryKey: ['assignable-users'] })
@@ -161,12 +178,22 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
       (user) => user._id === selectedUserId
     ) || selectedUserSnapshot
 
-  const selectedLocationData = locations.find((loc) => loc._id === selectedLocationId)
+  const selectedLocationsData = locations.filter((loc) =>
+    selectedLocationIds.includes(loc._id)
+  )
+  const selectedLocationLabel =
+    selectedLocationsData.length > 0
+      ? selectedLocationsData
+          .map((location) => location.name || location.locationId)
+          .join(', ')
+      : ''
+  const selectedUserLocationNames =
+    selectedUser?.currentLocationNames || getAssignedLocationNames(selectedUser)
 
   const clearSelection = () => {
     setSelectedUserId('')
     setSelectedUserSnapshot(null)
-    setSelectedLocationId('')
+    setSelectedLocationIds([])
   }
 
   const handleModeChange = (nextMode) => {
@@ -178,14 +205,25 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
 
   const handleSelectUser = (user) => {
     setSelectedUserId(user._id)
+    const currentLocations = getAssignedLocations(user)
     setSelectedUserSnapshot({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      currentLocationName: getAssignedLocationName(user),
+      currentLocationNames: getAssignedLocationNames(user),
     })
-    setSelectedLocationId('')
+    const currentLocationIds = currentLocations
+      .map((assignedLocation) => {
+        const match = locations.find(
+          (location) =>
+            location.locationId === assignedLocation.locationId ||
+            location.name === assignedLocation.locationName
+        )
+        return match?._id
+      })
+      .filter(Boolean)
+    setSelectedLocationIds(currentLocationIds)
     setErrors((prev) => ({
       ...prev,
       selectedUser: '',
@@ -199,15 +237,36 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
     const nextErrors = {}
 
     if (!selectedUserId) nextErrors.selectedUser = 'Select a user first'
-    if (!selectedLocationId) nextErrors.selectedLocation = 'Select a location'
+    if (selectedLocationIds.length === 0) {
+      nextErrors.selectedLocation = 'Select at least one location'
+    }
 
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
-    await assignLocationMutation.mutateAsync({
-      userId: selectedUserId,
-      locationId: selectedLocationId,
-    })
+    const toastId = toast.loading(
+      selectedLocationIds.length > 1
+        ? 'Assigning locations...'
+        : 'Assigning location...'
+    )
+
+    try {
+      await assignLocationMutation.mutateAsync({
+        userId: selectedUserId,
+        locationIds: selectedLocationIds,
+      })
+      toast.success(
+        selectedLocationIds.length > 1
+          ? 'Locations assigned successfully'
+          : 'Location assigned successfully',
+        { id: toastId }
+      )
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || 'Failed to save location assignment',
+        { id: toastId }
+      )
+    }
   }
 
   const handleClose = () => {
@@ -345,7 +404,8 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
                 <div className='max-h-72 overflow-y-auto space-y-2 pr-1'>
                   {activeUsers.map((user) => {
                     const isSelected = selectedUserId === user._id
-                    const currentLocationName = getAssignedLocationName(user)
+                    const currentLocationNames = getAssignedLocationNames(user)
+                    const currentLocationLabel = currentLocationNames.join(', ')
 
                     return (
                       <div
@@ -375,13 +435,13 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
                             </p>
                             <p
                               className={`text-xs mt-1 font-medium ${
-                                currentLocationName
+                                currentLocationNames.length > 0
                                   ? 'text-amber-700'
                                   : 'text-emerald-700'
                               }`}
                             >
-                              {currentLocationName
-                                ? `Current: ${currentLocationName}`
+                              {currentLocationNames.length > 0
+                                ? `Current: ${currentLocationLabel}`
                                 : 'No location assigned'}
                             </p>
                           </div>
@@ -459,7 +519,7 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
 
             <div className='space-y-2'>
               <Label className='text-sm font-medium text-gray-700'>
-                Select Location *
+                Select Location(s) *
               </Label>
               <Popover open={locationOpen} onOpenChange={setLocationOpen}>
                 <PopoverTrigger asChild>
@@ -479,13 +539,13 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
                     }
                   >
                     <span className='truncate'>
-                      {selectedLocationData
-                        ? selectedLocationData.name || selectedLocationData.locationId
+                      {selectedLocationLabel
+                        ? selectedLocationLabel
                         : !selectedUserId
                         ? 'Select a user first'
                         : isLoadingLocations
                         ? 'Loading locations...'
-                        : 'Select location...'}
+                        : 'Select one or more locations...'}
                     </span>
                     <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
                   </Button>
@@ -499,8 +559,11 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
                         <CommandItem
                           key={location._id}
                           onSelect={() => {
-                            setSelectedLocationId(location._id)
-                            setLocationOpen(false)
+                            setSelectedLocationIds((prev) =>
+                              prev.includes(location._id)
+                                ? prev.filter((id) => id !== location._id)
+                                : [...prev, location._id]
+                            )
                             if (errors.selectedLocation) {
                               setErrors((prev) => ({
                                 ...prev,
@@ -512,7 +575,7 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
                           <div className='flex items-center gap-2 w-full'>
                             <Check
                               className={`h-4 w-4 ${
-                                selectedLocationId === location._id
+                                selectedLocationIds.includes(location._id)
                                   ? 'opacity-100'
                                   : 'opacity-0'
                               }`}
@@ -540,6 +603,13 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
               {errors.selectedLocation && (
                 <p className='text-sm text-red-600'>{errors.selectedLocation}</p>
               )}
+              {selectedLocationIds.length > 0 && (
+                <p className='text-xs text-gray-500'>
+                  {selectedLocationIds.length} location
+                  {selectedLocationIds.length === 1 ? '' : 's'} selected. Click a
+                  selected location again to remove it.
+                </p>
+              )}
             </div>
 
             {selectedUser && (
@@ -551,14 +621,17 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
                 <p className='text-sm text-green-800'>
                   <span className='font-semibold'>{selectedUser.name}</span> ({selectedUser.role})
                 </p>
-                {selectedUser.currentLocationName && (
+                {selectedUserLocationNames.length > 0 && (
                   <p className='text-xs text-green-700 mt-1'>
-                    Current location: {selectedUser.currentLocationName}
+                    Current locations: {selectedUserLocationNames.join(', ')}
                   </p>
                 )}
-                {selectedLocationData && (
+                {selectedLocationsData.length > 0 && (
                   <p className='text-xs text-green-700 mt-1'>
-                    New location: {selectedLocationData.name}
+                    New locations:{' '}
+                    {selectedLocationsData
+                      .map((location) => location.name || location.locationId)
+                      .join(', ')}
                   </p>
                 )}
               </div>
@@ -582,7 +655,7 @@ const LocationAssignmentForm = ({ isOpen, onClose, onSuccess }) => {
                 disabled={
                   assignLocationMutation.isPending ||
                   !selectedUserId ||
-                  !selectedLocationId
+                  selectedLocationIds.length === 0
                 }
                 className='h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold'
               >

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken'
 import mongoose from 'mongoose'
 import { createError } from '../error.js'
 import Location from '../models/Location.js'
+import PointTransaction from '../models/PointTransaction.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
@@ -453,6 +454,122 @@ const setCachedUsersList = (key, payload) => {
   })
 }
 
+const clearUsersListCache = () => {
+  usersListCache.clear()
+}
+
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids]
+}
+
+const getPrimaryUserLocationId = (user) =>
+  user?.selectedLocation?.locationId || user?.spaLocation?.locationId || ''
+
+const canAccessLocation = (user, locationId) => {
+  if (!locationId) return false
+  if (user?.role === 'super-admin') return true
+  return getUserAccessibleLocationIds(user).includes(locationId)
+}
+
+const resolveManagementLocationId = (user, requestedLocationId = '') => {
+  const normalizedLocationId = `${requestedLocationId || ''}`.trim()
+  if (normalizedLocationId && canAccessLocation(user, normalizedLocationId)) {
+    return normalizedLocationId
+  }
+  return getPrimaryUserLocationId(user)
+}
+
+const buildUserLocationMembershipFilter = (locationId) => ({
+  $or: [
+    { 'selectedLocation.locationId': locationId },
+    { 'spaLocation.locationId': locationId },
+    { 'assignedLocations.locationId': locationId },
+  ],
+})
+
+const getLocationScopedPointBalance = async (userId, locationId) => {
+  if (!userId || !locationId) return 0
+
+  const [result] = await PointTransaction.aggregate([
+    {
+      $match: {
+        user: new mongoose.Types.ObjectId(userId),
+        locationId,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        balance: { $sum: '$points' },
+      },
+    },
+  ])
+
+  return result?.balance || 0
+}
+
+const ensureLegacyPointsAreScoped = async (user) => {
+  const currentLocationId = `${user?.selectedLocation?.locationId || ''}`.trim()
+  const currentPoints = Number(user?.points || 0)
+
+  if (!user?._id || !currentLocationId || currentPoints <= 0) return
+
+  const existingLocationTransactions = await PointTransaction.exists({
+    user: user._id,
+    locationId: currentLocationId,
+  })
+
+  if (existingLocationTransactions) return
+
+  await PointTransaction.create({
+    user: user._id,
+    type: 'adjustment',
+    points: currentPoints,
+    balance: currentPoints,
+    description: 'Legacy points balance linked to selected location',
+    locationId: currentLocationId,
+    metadata: {
+      rewardKey: 'legacy_location_balance',
+      transactionType: 'credit',
+      source: 'select_spa_location_switch',
+    },
+  })
+}
+
+const upsertAssignedLocation = (user, locationData) => {
+  if (!locationData?.locationId) return
+
+  const existingLocations = Array.isArray(user.assignedLocations)
+    ? user.assignedLocations.filter((location) => location?.locationId)
+    : []
+  const existingIndex = existingLocations.findIndex(
+    (location) => location.locationId === locationData.locationId
+  )
+  const assignmentData = {
+    ...locationData,
+    assignedAt: new Date(),
+  }
+
+  if (existingIndex >= 0) {
+    existingLocations[existingIndex] = {
+      ...existingLocations[existingIndex],
+      ...assignmentData,
+    }
+  } else {
+    existingLocations.push(assignmentData)
+  }
+
+  user.assignedLocations = existingLocations
+}
+
 // ENHANCED: Get all users with pagination and filtering
 export const getAllUsers = async (req, res, next) => {
   try {
@@ -473,7 +590,12 @@ export const getAllUsers = async (req, res, next) => {
     const role = (req.query.role || '').trim()
     const assignedOnly = req.query.assignedOnly === 'true'
     const unassignedOnly = req.query.unassignedOnly === 'true'
-    const locationId = req.query.locationId || '' // NEW: Location filtering
+    const requestedLocationId = `${req.query.locationId || ''}`.trim()
+    const activeLocationId = resolveManagementLocationId(
+      req.user,
+      requestedLocationId
+    )
+    const locationId = requestedLocationId
     const sortBy = req.query.sortBy || 'createdAt'
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1
 
@@ -543,6 +665,12 @@ export const getAllUsers = async (req, res, next) => {
               $nin: [null, ''],
             },
           },
+          {
+            'assignedLocations.locationId': {
+              $exists: true,
+              $nin: [null, ''],
+            },
+          },
         ],
       })
     }
@@ -562,29 +690,31 @@ export const getAllUsers = async (req, res, next) => {
               { 'spaLocation.locationId': { $in: [null, ''] } },
             ],
           },
+          {
+            $or: [
+              { assignedLocations: { $exists: false } },
+              { assignedLocations: { $size: 0 } },
+              { 'assignedLocations.locationId': { $in: [null, ''] } },
+            ],
+          },
         ],
       })
     }
 
-    if (locationId && req.user.role !== 'super-admin') {
-      andFilters.push({
-        $or: [
-          { 'selectedLocation.locationId': locationId },
-          { 'spaLocation.locationId': locationId },
-        ],
-      })
+    if (requestedLocationId && !activeLocationId) {
+      return next(createError(403, 'You cannot view users for this location'))
+    }
+
+    if (requestedLocationId && req.user.role !== 'super-admin') {
+      andFilters.push(buildUserLocationMembershipFilter(activeLocationId))
     }
 
     // Role-based access control
     if (req.user.role === 'spa') {
       // Spa users can only see users in their spa location
-      const spaLocationId =
-        req.user.spaLocation?.locationId ||
-        req.user.selectedLocation?.locationId
+      const spaLocationId = activeLocationId
       if (spaLocationId) {
-        andFilters.push({
-          'selectedLocation.locationId': spaLocationId,
-        })
+        andFilters.push(buildUserLocationMembershipFilter(spaLocationId))
         andFilters.push({ role: 'user' }) // Spa users can only see regular users
       } else {
         // If spa user doesn't have spa location, return empty result
@@ -619,25 +749,14 @@ export const getAllUsers = async (req, res, next) => {
       andFilters.push({ role: { $ne: 'super-admin' } })
 
       // If admin has an assigned location, scope contacts to that spa's users.
-      const adminLocationId =
-        req.user.selectedLocation?.locationId || req.user.spaLocation?.locationId
+      const adminLocationId = activeLocationId
       if (adminLocationId) {
-        andFilters.push({
-          $or: [
-            { 'selectedLocation.locationId': adminLocationId },
-            { 'spaLocation.locationId': adminLocationId },
-          ],
-        })
+        andFilters.push(buildUserLocationMembershipFilter(adminLocationId))
       }
     }
     // Super-admins can see all users unless they explicitly pass locationId.
-    if (locationId && req.user.role === 'super-admin') {
-      andFilters.push({
-        $or: [
-          { 'selectedLocation.locationId': locationId },
-          { 'spaLocation.locationId': locationId },
-        ],
-      })
+    if (requestedLocationId && req.user.role === 'super-admin') {
+      andFilters.push(buildUserLocationMembershipFilter(requestedLocationId))
     }
 
     const filters = andFilters.length === 1 ? andFilters[0] : { $and: andFilters }
@@ -659,6 +778,32 @@ export const getAllUsers = async (req, res, next) => {
       .limit(limit)
       .select('-password')
       .lean()
+
+    const pointsLocationId = activeLocationId || requestedLocationId
+    if (pointsLocationId && users.length > 0) {
+      const userIds = users.map((user) => user._id).filter(Boolean)
+      const pointBalances = await PointTransaction.aggregate([
+        {
+          $match: {
+            user: { $in: userIds },
+            locationId: pointsLocationId,
+          },
+        },
+        {
+          $group: {
+            _id: '$user',
+            balance: { $sum: '$points' },
+          },
+        },
+      ])
+      const pointsByUserId = new Map(
+        pointBalances.map((entry) => [String(entry._id), entry.balance || 0])
+      )
+      users.forEach((user) => {
+        user.locationPoints = pointsByUserId.get(String(user._id)) || 0
+        user.points = user.locationPoints
+      })
+    }
 
     const pagination = {
       currentPage: page,
@@ -1148,6 +1293,7 @@ export const signup = async (req, res, next) => {
     if (phone) userData.phone = phone
     if (dateOfBirth) userData.dateOfBirth = dateOfBirth
     if (locationData) userData.selectedLocation = locationData
+    if (locationData) userData.assignedLocations = [locationData]
 
     const newUser = await User.create(userData)
     debugInfo('[Auth:Signup] User created', {
@@ -1327,6 +1473,9 @@ export const createSpaMember = async (req, res, next) => {
     if (dateOfBirth) userData.dateOfBirth = dateOfBirth
     if (locationData) userData.selectedLocation = locationData
     if (spaLocationData) userData.spaLocation = spaLocationData
+    if (locationData || spaLocationData) {
+      userData.assignedLocations = [locationData || spaLocationData]
+    }
 
     const newUser = await User.create(userData)
     newUser.password = undefined
@@ -1351,7 +1500,7 @@ export const createSpaMember = async (req, res, next) => {
 
 export const assignLocationToUser = async (req, res, next) => {
   try {
-    const { userId, locationId } = req.body
+    const { userId, locationId, locationIds } = req.body
 
     // Check permissions
     if (!['admin', 'super-admin'].includes(req.user.role)) {
@@ -1360,8 +1509,27 @@ export const assignLocationToUser = async (req, res, next) => {
       )
     }
 
-    if (!userId || !locationId) {
-      return next(createError(400, 'User ID and Location ID are required'))
+    const requestedLocationIds = Array.isArray(locationIds)
+      ? locationIds
+      : [locationId]
+    const normalizedLocationIds = [
+      ...new Set(
+        requestedLocationIds
+          .map((value) => `${value || ''}`.trim())
+          .filter(Boolean)
+      ),
+    ]
+
+    if (!userId || normalizedLocationIds.length === 0) {
+      return next(createError(400, 'User ID and at least one Location ID are required'))
+    }
+
+    if (
+      normalizedLocationIds.some(
+        (id) => !mongoose.Types.ObjectId.isValid(id)
+      )
+    ) {
+      return next(createError(400, 'Invalid location ID'))
     }
 
     // Find the user
@@ -1381,29 +1549,39 @@ export const assignLocationToUser = async (req, res, next) => {
       )
     }
 
-    // Find the location
-    const location = await Location.findById(locationId)
-    if (!location) {
-      return next(createError(404, 'Location not found'))
+    // Find the requested locations. Incoming ids are Mongo document ids from the UI.
+    const locations = await Location.find({ _id: { $in: normalizedLocationIds } })
+    if (locations.length !== normalizedLocationIds.length) {
+      return next(createError(404, 'One or more locations were not found'))
     }
 
-    if (!location.isActive) {
+    if (locations.some((location) => !location.isActive)) {
       return next(createError(400, 'Cannot assign inactive location'))
     }
 
     // Prepare location data based on user role
-    const locationData = {
+    const toLocationData = (location) => ({
       locationId: location.locationId,
       locationName: location.name,
       locationAddress: location.address,
       locationPhone: location.phone,
+      reviewLink: location.reviewLink,
       logo: location.logo,
-    }
+      subdomain: location.subdomain,
+      favicon: location.favicon,
+      themeColor: location.themeColor,
+    })
 
-    if (user.role === 'spa' || user.role === 'spa') {
-      // spa users get spaLocation
+    const assignedLocations = locations.map((location) => ({
+      ...toLocationData(location),
+      assignedAt: new Date(),
+    }))
+    const primaryLocation = assignedLocations[0]
+
+    if (user.role === 'spa') {
+      // spa users keep a primary spaLocation for legacy app flows.
       user.spaLocation = {
-        ...locationData,
+        ...primaryLocation,
         setupAt: new Date(),
         setupCompleted: true,
       }
@@ -1417,18 +1595,23 @@ export const assignLocationToUser = async (req, res, next) => {
         selectedAt: null,
       }
     } else {
-      // Other roles get selectedLocation
+      // Other roles keep a primary selectedLocation for legacy app flows.
       user.selectedLocation = {
-        ...locationData,
+        ...primaryLocation,
         selectedAt: new Date(),
       }
     }
 
+    user.assignedLocations = assignedLocations
     await user.save()
+    clearUsersListCache()
 
     res.status(200).json({
       status: 'success',
-      message: 'Location assigned successfully',
+      message:
+        assignedLocations.length > 1
+          ? 'Locations assigned successfully'
+          : 'Location assigned successfully',
       data: {
         user: {
           id: user._id,
@@ -1437,8 +1620,10 @@ export const assignLocationToUser = async (req, res, next) => {
           role: user.role,
           selectedLocation: user.selectedLocation,
           spaLocation: user.spaLocation,
+          assignedLocations: user.assignedLocations,
         },
-        assignedLocation: location,
+        assignedLocation: locations[0],
+        assignedLocations: locations,
       },
     })
   } catch (error) {
@@ -1744,7 +1929,7 @@ export const getCurrentUser = async (req, res, next) => {
 export const adjustUserPoints = async (req, res, next) => {
   try {
     const { userId } = req.params
-    const { type, amount, reason } = req.body
+    const { type, amount, reason, locationId = '' } = req.body
 
     if (!['spa', 'admin', 'super-admin'].includes(req.user.role)) {
       return next(
@@ -1755,24 +1940,36 @@ export const adjustUserPoints = async (req, res, next) => {
     if (!reason || !`${reason}`.trim()) {
       return next(createError(400, 'Reason is required for point adjustments'))
     }
+    const numericAmount = Number(amount)
+    if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+      return next(createError(400, 'Amount must be a valid non-negative number'))
+    }
 
     const user = await User.findById(userId)
     if (!user) {
       return next(createError(404, 'User not found'))
     }
 
-    const oldPoints = user.points || 0
+    const activeLocationId = resolveManagementLocationId(req.user, locationId)
+    if (!activeLocationId) {
+      return next(createError(400, 'Location ID is required for point adjustments'))
+    }
+    if (!canAccessLocation(user, activeLocationId)) {
+      return next(createError(403, 'User is not assigned to this location'))
+    }
+
+    const oldPoints = await getLocationScopedPointBalance(user._id, activeLocationId)
     let newPoints = oldPoints
 
     switch (type) {
       case 'add':
-        newPoints += amount
+        newPoints += numericAmount
         break
       case 'remove':
-        newPoints = Math.max(0, newPoints - amount)
+        newPoints = Math.max(0, newPoints - numericAmount)
         break
       case 'set':
-        newPoints = amount
+        newPoints = numericAmount
         break
       default:
         return next(createError(400, 'Invalid adjustment type'))
@@ -1781,15 +1978,30 @@ export const adjustUserPoints = async (req, res, next) => {
     user.points = newPoints
     await user.save()
 
+    const pointDelta = newPoints - oldPoints
+    await PointTransaction.create({
+      user: user._id,
+      type: 'adjustment',
+      points: pointDelta,
+      balance: newPoints,
+      description: `${type} points: ${reason}`,
+      locationId: activeLocationId,
+      metadata: {
+        transactionType: pointDelta >= 0 ? 'credit' : 'debit',
+        adjustmentType: type,
+        adjustedBy: req.user._id?.toString(),
+      },
+    })
+
     let notificationTitle = 'Points Updated'
     let notificationMessage = ''
 
     switch (type) {
       case 'add':
-        notificationMessage = `You received ${amount} points! Your balance is now ${newPoints} points.`
+        notificationMessage = `You received ${numericAmount} points! Your balance is now ${newPoints} points.`
         break
       case 'remove':
-        notificationMessage = `${amount} points were deducted from your account. Your balance is now ${newPoints} points.`
+        notificationMessage = `${numericAmount} points were deducted from your account. Your balance is now ${newPoints} points.`
         break
       case 'set':
         notificationMessage = `Your points balance has been set to ${newPoints} points.`
@@ -1810,10 +2022,11 @@ export const adjustUserPoints = async (req, res, next) => {
         metadata: {
           oldPoints,
           newPoints,
-          adjustment: amount,
+          adjustment: numericAmount,
           type,
           reason,
           adjustedBy: req.user.name,
+          locationId: activeLocationId,
         },
       }
     )
@@ -2147,11 +2360,13 @@ export const getUserProfile = async (req, res, next) => {
 
     const isOwnProfile = req.user.id === userId
     const isAdminOrAbove = ['admin', 'super-admin'].includes(req.user.role)
+    const requestedLocationId = `${req.query?.locationId || ''}`.trim()
+    const activeLocationId = resolveManagementLocationId(req.user, requestedLocationId)
     const isSpaViewingOwnClient =
       req.user.role === 'spa' &&
       user.role === 'user' &&
-      !!req.user.spaLocation?.locationId &&
-      user.selectedLocation?.locationId === req.user.spaLocation.locationId
+      !!activeLocationId &&
+      getUserAccessibleLocationIds(user).includes(activeLocationId)
 
     if (!isOwnProfile && !isAdminOrAbove && !isSpaViewingOwnClient) {
       return next(createError(403, 'You can only view allowed client profiles'))
@@ -2363,26 +2578,7 @@ export const selectSpa = async (req, res, next) => {
 
     debugLog('Found location:', location)
 
-    const alreadyAwardedProfileCompletion = Boolean(
-      user.onboardingRewards?.profileCompletion?.awarded
-    )
-    const legacyProfileCompletionWithoutFlag =
-      !alreadyAwardedProfileCompletion && Boolean(user.profileCompleted)
-
-    // For users that already completed onboarding before this fix, mark as claimed
-    // so they don't receive profile completion points again.
-    if (legacyProfileCompletionWithoutFlag) {
-      user.onboardingRewards = user.onboardingRewards || {}
-      user.onboardingRewards.profileCompletion = {
-        awarded: true,
-        awardedAt: user.lastLogin || user.updatedAt || user.createdAt || new Date(),
-        pointsAwarded: user.onboardingRewards?.profileCompletion?.pointsAwarded || 0,
-        locationId:
-          user.onboardingRewards?.profileCompletion?.locationId ||
-          user.selectedLocation?.locationId ||
-          null,
-      }
-    }
+    await ensureLegacyPointsAreScoped(user)
 
     // Update user's selected location with actual data
     const locationData = {
@@ -2390,18 +2586,26 @@ export const selectSpa = async (req, res, next) => {
       locationName: location.name,
       locationAddress: location.address,
       locationPhone: location.phone,
+      reviewLink: location.reviewLink,
       logo: location.logo,
+      subdomain: location.subdomain,
+      favicon: location.favicon,
+      themeColor: location.themeColor,
       selectedAt: new Date(),
     }
 
     user.selectedLocation = locationData
+    upsertAssignedLocation(user, locationData)
 
     // Mark profile as completed since they selected a spa
     user.profileCompleted = true
 
-    await user.save()
-
     debugLog('User updated with location:', user.selectedLocation)
+
+    let locationScopedBalance = await getLocationScopedPointBalance(
+      user._id,
+      location.locationId
+    )
 
     const profileCompletionMethod = await getPointsMethodForLocation(
       location.locationId,
@@ -2427,6 +2631,24 @@ export const selectSpa = async (req, res, next) => {
           referralCode.trim()
         )
         rewardResponse.referral = referralResult
+        const referredPoints = Number(referralResult?.data?.referredPoints || 0)
+        if (referralResult?.success && referredPoints > 0) {
+          locationScopedBalance += referredPoints
+          await PointTransaction.create({
+            user: user._id,
+            type: 'referral',
+            points: referredPoints,
+            balance: locationScopedBalance,
+            description: `Referral bonus for joining ${location.name}`,
+            locationId: location.locationId,
+            metadata: {
+              rewardKey: 'referral',
+              transactionType: 'credit',
+              referralCode: referralCode.trim().toUpperCase(),
+              locationName: location.name,
+            },
+          })
+        }
         debugLog('Referral processing result:', referralResult)
       } catch (error) {
         console.error('Referral processing error:', error)
@@ -2434,14 +2656,27 @@ export const selectSpa = async (req, res, next) => {
       }
     }
 
+    const alreadyAwardedProfileCompletionForLocation = Boolean(
+      await PointTransaction.exists({
+        user: user._id,
+        locationId: location.locationId,
+        type: 'signup_bonus',
+        'metadata.rewardKey': 'profile_completion',
+      })
+    )
+    const legacyProfileCompletionForThisLocation = Boolean(
+      user.onboardingRewards?.profileCompletion?.awarded &&
+        user.onboardingRewards?.profileCompletion?.locationId === location.locationId
+    )
+
     const shouldAwardProfileCompletion =
       rewardResponse.profileCompletion > 0 &&
-      !alreadyAwardedProfileCompletion &&
-      !legacyProfileCompletionWithoutFlag
+      !alreadyAwardedProfileCompletionForLocation &&
+      !legacyProfileCompletionForThisLocation
 
-    // Award profile completion points once only
+    // Award profile completion points once per selected location.
     if (shouldAwardProfileCompletion) {
-      user.points = (user.points || 0) + rewardResponse.profileCompletion
+      locationScopedBalance += rewardResponse.profileCompletion
       user.onboardingRewards = user.onboardingRewards || {}
       user.onboardingRewards.profileCompletion = {
         awarded: true,
@@ -2449,12 +2684,26 @@ export const selectSpa = async (req, res, next) => {
         pointsAwarded: rewardResponse.profileCompletion,
         locationId: location.locationId,
       }
-      await user.save()
-    } else if (legacyProfileCompletionWithoutFlag) {
-      rewardResponse.profileCompletion = 0
+
+      await PointTransaction.create({
+        user: user._id,
+        type: 'signup_bonus',
+        points: rewardResponse.profileCompletion,
+        balance: locationScopedBalance,
+        description: `Profile completion bonus for ${location.name}`,
+        locationId: location.locationId,
+        metadata: {
+          rewardKey: 'profile_completion',
+          transactionType: 'credit',
+          locationName: location.name,
+        },
+      })
     } else {
       rewardResponse.profileCompletion = 0
     }
+
+    user.points = locationScopedBalance
+    await user.save()
 
     res.status(200).json({
       status: 'success',
@@ -2463,8 +2712,10 @@ export const selectSpa = async (req, res, next) => {
         user: {
           id: user._id,
           selectedLocation: user.selectedLocation,
+          assignedLocations: user.assignedLocations,
           profileCompleted: user.profileCompleted,
           points: user.points,
+          locationPoints: locationScopedBalance,
         },
         rewards: rewardResponse,
       },

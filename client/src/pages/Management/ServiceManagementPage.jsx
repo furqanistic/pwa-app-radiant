@@ -106,6 +106,7 @@ const ServiceSelectionModal = ({
   onSelectServices,
   currentService,
   excludeServiceId,
+  locationId,
 }) => {
   const [selectedServices, setSelectedServices] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -115,11 +116,15 @@ const ServiceSelectionModal = ({
   const { data: servicesData, isLoading } = useServices({
     search: searchTerm,
     status: 'active',
+    locationId,
     excludeTestUsers: true,
     excludeEmailDomain: 'test.com',
   })
 
-  const services = servicesData?.services || []
+  const services = useMemo(
+    () => servicesData?.services || [],
+    [servicesData?.services]
+  )
 
   // Filter out the current service being edited and already linked services
   const filteredServices = services.filter((service) => {
@@ -880,12 +885,12 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
   const [showServiceModal, setShowServiceModal] = useState(false)
 
   // API hooks
-  const { data: categories = [], isLoading: categoriesLoading } =
-    useCategories(false)
   const effectiveLocationId =
     service?.locationId ||
     brandedLocationId ||
     ''
+  const { data: categories = [], isLoading: categoriesLoading } =
+    useCategories(false, { locationId: effectiveLocationId })
   const { data: ghlCalendarServicesData, isLoading: ghlCalendarServicesLoading } = useQuery({
     queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
     queryFn: () => ghlService.getCalendarServices(effectiveLocationId),
@@ -1237,6 +1242,8 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
         permanentLink: submissionData.ghlBooking?.permanentLink || '',
         embedCode: submissionData.ghlBooking?.embedCode || '',
       }
+
+      submissionData.locationId = effectiveLocationId || undefined
 
       console.log('🔄 Submitting service data:', submissionData)
 
@@ -2327,6 +2334,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
         onSelectServices={handleSelectServices}
         currentService={formData}
         excludeServiceId={service?._id}
+        locationId={effectiveLocationId}
       />
     </Layout>
   )
@@ -2339,6 +2347,8 @@ const ServiceManagementPage = () => {
   const [currentView, setCurrentView] = useState('list')
   const [selectedService, setSelectedService] = useState(null)
 
+  const { locationId: brandedLocationId } = useBranding()
+
   // API hooks
   const {
     data: servicesData,
@@ -2346,11 +2356,14 @@ const ServiceManagementPage = () => {
     error: servicesError,
   } = useServices({
     search: searchTerm,
+    locationId: brandedLocationId,
     excludeTestUsers: true,
     excludeEmailDomain: 'test.com',
   })
 
-  const { data: categories = [] } = useCategories(false)
+  const { data: categories = [] } = useCategories(false, {
+    locationId: brandedLocationId,
+  })
 
   const deleteServiceMutation = useDeleteService({
     onSuccess: () => {
@@ -2361,7 +2374,10 @@ const ServiceManagementPage = () => {
     },
   })
 
-  const services = servicesData?.services || []
+  const services = useMemo(
+    () => servicesData?.services || [],
+    [servicesData?.services]
+  )
   const stats = servicesData?.stats || { total: 0, active: 0 }
 
   const getCategoryById = (id) => categories.find((cat) => cat._id === id)

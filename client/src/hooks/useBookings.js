@@ -8,9 +8,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export const bookingQueryKeys = {
   all: ["bookings"],
-  upcoming: (userId) => [...bookingQueryKeys.all, "upcoming", userId],
-  past: (userId, page, limit) => [...bookingQueryKeys.all, "past", userId, page, limit],
-  stats: (userId) => [...bookingQueryKeys.all, "stats", userId],
+  upcoming: (userId, filters) => [...bookingQueryKeys.all, "upcoming", userId, filters],
+  past: (userId, page, limit, filters) => [...bookingQueryKeys.all, "past", userId, page, limit, filters],
+  stats: (userId, filters) => [...bookingQueryKeys.all, "stats", userId, filters],
   detail: (bookingId) => [...bookingQueryKeys.all, "detail", bookingId],
   bookedTimes: (serviceId, date) => [...bookingQueryKeys.all, "booked-times", serviceId, date],
 };
@@ -20,10 +20,10 @@ export const bookingQueryKeys = {
 // ===============================================
 
 // Get upcoming bookings
-export const useUpcomingBookings = (userId, options = {}) => {
+export const useUpcomingBookings = (userId, filters = {}, options = {}) => {
   return useQuery({
-    queryKey: bookingQueryKeys.upcoming(userId),
-    queryFn: () => bookingService.getClientBookings(),
+    queryKey: bookingQueryKeys.upcoming(userId, filters),
+    queryFn: () => bookingService.getClientBookings(filters),
     enabled: !!userId,
     // Default options that can be overridden
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -33,10 +33,10 @@ export const useUpcomingBookings = (userId, options = {}) => {
 };
 
 // Get past bookings
-export const usePastBookings = (userId, page = 1, limit = 20, options = {}) => {
+export const usePastBookings = (userId, page = 1, limit = 20, filters = {}, options = {}) => {
   return useQuery({
-    queryKey: bookingQueryKeys.past(userId, page, limit),
-    queryFn: () => bookingService.getPastBookings(page, limit),
+    queryKey: bookingQueryKeys.past(userId, page, limit, filters),
+    queryFn: () => bookingService.getPastBookings(page, limit, filters),
     enabled: !!userId,
     staleTime: 30 * 60 * 1000, // 30 minutes
     refetchOnWindowFocus: false,
@@ -45,10 +45,10 @@ export const usePastBookings = (userId, page = 1, limit = 20, options = {}) => {
 };
 
 // Get booking stats
-export const useBookingStats = (userId, options = {}) => {
+export const useBookingStats = (userId, filters = {}, options = {}) => {
   return useQuery({
-    queryKey: bookingQueryKeys.stats(userId),
-    queryFn: () => bookingService.getBookingStats(),
+    queryKey: bookingQueryKeys.stats(userId, filters),
+    queryFn: () => bookingService.getBookingStats(filters),
     enabled: !!userId,
     staleTime: 15 * 60 * 1000, // 15 minutes
     ...options,
@@ -78,7 +78,7 @@ export const useRescheduleBooking = (options = {}) => {
   return useMutation({
     mutationFn: ({ bookingId, date, time }) => 
       bookingService.rescheduleBooking(bookingId, date, time),
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: bookingQueryKeys.all });
       options.onSuccess?.(data);

@@ -153,7 +153,8 @@ export const usePlayGame = (options = {}) => {
 
   return useMutation({
     mutationFn: gameWheelService.playGame,
-    onSuccess: (data, gameId) => {
+    onSuccess: (data, variables) => {
+      const gameId = typeof variables === 'object' ? variables.gameId : variables
       const newBalance = data?.data?.result?.newPointsBalance
       if (typeof newBalance === 'number') {
         dispatch(setPoints(newBalance))

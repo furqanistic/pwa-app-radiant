@@ -14,6 +14,16 @@ import {
 import { cancelGhlAppointmentForBooking } from './ghl.js'
 import { getCycleWeeksForService, calculateNextRecommendedDate, getCycleUrgency, formatDaysUntilDue } from '../utils/treatmentCycles.js'
 
+const getRequestedLocationId = (req) => `${req.query?.locationId || req.body?.locationId || ''}`.trim()
+
+const withLocationScope = (query, locationId) => {
+  if (!locationId) return query
+  return {
+    ...query,
+    locationId,
+  }
+}
+
 const refreshServiceRatingStats = async (serviceId) => {
   if (!serviceId) return
 
@@ -44,13 +54,14 @@ export const getUserUpcomingAppointments = async (req, res, next) => {
   try {
     const userId = req.user.id
     const { limit = 10 } = req.query
+    const locationId = getRequestedLocationId(req)
 
-    const appointments = await Booking.find({
+    const appointments = await Booking.find(withLocationScope({
       userId,
       date: { $gte: new Date() },
       status: { $in: ['scheduled', 'confirmed'] },
       paymentStatus: 'paid',
-    })
+    }, locationId))
       .populate('serviceId', 'name basePrice duration categoryId')
       .populate('providerId', 'name')
       .sort({ date: 1, time: 1 })
@@ -74,26 +85,27 @@ export const getUserPastVisits = async (req, res, next) => {
   try {
     const userId = req.user.id
     const { limit = 20, page = 1 } = req.query
+    const locationId = getRequestedLocationId(req)
 
     const skip = (parseInt(page) - 1) * parseInt(limit)
 
     const [visits, totalVisits] = await Promise.all([
-      Booking.find({
+      Booking.find(withLocationScope({
         userId,
         date: { $lt: new Date() },
         paymentStatus: 'paid',
         status: { $nin: ['cancelled'] },
-      })
+      }, locationId))
         .populate('serviceId', 'name basePrice categoryId')
         .sort({ date: -1, time: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
-      Booking.countDocuments({
+      Booking.countDocuments(withLocationScope({
         userId,
         date: { $lt: new Date() },
         paymentStatus: 'paid',
         status: { $nin: ['cancelled'] },
-      }),
+      }, locationId)),
     ])
 
     res.status(200).json({
@@ -117,26 +129,27 @@ export const getUserPastVisits = async (req, res, next) => {
 export const getUserBookingStats = async (req, res, next) => {
   try {
     const userId = req.user.id
+    const locationId = getRequestedLocationId(req)
 
     const [upcomingCount, pastCount, totalSpent, averageRating, lifetimePoints] =
       await Promise.all([
-        Booking.countDocuments({
+        Booking.countDocuments(withLocationScope({
           userId,
           date: { $gte: new Date() },
           status: { $in: ['scheduled', 'confirmed'] },
           paymentStatus: 'paid',
-        }),
-        Booking.countDocuments({
+        }, locationId)),
+        Booking.countDocuments(withLocationScope({
           userId,
           date: { $lt: new Date() },
           status: 'completed',
-        }),
+        }, locationId)),
         Booking.aggregate([
           {
-            $match: {
+            $match: withLocationScope({
               userId: new mongoose.Types.ObjectId(userId),
               status: 'completed',
-            },
+            }, locationId),
           },
           {
             $group: {
@@ -148,10 +161,10 @@ export const getUserBookingStats = async (req, res, next) => {
         ]),
         Booking.aggregate([
           {
-            $match: {
+            $match: withLocationScope({
               userId: new mongoose.Types.ObjectId(userId),
               rating: { $exists: true, $ne: null },
-            },
+            }, locationId),
           },
           {
             $group: {
@@ -164,11 +177,11 @@ export const getUserBookingStats = async (req, res, next) => {
         // NEW: Calculate total lifetime points earned
         Booking.aggregate([
           {
-            $match: {
+            $match: withLocationScope({
               userId: new mongoose.Types.ObjectId(userId),
               status: 'completed', // Only completed bookings count
               pointsEarned: { $exists: true, $gt: 0 } // Ensure field exists
-            }
+            }, locationId)
           },
           {
             $group: {
