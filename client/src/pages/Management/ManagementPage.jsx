@@ -13,6 +13,7 @@ import {
     Clock,
     Crown,
     Gift,
+    HardDrive,
     MapPin,
     Settings,
     ShieldCheck,
@@ -143,6 +144,14 @@ const ManagementPage = () => {
         : "/management/bookings",
       color: "from-yellow-500 to-yellow-600",
       visible: isAdminOrAbove,
+    },
+    {
+      title: "Database backups",
+      description: "Create and download full MongoDB snapshots",
+      icon: HardDrive,
+      path: "/management/database-backups",
+      color: "from-slate-600 to-slate-800",
+      visible: isSuperAdmin,
     },
     {
       title: "Spin & Games",

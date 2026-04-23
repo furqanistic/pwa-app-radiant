@@ -1,2 +1,5 @@
 ._*
-.DS_Store
+**/.DS_Store
+
+# MongoDB snapshot archives only (do not ignore the whole folder — editors then hide all contents)
+server/data/backups/snapshot-*.ndjson.gz

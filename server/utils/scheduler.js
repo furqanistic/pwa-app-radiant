@@ -2,6 +2,7 @@
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import webpush from 'web-push';
+import { runScheduledMongoSnapshot } from './mongoBackup.js';
 import Booking from '../models/Booking.js';
 import Location from '../models/Location.js';
 import Notification from '../models/Notification.js';
@@ -45,6 +46,23 @@ export const initScheduler = () => {
       console.error('❌ Error running review reminder check:', error)
     }
   })
+
+  const backupCron = `${process.env.BACKUP_CRON || ''}`.trim()
+  if (backupCron) {
+    if (!cron.validate(backupCron)) {
+      console.warn('⚠️ BACKUP_CRON is invalid; scheduled database snapshots disabled.')
+    } else {
+      cron.schedule(backupCron, async () => {
+        console.log('💾 Running scheduled database snapshot...')
+        try {
+          await runScheduledMongoSnapshot()
+        } catch (error) {
+          console.error('❌ Error creating scheduled database snapshot:', error)
+        }
+      })
+      console.log(`📦 Database snapshot cron registered: ${backupCron}`)
+    }
+  }
 };
 
 const sendDueReviewReminders = async () => {

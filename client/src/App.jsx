@@ -31,6 +31,7 @@ import LocationSettingsPage from './pages/Management/LocationSettingsPage'
 import MembershipManagementPage from './pages/Management/MembershipManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import ServicesDatabasePage from './pages/Management/ServicesDatabasePage'
+import DatabaseBackupsPage from './pages/Management/DatabaseBackupsPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
 import MembershipPage from './pages/Membership/MembershipPage'
 import ClientProfile from './pages/Profile/ClientProfile'
@@ -614,6 +615,15 @@ const App = () => {
           element={
             <RoleProtectedRoute allowedRoles={["super-admin"]}>
               <ServicesDatabasePage />
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/management/database-backups"
+          element={
+            <RoleProtectedRoute allowedRoles={["super-admin"]}>
+              <DatabaseBackupsPage />
             </RoleProtectedRoute>
           }
         />

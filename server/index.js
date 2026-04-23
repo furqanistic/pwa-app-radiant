@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url'
 import './config/passport.js'
 import { extractSubdomain } from './middleware/subdomainMiddleware.js'; // SUBDOMAIN MIDDLEWARE
 import authRoute from './routes/auth.js'
+import backupRoutes from './routes/backup.js'
 import bookingsRouter from './routes/bookings.js'; // NEW
 import brandingRoutes from './routes/branding.js'; // BRANDING/SUBDOMAIN
 import dashboardRouter from './routes/dashboard.js'; // NEW
@@ -101,6 +102,7 @@ mongoose.set('strictQuery', true)
 
 // Routes
 app.use('/api/auth', authRoute)
+app.use('/api/backup', backupRoutes)
 app.use('/api/locations', locationRoute)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/referral', referralRoutes)
