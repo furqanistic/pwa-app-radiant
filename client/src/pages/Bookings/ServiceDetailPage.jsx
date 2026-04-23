@@ -20,6 +20,7 @@ import { useAvailability } from "@/hooks/useAvailability";
 import { useUserRewards } from "@/hooks/useRewards";
 import { useService, useServiceReviews } from "@/hooks/useServices";
 import Layout from "@/pages/Layout/Layout";
+import { resolveServiceImageUrl } from "@/lib/imageHelpers";
 import {
     calculateRewardDiscount,
     getApplicableRewardsForService,
@@ -854,7 +855,7 @@ const ServiceDetailPage = () => {
     const cartItem = {
       serviceId: service._id,
       serviceName: service.name,
-      image: service.image || service.images?.[0],
+      image: resolveServiceImageUrl(service),
       date: selectedDate,
       time: selectedTime,
       duration: totalDuration,
@@ -1131,11 +1132,11 @@ const ServiceDetailPage = () => {
              {/* Background Image */}
              <div className="absolute inset-0">
                <img
-                 src={service.image || "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?auto=format&fit=crop&q=80"}
+                 src={resolveServiceImageUrl(service)}
                  alt={service.name}
-                 className="w-full h-full object-cover opacity-60"
+                 className="w-full h-full object-cover"
                />
-               <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent" />
+               <div className="absolute inset-0 bg-gradient-to-t from-gray-900/85 via-gray-900/35 to-transparent" />
              </div>
 
              {/* Header Content */}

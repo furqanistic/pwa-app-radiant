@@ -5,7 +5,7 @@ import {
   useActiveServices,
   useCategories,
 } from '@/hooks/useServices'
-import { resolveImageUrl } from '@/lib/imageHelpers'
+import { resolveServiceImageUrl } from '@/lib/imageHelpers'
 import stripeService from '@/services/stripeService'
 import {
   Clock,
@@ -53,16 +53,6 @@ const normalizeMembershipPlans = (membership) => {
   }
   return []
 }
-
-const getServiceImageSource = (service) =>
-  service?.image ||
-  service?.imageUrl ||
-  service?.serviceImage ||
-  service?.service?.image ||
-  service?.serviceId?.image ||
-  service?.linkedService?.image ||
-  service?.linkedServiceId?.image ||
-  ''
 
 const formatPrice = (value) => {
   if (!Number.isFinite(Number(value))) return '$0'
@@ -221,11 +211,7 @@ const ServiceCard = ({
     >
       <div className='relative mb-3 overflow-hidden rounded-[1.05rem] bg-slate-100 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.22)] sm:mb-3.5 sm:rounded-[1.15rem]'>
         <img
-          src={resolveImageUrl(
-            getServiceImageSource(service),
-            'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=800&auto=format&fit=crop&q=60',
-            { width: 800, height: 600 }
-          )}
+          src={resolveServiceImageUrl(service)}
           alt={service.name}
           className='aspect-[16/9] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]'
           loading='lazy'

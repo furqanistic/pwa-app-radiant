@@ -31,3 +31,25 @@ export const resolveImageUrl = (value, fallback, options = {}) => {
   if (value.startsWith('http')) return value
   return buildCloudinaryUrl(value, options) || fallback
 }
+
+/** Shared placeholder when a service has no image (catalog + detail + cart). */
+export const SERVICE_CARD_IMAGE_FALLBACK =
+  'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=800&auto=format&fit=crop&q=60'
+
+export const getServiceImageSource = (service) =>
+  service?.image ||
+  service?.imageUrl ||
+  service?.serviceImage ||
+  service?.service?.image ||
+  service?.serviceId?.image ||
+  service?.linkedService?.image ||
+  service?.linkedServiceId?.image ||
+  ''
+
+/** Same URL rules everywhere (Cloudinary public id, full URL, fallbacks). */
+export const resolveServiceImageUrl = (service, options = {}) =>
+  resolveImageUrl(getServiceImageSource(service), SERVICE_CARD_IMAGE_FALLBACK, {
+    width: 800,
+    height: 600,
+    ...options,
+  })
