@@ -33,6 +33,7 @@ import AutomatedGiftSettings from "@/components/Management/AutomatedGiftSettings
 import AvailabilitySettings from "@/components/Management/AvailabilitySettings"; // Import
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import PointsSettings from "@/components/Management/PointsSettings";
+import SquareConnect from "@/components/Square/SquareConnect";
 import StripeConnect from "@/components/Stripe/StripeConnect";
 import { Button } from "@/components/ui/button";
 import Layout from "@/pages/Layout/Layout";
@@ -193,6 +194,9 @@ const ManagementPage = () => {
   );
   const sharedLocationStripeLinked = Boolean(
     currentLocation?.membershipStripeConnected
+  );
+  const sharedLocationSquareLinked = Boolean(
+    currentLocation?.membershipSquareConnected
   );
   const roleLabelByKey = {
     spa: "Spa Manager",
@@ -570,9 +574,12 @@ const ManagementPage = () => {
             <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Payouts</h3>
               <p className="text-sm text-slate-600 mb-4">
-                Connect and monitor Stripe to receive payouts without leaving this dashboard.
+                Connect and monitor Stripe or Square to receive payouts without leaving this dashboard.
               </p>
-              <StripeConnect sharedLocationStripeLinked={sharedLocationStripeLinked} />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <StripeConnect sharedLocationStripeLinked={sharedLocationStripeLinked} />
+                <SquareConnect sharedLocationSquareLinked={sharedLocationSquareLinked} />
+              </div>
             </div>
           )}
         </div>

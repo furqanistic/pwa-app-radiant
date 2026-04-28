@@ -23,6 +23,7 @@ import referralRoutes from './routes/referral.js'
 import rewardsRouter from './routes/rewards.js'
 import servicesRouter from './routes/services.js'
 import spaUsersRouter from './routes/spaUsers.js'
+import squareRoutes from './routes/square.js'
 import stripeRoutes from './routes/stripe.js'; // STRIPE INTEGRATION
 import uploadRouter from './routes/upload.js'; // NEW
 import userRewardsRouter from './routes/userRewards.js'
@@ -114,6 +115,7 @@ app.use('/api/games', gameWheelRoutes)
 app.use('/api/bookings', bookingsRouter) // NEW
 app.use('/api/dashboard', dashboardRouter) // NEW
 app.use('/api/user-rewards', userRewardsRouter)
+app.use('/api/square', squareRoutes)
 app.use('/api/stripe', stripeRoutes) // STRIPE INTEGRATION
 app.use("/api/qr-codes", qrCodeRoutes);
 app.use("/api/upload", uploadRouter); // NEW: Upload route for voice notes

@@ -176,9 +176,25 @@ const BookingSchema = new mongoose.Schema(
       default: 'pending',
       index: true,
     },
+    paymentProvider: {
+      type: String,
+      enum: ['stripe', 'square', 'manual'],
+      default: 'stripe',
+      index: true,
+    },
     stripeSessionId: {
       type: String,
       default: null,
+    },
+    squarePaymentLinkId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    squareOrderId: {
+      type: String,
+      default: null,
+      index: true,
     },
     ghl: {
       calendarId: {

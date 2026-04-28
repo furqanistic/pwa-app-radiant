@@ -1,5 +1,9 @@
 // File: server/controller/stripeController.js - Stripe Connect & Payment Controller
 import stripe from '../config/stripe.js'
+import axios from 'axios'
+import { randomBytes } from 'crypto'
+import jwt from 'jsonwebtoken'
+import { squareApiBaseUrl, squareApiVersion } from '../config/square.js'
 import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Location from '../models/Location.js'
@@ -221,6 +225,222 @@ const findStripeReadySpaOwnerByLocation = async (locationId) => {
     'stripe.accountId': { $nin: [null, ''] },
     'stripe.chargesEnabled': true,
   }).sort({ 'stripe.lastUpdated': -1, updatedAt: -1, createdAt: -1 })
+}
+
+const findSquareReadySpaOwnerByLocation = async (locationId) => {
+  if (!locationId) return null
+
+  return User.findOne({
+    role: 'spa',
+    'spaLocation.locationId': locationId,
+    'square.merchantId': { $nin: [null, ''] },
+    'square.mainLocationId': { $nin: [null, ''] },
+  })
+    .select('+square.accessToken +square.refreshToken')
+    .sort({ 'square.lastUpdated': -1, updatedAt: -1, createdAt: -1 })
+}
+
+const resolveConnectedPaymentDestinationByLocation = async (locationId) => {
+  if (!locationId) {
+    throw createError(400, 'Location ID is required')
+  }
+
+  const stripeOwner = await findStripeReadySpaOwnerByLocation(locationId)
+  if (stripeOwner) {
+    return {
+      provider: 'stripe',
+      spaOwner: stripeOwner,
+      stripeAccountId: stripeOwner?.stripe?.accountId || null,
+      squareMerchantId: null,
+      squareLocationId: null,
+      squareAccessToken: null,
+    }
+  }
+
+  const squareOwner = await findSquareReadySpaOwnerByLocation(locationId)
+  if (squareOwner) {
+    return {
+      provider: 'square',
+      spaOwner: squareOwner,
+      stripeAccountId: null,
+      squareMerchantId: squareOwner?.square?.merchantId || null,
+      squareLocationId: squareOwner?.square?.mainLocationId || null,
+      squareAccessToken: squareOwner?.square?.accessToken || null,
+    }
+  }
+
+  throw createError(
+    400,
+    'No connected payment account found for this location. Connect Stripe or Square first.'
+  )
+}
+
+const getServerBaseUrl = () =>
+  process.env.SERVER_URL || 'http://localhost:8800'
+
+const getSquareCheckoutReturnUrl = () =>
+  `${getServerBaseUrl()}/api/square/connect/checkout-return`
+
+const buildSquareCheckoutState = (payload) =>
+  jwt.sign(
+    {
+      ...payload,
+      provider: 'square_checkout',
+      nonce: randomBytes(12).toString('hex'),
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '2h' }
+  )
+
+const buildSquareCheckoutRedirectUrl = (stateToken) => {
+  const redirect = new URL(getSquareCheckoutReturnUrl())
+  redirect.searchParams.set('state', stateToken)
+  return redirect.toString()
+}
+
+const createSquarePaymentLink = async ({
+  accessToken,
+  locationId,
+  amountInCents,
+  currency = 'USD',
+  label,
+  description = '',
+  paymentNote = '',
+  redirectUrl,
+}) => {
+  if (!accessToken) {
+    throw createError(400, 'Square access token missing for this merchant')
+  }
+  if (!locationId) {
+    throw createError(400, 'Square location is missing for this merchant')
+  }
+  if (!Number.isFinite(Number(amountInCents)) || Number(amountInCents) <= 0) {
+    throw createError(400, 'Invalid payment amount for Square checkout')
+  }
+
+  const normalizedCurrency = `${currency || 'USD'}`
+    .trim()
+    .toUpperCase()
+    .slice(0, 3) || 'USD'
+
+  const response = await axios.post(
+    `${squareApiBaseUrl}/v2/online-checkout/payment-links`,
+    {
+      idempotency_key: `sq_pl_${randomBytes(12).toString('hex')}`,
+      quick_pay: {
+        name: label || 'Booking Payment',
+        price_money: {
+          amount: Number(amountInCents),
+          currency: normalizedCurrency,
+        },
+        location_id: locationId,
+      },
+      description: `${description || ''}`.trim() || undefined,
+      payment_note: `${paymentNote || ''}`.trim() || undefined,
+      checkout_options: {
+        redirect_url: redirectUrl,
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Square-Version': squareApiVersion,
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+
+  const paymentLink = response?.data?.payment_link || null
+  if (!paymentLink?.url || !paymentLink?.id) {
+    throw createError(502, 'Square did not return a valid payment link.')
+  }
+  return paymentLink
+}
+
+const buildClientCheckoutRedirect = (path, params = {}) => {
+  const base = process.env.CLIENT_URL || 'http://localhost:5173'
+  const redirect = new URL(path, base)
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && `${value}` !== '') {
+      redirect.searchParams.set(key, `${value}`)
+    }
+  })
+  return redirect.toString()
+}
+
+const getSquareHeaders = (accessToken) => ({
+  Authorization: `Bearer ${accessToken}`,
+  'Square-Version': squareApiVersion,
+  'Content-Type': 'application/json',
+})
+
+const getSquarePaymentLinkById = async ({ accessToken, paymentLinkId }) => {
+  if (!paymentLinkId) return null
+  const response = await axios.get(
+    `${squareApiBaseUrl}/v2/online-checkout/payment-links/${paymentLinkId}`,
+    { headers: getSquareHeaders(accessToken) }
+  )
+  return response?.data?.payment_link || null
+}
+
+const getSquareOrderById = async ({ accessToken, orderId }) => {
+  if (!orderId) return null
+  const response = await axios.get(`${squareApiBaseUrl}/v2/orders/${orderId}`, {
+    headers: getSquareHeaders(accessToken),
+  })
+  return response?.data?.order || null
+}
+
+const getSquarePaymentById = async ({ accessToken, paymentId }) => {
+  if (!paymentId) return null
+  const response = await axios.get(
+    `${squareApiBaseUrl}/v2/payments/${paymentId}`,
+    {
+      headers: getSquareHeaders(accessToken),
+    }
+  )
+  return response?.data?.payment || null
+}
+
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const findSquarePaymentForOrder = async ({
+  accessToken,
+  initialOrderId,
+  paymentLinkId,
+  maxAttempts = 5,
+}) => {
+  let orderId = initialOrderId || null
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (!orderId && paymentLinkId) {
+      const paymentLink = await getSquarePaymentLinkById({
+        accessToken,
+        paymentLinkId,
+      })
+      orderId = paymentLink?.order_id || null
+    }
+
+    const order = await getSquareOrderById({ accessToken, orderId })
+    const tender =
+      Array.isArray(order?.tenders) && order.tenders.length > 0
+        ? order.tenders[0]
+        : null
+    const paymentId = tender?.payment_id || tender?.id || null
+
+    if (paymentId) {
+      const payment = await getSquarePaymentById({ accessToken, paymentId })
+      if (payment?.status === 'COMPLETED') {
+        return { orderId, paymentId, payment, order }
+      }
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await pause(1800)
+    }
+  }
+
+  return { orderId: orderId || null, paymentId: null, payment: null, order: null }
 }
 
 const getActiveMembershipPricingEntries = (service) =>
@@ -2550,7 +2770,8 @@ export const createCheckoutSession = async (req, res, next) => {
       const lineItems = []
       let totalAmount = 0
       let spaOwnerId = null
-      const spaOwnerCacheByLocation = new Map()
+      let activeCheckoutProvider = null
+      const checkoutDestinationCacheByLocation = new Map()
 
       // Apply Reward if provided (Cart Checkout)
       let cartDiscountAmount = 0
@@ -2667,29 +2888,30 @@ export const createCheckoutSession = async (req, res, next) => {
         }
 
         const checkoutLocationId = item.locationId || cartLocationId
-        let spaOwner = spaOwnerCacheByLocation.get(checkoutLocationId)
-        if (!spaOwner) {
-          spaOwner = await findStripeReadySpaOwnerByLocation(checkoutLocationId)
-          if (spaOwner) {
-            spaOwnerCacheByLocation.set(checkoutLocationId, spaOwner)
-          }
+        let destination = checkoutDestinationCacheByLocation.get(checkoutLocationId)
+        if (!destination) {
+          destination = await resolveConnectedPaymentDestinationByLocation(
+            checkoutLocationId
+          )
+          checkoutDestinationCacheByLocation.set(checkoutLocationId, destination)
         }
 
-        if (!spaOwner) {
-          return next(
-            createError(
-              400,
-              `No Stripe-ready spa account found for location ${checkoutLocationId}`
-            )
-          )
-        }
+        const spaOwner = destination.spaOwner
 
         // For simplicity, all services should be from same spa owner
         if (!spaOwnerId) {
           spaOwnerId = spaOwner._id.toString()
+          activeCheckoutProvider = destination.provider
         } else if (spaOwnerId !== spaOwner._id.toString()) {
           return next(
             createError(400, 'All services must be from the same spa location')
+          )
+        } else if (activeCheckoutProvider !== destination.provider) {
+          return next(
+            createError(
+              400,
+              'All services in a cart checkout must use the same payment provider.'
+            )
           )
         }
 
@@ -2733,6 +2955,7 @@ export const createCheckoutSession = async (req, res, next) => {
           notes: item.notes || '',
           status: 'scheduled',
           paymentStatus: 'pending',
+          paymentProvider: destination.provider || 'stripe',
           ghl: {
             calendarId: ghlCalendar.calendarId,
             calendarName: ghlCalendar.name,
@@ -2760,13 +2983,57 @@ export const createCheckoutSession = async (req, res, next) => {
         })
       }
 
-      // Get spa owner for payment
-      const checkoutSpaOwner = await User.findById(spaOwnerId)
+      const checkoutDestination = checkoutDestinationCacheByLocation.get(
+        cartLocationId
+      ) || {
+        provider: activeCheckoutProvider,
+        spaOwner: await User.findById(spaOwnerId).select('+square.accessToken'),
+      }
 
-      // Create Stripe Checkout Session
       const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
       const cancelUrl = `${process.env.CLIENT_URL}/cart`
 
+      if (checkoutDestination.provider === 'square') {
+        const checkoutState = buildSquareCheckoutState({
+          flowType: 'booking_cart',
+          customerId: customerId.toString(),
+          bookingIds: bookings.map((booking) => booking._id.toString()),
+          rewardId: cartUserRewardId || null,
+          spaOwnerId: checkoutDestination.spaOwner?._id?.toString() || null,
+        })
+
+        const paymentLink = await createSquarePaymentLink({
+          accessToken: checkoutDestination.spaOwner?.square?.accessToken,
+          locationId: checkoutDestination.spaOwner?.square?.mainLocationId,
+          amountInCents: totalAmount,
+          currency: checkoutDestination.spaOwner?.square?.currency || 'USD',
+          label: `Spa Bookings (${bookings.length})`,
+          description: `Cart checkout for ${bookings.length} booking(s)`,
+          paymentNote: `cart_checkout:${bookings.map((b) => b._id).join(',')}`,
+          redirectUrl: buildSquareCheckoutRedirectUrl(checkoutState),
+        })
+
+        await Promise.all(
+          bookings.map((booking) => {
+            booking.squarePaymentLinkId = paymentLink.id
+            booking.squareOrderId = paymentLink.order_id || null
+            booking.paymentProvider = 'square'
+            return booking.save()
+          })
+        )
+
+        return res.status(201).json({
+          success: true,
+          provider: 'square',
+          checkoutMode: 'hosted',
+          sessionId: paymentLink.id,
+          sessionUrl: paymentLink.url || paymentLink.long_url || null,
+          clientSecret: null,
+          bookingIds: bookings.map((b) => b._id),
+        })
+      }
+
+      const checkoutSpaOwner = checkoutDestination.spaOwner
       const checkoutSessionPayload = {
         payment_method_types: ['card', 'afterpay_clearpay'],
         line_items: lineItems,
@@ -2803,16 +3070,17 @@ export const createCheckoutSession = async (req, res, next) => {
 
       const session = await stripe.checkout.sessions.create(checkoutSessionPayload)
 
-      // Update bookings with session ID
       await Promise.all(
         bookings.map((booking) => {
           booking.stripeSessionId = session.id
+          booking.paymentProvider = 'stripe'
           return booking.save()
         })
       )
 
       return res.status(201).json({
         success: true,
+        provider: 'stripe',
         checkoutMode: useEmbeddedCheckout ? 'embedded' : 'hosted',
         sessionId: session.id,
         sessionUrl: session.url || null,
@@ -2860,12 +3128,10 @@ export const createCheckoutSession = async (req, res, next) => {
       service,
     })
 
-    // Get spa owner (owner of the location)
-    const spaOwner = await findStripeReadySpaOwnerByLocation(locationId)
-
-    if (!spaOwner) {
-      return next(createError(400, 'No Stripe-ready spa account found for this location'))
-    }
+    const checkoutDestination = await resolveConnectedPaymentDestinationByLocation(
+      locationId
+    )
+    const spaOwner = checkoutDestination.spaOwner
 
     const normalizedAddOns = Array.isArray(addOns)
       ? addOns
@@ -3028,6 +3294,7 @@ export const createCheckoutSession = async (req, res, next) => {
       notes: bookingNotes,
       status: 'scheduled',
       paymentStatus: 'pending',
+      paymentProvider: checkoutDestination.provider || 'stripe',
       ghl: {
         calendarId: ghlCalendar.calendarId,
         calendarName: ghlCalendar.name,
@@ -3037,7 +3304,8 @@ export const createCheckoutSession = async (req, res, next) => {
       },
     })
 
-    const shouldAttemptDirectCharge = Boolean(useSavedCardDirectCharge)
+    const shouldAttemptDirectCharge =
+      checkoutDestination.provider === 'stripe' && Boolean(useSavedCardDirectCharge)
     if (shouldAttemptDirectCharge) {
       try {
         let paymentMethodForReceipt = {
@@ -3285,9 +3553,44 @@ export const createCheckoutSession = async (req, res, next) => {
       }
     }
 
-    // Create Stripe Checkout Session
     const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${process.env.CLIENT_URL}/services/${serviceId}`
+
+    if (checkoutDestination.provider === 'square') {
+      const checkoutState = buildSquareCheckoutState({
+        flowType: 'booking_single',
+        customerId: customerId.toString(),
+        bookingIds: [booking._id.toString()],
+        rewardId: resolvedRewardUsed || null,
+        spaOwnerId: spaOwner?._id?.toString() || null,
+      })
+
+      const paymentLink = await createSquarePaymentLink({
+        accessToken: spaOwner?.square?.accessToken,
+        locationId: spaOwner?.square?.mainLocationId,
+        amountInCents: amount,
+        currency: spaOwner?.square?.currency || 'USD',
+        label: service.name || 'Spa Booking',
+        description: `Booking on ${new Date(date).toLocaleDateString()} at ${time}`,
+        paymentNote: `single_booking:${booking._id.toString()}`,
+        redirectUrl: buildSquareCheckoutRedirectUrl(checkoutState),
+      })
+
+      booking.squarePaymentLinkId = paymentLink.id
+      booking.squareOrderId = paymentLink.order_id || null
+      booking.paymentProvider = 'square'
+      await booking.save()
+
+      return res.status(201).json({
+        success: true,
+        provider: 'square',
+        checkoutMode: 'hosted',
+        sessionId: paymentLink.id,
+        sessionUrl: paymentLink.url || paymentLink.long_url || null,
+        clientSecret: null,
+        bookingId: booking._id,
+      })
+    }
 
     const checkoutSessionPayload = {
       payment_method_types: ['card', 'afterpay_clearpay'],
@@ -3349,10 +3652,12 @@ export const createCheckoutSession = async (req, res, next) => {
 
     // Update booking with session ID
     booking.stripeSessionId = session.id
+    booking.paymentProvider = 'stripe'
     await booking.save()
 
     res.status(201).json({
       success: true,
+      provider: 'stripe',
       checkoutMode: useEmbeddedCheckout ? 'embedded' : 'hosted',
       sessionId: session.id,
       sessionUrl: session.url || null,
@@ -3410,23 +3715,25 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
       )
     }
 
-    const spaOwner = await findStripeReadySpaOwnerByLocation(locationId)
-    if (!spaOwner) {
-      return next(createError(400, 'No Stripe-ready spa account found for this location'))
-    }
+    const checkoutDestination = await resolveConnectedPaymentDestinationByLocation(
+      locationId
+    )
+    const spaOwner = checkoutDestination.spaOwner
 
-    const customerStripeId = await ensureMembershipCustomer({
-      user,
-      stripeAccountId: spaOwner.stripe.accountId,
-      locationId,
-    })
-    const paymentMethodState = await listMembershipPaymentMethods({
-      customerId: customerStripeId,
-      stripeAccountId: spaOwner.stripe.accountId,
-    })
+    if (checkoutDestination.provider === 'stripe') {
+      const customerStripeId = await ensureMembershipCustomer({
+        user,
+        stripeAccountId: spaOwner.stripe.accountId,
+        locationId,
+      })
+      const paymentMethodState = await listMembershipPaymentMethods({
+        customerId: customerStripeId,
+        stripeAccountId: spaOwner.stripe.accountId,
+      })
 
-    if (paymentMethodState.paymentMethods.length === 0) {
-      return next(createError(400, 'Add a card before buying a membership plan.'))
+      if (paymentMethodState.paymentMethods.length === 0) {
+        return next(createError(400, 'Add a card before buying a membership plan.'))
+      }
     }
 
     const activeEntries = getActiveMembershipPricingEntries(service)
@@ -3494,6 +3801,39 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
     const successUrl = `${process.env.CLIENT_URL}/booking-success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${process.env.CLIENT_URL}/membership`
 
+    if (checkoutDestination.provider === 'square') {
+      const checkoutState = buildSquareCheckoutState({
+        flowType: 'membership',
+        customerId: customerId.toString(),
+        spaOwnerId: spaOwner?._id?.toString() || null,
+        serviceId: service._id.toString(),
+        locationId: `${locationId}`,
+        planId: finalPlanId ? `${finalPlanId}` : '',
+        planName: `${finalPlanName}`,
+        planPrice: `${resolvedAmountDollars}`,
+      })
+
+      const paymentLink = await createSquarePaymentLink({
+        accessToken: spaOwner?.square?.accessToken,
+        locationId: spaOwner?.square?.mainLocationId,
+        amountInCents: amount,
+        currency: spaOwner?.square?.currency || 'USD',
+        label: finalPlanName,
+        description: `Membership plan for location ${locationId}`,
+        paymentNote: `membership_checkout:${service._id.toString()}`,
+        redirectUrl: buildSquareCheckoutRedirectUrl(checkoutState),
+      })
+
+      return res.status(201).json({
+        success: true,
+        provider: 'square',
+        checkoutMode: 'hosted',
+        sessionId: paymentLink.id,
+        sessionUrl: paymentLink.url || paymentLink.long_url || null,
+        clientSecret: null,
+      })
+    }
+
     const checkoutSessionPayload = {
       payment_method_types: ['card', 'afterpay_clearpay'],
       line_items: [
@@ -3551,6 +3891,7 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
+      provider: 'stripe',
       checkoutMode: useEmbeddedCheckout ? 'embedded' : 'hosted',
       sessionId: session.id,
       sessionUrl: session.url || null,
@@ -3559,6 +3900,324 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
   } catch (error) {
     console.error('Error creating membership checkout session:', error)
     next(error)
+  }
+}
+
+export const handleSquareCheckoutReturn = async (req, res) => {
+  const failRedirect = (fallbackPath, reason) =>
+    res.redirect(
+      buildClientCheckoutRedirect(fallbackPath, {
+        square: 'error',
+        reason,
+      })
+    )
+
+  try {
+    const stateToken = `${req.query?.state || ''}`.trim()
+    if (!stateToken) {
+      return failRedirect('/cart', 'missing_state')
+    }
+
+    let state
+    try {
+      state = jwt.verify(stateToken, process.env.JWT_SECRET)
+    } catch (error) {
+      return failRedirect('/cart', 'invalid_state')
+    }
+
+    if (state?.provider !== 'square_checkout') {
+      return failRedirect('/cart', 'invalid_state_provider')
+    }
+
+    const flowType = `${state?.flowType || ''}`.trim().toLowerCase()
+    const spaOwnerId = `${state?.spaOwnerId || ''}`.trim()
+    const fallbackPath =
+      flowType === 'membership'
+        ? '/membership'
+        : flowType === 'booking_single'
+          ? `/services/${state?.serviceId || ''}`
+          : '/cart'
+
+    const spaOwner = spaOwnerId
+      ? await User.findById(spaOwnerId).select('+square.accessToken +square.refreshToken')
+      : null
+    if (!spaOwner?.square?.accessToken) {
+      return failRedirect(fallbackPath, 'missing_square_access_token')
+    }
+
+    if (flowType === 'membership') {
+      const orderIdFromQuery =
+        req.query?.orderId || req.query?.order_id || req.query?.transactionId || null
+      const paymentLinkIdFromQuery =
+        req.query?.checkoutId ||
+        req.query?.checkout_id ||
+        req.query?.paymentLinkId ||
+        req.query?.payment_link_id ||
+        null
+      const paymentResolution = await findSquarePaymentForOrder({
+        accessToken: spaOwner.square.accessToken,
+        initialOrderId: orderIdFromQuery || null,
+        paymentLinkId: paymentLinkIdFromQuery || null,
+      })
+
+      if (!paymentResolution?.payment?.id) {
+        return failRedirect('/membership', 'payment_not_completed')
+      }
+
+      const customerId = `${state?.customerId || ''}`.trim()
+      const serviceId = `${state?.serviceId || ''}`.trim()
+      const locationId = `${state?.locationId || ''}`.trim()
+      if (!customerId || !serviceId || !locationId) {
+        return failRedirect('/membership', 'invalid_membership_state')
+      }
+
+      const service = await Service.findById(serviceId)
+      if (!service) {
+        return failRedirect('/membership', 'membership_service_not_found')
+      }
+
+      const payment = paymentResolution.payment
+      const amount = Number(payment?.amount_money?.amount || 0)
+      const amountDollars = amount / 100
+      const pointsEarned = await resolvePurchasePoints(locationId, amountDollars)
+      const squarePaymentKey = `square_${payment.id}_membership_${serviceId}`
+
+      const existingPayment = await Payment.findOne({
+        stripePaymentIntentId: squarePaymentKey,
+      })
+
+      if (!existingPayment) {
+        await Payment.create({
+          stripePaymentIntentId: squarePaymentKey,
+          customer: customerId,
+          spaOwner: spaOwner._id,
+          stripeAccountId: spaOwner.square.merchantId || `square_${spaOwner._id}`,
+          service: service._id,
+          booking: null,
+          amount,
+          currency: `${payment?.amount_money?.currency || 'USD'}`.toLowerCase(),
+          subtotal: amount,
+          discount: { amount: 0, type: null, code: null, description: null },
+          tax: { amount: 0, rate: 0 },
+          platformFee: { amount: 0, percentage: 0 },
+          status: 'succeeded',
+          livemode: null,
+          processedAt: new Date(),
+          pointsEarned,
+          paymentMethod: {
+            type: `${payment?.source_type || 'CARD'}`.toLowerCase(),
+            brand: payment?.card_details?.card?.card_brand || null,
+            last4: payment?.card_details?.card?.last_4 || null,
+            expMonth: payment?.card_details?.card?.exp_month || null,
+            expYear: payment?.card_details?.card?.exp_year || null,
+          },
+          paymentCategory: 'membership',
+          metadata: {
+            provider: 'square',
+            squarePaymentId: `${payment.id}`,
+            squareOrderId: `${payment?.order_id || paymentResolution.orderId || ''}`,
+            locationId: `${locationId}`,
+            planId: `${state?.planId || ''}`,
+            planName: `${state?.planName || ''}`,
+            planPrice: `${state?.planPrice || ''}`,
+          },
+        })
+
+        await activateMembershipForCustomer({
+          customerId,
+          booking: {
+            finalPrice: amountDollars,
+            locationId,
+          },
+          service,
+        })
+
+        const customer = await User.findById(customerId)
+        if (customer) {
+          customer.points += pointsEarned
+          await customer.save()
+        }
+      }
+
+      return res.redirect(
+        buildClientCheckoutRedirect('/booking-success', {
+          session_id: `square_${payment.id}`,
+        })
+      )
+    }
+
+    const bookingIds = Array.isArray(state?.bookingIds)
+      ? state.bookingIds.map((id) => `${id}`).filter(Boolean)
+      : []
+
+    if (bookingIds.length === 0) {
+      return failRedirect(fallbackPath, 'missing_booking_ids')
+    }
+
+    const bookings = await Booking.find({ _id: { $in: bookingIds } })
+    if (!Array.isArray(bookings) || bookings.length === 0) {
+      return failRedirect(fallbackPath, 'bookings_not_found')
+    }
+
+    const firstBooking = bookings[0]
+    const orderIdFromQuery =
+      req.query?.orderId || req.query?.order_id || req.query?.transactionId || null
+    const paymentResolution = await findSquarePaymentForOrder({
+      accessToken: spaOwner.square.accessToken,
+      initialOrderId: orderIdFromQuery || firstBooking?.squareOrderId || null,
+      paymentLinkId: firstBooking?.squarePaymentLinkId || null,
+    })
+
+    if (!paymentResolution?.payment?.id) {
+      return failRedirect(fallbackPath, 'payment_not_completed')
+    }
+
+    const payment = paymentResolution.payment
+    const purchaseMethodCache = new Map()
+    let totalPointsEarned = 0
+    const processedBookingIds = []
+
+    for (const booking of bookings) {
+      const isAlreadyPaid =
+        `${booking.paymentStatus || ''}`.toLowerCase() === 'paid' && booking.paymentId
+      if (isAlreadyPaid) {
+        if (!booking?.ghl?.appointmentId) {
+          const syncResult = await syncBookingToGhlWithRetry(
+            booking,
+            `${state?.customerId || booking.userId || ''}`.trim()
+          )
+          if (!syncResult.ok) {
+            return failRedirect(fallbackPath, 'ghl_sync_failed')
+          }
+        }
+        processedBookingIds.push(booking._id.toString())
+        continue
+      }
+
+      const bookingAmountCents = Math.max(
+        0,
+        Math.round(Number(booking.finalPrice || booking.servicePrice || 0) * 100)
+      )
+      const pointsEarned = await resolvePurchasePoints(
+        booking.locationId,
+        Number(booking.finalPrice || 0),
+        purchaseMethodCache
+      )
+      totalPointsEarned += pointsEarned
+
+      const paymentKey = `square_${payment.id}_${booking._id.toString()}`
+      let paymentDoc = await Payment.findOne({ stripePaymentIntentId: paymentKey })
+
+      if (!paymentDoc) {
+        paymentDoc = await Payment.create({
+          stripePaymentIntentId: paymentKey,
+          customer: booking.userId,
+          spaOwner: spaOwner._id,
+          stripeAccountId: spaOwner.square.merchantId || `square_${spaOwner._id}`,
+          service: booking.serviceId,
+          booking: booking._id,
+          amount: bookingAmountCents,
+          currency: `${payment?.amount_money?.currency || 'USD'}`.toLowerCase(),
+          subtotal: Math.round(Number(booking.servicePrice || booking.finalPrice || 0) * 100),
+          discount: {
+            amount: Math.round(Number(booking.discountApplied || 0) * 100),
+            type: Number(booking.discountApplied || 0) > 0 ? 'fixed' : null,
+            code: null,
+            description: null,
+          },
+          tax: { amount: 0, rate: 0 },
+          platformFee: { amount: 0, percentage: 0 },
+          status: 'succeeded',
+          livemode: null,
+          processedAt: new Date(),
+          pointsEarned,
+          pointsUsed: booking.pointsUsed || 0,
+          paymentMethod: {
+            type: `${payment?.source_type || 'CARD'}`.toLowerCase(),
+            brand: payment?.card_details?.card?.card_brand || null,
+            last4: payment?.card_details?.card?.last_4 || null,
+            expMonth: payment?.card_details?.card?.exp_month || null,
+            expYear: payment?.card_details?.card?.exp_year || null,
+          },
+          paymentCategory: 'booking',
+          metadata: {
+            provider: 'square',
+            squarePaymentId: `${payment.id}`,
+            squareOrderId: `${payment?.order_id || paymentResolution.orderId || ''}`,
+            squarePaymentLinkId: `${booking?.squarePaymentLinkId || ''}`,
+          },
+        })
+      }
+
+      booking.paymentStatus = 'paid'
+      booking.paymentProvider = 'square'
+      booking.paymentId = paymentDoc._id
+      booking.squareOrderId = payment?.order_id || paymentResolution.orderId || booking.squareOrderId || null
+      booking.pointsEarned = pointsEarned
+      await booking.save()
+
+      const syncResult = await syncBookingToGhlWithRetry(
+        booking,
+        `${state?.customerId || booking.userId || ''}`.trim()
+      )
+      if (!syncResult.ok) {
+        return failRedirect(fallbackPath, 'ghl_sync_failed')
+      }
+
+      const bookingService = await Service.findById(booking.serviceId)
+      await activateMembershipForCustomer({
+        customerId: `${state?.customerId || booking.userId || ''}`.trim(),
+        booking,
+        service: bookingService,
+      })
+      processedBookingIds.push(booking._id.toString())
+    }
+
+    if (processedBookingIds.length > 0) {
+      const primaryCustomerId = `${state?.customerId || bookings[0]?.userId || ''}`.trim()
+      if (primaryCustomerId) {
+        const customer = await User.findById(primaryCustomerId)
+        if (customer) {
+          const totalPointsUsed = bookings.reduce(
+            (sum, booking) => sum + Number(booking.pointsUsed || 0),
+            0
+          )
+          customer.points += totalPointsEarned
+          if (totalPointsUsed > 0) {
+            customer.points = Math.max(0, customer.points - totalPointsUsed)
+          }
+          await customer.save()
+        }
+      }
+    }
+
+    const rewardId = `${state?.rewardId || ''}`.trim()
+    if (rewardId) {
+      const totalRewardValue = bookings.reduce(
+        (sum, booking) => sum + (Number(booking.discountApplied) || 0),
+        0
+      )
+      await UserReward.findByIdAndUpdate(rewardId, {
+        status: 'used',
+        usedAt: new Date(),
+        usedBy: `${state?.customerId || ''}`.trim() || null,
+        actualValue: totalRewardValue,
+      })
+    }
+
+    return res.redirect(
+      buildClientCheckoutRedirect('/booking-success', {
+        session_id: `square_${payment.id}`,
+      })
+    )
+  } catch (error) {
+    console.error('Error handling Square checkout return:', error)
+    return res.redirect(
+      buildClientCheckoutRedirect('/cart', {
+        square: 'error',
+        reason: 'checkout_return_failed',
+      })
+    )
   }
 }
 

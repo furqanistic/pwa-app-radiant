@@ -189,13 +189,21 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
   const stripeConnected = Boolean(
     spaOwner?.stripe?.accountId && spaOwner?.stripe?.chargesEnabled
   );
+  const squareConnected = Boolean(
+    await User.exists({
+      role: 'spa',
+      'spaLocation.locationId': location.locationId,
+      'square.merchantId': { $nin: [null, ''] },
+      'square.mainLocationId': { $nin: [null, ''] },
+    })
+  );
 
   // Allow draft membership saves without Stripe.
   // Stripe is required only when membership is activated.
-  if (!stripeConnected && normalizedMembership.isActive) {
+  if (!stripeConnected && !squareConnected && normalizedMembership.isActive) {
     throw createError(
       400,
-      'Stripe must be connected before activating membership. Save as inactive first, then activate after Stripe is ready.'
+      'Connect Stripe or Square before activating membership. Save as inactive first, then activate after a payment provider is connected.'
     );
   }
 
@@ -688,7 +696,9 @@ export const getAllLocations = async (req, res, next) => {
     const spaOwners = await User.find({
       role: 'spa',
       'spaLocation.locationId': { $in: locationIds },
-    }).select('spaLocation.locationId stripe.accountId stripe.chargesEnabled stripe.detailsSubmitted')
+    }).select(
+      'spaLocation.locationId stripe.accountId stripe.chargesEnabled stripe.detailsSubmitted square.merchantId square.mainLocationId'
+    )
 
     const spaOwnersByLocationId = new Map()
     spaOwners.forEach((owner) => {
@@ -708,6 +718,9 @@ export const getAllLocations = async (req, res, next) => {
     const hasPendingStripeSetup = (owner) =>
       Boolean(owner?.stripe?.accountId && !owner?.stripe?.chargesEnabled)
 
+    const hasConnectedSquare = (owner) =>
+      Boolean(owner?.square?.merchantId && owner?.square?.mainLocationId)
+
     const locationsWithStripeStatus = locations.map((locationDoc) => {
       const location = typeof locationDoc.toObject === 'function'
         ? locationDoc.toObject()
@@ -715,6 +728,7 @@ export const getAllLocations = async (req, res, next) => {
       const spaOwnersForLocation =
         spaOwnersByLocationId.get(location.locationId) || []
       const stripeConnected = spaOwnersForLocation.some(hasConnectedStripe)
+      const squareConnected = spaOwnersForLocation.some(hasConnectedSquare)
 
       let membershipStripeMessage = 'Stripe connected.'
       if (spaOwnersForLocation.length === 0) {
@@ -724,6 +738,13 @@ export const getAllLocations = async (req, res, next) => {
       } else if (spaOwnersForLocation.some(hasPendingStripeSetup)) {
         membershipStripeMessage =
           'Stripe is connected but charges are not enabled yet.'
+      }
+
+      let membershipSquareMessage = 'Square connected.'
+      if (spaOwnersForLocation.length === 0) {
+        membershipSquareMessage = 'No spa account is linked to this location.'
+      } else if (!squareConnected) {
+        membershipSquareMessage = 'Spa user has not connected Square.'
       }
 
       return {
@@ -740,6 +761,8 @@ export const getAllLocations = async (req, res, next) => {
         },
         membershipStripeConnected: stripeConnected,
         membershipStripeMessage,
+        membershipSquareConnected: squareConnected,
+        membershipSquareMessage,
       }
     })
 

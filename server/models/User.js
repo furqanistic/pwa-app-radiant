@@ -320,6 +320,61 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
+    // Square Connect Integration (for spa role - spa owners)
+    square: {
+      merchantId: {
+        type: String,
+        default: null,
+        sparse: true,
+      },
+      merchantStatus: {
+        type: String,
+        default: null,
+      },
+      businessName: {
+        type: String,
+        default: null,
+      },
+      mainLocationId: {
+        type: String,
+        default: null,
+      },
+      country: {
+        type: String,
+        default: null,
+      },
+      currency: {
+        type: String,
+        default: null,
+      },
+      accessToken: {
+        type: String,
+        default: null,
+        select: false,
+      },
+      refreshToken: {
+        type: String,
+        default: null,
+        select: false,
+      },
+      tokenExpiresAt: {
+        type: Date,
+        default: null,
+      },
+      scopes: {
+        type: [String],
+        default: [],
+      },
+      connectedAt: {
+        type: Date,
+        default: null,
+      },
+      lastUpdated: {
+        type: Date,
+        default: null,
+      },
+    },
+
     // Membership state for customer accounts
     membership: {
       isActive: {
