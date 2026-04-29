@@ -42,6 +42,8 @@ const NotificationSchema = new mongoose.Schema(
         'points',
         'credits',
         'system',
+        'admin',
+        'referral',
         'promotion',
         'alert',
         'game_reward',

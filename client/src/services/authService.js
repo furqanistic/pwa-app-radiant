@@ -70,7 +70,7 @@ export const authService = {
 
   updateUser: async (userId, userData) => {
     const response = await axiosInstance.put(
-      `/auth/profile/${userId}`,
+      `/auth/update/${userId}`,
       userData
     )
     return response.data

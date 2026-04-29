@@ -51,7 +51,7 @@ const ClientProfile = () => {
   const [gameStats, setGameStats] = useState({})
    const [pointsSummary, setPointsSummary] = useState({})
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', email: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', role: '' })
   const [isSaving, setIsSaving] = useState(false)
   const brandColor = 'var(--brand-primary)'
   const brandTint = 'color-mix(in srgb, var(--brand-primary) 12%, #ffffff)'
@@ -60,6 +60,8 @@ const ClientProfile = () => {
 
   // Check if viewing own profile
   const isOwnProfile = !userId || userId === currentUser?._id
+  const isSuperAdmin = currentUser?.role === 'super-admin'
+  const canEditRole = isSuperAdmin && !isOwnProfile
 
   useEffect(() => {
     if (preloadedUser && !isOwnProfile) {
@@ -67,6 +69,7 @@ const ClientProfile = () => {
       setEditForm({
         name: preloadedUser.name || '',
         email: preloadedUser.email || '',
+        role: preloadedUser.role || 'user',
       })
     }
   }, [preloadedUser, isOwnProfile])
@@ -87,7 +90,11 @@ const ClientProfile = () => {
       // Fetch user info
        if (isOwnProfile) {
         setUser(currentUser)
-        setEditForm({ name: currentUser.name, email: currentUser.email })
+        setEditForm({
+          name: currentUser.name || '',
+          email: currentUser.email || '',
+          role: currentUser.role || 'user',
+        })
       } else {
         if (!targetUserId) {
           throw new Error('Missing target user id')
@@ -97,7 +104,11 @@ const ClientProfile = () => {
           if (userResponse.status === 'success') {
             const fetchedUser = userResponse.data.user
             setUser(fetchedUser)
-            setEditForm({ name: fetchedUser.name, email: fetchedUser.email })
+            setEditForm({
+              name: fetchedUser.name || '',
+              email: fetchedUser.email || '',
+              role: fetchedUser.role || 'user',
+            })
           }
         } catch (profileError) {
           if (preloadedUser) {
@@ -105,6 +116,7 @@ const ClientProfile = () => {
             setEditForm({
               name: preloadedUser.name || '',
               email: preloadedUser.email || '',
+              role: preloadedUser.role || 'user',
             })
           } else {
             throw profileError
@@ -201,9 +213,29 @@ const ClientProfile = () => {
 
     try {
       setIsSaving(true)
-      const response = await authService.updateUser(user._id, editForm)
+      const selectedRole = (editForm.role || '').trim()
+      const normalizedRole = ['user', 'spa', 'admin'].includes(selectedRole)
+        ? selectedRole
+        : 'user'
+      const payload = {
+        name: editForm.name,
+        email: editForm.email,
+      }
+      const response = await authService.updateUser(user._id, payload)
+
+      if (
+        canEditRole &&
+        normalizedRole &&
+        user?.role !== normalizedRole
+      ) {
+        await authService.changeUserRole(user._id, normalizedRole)
+      }
+
       if (response.status === 'success') {
-        setUser(response.data.user)
+        setUser((prev) => ({
+          ...(response.data.user || prev || {}),
+          ...(canEditRole ? { role: normalizedRole } : {}),
+        }))
         setIsEditing(false)
         toast.success('User updated successfully')
       }
@@ -214,8 +246,6 @@ const ClientProfile = () => {
       setIsSaving(false)
     }
   }
-
-  const isSuperAdmin = currentUser?.role === 'super-admin'
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -377,6 +407,23 @@ const ClientProfile = () => {
                           placeholder='Email Address'
                         />
                       </div>
+                      {canEditRole && (
+                        <div className='relative'>
+                          <Shield className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                          <select
+                            value={editForm.role}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, role: e.target.value })
+                            }
+                            className='w-full pl-10 pr-4 py-2 border-2 rounded-xl outline-none transition-colors bg-white'
+                            style={{ borderColor: brandBorder }}
+                          >
+                            <option value='user'>user</option>
+                            <option value='spa'>spa</option>
+                            <option value='admin'>admin</option>
+                          </select>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>

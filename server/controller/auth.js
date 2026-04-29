@@ -937,6 +937,39 @@ export const changeUserRole = async (req, res, next) => {
     // Store previous role
     const previousRole = targetUser.role
 
+    // Ensure spa users always have required spaLocation fields before save.
+    if (newRole === 'spa') {
+      const assignedPrimary = Array.isArray(targetUser.assignedLocations)
+        ? targetUser.assignedLocations.find(
+            (location) => location?.locationId && location?.locationName
+          )
+        : null
+
+      const fallbackLocation =
+        (targetUser.selectedLocation?.locationId &&
+          targetUser.selectedLocation?.locationName &&
+          targetUser.selectedLocation) ||
+        (targetUser.spaLocation?.locationId &&
+          targetUser.spaLocation?.locationName &&
+          targetUser.spaLocation) ||
+        assignedPrimary ||
+        null
+
+      if (!fallbackLocation?.locationId || !fallbackLocation?.locationName) {
+        return next(
+          createError(
+            400,
+            'Cannot change role to spa without an assigned location. Please assign a location first.'
+          )
+        )
+      }
+
+      // Update only required fields to avoid writing undefined nested objects
+      // (e.g. businessHours/coordinates) back into spaLocation.
+      targetUser.set('spaLocation.locationId', fallbackLocation.locationId)
+      targetUser.set('spaLocation.locationName', fallbackLocation.locationName)
+    }
+
     // Update user role
     targetUser.previousRole = previousRole
     targetUser.role = newRole
