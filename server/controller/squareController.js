@@ -13,6 +13,7 @@ import {
   squareRedirectUrl,
 } from '../config/square.js'
 import { createError } from '../error.js'
+import Location from '../models/Location.js'
 import User from '../models/User.js'
 
 const getFrontendManagementUrl = ({ status = 'success', reason = '' } = {}) => {
@@ -95,8 +96,110 @@ const hasAnyStripeLinkedForLocation = async (locationId) => {
       role: 'spa',
       'spaLocation.locationId': locationId,
       'stripe.accountId': { $nin: [null, ''] },
+      'stripe.chargesEnabled': true,
     })
   )
+}
+
+const normalizePlanCurrency = (value) => `${value || 'usd'}`.trim().toUpperCase()
+
+const syncPendingMembershipPlansToSquare = async (user) => {
+  if (!user?.spaLocation?.locationId || !user?.square?.accessToken) return
+
+  const location = await Location.findOne({ locationId: user.spaLocation.locationId })
+  if (!location?.membership) return
+  if (!location.membership.pendingSquareActivation && !location.membership.isActive) return
+
+  const plans = Array.isArray(location.membership.plans) ? location.membership.plans : []
+  if (!plans.length) return
+
+  const syncedPlans = []
+  for (let index = 0; index < plans.length; index += 1) {
+    const plan = plans[index]
+    const objectId =
+      plan.squareSubscriptionPlanId || `#membership_plan_${index}_${randomBytes(8).toString('hex')}`
+    const variationId =
+      plan.squareSubscriptionPlanVariationId ||
+      `#membership_plan_variation_${index}_${randomBytes(8).toString('hex')}`
+
+    const response = await axios.post(
+      `${squareApiBaseUrl}/v2/catalog/object`,
+      {
+        idempotency_key: `membership-${location.locationId}-${index}-${Date.now()}`,
+        object: {
+          id: objectId,
+          type: 'SUBSCRIPTION_PLAN',
+          subscription_plan_data: {
+            name: plan.name,
+            phases: [
+              {
+                cadence: 'MONTHLY',
+                recurring_price_money: {
+                  amount: Math.round(Number(plan.price || 0) * 100),
+                  currency: normalizePlanCurrency(plan.currency),
+                },
+              },
+            ],
+            subscription_plan_variations: [
+              {
+                id: variationId,
+                type: 'SUBSCRIPTION_PLAN_VARIATION',
+                subscription_plan_variation_data: {
+                  name: `${plan.name} - Monthly`,
+                  phases: [
+                    {
+                      cadence: 'MONTHLY',
+                      recurring_price_money: {
+                        amount: Math.round(Number(plan.price || 0) * 100),
+                        currency: normalizePlanCurrency(plan.currency),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${user.square.accessToken}`,
+          'Square-Version': squareApiVersion,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    const syncedObject = response?.data?.catalog_object || {}
+    const syncedVariationId =
+      syncedObject?.subscription_plan_data?.subscription_plan_variations?.[0]?.id ||
+      plan.squareSubscriptionPlanVariationId ||
+      null
+
+    syncedPlans.push({
+      ...(typeof plan?.toObject === 'function' ? plan.toObject() : plan),
+      squareSubscriptionPlanId: syncedObject?.id || plan.squareSubscriptionPlanId || null,
+      squareSubscriptionPlanVariationId: syncedVariationId,
+      syncedAt: new Date(),
+    })
+  }
+
+  const firstPlan = syncedPlans[0] || null
+  location.membership = {
+    ...(typeof location.membership?.toObject === 'function'
+      ? location.membership.toObject()
+      : location.membership),
+    isActive: true,
+    pendingSquareActivation: false,
+    plans: syncedPlans,
+    name: firstPlan?.name || location.membership.name,
+    description: firstPlan?.description || location.membership.description,
+    price: firstPlan?.price ?? location.membership.price,
+    benefits: firstPlan?.benefits || location.membership.benefits,
+    currency: firstPlan?.currency || location.membership.currency || 'usd',
+    syncedAt: firstPlan?.syncedAt || location.membership.syncedAt || new Date(),
+  }
+  await location.save()
 }
 
 export const createSquareAuthorizationUrl = async (req, res, next) => {
@@ -247,6 +350,7 @@ export const handleSquareCallback = async (req, res) => {
     }
 
     await user.save()
+    await syncPendingMembershipPlansToSquare(user)
     return res.redirect(getFrontendManagementUrl({ status: 'success' }))
   } catch (error) {
     console.error('Error handling Square callback:', readSquareErrorMessage(error))

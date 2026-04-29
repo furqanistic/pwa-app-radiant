@@ -39,7 +39,10 @@ const normalizePlan = (plan = {}) => {
 
   return {
     name: plan.name?.trim() || DEFAULT_PLAN.name,
-    description: plan.description?.trim() || DEFAULT_PLAN.description,
+    description:
+      typeof plan.description === 'string'
+        ? plan.description.trim()
+        : DEFAULT_PLAN.description,
     price: Number.isFinite(Number(plan.price))
       ? Math.max(0, Number(plan.price))
       : DEFAULT_PLAN.price,
@@ -79,6 +82,16 @@ const normalizeMembership = (membership) => {
     creditSystem: normalizedCreditSystem,
     plans: [normalizePlan(DEFAULT_PLAN)],
   };
+};
+
+const getPlanSyncStatus = (plan = {}) => {
+  if (plan?.stripePriceId || plan?.stripeProductId) {
+    return { label: 'Synced to Stripe', className: 'bg-indigo-100 text-indigo-700' };
+  }
+  if (plan?.squareSubscriptionPlanId || plan?.squareSubscriptionPlanVariationId) {
+    return { label: 'Synced to Square', className: 'bg-emerald-100 text-emerald-700' };
+  }
+  return { label: 'Draft', className: 'bg-amber-100 text-amber-700' };
 };
 
 const MembershipManagementModal = ({
@@ -144,7 +157,13 @@ const MembershipManagementModal = ({
   const isSelectedLocationStripeConnected = isSuperAdmin
     ? Boolean(location?.membershipStripeConnected)
     : true;
+  const isSelectedLocationSquareConnected = isSuperAdmin
+    ? Boolean(location?.membershipSquareConnected)
+    : true;
+  const isSelectedLocationPaymentConnected =
+    isSelectedLocationStripeConnected || isSelectedLocationSquareConnected;
   const stripeNotConnectedMessage = location?.membershipStripeMessage || 'Spa user has not connected Stripe.';
+  const squareNotConnectedMessage = location?.membershipSquareMessage || 'Spa user has not connected Square.';
 
   const [formData, setFormData] = useState({
     isActive: false,
@@ -189,7 +208,9 @@ const MembershipManagementModal = ({
         ...nextPlans[planIndex],
         [key]:
           key === 'price'
-            ? Number(value)
+            ? value === ''
+              ? ''
+              : Number(value)
             : key === 'creditsIncluded'
               ? value
               : value,
@@ -306,11 +327,6 @@ const MembershipManagementModal = ({
         return;
       }
 
-      if (!plan.description?.trim()) {
-        toast.error(`Plan ${index + 1}: description is required.`);
-        return;
-      }
-
       if (!Number.isFinite(plan.price) || plan.price < 0) {
         toast.error(`Plan ${index + 1}: price must be 0 or more.`);
         return;
@@ -346,6 +362,11 @@ const MembershipManagementModal = ({
         !formData.isActive &&
         isSuperAdmin &&
         !isSelectedLocationStripeConnected,
+      pendingSquareActivation:
+        submitIntent === 'save' &&
+        !formData.isActive &&
+        isSuperAdmin &&
+        !isSelectedLocationSquareConnected,
       plans: formData.plans.map((plan) => ({
         ...plan,
         name: plan.name.trim(),
@@ -400,7 +421,7 @@ const MembershipManagementModal = ({
             Manage Membership
           </h2>
           <p className={`font-bold uppercase tracking-widest mt-1 ${isPageMode ? 'text-[11px] md:text-xs text-slate-600' : 'text-xs md:text-sm text-pink-500'}`}>
-            Plans, Activation, And Stripe Sync
+            Plans, Activation, And Payment Provider Sync
           </p>
         </div>
         <button
@@ -487,9 +508,9 @@ const MembershipManagementModal = ({
               </div>
             )}
 
-            {isSuperAdmin && location && !isSelectedLocationStripeConnected && (
+            {isSuperAdmin && location && !isSelectedLocationPaymentConnected && (
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
-                Stripe note: {stripeNotConnectedMessage} You can still save membership as inactive draft.
+                Payment note: {stripeNotConnectedMessage} {squareNotConnectedMessage} You can still save membership as inactive draft.
               </div>
             )}
 
@@ -609,7 +630,14 @@ const MembershipManagementModal = ({
               {formData.plans.map((plan, planIndex) => (
                 <div key={planIndex} className={`p-4 md:p-5 bg-white rounded-3xl space-y-4 ${isPageMode ? 'border border-slate-200 shadow-sm' : 'border-2 border-pink-50'}`}>
                   <div className="flex items-center justify-between">
-                    <p className="font-black text-gray-900 tracking-tight">Plan {planIndex + 1}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-black text-gray-900 tracking-tight">Plan {planIndex + 1}</p>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${getPlanSyncStatus(plan).className}`}
+                      >
+                        {getPlanSyncStatus(plan).label}
+                      </span>
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
@@ -644,7 +672,6 @@ const MembershipManagementModal = ({
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none resize-none"
                       placeholder="Describe this plan"
                       rows={2}
-                      required
                     />
                   </div>
 
@@ -652,13 +679,13 @@ const MembershipManagementModal = ({
                     <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Monthly Price ($)</label>
                     <input
                       type="number"
-                      value={plan.price}
+                      value={plan.price ?? ''}
                       onChange={(e) => handlePlanChange(planIndex, 'price', e.target.value)}
                       disabled={isReadOnly}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
                       placeholder="99"
                       min="0"
-                      step="1"
+                      step="0.01"
                       required
                     />
                   </div>
@@ -765,7 +792,7 @@ const MembershipManagementModal = ({
                   disabled={
                     updateMembership.isPending ||
                     hasNoLocations ||
-                    (isSuperAdmin && !isSelectedLocationStripeConnected)
+                    (isSuperAdmin && !isSelectedLocationPaymentConnected)
                   }
                   data-intent="activate"
                   className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
@@ -776,7 +803,7 @@ const MembershipManagementModal = ({
                   {updateMembership.isPending
                     ? 'Activating...'
                     : isSuperAdmin && !isSelectedLocationStripeConnected
-                    ? 'Activate (Stripe Required)'
+                    ? 'Activate (Stripe or Square Required)'
                     : 'Activate Membership'}
                 </Button>
               )}

@@ -42,7 +42,10 @@ const normalizeMembershipPlan = (planInput = {}, fallbackPlan = DEFAULT_MEMBERSH
 
   return {
     name: `${base.name || fallback.name || DEFAULT_MEMBERSHIP_PLAN.name}`.trim(),
-    description: `${base.description || fallback.description || DEFAULT_MEMBERSHIP_PLAN.description}`.trim(),
+    description:
+      base.description !== undefined && base.description !== null
+        ? `${base.description}`.trim()
+        : `${fallback.description || DEFAULT_MEMBERSHIP_PLAN.description}`.trim(),
     price: Math.max(
       0,
       Number.isFinite(Number(base.price))

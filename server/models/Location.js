@@ -331,6 +331,10 @@ const LocationSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      pendingSquareActivation: {
+        type: Boolean,
+        default: false,
+      },
       plans: {
         type: [
           {
@@ -374,6 +378,16 @@ const LocationSchema = new mongoose.Schema(
               sparse: true,
             },
             stripePriceId: {
+              type: String,
+              default: null,
+              sparse: true,
+            },
+            squareSubscriptionPlanId: {
+              type: String,
+              default: null,
+              sparse: true,
+            },
+            squareSubscriptionPlanVariationId: {
               type: String,
               default: null,
               sparse: true,

@@ -1,7 +1,10 @@
 import stripe from '../config/stripe.js';
+import axios from 'axios';
+import { randomUUID } from 'crypto';
 import { createError } from '../error.js';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
+import { squareApiBaseUrl, squareApiVersion } from '../config/square.js';
 import {
     buildPointsLabel,
     DEFAULT_POINTS_METHODS,
@@ -75,7 +78,10 @@ const normalizePlan = (planInput = {}, fallbackPlan = DEFAULT_MEMBERSHIP_PLAN) =
 
   return {
     name: `${base.name || fallback.name || DEFAULT_MEMBERSHIP_PLAN.name}`.trim(),
-    description: `${base.description || fallback.description || DEFAULT_MEMBERSHIP_PLAN.description}`.trim(),
+    description:
+      base.description !== undefined && base.description !== null
+        ? `${base.description}`.trim()
+        : `${fallback.description || DEFAULT_MEMBERSHIP_PLAN.description}`.trim(),
     price: Math.max(
       0,
       Number.isFinite(Number(base.price)) ? Number(base.price) : Number(fallback.price || DEFAULT_MEMBERSHIP_PLAN.price)
@@ -94,6 +100,12 @@ const normalizePlan = (planInput = {}, fallbackPlan = DEFAULT_MEMBERSHIP_PLAN) =
     currency: `${base.currency || fallback.currency || 'usd'}`.trim().toLowerCase(),
     stripeProductId: base.stripeProductId || fallback.stripeProductId || null,
     stripePriceId: base.stripePriceId || fallback.stripePriceId || null,
+    squareSubscriptionPlanId:
+      base.squareSubscriptionPlanId || fallback.squareSubscriptionPlanId || null,
+    squareSubscriptionPlanVariationId:
+      base.squareSubscriptionPlanVariationId ||
+      fallback.squareSubscriptionPlanVariationId ||
+      null,
     syncedAt: base.syncedAt || fallback.syncedAt || null,
   };
 };
@@ -142,6 +154,10 @@ const normalizeMembershipInput = (membershipInput, existingMembershipInput = {})
       incoming.pendingStripeActivation !== undefined
         ? Boolean(incoming.pendingStripeActivation)
         : Boolean(existing.pendingStripeActivation),
+    pendingSquareActivation:
+      incoming.pendingSquareActivation !== undefined
+        ? Boolean(incoming.pendingSquareActivation)
+        : Boolean(existing.pendingSquareActivation),
     plans: normalizedPlans,
     name: firstPlan.name,
     description: firstPlan.description,
@@ -208,7 +224,113 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
   }
 
   if (!stripeConnected) {
-    return normalizedMembership;
+    if (!squareConnected) return normalizedMembership;
+
+    const squareSpaOwner = await User.findOne({
+      role: 'spa',
+      'spaLocation.locationId': location.locationId,
+      'square.merchantId': { $nin: [null, ''] },
+      'square.mainLocationId': { $nin: [null, ''] },
+    }).select('+square.accessToken');
+
+    if (!squareSpaOwner?.square?.accessToken) {
+      return normalizedMembership;
+    }
+
+    const syncedPlans = [];
+    const existingPlans = Array.isArray(location.membership?.plans)
+      ? location.membership.plans.map((plan) => toPlainObject(plan))
+      : [];
+
+    for (let index = 0; index < normalizedMembership.plans.length; index += 1) {
+      const plan = normalizePlan(normalizedMembership.plans[index], normalizedMembership.plans[index]);
+      const existingPlan = normalizePlan(
+        existingPlans[index] || location.membership || DEFAULT_MEMBERSHIP_PLAN,
+        DEFAULT_MEMBERSHIP_PLAN
+      );
+
+      const idempotencyKey = `membership-${location.locationId}-${index}-${Date.now()}`;
+      const squareObjectId = plan.squareSubscriptionPlanId || existingPlan.squareSubscriptionPlanId || `#membership_plan_${index}_${randomUUID()}`;
+      const variationObjectId =
+        plan.squareSubscriptionPlanVariationId ||
+        existingPlan.squareSubscriptionPlanVariationId ||
+        `#membership_plan_variation_${index}_${randomUUID()}`;
+
+      const upsertResponse = await axios.post(
+        `${squareApiBaseUrl}/v2/catalog/object`,
+        {
+          idempotency_key: idempotencyKey,
+          object: {
+            id: squareObjectId,
+            type: 'SUBSCRIPTION_PLAN',
+            subscription_plan_data: {
+              name: plan.name,
+              phases: [
+                {
+                  cadence: 'MONTHLY',
+                  recurring_price_money: {
+                    amount: Math.round(Number(plan.price || 0) * 100),
+                    currency: `${plan.currency || 'usd'}`.toUpperCase(),
+                  },
+                },
+              ],
+              subscription_plan_variations: [
+                {
+                  id: variationObjectId,
+                  type: 'SUBSCRIPTION_PLAN_VARIATION',
+                  subscription_plan_variation_data: {
+                    name: `${plan.name} - Monthly`,
+                    phases: [
+                      {
+                        cadence: 'MONTHLY',
+                        recurring_price_money: {
+                          amount: Math.round(Number(plan.price || 0) * 100),
+                          currency: `${plan.currency || 'usd'}`.toUpperCase(),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${squareSpaOwner.square.accessToken}`,
+            'Square-Version': squareApiVersion,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const object = upsertResponse?.data?.catalog_object || {};
+      const resolvedVariationId =
+        object?.subscription_plan_data?.subscription_plan_variations?.[0]?.id ||
+        plan.squareSubscriptionPlanVariationId ||
+        existingPlan.squareSubscriptionPlanVariationId ||
+        null;
+
+      syncedPlans.push({
+        ...plan,
+        squareSubscriptionPlanId: object?.id || plan.squareSubscriptionPlanId || existingPlan.squareSubscriptionPlanId || null,
+        squareSubscriptionPlanVariationId: resolvedVariationId,
+        syncedAt: new Date(),
+      });
+    }
+
+    const firstPlan = syncedPlans[0] || normalizePlan(DEFAULT_MEMBERSHIP_PLAN);
+    return {
+      ...normalizedMembership,
+      pendingSquareActivation: false,
+      plans: syncedPlans,
+      name: firstPlan.name,
+      description: firstPlan.description,
+      price: firstPlan.price,
+      benefits: firstPlan.benefits,
+      currency: firstPlan.currency || 'usd',
+      syncedAt: firstPlan.syncedAt || null,
+    };
   }
 
   const stripeAccount = spaOwner.stripe.accountId;
@@ -287,6 +409,7 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
   return {
     ...normalizedMembership,
     pendingStripeActivation: false,
+    pendingSquareActivation: false,
     plans: syncedPlans,
     name: firstPlan.name,
     description: firstPlan.description,
