@@ -7,6 +7,7 @@ import {
     useDeleteCategory,
     useDeleteService,
     useServices,
+    useUpdateCategory,
     useUpdateService,
 } from '@/hooks/useServices'
 import ghlService from '@/services/ghlService'
@@ -417,12 +418,14 @@ const ServiceSelectionModal = ({
 }
 
 // Category Modal (unchanged)
-const CategoryModal = ({ isOpen, onClose }) => {
+const CategoryModal = ({ isOpen, onClose, locationId = '' }) => {
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [editingCategoryId, setEditingCategoryId] = useState('')
+  const [editingCategoryName, setEditingCategoryName] = useState('')
 
   // API hooks
   const { data: categories = [], isLoading: categoriesLoading } =
-    useCategories(true)
+    useCategories(true, locationId ? { locationId } : {})
   const createCategoryMutation = useCreateCategory({
     onSuccess: () => {
       toast.success('Category created successfully!')
@@ -438,6 +441,16 @@ const CategoryModal = ({ isOpen, onClose }) => {
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Failed to delete category')
+    },
+  })
+  const updateCategoryMutation = useUpdateCategory({
+    onSuccess: () => {
+      toast.success('Category updated successfully!')
+      setEditingCategoryId('')
+      setEditingCategoryName('')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update category')
     },
   })
 
@@ -459,6 +472,29 @@ const CategoryModal = ({ isOpen, onClose }) => {
     if (window.confirm('Are you sure you want to delete this category?')) {
       deleteCategoryMutation.mutate(categoryId)
     }
+  }
+
+  const handleStartEdit = (category) => {
+    setEditingCategoryId(category._id)
+    setEditingCategoryName(category.name || '')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingCategoryId('')
+    setEditingCategoryName('')
+  }
+
+  const handleSaveEdit = () => {
+    const trimmedName = editingCategoryName.trim()
+    if (!editingCategoryId) return
+    if (!trimmedName) {
+      toast.error('Category name is required')
+      return
+    }
+    updateCategoryMutation.mutate({
+      id: editingCategoryId,
+      name: trimmedName,
+    })
   }
 
   if (!isOpen) return null
@@ -529,30 +565,74 @@ const CategoryModal = ({ isOpen, onClose }) => {
                     className='flex items-center justify-between p-3 border border-gray-200 rounded-lg'
                   >
                     <div className='flex items-center gap-3'>
-                      <span className='font-medium text-gray-900'>
-                        {category.name}
-                      </span>
+                      {editingCategoryId === category._id ? (
+                        <input
+                          type='text'
+                          value={editingCategoryName}
+                          onChange={(e) => setEditingCategoryName(e.target.value)}
+                          className='h-8 px-2 border border-gray-300 rounded-md text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                          onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
+                          disabled={updateCategoryMutation.isPending}
+                        />
+                      ) : (
+                        <span className='font-medium text-gray-900'>
+                          {category.name}
+                        </span>
+                      )}
                       <span className='text-sm text-gray-500'>
                         ({category.count || 0})
                       </span>
                     </div>
-                    <button
-                      onClick={() =>
-                        handleDelete(category._id, category.count || 0)
-                      }
-                      className='p-1 text-red-500 hover:bg-red-50 rounded'
-                      disabled={
-                        (category.count || 0) > 0 ||
-                        deleteCategoryMutation.isPending
-                      }
-                      title={
-                        (category.count || 0) > 0
-                          ? 'Cannot delete category with services'
-                          : 'Delete category'
-                      }
-                    >
-                      <Trash2 className='w-4 h-4' />
-                    </button>
+                    <div className='flex items-center gap-1'>
+                      {editingCategoryId === category._id ? (
+                        <>
+                          <button
+                            onClick={handleSaveEdit}
+                            className='px-2 h-7 text-xs text-white rounded bg-[color:var(--brand-primary)]'
+                            disabled={updateCategoryMutation.isPending}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className='px-2 h-7 text-xs text-gray-600 rounded border border-gray-300 hover:bg-gray-50'
+                            disabled={updateCategoryMutation.isPending}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleStartEdit(category)}
+                          className='p-1 text-gray-500 hover:bg-gray-100 rounded'
+                          disabled={
+                            deleteCategoryMutation.isPending ||
+                            updateCategoryMutation.isPending
+                          }
+                          title='Edit category'
+                        >
+                          <Edit3 className='w-4 h-4' />
+                        </button>
+                      )}
+                      <button
+                        onClick={() =>
+                          handleDelete(category._id, category.count || 0)
+                        }
+                        className='p-1 text-red-500 hover:bg-red-50 rounded'
+                        disabled={
+                          (category.count || 0) > 0 ||
+                          deleteCategoryMutation.isPending ||
+                          updateCategoryMutation.isPending
+                        }
+                        title={
+                          (category.count || 0) > 0
+                            ? 'Cannot delete category with services'
+                            : 'Delete category'
+                        }
+                      >
+                        <Trash2 className='w-4 h-4' />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -890,7 +970,10 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     brandedLocationId ||
     ''
   const { data: categories = [], isLoading: categoriesLoading } =
-    useCategories(false, { locationId: effectiveLocationId })
+    useCategories(
+      true,
+      effectiveLocationId ? { locationId: effectiveLocationId } : {}
+    )
   const { data: ghlCalendarServicesData, isLoading: ghlCalendarServicesLoading } = useQuery({
     queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
     queryFn: () => ghlService.getCalendarServices(effectiveLocationId),
@@ -2326,6 +2409,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
       <CategoryModal
         isOpen={showCategoryModal}
         onClose={() => setShowCategoryModal(false)}
+        locationId={effectiveLocationId}
       />
 
       <ServiceSelectionModal
@@ -2361,9 +2445,7 @@ const ServiceManagementPage = () => {
     excludeEmailDomain: 'test.com',
   })
 
-  const { data: categories = [] } = useCategories(false, {
-    locationId: brandedLocationId,
-  })
+  const { data: categories = [] } = useCategories(true)
 
   const deleteServiceMutation = useDeleteService({
     onSuccess: () => {

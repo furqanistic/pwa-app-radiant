@@ -520,6 +520,21 @@ export const checkLocationAccess = async (req, res, next) => {
         ? req.user.spaLocation?.locationId || req.user.selectedLocation?.locationId
         : req.user.selectedLocation?.locationId
 
+    const userAccessibleLocationIds = new Set()
+    if (req.user?.selectedLocation?.locationId) {
+      userAccessibleLocationIds.add(`${req.user.selectedLocation.locationId}`.trim())
+    }
+    if (req.user?.spaLocation?.locationId) {
+      userAccessibleLocationIds.add(`${req.user.spaLocation.locationId}`.trim())
+    }
+    if (Array.isArray(req.user?.assignedLocations)) {
+      req.user.assignedLocations.forEach((assignedLocation) => {
+        const assignedLocationId = `${assignedLocation?.locationId || ''}`.trim()
+        if (assignedLocationId) userAccessibleLocationIds.add(assignedLocationId)
+      })
+    }
+    const normalizedLocationId = `${locationId || ''}`.trim()
+
     // Admins can manage all services
     if (userRole === 'admin') {
       return next()
@@ -527,7 +542,7 @@ export const checkLocationAccess = async (req, res, next) => {
 
     // spa members can only manage services in their assigned location
     if (userRole === 'spa') {
-      if (!userLocationId) {
+      if (!userLocationId && userAccessibleLocationIds.size === 0) {
         return next(
           createError(
             403,
@@ -537,7 +552,10 @@ export const checkLocationAccess = async (req, res, next) => {
       }
 
       // If locationId is provided in request, it must match user's location
-      if (locationId && locationId !== userLocationId) {
+      if (
+        normalizedLocationId &&
+        !userAccessibleLocationIds.has(normalizedLocationId)
+      ) {
         return next(
           createError(
             403,

@@ -1060,14 +1060,23 @@ export const getCategories = async (req, res, next) => {
     let categories
     if (includeCount === 'true') {
       // Get categories with service counts
+      const resolvedLocationId = resolveManagementLocationId(req.user, locationId)
+      const locationMatch = resolvedLocationId
+        ? {
+            $or: [
+              { locationId: resolvedLocationId },
+              { locationId: { $exists: false } },
+              { locationId: null },
+            ],
+          }
+        : {}
+
       const pipeline = [
         {
           $match: {
             isActive: true,
             isDeleted: false,
-            ...((locationId || getUserLocationId(req.user)) && {
-              locationId: resolveManagementLocationId(req.user, locationId),
-            }),
+            ...locationMatch,
           },
         },
         {
