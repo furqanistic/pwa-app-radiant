@@ -577,8 +577,14 @@ const ManagementPage = () => {
                 Connect and monitor Stripe or Square to receive payouts without leaving this dashboard.
               </p>
               <div className="grid gap-4 lg:grid-cols-2">
-                <StripeConnect sharedLocationStripeLinked={sharedLocationStripeLinked} />
-                <SquareConnect sharedLocationSquareLinked={sharedLocationSquareLinked} />
+                <StripeConnect
+                  sharedLocationStripeLinked={sharedLocationStripeLinked}
+                  sharedLocationSquareLinked={sharedLocationSquareLinked}
+                />
+                <SquareConnect
+                  sharedLocationSquareLinked={sharedLocationSquareLinked}
+                  sharedLocationStripeLinked={sharedLocationStripeLinked}
+                />
               </div>
             </div>
           )}

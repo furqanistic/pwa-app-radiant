@@ -10,7 +10,10 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
-const StripeConnect = ({ sharedLocationStripeLinked = false }) => {
+const StripeConnect = ({
+  sharedLocationStripeLinked = false,
+  sharedLocationSquareLinked = false,
+}) => {
   const { currentUser } = useSelector((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
@@ -21,8 +24,10 @@ const StripeConnect = ({ sharedLocationStripeLinked = false }) => {
   const [preparingOnboarding, setPreparingOnboarding] = useState(false);
   const [onboardingUrl, setOnboardingUrl] = useState('');
   const isFullyActive = !!(accountStatus?.account?.chargesEnabled && accountStatus?.account?.payoutsEnabled);
+  const isBlockedBySquare =
+    sharedLocationSquareLinked && !accountStatus?.connected;
   const isSharedLinkedWithoutOwnAccount =
-    sharedLocationStripeLinked && !accountStatus?.connected;
+    !isBlockedBySquare && sharedLocationStripeLinked && !accountStatus?.connected;
 
   const steps = useMemo(
     () => [
@@ -218,7 +223,16 @@ const StripeConnect = ({ sharedLocationStripeLinked = false }) => {
   }
 
   const renderStatusBadge = () => {
-    if (!accountStatus?.connected && !isSharedLinkedWithoutOwnAccount) return null;
+    if (!accountStatus?.connected && !isSharedLinkedWithoutOwnAccount && !isBlockedBySquare) return null;
+
+    if (isBlockedBySquare) {
+      return (
+        <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200">
+          <AlertCircle className="mr-1 h-3 w-3" />
+          Blocked
+        </Badge>
+      );
+    }
 
     if (isSharedLinkedWithoutOwnAccount) {
       return (
@@ -277,7 +291,9 @@ const StripeConnect = ({ sharedLocationStripeLinked = false }) => {
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
         <div className="text-xs text-muted-foreground">
-          {isSharedLinkedWithoutOwnAccount
+          {isBlockedBySquare
+            ? 'Square is currently active for this location. Disconnect Square first if you want to connect Stripe.'
+            : isSharedLinkedWithoutOwnAccount
             ? 'Stripe is already linked for this location by another assigned teammate.'
             : 'Status applies to the currently signed-in spa. We never store card numbers—Stripe handles all sensitive info.'}
         </div>
@@ -306,7 +322,7 @@ const StripeConnect = ({ sharedLocationStripeLinked = false }) => {
           ))}
         </div>
         <div className="space-y-2">
-          {!accountStatus?.connected && !isSharedLinkedWithoutOwnAccount && (
+          {!accountStatus?.connected && !isSharedLinkedWithoutOwnAccount && !isBlockedBySquare && (
             <Button
               onClick={handleCreateAccount}
               disabled={loading}
@@ -367,6 +383,11 @@ const StripeConnect = ({ sharedLocationStripeLinked = false }) => {
           {isSharedLinkedWithoutOwnAccount && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
               Payments are enabled for this location through a teammate's Stripe connection.
+            </div>
+          )}
+          {isBlockedBySquare && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Square is connected for this location. Disconnect Square before starting Stripe onboarding.
             </div>
           )}
         </div>

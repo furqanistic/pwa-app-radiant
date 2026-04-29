@@ -88,6 +88,17 @@ const getSquareStatusFromToken = async (accessToken) => {
   }
 }
 
+const hasAnyStripeLinkedForLocation = async (locationId) => {
+  if (!locationId) return false
+  return Boolean(
+    await User.exists({
+      role: 'spa',
+      'spaLocation.locationId': locationId,
+      'stripe.accountId': { $nin: [null, ''] },
+    })
+  )
+}
+
 export const createSquareAuthorizationUrl = async (req, res, next) => {
   try {
     ensureSquareConfig()
@@ -106,6 +117,19 @@ export const createSquareAuthorizationUrl = async (req, res, next) => {
     }
     if (!user.spaLocation?.locationId) {
       return next(createError(400, 'Please configure your spa location first'))
+    }
+
+    // Enforce single payout provider per location (Stripe XOR Square)
+    const locationHasStripe = await hasAnyStripeLinkedForLocation(
+      user.spaLocation.locationId
+    )
+    if (locationHasStripe) {
+      return next(
+        createError(
+          409,
+          'Stripe is already connected for this location. Disconnect Stripe before connecting Square.'
+        )
+      )
     }
 
     const state = buildOAuthStateToken(user._id.toString())
@@ -164,6 +188,16 @@ export const handleSquareCallback = async (req, res) => {
     }
     if (user.role !== 'spa') {
       return failRedirect({ reason: 'invalid_role' })
+    }
+    if (!user.spaLocation?.locationId) {
+      return failRedirect({ reason: 'missing_spa_location' })
+    }
+
+    const locationHasStripe = await hasAnyStripeLinkedForLocation(
+      user.spaLocation.locationId
+    )
+    if (locationHasStripe) {
+      return failRedirect({ reason: 'stripe_connected_for_location' })
     }
 
     const tokenResponse = await axios.post(

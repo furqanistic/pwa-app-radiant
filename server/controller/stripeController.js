@@ -240,12 +240,33 @@ const findSquareReadySpaOwnerByLocation = async (locationId) => {
     .sort({ 'square.lastUpdated': -1, updatedAt: -1, createdAt: -1 })
 }
 
+const hasAnySquareLinkedForLocation = async (locationId) => {
+  if (!locationId) return false
+  return Boolean(
+    await User.exists({
+      role: 'spa',
+      'spaLocation.locationId': locationId,
+      'square.merchantId': { $nin: [null, ''] },
+      'square.mainLocationId': { $nin: [null, ''] },
+    })
+  )
+}
+
 const resolveConnectedPaymentDestinationByLocation = async (locationId) => {
   if (!locationId) {
     throw createError(400, 'Location ID is required')
   }
 
   const stripeOwner = await findStripeReadySpaOwnerByLocation(locationId)
+  const squareOwner = await findSquareReadySpaOwnerByLocation(locationId)
+
+  if (stripeOwner && squareOwner) {
+    throw createError(
+      409,
+      'Both Stripe and Square are connected for this location. Disconnect one provider to continue.'
+    )
+  }
+
   if (stripeOwner) {
     return {
       provider: 'stripe',
@@ -257,7 +278,6 @@ const resolveConnectedPaymentDestinationByLocation = async (locationId) => {
     }
   }
 
-  const squareOwner = await findSquareReadySpaOwnerByLocation(locationId)
   if (squareOwner) {
     return {
       provider: 'square',
@@ -1432,6 +1452,19 @@ export const createConnectAccount = async (req, res, next) => {
     // Check if spa location is configured
     if (!user.spaLocation?.locationId) {
       return next(createError(400, 'Please configure your spa location first'))
+    }
+
+    // Enforce single payout provider per location (Stripe XOR Square)
+    const locationHasSquare = await hasAnySquareLinkedForLocation(
+      user.spaLocation.locationId
+    )
+    if (locationHasSquare) {
+      return next(
+        createError(
+          409,
+          'Square is already connected for this location. Disconnect Square before connecting Stripe.'
+        )
+      )
     }
 
     // Create Stripe Connect account
