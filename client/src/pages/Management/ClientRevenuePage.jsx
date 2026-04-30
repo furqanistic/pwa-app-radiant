@@ -16,10 +16,11 @@ import Layout from '@/pages/Layout/Layout';
 import { locationService } from '@/services/locationService';
 import stripeService from '@/services/stripeService';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CreditCard, ExternalLink, Filter, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, CreditCard, ExternalLink, FileSpreadsheet, Filter, RefreshCw, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const clampChannel = (value) => Math.max(0, Math.min(255, value));
 
@@ -56,6 +57,70 @@ const formatUsd = (cents) =>
     maximumFractionDigits: 2,
   })}`;
 
+function escapeCsvCell(value) {
+  const s = value == null ? '' : String(value);
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function paymentRowTypeLabel(p) {
+  if (p.paymentCategory) return CATEGORY_LABEL[p.paymentCategory] || p.paymentCategory;
+  if (p.ledgerSource === 'stripe') return 'Other charge';
+  return '';
+}
+
+function buildPaymentsSpreadsheetCsv(payments) {
+  const headers = [
+    'Date (UTC)',
+    'Customer name',
+    'Customer email',
+    'Type',
+    'Service',
+    'Description',
+    'Amount',
+    'Currency',
+    'Status',
+    'Payment intent id',
+    'Charge id',
+    'Invoice or receipt URL',
+    'Ledger source',
+  ];
+  const lines = [headers.map(escapeCsvCell).join(',')];
+  for (const p of payments) {
+    const row = [
+      p.createdAt ? new Date(p.createdAt).toISOString() : '',
+      p.customer?.name || '',
+      p.customer?.email || '',
+      paymentRowTypeLabel(p),
+      p.service?.name || '',
+      p.description || '',
+      p.amount != null ? (p.amount / 100).toFixed(2) : '',
+      `${p.currency || 'usd'}`.toUpperCase(),
+      `${p.status || ''}`.replace(/_/g, ' '),
+      p.stripePaymentIntentId || '',
+      p.stripeChargeId || '',
+      paymentDocumentHref(p) || '',
+      p.ledgerSource || '',
+    ];
+    lines.push(row.map(escapeCsvCell).join(','));
+  }
+  return `\uFEFF${lines.join('\r\n')}`;
+}
+
+function downloadCsvFile(filename, csvText) {
+  const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 const shortenId = (id) => {
   if (!id || typeof id !== 'string') return '—';
   return id.length > 14 ? `…${id.slice(-12)}` : id;
@@ -158,6 +223,22 @@ function endOfLocalDay(date) {
 
 const EMPTY_LOCATIONS = [];
 
+function useMediaQueryMdUp() {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  return matches;
+}
+
 const ClientRevenuePage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -172,6 +253,12 @@ const ClientRevenuePage = () => {
   const [filterSearch, setFilterSearch] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filtersOpenMobile, setFiltersOpenMobile] = useState(false);
+  const mdUp = useMediaQueryMdUp();
+
+  useEffect(() => {
+    if (mdUp) setFiltersOpenMobile(false);
+  }, [mdUp]);
 
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = useMemo(() => adjustHex(brandColor, -24), [brandColor]);
@@ -293,12 +380,36 @@ const ClientRevenuePage = () => {
     Boolean(filterDateFrom) ||
     Boolean(filterDateTo);
 
+  const activeFilterCount = [
+    filterStatus !== 'all',
+    filterCategory !== 'all',
+    Boolean(filterSearch.trim()),
+    Boolean(filterDateFrom),
+    Boolean(filterDateTo),
+  ].filter(Boolean).length;
+
+  const filtersPanelVisible = mdUp || filtersOpenMobile;
+
   const clearFilters = () => {
     setFilterStatus('all');
     setFilterCategory('all');
     setFilterSearch('');
     setFilterDateFrom('');
     setFilterDateTo('');
+  };
+
+  const handleExportSpreadsheet = () => {
+    if (!filteredPayments.length) {
+      toast.message('Nothing to export. Adjust filters or load payments on this page first.');
+      return;
+    }
+    const safeLoc = `${activeSpaLocationId || 'all'}`.replace(/[^a-zA-Z0-9-_]+/g, '_').slice(0, 48);
+    const dayStamp = new Date().toISOString().slice(0, 10);
+    const csv = buildPaymentsSpreadsheetCsv(filteredPayments);
+    downloadCsvFile(`payments_${safeLoc}_${dayStamp}.csv`, csv);
+    toast.success(
+      `Downloaded ${filteredPayments.length} row${filteredPayments.length === 1 ? '' : 's'} (CSV opens in Excel, Numbers, or Google Sheets).`,
+    );
   };
 
   return (
@@ -389,12 +500,26 @@ const ClientRevenuePage = () => {
                 )}
               </div>
               {!isLoading && payments.length > 0 && (
-                <p className="text-xs text-slate-500">
-                  {isStripeChargePaging
-                    ? 'Your processor dashboard may also show balances, payouts, and adjustments beyond individual charges.'
-                    : 'Totals follow the payout account configured under Management → Payouts.'}{' '}
-                  Filters narrow the loaded rows only (same page).
-                </p>
+                <div className="flex w-full flex-col gap-2 min-w-0 sm:max-w-md sm:flex-1 sm:items-end">
+                  {filteredPayments.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full shrink-0 justify-center sm:w-auto sm:justify-center"
+                      onClick={handleExportSpreadsheet}
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2 shrink-0" aria-hidden />
+                      Export spreadsheet
+                    </Button>
+                  )}
+                  <p className="text-xs text-slate-500 sm:text-right">
+                    {isStripeChargePaging
+                      ? 'Your processor dashboard may also show balances, payouts, and adjustments beyond individual charges.'
+                      : 'Totals follow the payout account configured under Management → Payouts.'}{' '}
+                    Filters narrow the loaded rows only (same page). Export includes visible rows after filters.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -433,97 +558,145 @@ const ClientRevenuePage = () => {
               </div>
             ) : (
               <>
-                <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-4 md:px-6">
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <Filter className="h-4 w-4 text-slate-500 shrink-0" aria-hidden />
-                    <span className="text-sm font-medium text-slate-800">Filters</span>
-                    {hasActiveFilters && (
+                <div className="border-b border-slate-100 bg-slate-50/60">
+                  <div className="flex md:hidden items-center gap-2 px-3 py-2.5 border-b border-slate-100/70">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-10 flex-1 justify-between gap-2 px-3 font-normal"
+                      onClick={() => setFiltersOpenMobile((o) => !o)}
+                      aria-expanded={filtersPanelVisible}
+                      aria-controls="payments-filters-fields"
+                      id="payments-filters-toggle"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Filter className="h-4 w-4 text-slate-600 shrink-0" aria-hidden />
+                        <span className="font-medium text-slate-800">Filters</span>
+                        {activeFilterCount > 0 ? (
+                          <Badge variant="secondary" className="h-6 min-w-6 justify-center px-1.5 text-[11px]">
+                            {activeFilterCount}
+                          </Badge>
+                        ) : null}
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200 ${
+                          filtersPanelVisible ? 'rotate-180' : ''
+                        }`}
+                        aria-hidden
+                      />
+                    </Button>
+                    {hasActiveFilters ? (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-8 px-2 text-slate-600"
+                        className="shrink-0 min-h-10 px-2 text-slate-600"
                         onClick={clearFilters}
                       >
-                        <X className="h-3.5 w-3.5 mr-1" aria-hidden />
                         Clear
                       </Button>
-                    )}
+                    ) : null}
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-12 xl:gap-4 items-end">
-                    <div className="space-y-1.5 xl:col-span-2">
-                      <Label htmlFor="pay-filter-status" className="text-xs text-slate-600">
-                        Status
-                      </Label>
-                      <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger id="pay-filter-status" className="w-full">
-                          <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All statuses</SelectItem>
-                          <SelectItem value="succeeded">Succeeded</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="processing">Processing</SelectItem>
-                          <SelectItem value="failed">Failed</SelectItem>
-                          <SelectItem value="canceled">Canceled</SelectItem>
-                          <SelectItem value="refunded">Refunded</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+                  <div className={`${filtersPanelVisible ? '' : 'max-md:hidden'}`}>
+                    <div className="hidden md:flex md:flex-wrap md:items-center md:gap-2 md:px-6 md:pt-4 md:pb-0">
+                      <Filter className="h-4 w-4 text-slate-500 shrink-0" aria-hidden />
+                      <span className="text-sm font-medium text-slate-800">Filters</span>
+                      {hasActiveFilters ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-slate-600"
+                          onClick={clearFilters}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" aria-hidden />
+                          Clear
+                        </Button>
+                      ) : null}
                     </div>
-                    <div className="space-y-1.5 xl:col-span-2">
-                      <Label htmlFor="pay-filter-type" className="text-xs text-slate-600">
-                        Type
-                      </Label>
-                      <Select value={filterCategory} onValueChange={setFilterCategory}>
-                        <SelectTrigger id="pay-filter-type" className="w-full">
-                          <SelectValue placeholder="Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All types</SelectItem>
-                          <SelectItem value="booking">{CATEGORY_LABEL.booking}</SelectItem>
-                          <SelectItem value="membership">{CATEGORY_LABEL.membership}</SelectItem>
-                          <SelectItem value="credits">{CATEGORY_LABEL.credits}</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5 xl:col-span-2">
-                      <Label htmlFor="pay-filter-from" className="text-xs text-slate-600">
-                        From
-                      </Label>
-                      <Input
-                        id="pay-filter-from"
-                        type="date"
-                        value={filterDateFrom}
-                        onChange={(e) => setFilterDateFrom(e.target.value)}
-                        className="bg-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5 xl:col-span-2">
-                      <Label htmlFor="pay-filter-to" className="text-xs text-slate-600">
-                        To
-                      </Label>
-                      <Input
-                        id="pay-filter-to"
-                        type="date"
-                        value={filterDateTo}
-                        onChange={(e) => setFilterDateTo(e.target.value)}
-                        className="bg-white"
-                      />
-                    </div>
-                    <div className="space-y-1.5 xl:col-span-4 xl:col-start-auto">
-                      <Label htmlFor="pay-filter-search" className="text-xs text-slate-600">
-                        Search
-                      </Label>
-                      <Input
-                        id="pay-filter-search"
-                        type="search"
-                        placeholder="Customer, email, note, invoice link…"
-                        value={filterSearch}
-                        onChange={(e) => setFilterSearch(e.target.value)}
-                        className="bg-white"
-                        autoComplete="off"
-                      />
+
+                    <div
+                      id="payments-filters-fields"
+                      role="region"
+                      aria-labelledby="payments-filters-toggle"
+                      className="grid grid-cols-2 gap-x-2.5 gap-y-2 px-3 py-3 sm:gap-4 md:grid-cols-2 md:px-6 md:py-4 md:gap-4 xl:grid-cols-12 xl:gap-4 xl:pb-5 items-end"
+                    >
+                      <div className="space-y-1 col-span-1 xl:col-span-2">
+                        <Label htmlFor="pay-filter-status" className="text-[11px] md:text-xs text-slate-600">
+                          Status
+                        </Label>
+                        <Select value={filterStatus} onValueChange={setFilterStatus}>
+                          <SelectTrigger id="pay-filter-status" className="w-full">
+                            <SelectValue placeholder="Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All statuses</SelectItem>
+                            <SelectItem value="succeeded">Succeeded</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="processing">Processing</SelectItem>
+                            <SelectItem value="failed">Failed</SelectItem>
+                            <SelectItem value="canceled">Canceled</SelectItem>
+                            <SelectItem value="refunded">Refunded</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1 col-span-1 xl:col-span-2">
+                        <Label htmlFor="pay-filter-type" className="text-[11px] md:text-xs text-slate-600">
+                          Type
+                        </Label>
+                        <Select value={filterCategory} onValueChange={setFilterCategory}>
+                          <SelectTrigger id="pay-filter-type" className="w-full">
+                            <SelectValue placeholder="Type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All types</SelectItem>
+                            <SelectItem value="booking">{CATEGORY_LABEL.booking}</SelectItem>
+                            <SelectItem value="membership">{CATEGORY_LABEL.membership}</SelectItem>
+                            <SelectItem value="credits">{CATEGORY_LABEL.credits}</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1 col-span-1 xl:col-span-2">
+                        <Label htmlFor="pay-filter-from" className="text-[11px] md:text-xs text-slate-600">
+                          From
+                        </Label>
+                        <Input
+                          id="pay-filter-from"
+                          type="date"
+                          value={filterDateFrom}
+                          onChange={(e) => setFilterDateFrom(e.target.value)}
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-1 col-span-1 xl:col-span-2">
+                        <Label htmlFor="pay-filter-to" className="text-[11px] md:text-xs text-slate-600">
+                          To
+                        </Label>
+                        <Input
+                          id="pay-filter-to"
+                          type="date"
+                          value={filterDateTo}
+                          onChange={(e) => setFilterDateTo(e.target.value)}
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-1 col-span-2 xl:col-span-4 xl:col-start-auto">
+                        <Label htmlFor="pay-filter-search" className="text-[11px] md:text-xs text-slate-600">
+                          Search
+                        </Label>
+                        <Input
+                          id="pay-filter-search"
+                          type="search"
+                          placeholder="Customer, email, note, invoice link…"
+                          value={filterSearch}
+                          onChange={(e) => setFilterSearch(e.target.value)}
+                          className="bg-white"
+                          autoComplete="off"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

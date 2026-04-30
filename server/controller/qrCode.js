@@ -2,6 +2,7 @@
 import crypto from "crypto";
 import { createError } from "../error.js";
 import Location from "../models/Location.js";
+import { recordVerifiedMonthlyCheckIn } from "../utils/locationMonthlyCheckIns.js";
 import PointTransaction from "../models/PointTransaction.js";
 import QRCodeScan from "../models/QRCodeScan.js";
 import User from "../models/User.js";
@@ -541,6 +542,8 @@ export const scanQRCode = async (req, res, next) => {
         ipAddress,
         userAgent,
       });
+
+      await recordVerifiedMonthlyCheckIn(location.locationId);
 
       location.checkInQrCode.scans = (location.checkInQrCode?.scans || 0) + 1;
       location.checkInQrCode.lastScannedAt = new Date();

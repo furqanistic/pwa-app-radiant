@@ -1142,7 +1142,7 @@ const DashboardPage = () => {
     <Layout>
       <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
         <div className='max-w-7xl mx-auto'>
-          {['spa', 'admin'].includes(currentUser?.role || data.role) ? (
+          {['spa', 'admin', 'super-admin'].includes(currentUser?.role || data.role) ? (
             <SpaDashboard
               data={data}
               refetch={refetch}

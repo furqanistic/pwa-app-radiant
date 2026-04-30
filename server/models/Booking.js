@@ -296,5 +296,6 @@ BookingSchema.statics.getUserPastVisits = function (userId, limit = 10) {
 
 BookingSchema.statics.getReviewEligibilityDate = getReviewEligibilityDate
 BookingSchema.statics.canRateBooking = canRateBooking
+BookingSchema.statics.buildBookingStartDateTime = buildBookingStartDateTime
 
 export default mongoose.model('Booking', BookingSchema)

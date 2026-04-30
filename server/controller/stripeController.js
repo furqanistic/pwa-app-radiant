@@ -255,7 +255,7 @@ const hasAnySquareLinkedForLocation = async (locationId) => {
   )
 }
 
-const resolveConnectedPaymentDestinationByLocation = async (locationId) => {
+export const resolveConnectedPaymentDestinationByLocation = async (locationId) => {
   if (!locationId) {
     throw createError(400, 'Location ID is required')
   }
@@ -296,6 +296,76 @@ const resolveConnectedPaymentDestinationByLocation = async (locationId) => {
     400,
     'No connected payment account found for this location. Connect Stripe or Square first.'
   )
+}
+
+/**
+ * Net captured Stripe charge volume (amount − refunded) for a connected account, UTC created range inclusive.
+ */
+export async function sumStripeConnectChargesNetCentsUtcRange(
+  stripeAccountId,
+  gteSecInclusive,
+  lteSecInclusive
+) {
+  if (!stripeAccountId) return 0
+  let total = 0
+  let startingAfter = null
+  const requestOpts = { stripeAccount: stripeAccountId }
+
+  for (;;) {
+    const params = {
+      limit: 100,
+      created: { gte: gteSecInclusive, lte: lteSecInclusive },
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    }
+    const chunk = await stripe.charges.list(params, requestOpts)
+    for (const ch of chunk.data) {
+      if (ch.livemode === false) continue
+      if (!ch.paid) continue
+      const net = Number(ch.amount || 0) - Number(ch.amount_refunded || 0)
+      if (net > 0) total += net
+    }
+    if (!chunk.has_more) break
+    startingAfter = chunk.data?.[chunk.data.length - 1]?.id || null
+    if (!startingAfter) break
+  }
+  return total
+}
+
+/** Same Stripe account resolution path as GET /stripe/payments/received (Management revenue). */
+export async function resolveManagementStripeConnectContext(userDoc, preferredLocationId) {
+  const eff =
+    `${preferredLocationId || ''}`.trim() ||
+    `${userDoc?.selectedLocation?.locationId || userDoc?.spaLocation?.locationId || ''}`.trim()
+
+  let stripeAccountId = null
+  let stripeHolderUser = null
+  try {
+    if (eff) {
+      const dest = await resolveConnectedPaymentDestinationByLocation(eff)
+      if (dest.provider === 'stripe') {
+        stripeAccountId = dest.stripeAccountId
+        stripeHolderUser = dest.spaOwner
+      }
+    }
+  } catch (_) {
+    /* Square-only / no Stripe — fall through */
+  }
+
+  if (
+    !stripeAccountId &&
+    userDoc?.role === 'spa' &&
+    userDoc?.stripe?.accountId &&
+    userDoc?.stripe?.chargesEnabled
+  ) {
+    stripeAccountId = userDoc.stripe.accountId
+    stripeHolderUser = userDoc
+  }
+
+  return {
+    stripeAccountId,
+    stripeHolderUser,
+    effectiveLocationId: eff,
+  }
 }
 
 const getServerBaseUrl = () =>
@@ -4567,7 +4637,7 @@ async function enrichStripeChargesWithAppPayments(charges) {
   })
 }
 
-function assertViewerCanSeeLocationStripeCharges(viewerUser, { locationScopeId, stripeHolderUser }) {
+export function assertViewerCanSeeLocationStripeCharges(viewerUser, { locationScopeId, stripeHolderUser }) {
   if (!viewerUser) {
     throw createError(401, 'Unauthorized')
   }

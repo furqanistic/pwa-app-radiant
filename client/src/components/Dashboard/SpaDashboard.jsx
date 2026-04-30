@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Activity,
+  ArrowDownRight,
   ArrowUpRight,
   ChevronRight,
   DollarSign,
@@ -32,6 +33,12 @@ import { toast } from 'sonner'
 const Motion = motion
 const TEST_EMAIL_SUFFIX = '@test.com'
 
+const formatStatInteger = (value) => {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '0'
+  return Math.round(n).toLocaleString()
+}
+
 const normalizeEmail = (email = '') => String(email).trim().toLowerCase()
 const isTestEmail = (email = '') => normalizeEmail(email).endsWith(TEST_EMAIL_SUFFIX)
 
@@ -44,14 +51,10 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   const [isRefreshingCheckIns, setIsRefreshingCheckIns] = useState(false)
   const {
     stats = {},
-    analytics = {},
     liveActivity = [],
     recentQrClaims = [],
     recentQrClaimsSummary = {},
   } = data || {}
-  const trendData = Array.isArray(analytics?.trendData)
-    ? analytics.trendData
-    : []
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -253,14 +256,20 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
       payment && typeof payment === 'object' ? payment?.livemode : undefined
     const activityEmail =
       activity?.customer?.email ||
+      activity?.userId?.email ||
       activity?.user?.email ||
       activity?.client?.email ||
       activity?.email ||
       ''
 
+    const passesPaymentGate =
+      activity?.paymentStatus === 'paid' ||
+      `${activity?.displayStatus || ''}`.toLowerCase() === 'paid' ||
+      activity?.activityKind === 'todaysAppointment'
+
     return !(
       isTestEmail(activityEmail) ||
-      activity?.paymentStatus !== 'paid' ||
+      !passesPaymentGate ||
       activity?.stripeMode === 'test' ||
       activity?.testMode === true ||
       activity?.isTestMode === true ||
@@ -309,29 +318,29 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   const StatsGrid = () => (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
       <StatCard
-        title="Total Clients"
-        value={stats.totalClients}
+        title="Clients"
+        value={formatStatInteger(stats.totalClients)}
         icon={Users}
         growth={stats.clientGrowth}
       />
       <StatCard
-        title="Visits"
-        value={stats.totalVisits}
+        periodLabel="Last 30 days"
+        title="Check-ins"
+        value={formatStatInteger(stats.totalVisits)}
         icon={UserCheck}
         growth={stats.visitGrowth}
       />
       <StatCard
-        title="Members"
-        value={stats.activeMemberships}
+        periodLabel="Last 30 days"
+        title="Active members"
+        value={formatStatInteger(stats.activeMemberships)}
         icon={TrendingUp}
         growth={stats.membershipGrowth}
       />
       <StatCard
+        periodLabel="Last 30 days"
         title="Revenue"
-        value={`$${Number(
-          stats.totalRevenue ??
-            trendData.reduce((acc, curr) => acc + (curr.revenue || 0), 0)
-        ).toFixed(2)}`}
+        value={`$${Number(stats.totalRevenue ?? 0).toFixed(2)}`}
         icon={DollarSign}
         growth={stats.revenueGrowth}
       />
@@ -745,34 +754,64 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
     </div>
   )
 
-  const StatCard = ({ title, value, icon, growth }) => (
-    <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition-shadow group">
-      <div className="flex items-center gap-3 mb-4">
-        <div
-          className="p-2 sm:p-3 rounded-xl text-white"
-          style={{
-            background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})`,
-          }}
+  const StatCard = ({ title, value, icon, growth, periodLabel }) => {
+    const g = typeof growth === 'number' && Number.isFinite(growth) ? growth : null
+
+    const GrowthBadge = ({ className }) => {
+      if (g === null) return null
+
+      const Arrow = g === 0 ? null : g < 0 ? ArrowDownRight : ArrowUpRight
+      const toneClasses =
+        g < 0
+          ? 'text-rose-700 bg-rose-50 border-rose-200/75'
+          : g === 0
+            ? 'text-gray-600 bg-gray-50 border-gray-200/80'
+            : 'text-emerald-800 bg-emerald-50 border-emerald-200/65'
+
+      return (
+        <span
+          className={`inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-lg border px-2 py-1 text-[11px] font-black tabular-nums ${toneClasses} ${className ?? ''}`}
+          aria-label={`Compared to prior period: ${g} percent`}
         >
-          {React.createElement(icon, { className: 'w-4 h-4 sm:w-5 sm:h-5' })}
+          {Arrow ? <Arrow className="h-3.5 w-3.5" strokeWidth={2.75} /> : null}
+          {g}%
+        </span>
+      )
+    }
+
+    return (
+      <div className="group flex min-h-[128px] min-w-0 flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-[box-shadow,border-color] hover:border-gray-200/90 hover:shadow-md sm:min-h-0 sm:gap-4 sm:p-5">
+        <div className="flex items-start justify-between gap-2">
+          <div
+            className="flex aspect-square shrink-0 items-center justify-center rounded-xl p-2.5 text-white shadow-sm shadow-black/[0.04] ring-1 ring-white/20 sm:p-3"
+            style={{
+              background: `linear-gradient(145deg, ${brandColor}, ${brandColorDark})`,
+            }}
+          >
+            {React.createElement(icon, { className: 'h-[18px] w-[18px] sm:h-5 sm:w-5' })}
+          </div>
+          <GrowthBadge />
         </div>
-        <p className="text-xs sm:text-sm font-bold text-gray-500 truncate">
-          {title}
+
+        <div className="min-w-0 flex-1">
+          {periodLabel ? (
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400 sm:text-[11px]">
+              {periodLabel}
+            </p>
+          ) : null}
+          <h3
+            className={`text-[15px] font-bold leading-snug text-gray-900 sm:text-base ${periodLabel ? 'mt-1' : ''}`}
+          >
+            {title}
+          </h3>
+        </div>
+
+        <p className="text-2xl font-bold tracking-tight text-gray-950 tabular-nums sm:text-3xl">
+          {value}
         </p>
       </div>
-      <div className="flex items-end justify-between">
-        <h3 className="text-xl sm:text-3xl font-bold text-gray-900 leading-none">
-          {value}
-        </h3>
-        {growth !== undefined && (
-          <div className="flex items-center gap-0.5 text-[color:var(--brand-primary)] font-black text-[10px] sm:text-xs bg-[color:var(--brand-primary)/0.12] px-1.5 py-0.5 rounded-lg border border-[color:var(--brand-primary)/0.2]">
-            <ArrowUpRight className="w-3 h-3" />
-            {growth}%
-          </div>
-        )}
-      </div>
-    </div>
-  )
+    )
+  }
 
   const TabButton = ({ id, label, icon }) => (
     <button

@@ -307,6 +307,15 @@ const LocationSchema = new mongoose.Schema(
         default: null,
       },
     },
+    /**
+     * Spa dashboard-only: verified QR check-ins for the UTC calendar month (not reduced by Recent Check-In reset).
+     */
+    dashboardCheckInStats: {
+      monthYm: { type: String, default: '' },
+      monthCheckInCount: { type: Number, default: 0 },
+      prevMonthYm: { type: String, default: '' },
+      prevMonthCheckInCount: { type: Number, default: 0 },
+    },
     // ==================== END QR CODE FIELDS ====================
 
     // ==================== MEMBERSHIP FIELDS ====================

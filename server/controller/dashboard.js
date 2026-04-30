@@ -9,6 +9,11 @@ import Referral from '../models/Referral.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 import {
+  assertViewerCanSeeLocationStripeCharges,
+  resolveManagementStripeConnectContext,
+  sumStripeConnectChargesNetCentsUtcRange,
+} from './stripeController.js'
+import {
   buildPointsLabel,
   EARN_MORE_POINTS_METHOD_KEYS,
   mergePointsMethodsWithDefaults,
@@ -131,7 +136,8 @@ const mergeRevenueTrendData = (bookingTrendRows = [], paymentTrendRows = []) => 
       revenue: 0,
     }
 
-    current.revenue = Number(row?.revenue || 0)
+    current.revenue =
+      Number(current.revenue || 0) + Number(row?.revenue || 0)
     trendMap.set(key, current)
   })
 
@@ -202,7 +208,7 @@ export const getDashboardData = async (req, res, next) => {
     }
 
     // Branch based on user role
-    if (['spa', 'admin'].includes(user.role)) {
+    if (['spa', 'admin', 'super-admin'].includes(user.role)) {
       const locationId = getDashboardLocationId(user, requestedLocationId)
       
       if (!locationId) {
@@ -212,7 +218,9 @@ export const getDashboardData = async (req, res, next) => {
       }
 
       const dashboardLocation = await Location.findOne({ locationId })
-        .select('qrCode.lastResetAt checkInQrCode.lastResetAt')
+        .select(
+          'qrCode.lastResetAt checkInQrCode.lastResetAt addedBy dashboardCheckInStats'
+        )
         .lean()
 
       // 1. Build test-account scope once.
@@ -225,37 +233,286 @@ export const getDashboardData = async (req, res, next) => {
 
       const testUserIds = testUsers.map((entry) => entry._id)
       const productionBookingsScope = { locationId, userId: { $nin: testUserIds } }
+
+      /** Users tied to this location who receive Connect payouts — matches Payment.spaOwner. */
+      const spaOwnerDocs = await User.find({
+        isDeleted: false,
+        $or: [
+          { 'spaLocation.locationId': locationId },
+          { assignedLocations: { $elemMatch: { locationId } } },
+        ],
+      })
+        .select('_id')
+        .lean()
+
+      let spaOwnerObjectIdsForPayments = spaOwnerDocs.map((doc) => doc._id)
+
+      const addedById = dashboardLocation?.addedBy
+
+      const ensureOwnerIdIncluded = () => {
+        if (addedById && !spaOwnerObjectIdsForPayments.some(
+          (id) => `${id}` === `${addedById}`
+        )) {
+          spaOwnerObjectIdsForPayments = [...spaOwnerObjectIdsForPayments, addedById]
+        }
+      }
+      ensureOwnerIdIncluded()
+
+      if (spaOwnerObjectIdsForPayments.length === 0) {
+        spaOwnerObjectIdsForPayments = userId ? [userId] : []
+      }
+
       const productionPaymentsScope = {
-        spaOwner: userId,
+        spaOwner: {
+          $in: spaOwnerObjectIdsForPayments,
+        },
         customer: { $nin: testUserIds },
         status: 'succeeded',
       }
 
-      // 2. Get stats
-      const totalClients = await User.countDocuments({
-        'selectedLocation.locationId': locationId,
-        role: 'user',
+      const utcRef = new Date()
+      const utcY = utcRef.getUTCFullYear()
+      const utcMo = utcRef.getUTCMonth()
+      const utcMonthStartDate = new Date(Date.UTC(utcY, utcMo, 1))
+      const utcMonthEndExclusiveDate = new Date(Date.UTC(utcY, utcMo + 1, 1))
+      const prevUtcMonthStartDate = new Date(Date.UTC(utcY, utcMo - 1, 1))
+
+      /** Same people set as Contacts (/contacts): End users tied to this location. */
+      const contactsAtLocationFilter = {
         isDeleted: false,
+        role: 'user',
         email: { $not: TEST_EMAIL_REGEX },
-      })
+        $or: [
+          { 'selectedLocation.locationId': locationId },
+          { 'spaLocation.locationId': locationId },
+          { 'assignedLocations.locationId': locationId },
+        ],
+      }
 
-      // Total Visits: completed bookings for this spa
-      const totalVisits = await Booking.countDocuments({
-        ...productionBookingsScope,
-        status: 'completed',
-        paymentStatus: 'paid',
-      })
+      const dashboardActor =
+        userId &&
+        (await User.findById(userId)
+          .select('role stripe selectedLocation spaLocation')
+          .lean())
 
-      // Active Memberships: bookings for 'membership' services (simplified)
-      // Or users with 'membership' rewards? Let's go with users who have booked a service containing 'membership' in the last 30 days
-      // or simply count users who have a reward with type that could be membership (if we knew)
-      // For now, let's count completed bookings for services with 'membership' in the name
-      const activeMemberships = await Booking.countDocuments({
-        ...productionBookingsScope,
-        status: 'completed',
-        paymentStatus: 'paid',
-        serviceName: { $regex: /membership/i },
-      })
+      const signupThisMonthQuery = {
+        ...contactsAtLocationFilter,
+        createdAt: {
+          $gte: utcMonthStartDate,
+          $lt: utcMonthEndExclusiveDate,
+        },
+      }
+      const signupPrevMonthQuery = {
+        ...contactsAtLocationFilter,
+        createdAt: {
+          $gte: prevUtcMonthStartDate,
+          $lt: utcMonthStartDate,
+        },
+      }
+
+      const ROLLING_MS_30 = 30 * 24 * 60 * 60 * 1000
+      const nowMsForRolling = utcRef.getTime()
+      const thirtyDaysAgoRolling = new Date(nowMsForRolling - ROLLING_MS_30)
+      const sixtyDaysAgoRolling = new Date(nowMsForRolling - 2 * ROLLING_MS_30)
+      const rollingEndInclusive = new Date(nowMsForRolling)
+
+      const checkInQrScanRollingBase = {
+        locationId,
+        scanType: 'checkin',
+        status: 'verified',
+        scannedByUser: { $nin: testUserIds, $ne: null },
+      }
+
+      const countDistinctMembershipCustomersInRollingRange = async (
+        startInclusive,
+        endBound,
+        { inclusiveUpperBound = false } = {},
+      ) => {
+        const createdAt = inclusiveUpperBound
+          ? { $gte: startInclusive, $lte: endBound }
+          : { $gte: startInclusive, $lt: endBound }
+
+        const rows = await Payment.aggregate([
+          {
+            $match: {
+              ...productionPaymentsScope,
+              paymentCategory: 'membership',
+              livemode: { $ne: false },
+              createdAt,
+            },
+          },
+          { $group: { _id: '$customer' } },
+          { $count: 'n' },
+        ])
+        return Number(rows[0]?.n || 0)
+      }
+
+      const [
+        totalClients,
+        signupThisMonthCount,
+        signupPrevMonthCount,
+        qrCheckInsLast30,
+        qrCheckInsPrior30,
+        membershipPayersLast30,
+        membershipPayersPrior30,
+      ] = await Promise.all([
+        User.countDocuments(contactsAtLocationFilter),
+        User.countDocuments(signupThisMonthQuery),
+        User.countDocuments(signupPrevMonthQuery),
+        QRCodeScan.countDocuments({
+          ...checkInQrScanRollingBase,
+          createdAt: {
+            $gte: thirtyDaysAgoRolling,
+            $lte: rollingEndInclusive,
+          },
+        }),
+        QRCodeScan.countDocuments({
+          ...checkInQrScanRollingBase,
+          createdAt: {
+            $gte: sixtyDaysAgoRolling,
+            $lt: thirtyDaysAgoRolling,
+          },
+        }),
+        countDistinctMembershipCustomersInRollingRange(
+          thirtyDaysAgoRolling,
+          rollingEndInclusive,
+          { inclusiveUpperBound: true }
+        ),
+        countDistinctMembershipCustomersInRollingRange(
+          sixtyDaysAgoRolling,
+          thirtyDaysAgoRolling
+        ),
+      ])
+
+      /** Distinct customers with a succeeded membership payment in trailing 30d (`stats.activeMemberships`). */
+      const activeMemberships = membershipPayersLast30
+
+      const clientGrowth =
+        signupPrevMonthCount === 0
+          ? signupThisMonthCount > 0
+            ? 100
+            : 0
+          : Math.round(
+              ((signupThisMonthCount - signupPrevMonthCount) /
+                signupPrevMonthCount) *
+                100
+            )
+
+      const membershipGrowth =
+        membershipPayersPrior30 === 0
+          ? membershipPayersLast30 > 0
+            ? 100
+            : 0
+          : Math.round(
+              ((membershipPayersLast30 - membershipPayersPrior30) /
+                membershipPayersPrior30) *
+                100
+            )
+
+      const visitsLast30 = Number(qrCheckInsLast30 || 0)
+      const visitsPrior30 = Number(qrCheckInsPrior30 || 0)
+
+      const visitGrowth =
+        visitsPrior30 === 0
+          ? visitsLast30 > 0
+            ? 100
+            : 0
+          : Math.round(
+              ((visitsLast30 - visitsPrior30) / visitsPrior30) * 100
+            )
+
+      /** Verified QR check-ins in the trailing 30-day window vs the prior 30 days. */
+      const totalVisits = visitsLast30
+
+      const mongoPaymentSumCentsForRange = async (
+        startDate,
+        endBound,
+        { inclusiveEnd = false } = {},
+      ) => {
+        const createdAt = inclusiveEnd
+          ? { $gte: startDate, $lte: endBound }
+          : { $gte: startDate, $lt: endBound }
+
+        const rows = await Payment.aggregate([
+          {
+            $match: {
+              ...productionPaymentsScope,
+              createdAt,
+              livemode: { $ne: false },
+              status: 'succeeded',
+            },
+          },
+          { $group: { _id: null, sum: { $sum: '$amount' } } },
+        ])
+        return Number(rows[0]?.sum || 0)
+      }
+
+      const last30StripeGteUnix = Math.floor(thirtyDaysAgoRolling.getTime() / 1000)
+      const last30StripeLteUnix = Math.floor(nowMsForRolling / 1000)
+      const prev30StripeGteUnix = Math.floor(sixtyDaysAgoRolling.getTime() / 1000)
+      const prev30StripeLteUnix = last30StripeGteUnix - 1
+
+      let stripeRevenueLast30Cents = 0
+      let stripeRevenuePrior30Cents = 0
+      let resolvedStripeAccountId = null
+
+      try {
+        if (dashboardActor) {
+          const ctx = await resolveManagementStripeConnectContext(
+            dashboardActor,
+            locationId
+          )
+          resolvedStripeAccountId = ctx.stripeAccountId || null
+          if (resolvedStripeAccountId) {
+            assertViewerCanSeeLocationStripeCharges(user, {
+              locationScopeId: locationId,
+              stripeHolderUser: ctx.stripeHolderUser,
+            })
+            ;[stripeRevenueLast30Cents, stripeRevenuePrior30Cents] =
+              await Promise.all([
+                sumStripeConnectChargesNetCentsUtcRange(
+                  resolvedStripeAccountId,
+                  last30StripeGteUnix,
+                  last30StripeLteUnix
+                ),
+                sumStripeConnectChargesNetCentsUtcRange(
+                  resolvedStripeAccountId,
+                  prev30StripeGteUnix,
+                  prev30StripeLteUnix
+                ),
+              ])
+          }
+        }
+      } catch (revErr) {
+        console.error('Dashboard rolling 30-day Stripe volume:', revErr)
+        resolvedStripeAccountId = null
+      }
+
+      if (!resolvedStripeAccountId) {
+        ;[stripeRevenueLast30Cents, stripeRevenuePrior30Cents] =
+          await Promise.all([
+            mongoPaymentSumCentsForRange(thirtyDaysAgoRolling, rollingEndInclusive, {
+              inclusiveEnd: true,
+            }),
+            mongoPaymentSumCentsForRange(
+              sixtyDaysAgoRolling,
+              thirtyDaysAgoRolling
+            ),
+          ])
+      }
+
+      /** Net Stripe Connect charge volume (or Payment fallback) over trailing vs prior 30 days. */
+      const totalRevenue = Number((stripeRevenueLast30Cents / 100).toFixed(2))
+      const revenueGrowth =
+        stripeRevenuePrior30Cents === 0
+          ? stripeRevenueLast30Cents > 0
+            ? 100
+            : 0
+          : Math.round(
+              ((stripeRevenueLast30Cents - stripeRevenuePrior30Cents) /
+                stripeRevenuePrior30Cents) *
+                100
+            )
 
       // 3. Get Live Activity: Only paid bookings with a linked payment record
       const [liveBookingActivity, livePaymentActivity] = await Promise.all([
@@ -307,6 +564,7 @@ export const getDashboardData = async (req, res, next) => {
             : planName,
           finalPrice: Number(payment?.amount || 0) / 100,
           status: 'completed',
+          paymentStatus: 'paid',
           activityType: payment?.paymentCategory || 'payment',
           activityLabel: isCreditsPurchase ? 'Credit Purchase' : 'Membership Payment',
           displayStatus: isCreditsPurchase ? 'paid' : 'paid',
@@ -314,9 +572,55 @@ export const getDashboardData = async (req, res, next) => {
         }
       })
 
-      const filteredLiveActivity = [...filteredLiveBookingActivity, ...normalizedPaymentActivity]
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const todayEnd = new Date()
+      todayEnd.setHours(23, 59, 59, 999)
+
+      const liveBookingSeenIds = new Set(
+        filteredLiveBookingActivity.map((b) => b?._id?.toString?.()).filter(Boolean)
+      )
+
+      const todaysAppointmentBookings = await Booking.find({
+        ...productionBookingsScope,
+        date: { $gte: todayStart, $lte: todayEnd },
+        status: { $in: ['scheduled', 'confirmed', 'completed', 'no-show'] },
+      })
+        .sort({ date: 1, time: 1 })
+        .limit(24)
+        .populate('userId', 'name email avatar')
+        .populate('paymentId', 'livemode')
+        .lean()
+
+      const filteredTodaysAppointmentActivity = todaysAppointmentBookings
+        .filter((b) => {
+          if (!b?._id) return false
+          if (liveBookingSeenIds.has(b._id.toString())) return false
+          const payment = b.paymentId
+          return !(payment && typeof payment === 'object' && payment.livemode === false)
+        })
+        .map((b) => {
+          const startDt =
+            Booking.buildBookingStartDateTime(b.date, b.time) || new Date(b.date)
+          const paid = `${b.paymentStatus || ''}`.toLowerCase() === 'paid'
+          const displayStatus = paid ? `${b.status}` : `${b.status} · unpaid`
+          return {
+            ...b,
+            _id: b._id,
+            createdAt: startDt,
+            activityKind: 'todaysAppointment',
+            activityLabel: b.time ? `${b.serviceName} · ${b.time}` : b.serviceName,
+            displayStatus,
+          }
+        })
+
+      const filteredLiveActivity = [
+        ...filteredLiveBookingActivity,
+        ...normalizedPaymentActivity,
+        ...filteredTodaysAppointmentActivity,
+      ]
         .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
-        .slice(0, 10)
+        .slice(0, 20)
 
       const recentClaimsStart = new Date()
       recentClaimsStart.setDate(
@@ -462,6 +766,8 @@ export const getDashboardData = async (req, res, next) => {
               ...productionPaymentsScope,
               createdAt: { $gte: thirtyDaysAgo },
               livemode: { $ne: false },
+              // Avoid double-counting with booking-driven service revenue below.
+              paymentCategory: { $in: ['membership', 'credits'] },
             },
           },
           {
@@ -497,86 +803,6 @@ export const getDashboardData = async (req, res, next) => {
         { $sort: { count: -1 } },
         { $limit: 5 }
       ])
-
-      // Calculate growth (comparison with previous 30-day period)
-      const prevMonthStart = new Date()
-      prevMonthStart.setDate(prevMonthStart.getDate() - 60)
-      
-      const getGrowth = async (model, query, dateField = 'createdAt') => {
-        const currentCount = await model.countDocuments({
-          ...query,
-          [dateField]: { $gte: thirtyDaysAgo },
-        })
-        const prevCount = await model.countDocuments({
-          ...query,
-          [dateField]: { $gte: prevMonthStart, $lt: thirtyDaysAgo },
-        })
-        if (prevCount === 0) return currentCount > 0 ? 100 : 0
-        return Math.round(((currentCount - prevCount) / prevCount) * 100)
-      }
-
-      const clientGrowth = await getGrowth(User, {
-        'selectedLocation.locationId': locationId,
-        role: 'user',
-        isDeleted: false,
-        email: { $not: TEST_EMAIL_REGEX },
-      })
-      const visitGrowth = await getGrowth(Booking, {
-        ...productionBookingsScope,
-        status: 'completed',
-        paymentStatus: 'paid',
-      })
-      const membershipGrowth = await getGrowth(Booking, {
-        ...productionBookingsScope,
-        status: 'completed',
-        paymentStatus: 'paid',
-        serviceName: { $regex: /membership/i },
-      })
-      const getRevenueGrowth = async () => {
-        const [currentRevenueRows, previousRevenueRows] = await Promise.all([
-          Payment.aggregate([
-            {
-              $match: {
-                ...productionPaymentsScope,
-                createdAt: { $gte: thirtyDaysAgo },
-                livemode: { $ne: false },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalRevenue: { $sum: '$amount' },
-              },
-            },
-          ]),
-          Payment.aggregate([
-            {
-              $match: {
-                ...productionPaymentsScope,
-                createdAt: { $gte: prevMonthStart, $lt: thirtyDaysAgo },
-                livemode: { $ne: false },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                totalRevenue: { $sum: '$amount' },
-              },
-            },
-          ]),
-        ])
-
-        const currentRevenue = Number(currentRevenueRows[0]?.totalRevenue || 0)
-        const previousRevenue = Number(previousRevenueRows[0]?.totalRevenue || 0)
-        if (previousRevenue === 0) return currentRevenue > 0 ? 100 : 0
-        return Math.round(((currentRevenue - previousRevenue) / previousRevenue) * 100)
-      }
-
-      const revenueGrowth = await getRevenueGrowth()
-      const totalRevenue = trendData.reduce(
-        (sum, item) => sum + Number(item?.revenue || 0),
-        0
-      )
 
       return res.status(200).json({
         status: 'success',
