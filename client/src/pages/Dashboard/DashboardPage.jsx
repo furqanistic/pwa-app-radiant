@@ -404,12 +404,13 @@ const SpaRewardsSection = () => {
   const [optimisticRewards, setOptimisticRewards] = useState(new Set())
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+  const catalogFilters = locationId ? { locationId } : {}
   const {
     rewards = [],
     isLoading,
     error,
     refetch,
-  } = useEnhancedRewardsCatalog({})
+  } = useEnhancedRewardsCatalog(catalogFilters)
 
   const claimRewardMutation = useClaimReward({
     disableDefaultToasts: true,
@@ -899,7 +900,10 @@ const NextRewardProgressSection = () => {
   const navigate = useNavigate()
   const { locationId } = useBranding()
   const { currentUser } = useSelector((state) => state.user)
-  const { rewards = [], userPoints, isLoading } = useEnhancedRewardsCatalog({})
+  const catalogFilters = locationId ? { locationId } : {}
+  const { rewards = [], userPoints, isLoading } = useEnhancedRewardsCatalog(
+    catalogFilters
+  )
   const withSpaParam = (path) =>
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 

@@ -9,6 +9,7 @@ import PointTransaction from '../models/PointTransaction.js'
 import Referral from '../models/Referral.js'
 import ReferralConfig from '../models/ReferralConfig.js'
 import User from '../models/User.js'
+import { getLocationScopedPointBalance } from '../utils/getLocationScopedPointBalance.js'
 import { processPendingQrClaimsForUser } from '../utils/qrPendingClaims.js'
 import { sendPasswordResetEmail } from '../utils/resendMailer.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
@@ -494,27 +495,6 @@ const buildUserLocationMembershipFilter = (locationId) => ({
     { 'assignedLocations.locationId': locationId },
   ],
 })
-
-const getLocationScopedPointBalance = async (userId, locationId) => {
-  if (!userId || !locationId) return 0
-
-  const [result] = await PointTransaction.aggregate([
-    {
-      $match: {
-        user: new mongoose.Types.ObjectId(userId),
-        locationId,
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        balance: { $sum: '$points' },
-      },
-    },
-  ])
-
-  return result?.balance || 0
-}
 
 const ensureLegacyPointsAreScoped = async (user) => {
   const currentLocationId = `${user?.selectedLocation?.locationId || ''}`.trim()

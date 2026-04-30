@@ -440,6 +440,7 @@ const RewardsCatalogPage = () => {
     search: searchTerm,
     type: selectedType === 'all' ? '' : selectedType,
     sortBy: sortBy,
+    ...(locationId ? { locationId } : {}),
   })
   const { data: userRewardsData } = useUserRewards({
     status: 'active',

@@ -14,7 +14,9 @@ import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
 import BookingSuccessPage from './pages/Bookings/BookingSuccessPage'
 
+import { SyncSelectedSpaRunner } from './components/Common/SyncSelectedSpaRunner'
 import { BrandingProvider, useBranding } from './context/BrandingContext'
+import { SpaSyncProvider } from './context/SpaSyncContext'
 import ServiceCatalogPage from './pages/Bookings/ServiceCatalogPage'
 import ServiceDetailPage from './pages/Bookings/ServiceDetailPage'
 import CartPage from './pages/Cart/CartPage'
@@ -408,14 +410,16 @@ const App = () => {
       <ScrollToTop />
       <LegacySpaSubdomainRedirect />
       <BrandingProvider>
-        <Toaster 
-          richColors 
-          position="top-center" 
-        />
-        <InstallPrompt />
-        <AppIconManager />
+        <SpaSyncProvider>
+          <SyncSelectedSpaRunner />
+          <Toaster
+            richColors
+            position="top-center"
+          />
+          <InstallPrompt />
+          <AppIconManager />
 
-        <Routes>
+          <Routes>
         {/* Public routes */}
         <Route
           path="/"
@@ -709,7 +713,8 @@ const App = () => {
 
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/auth" replace />} />
-      </Routes>
+        </Routes>
+        </SpaSyncProvider>
       </BrandingProvider>
     </BrowserRouter>
   );

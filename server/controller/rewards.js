@@ -6,7 +6,7 @@ import Reward from '../models/Reward.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
-import { awardPoints } from '../utils/rewardHelpers.js'
+import { getLocationScopedPointBalance } from '../utils/getLocationScopedPointBalance.js'
 
 const escapeRegex = (value = '') =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -783,8 +783,19 @@ export const getRewardsCatalog = async (req, res, next) => {
       locationId = '',
     } = req.query
 
-    const userId = req.user.id
-    const userPoints = req.user.points || 0
+    const userId = req.user.id || req.user._id
+    const resolvedCatalogLocationId = resolveManagementLocationId(
+      req.user,
+      locationId
+    )
+
+    let userPoints = Number(req.user.points || 0)
+    if (resolvedCatalogLocationId) {
+      userPoints = await getLocationScopedPointBalance(
+        userId,
+        resolvedCatalogLocationId
+      )
+    }
 
     const canViewAllStatuses = ['admin', 'spa', 'super-admin'].includes(
       req.user?.role
@@ -799,7 +810,7 @@ export const getRewardsCatalog = async (req, res, next) => {
       filter.status = 'active'
     }
 
-    applyLocationFilter(filter, resolveManagementLocationId(req.user, locationId))
+    applyLocationFilter(filter, resolvedCatalogLocationId)
 
     // Service filter
     if (serviceId) {
@@ -970,7 +981,7 @@ export const claimReward = async (req, res, next) => {
   try {
     console.log('=== CLAIM REWARD START ===')
     const { rewardId } = req.params
-    const userId = req.user.id
+    const userId = req.user.id || req.user._id
 
     console.log('Claim request:', {
       rewardId,
@@ -984,13 +995,27 @@ export const claimReward = async (req, res, next) => {
       return next(createError(404, 'Reward not found or inactive'))
     }
 
+    const rewardLocationId = `${reward.locationId || ''}`.trim()
+    if (!rewardLocationId) {
+      return next(createError(400, 'Reward is not tied to a location'))
+    }
+
+    if (!canAccessLocation(req.user, rewardLocationId)) {
+      return next(
+        createError(403, 'You cannot claim rewards for this location')
+      )
+    }
+
     // Get user (fresh from DB)
     const user = await User.findById(userId)
     if (!user) {
       return next(createError(404, 'User not found'))
     }
 
-    const userPoints = user.points || 0
+    const userPoints = await getLocationScopedPointBalance(
+      user._id,
+      rewardLocationId
+    )
 
     // Check if user can afford the reward
     if (userPoints < reward.pointCost) {
@@ -1012,22 +1037,18 @@ export const claimReward = async (req, res, next) => {
       return next(createError(400, 'Monthly limit reached for this reward'))
     }
 
-    // INLINE POINT DEDUCTION - No external function needed
-    const newBalance = userPoints - reward.pointCost
+    const newBalanceAtRewardLocation = userPoints - reward.pointCost
 
-    // Update user's points
-    await User.findByIdAndUpdate(userId, { points: newBalance })
-
-    // Create transaction record
+    // Create transaction record (source of truth per location)
     await PointTransaction.create({
       user: userId,
       type: 'reward',
       points: -reward.pointCost, // Negative for spending
-      balance: newBalance,
+      balance: newBalanceAtRewardLocation,
       description: `Claimed reward: ${reward.name}`,
       reference: rewardId,
       referenceModel: 'UserReward',
-      locationId: req.user.selectedLocation?.locationId,
+      locationId: rewardLocationId,
       metadata: {
         previousBalance: userPoints,
         amountSpent: reward.pointCost,
@@ -1035,11 +1056,22 @@ export const claimReward = async (req, res, next) => {
       },
     })
 
+    const selectedLocId = `${user.selectedLocation?.locationId || ''}`.trim()
+    const nextGlobalPoints =
+      selectedLocId === rewardLocationId
+        ? newBalanceAtRewardLocation
+        : selectedLocId
+          ? await getLocationScopedPointBalance(user._id, selectedLocId)
+          : Number(user.points || 0)
+
+    await User.findByIdAndUpdate(userId, { points: nextGlobalPoints })
+
     console.log('✅ Points deducted successfully:', {
       userId,
       amountSpent: reward.pointCost,
       previousBalance: userPoints,
-      newBalance,
+      newBalance: newBalanceAtRewardLocation,
+      rewardLocationId,
     })
 
     // Create reward snapshot
@@ -1057,7 +1089,7 @@ export const claimReward = async (req, res, next) => {
       userId,
       rewardId,
       rewardSnapshot,
-      locationId: req.user.selectedLocation?.locationId,
+      locationId: rewardLocationId,
     }
 
     const userReward = await UserReward.createUserReward(userRewardData)
@@ -1077,7 +1109,7 @@ export const claimReward = async (req, res, next) => {
       message: 'Reward claimed successfully!',
       data: {
         userReward,
-        newPointBalance: newBalance,
+        newPointBalance: nextGlobalPoints,
         pointsSpent: reward.pointCost,
         previousBalance: userPoints,
       },
@@ -1100,21 +1132,37 @@ export const claimReward = async (req, res, next) => {
       try {
         const reward = await Reward.findById(req.params.rewardId)
         if (reward) {
-          // Refund points by adding them back
-          const user = await User.findById(req.user.id)
-          const refundBalance = (user.points || 0) + reward.pointCost
+          const refundLocId = `${reward.locationId || ''}`.trim()
+          const refundUserId = req.user.id || req.user._id
+          const user = await User.findById(refundUserId)
+          if (user && refundLocId) {
+            const balanceBeforeRefund = await getLocationScopedPointBalance(
+              user._id,
+              refundLocId
+            )
+            const refundBalance = balanceBeforeRefund + reward.pointCost
 
-          await User.findByIdAndUpdate(req.user.id, { points: refundBalance })
+            await PointTransaction.create({
+              user: refundUserId,
+              type: 'refund',
+              points: reward.pointCost,
+              balance: refundBalance,
+              description: `Refund for failed reward claim: ${reward.name}`,
+              locationId: refundLocId,
+            })
 
-          // Create refund transaction
-          await PointTransaction.create({
-            user: req.user.id,
-            type: 'refund',
-            points: reward.pointCost,
-            balance: refundBalance,
-            description: `Refund for failed reward claim: ${reward.name}`,
-            locationId: req.user.selectedLocation?.locationId,
-          })
+            const selectedLocId = `${user.selectedLocation?.locationId || ''}`.trim()
+            const nextGlobalPoints =
+              selectedLocId === refundLocId
+                ? refundBalance
+                : selectedLocId
+                  ? await getLocationScopedPointBalance(user._id, selectedLocId)
+                  : Number(user.points || 0)
+
+            await User.findByIdAndUpdate(refundUserId, {
+              points: nextGlobalPoints,
+            })
+          }
 
           console.log('✅ Points refunded successfully')
         }

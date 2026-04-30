@@ -3,6 +3,8 @@ import { motion, useAnimation } from 'framer-motion'
 import { Sparkles, Star } from 'lucide-react'
 import { useSelector } from 'react-redux'
 import { useBranding } from '@/context/BrandingContext'
+import { useSpaSync } from '@/context/SpaSyncContext'
+import { useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { useEffect } from 'react'
 
 const Motion = motion
@@ -23,8 +25,19 @@ const hexToRgb = (hex) => {
 
 const PointsCard = () => {
   const { currentUser } = useSelector((state) => state.user)
-  const { branding } = useBranding()
-  
+  const { branding, locationId } = useBranding()
+  const { isSyncingSelectedSpa } = useSpaSync()
+  const catalogFilters = locationId ? { locationId } : {}
+  const { userPoints, isLoading: catalogLoading } =
+    useEnhancedRewardsCatalog(catalogFilters)
+
+  const reduxPoints = Number(currentUser?.points ?? 0)
+  const catalogPts = Number(userPoints ?? 0)
+  const displayPoints =
+    locationId && !catalogLoading && !isSyncingSelectedSpa
+      ? catalogPts
+      : reduxPoints
+
   const brandColor = branding?.themeColor || '#ec4899'
   const brandRgb = hexToRgb(brandColor)
   
@@ -136,12 +149,14 @@ const PointsCard = () => {
             </p>
             <div className='flex items-baseline gap-2 sm:gap-3'>
               <Motion.span 
-                key={currentUser?.points}
+                key={`${displayPoints}-${locationId || 'default'}`}
                 initial={{ opacity: 0, scale: 0.9, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                className='text-4xl sm:text-5xl md:text-6xl leading-none font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/60 drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] tracking-tighter tabular-nums'
+                className={`text-4xl sm:text-5xl md:text-6xl leading-none font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/60 drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] tracking-tighter tabular-nums ${
+                  isSyncingSelectedSpa ? 'animate-pulse' : ''
+                }`}
               >
-                {currentUser?.points?.toLocaleString() || '0'}
+                {displayPoints.toLocaleString()}
               </Motion.span>
               <span className='text-xs sm:text-sm font-bold text-white/80 tracking-widest'>PTS</span>
             </div>
