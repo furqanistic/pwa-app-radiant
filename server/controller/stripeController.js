@@ -4486,24 +4486,17 @@ export const confirmPayment = async (req, res, next) => {
 export const getPaymentHistory = async (req, res, next) => {
   try {
     const userId = req.user.id
-    const { page = 1, limit = 10, role } = req.query
+    const { page = 1, limit = 10 } = req.query
 
     const user = await User.findById(userId)
 
-    let query = {}
-    if (user.role === 'spa') {
-      // Spa owner - get payments they received
-      query.spaOwner = userId
-    } else {
-      // Customer - get payments they made
-      query.customer = userId
-    }
+    const parsedPage = parseInt(page, 10) || 1
+    const parsedLimit = parseInt(limit, 10) || 10
 
-    const result = await Payment.getCustomerHistory(
-      userId,
-      parseInt(page),
-      parseInt(limit)
-    )
+    const result =
+      user.role === 'spa'
+        ? await Payment.getSpaOwnerHistory(userId, parsedPage, parsedLimit)
+        : await Payment.getCustomerHistory(userId, parsedPage, parsedLimit)
 
     res.status(200).json({
       success: true,
@@ -4511,6 +4504,206 @@ export const getPaymentHistory = async (req, res, next) => {
     })
   } catch (error) {
     console.error('Error fetching payment history:', error)
+    next(error)
+  }
+}
+
+/**
+ * Normalize Stripe charge payloads for the management revenue table and merge app-side Payment rows when present.
+ */
+async function enrichStripeChargesWithAppPayments(charges) {
+  const piIds = []
+  for (const c of charges) {
+    const pi = c.payment_intent
+    const id = typeof pi === 'string' ? pi : pi?.id
+    if (id) piIds.push(id)
+  }
+  const uniquePi = [...new Set(piIds)]
+  const paymentDocs =
+    uniquePi.length === 0
+      ? []
+      : await Payment.find({ stripePaymentIntentId: { $in: uniquePi } })
+          .populate('customer', 'name email avatar')
+          .populate('service', 'name basePrice')
+  const byPi = new Map(paymentDocs.map((p) => [p.stripePaymentIntentId, p]))
+
+  return charges.map((charge) => {
+    const piId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : charge.payment_intent?.id || null
+    const doc = piId ? byPi.get(piId) : null
+
+    return {
+      _id: doc?._id?.toString() || charge.id,
+      createdAt: new Date(charge.created * 1000),
+      amount: charge.amount,
+      currency: charge.currency,
+      status: charge.status,
+      stripePaymentIntentId: piId,
+      stripeChargeId: charge.id,
+      paymentCategory: doc?.paymentCategory ?? null,
+      customer: doc?.customer
+        ? doc.customer
+        : {
+            name: charge.billing_details?.name || null,
+            email: charge.receipt_email || charge.billing_details?.email || null,
+          },
+      service: doc?.service ?? null,
+      description: charge.description || null,
+      livemode: charge.livemode,
+      ledgerSource: doc ? 'app' : 'stripe',
+    }
+  })
+}
+
+function assertViewerCanSeeLocationStripeCharges(viewerUser, { locationScopeId, stripeHolderUser }) {
+  if (!viewerUser) {
+    throw createError(401, 'Unauthorized')
+  }
+  if (!['spa', 'admin', 'super-admin'].includes(viewerUser.role)) {
+    throw createError(403, 'Forbidden')
+  }
+  if (viewerUser.role === 'admin' || viewerUser.role === 'super-admin') {
+    return
+  }
+
+  const vid = viewerUser._id.toString()
+  if (stripeHolderUser && stripeHolderUser._id.toString() === vid) {
+    return
+  }
+
+  const scope = `${locationScopeId || ''}`.trim()
+  const spaLoc = `${viewerUser.spaLocation?.locationId || ''}`.trim()
+  const selLoc = `${viewerUser.selectedLocation?.locationId || ''}`.trim()
+
+  if (scope && (scope === spaLoc || scope === selLoc)) {
+    return
+  }
+
+  throw createError(403, 'You cannot view payments for this location.')
+}
+
+/**
+ * Paginated Stripe-synced payments received by the connected spa account (management / revenue views)
+ */
+export const getReceivedStripePayments = async (req, res, next) => {
+  try {
+    const userId = req.user.id
+    const user = await User.findById(userId)
+
+    if (
+      user.role !== 'spa' &&
+      user.role !== 'admin' &&
+      user.role !== 'super-admin'
+    ) {
+      return next(
+        createError(
+          403,
+          'Only spa owners and admins can access received Stripe payments'
+        )
+      )
+    }
+
+    const { page = 1, limit = 25 } = req.query
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1)
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 25))
+
+    const queryLocationId = `${req.query.locationId || ''}`.trim()
+    const startingAfterRaw = `${req.query.startingAfter || ''}`.trim()
+    const startingAfter = startingAfterRaw ? startingAfterRaw : null
+
+    const effectiveLocationId =
+      queryLocationId ||
+      `${user.selectedLocation?.locationId || user.spaLocation?.locationId || ''}`.trim()
+
+    let stripeAccountId = null
+    let stripeHolderUser = null
+
+    try {
+      if (effectiveLocationId) {
+        const dest = await resolveConnectedPaymentDestinationByLocation(effectiveLocationId)
+        if (dest.provider === 'stripe') {
+          stripeAccountId = dest.stripeAccountId
+          stripeHolderUser = dest.spaOwner
+        }
+      }
+    } catch (_) {
+      /* Square-only or no payout provider — try the viewer’s own Stripe account */
+    }
+
+    if (
+      !stripeAccountId &&
+      user.role === 'spa' &&
+      user.stripe?.accountId &&
+      user.stripe?.chargesEnabled
+    ) {
+      stripeAccountId = user.stripe.accountId
+      stripeHolderUser = user
+    }
+
+    if (stripeAccountId) {
+      assertViewerCanSeeLocationStripeCharges(user, {
+        locationScopeId: effectiveLocationId,
+        stripeHolderUser,
+      })
+    }
+
+    if (stripeAccountId) {
+      try {
+        const listParams = { limit: parsedLimit }
+        if (startingAfter) {
+          listParams.starting_after = startingAfter
+        }
+
+        const stripeResult = await stripe.charges.list(listParams, {
+          stripeAccount: stripeAccountId,
+        })
+
+        const payments = await enrichStripeChargesWithAppPayments(stripeResult.data)
+        const nextStartingAfter =
+          stripeResult.has_more && stripeResult.data.length > 0
+            ? stripeResult.data[stripeResult.data.length - 1].id
+            : null
+
+        return res.status(200).json({
+          success: true,
+          ledgerSource: 'stripe_charges',
+          stripeAccountId,
+          payments,
+          pagination: {
+            hasNextPage: stripeResult.has_more,
+            nextStartingAfter,
+            pageSize: payments.length,
+          },
+        })
+      } catch (stripeErr) {
+        console.error(
+          'stripe.charges.list failed, falling back to database:',
+          stripeErr
+        )
+        const mongoResult = await Payment.getHistoryByStripeAccountId(
+          stripeAccountId,
+          parsedPage,
+          parsedLimit
+        )
+        return res.status(200).json({
+          success: true,
+          ledgerSource: 'database',
+          fallbackReason: 'stripe_list_failed',
+          ...mongoResult,
+        })
+      }
+    }
+
+    const legacy = await Payment.getSpaOwnerHistory(userId, parsedPage, parsedLimit)
+    return res.status(200).json({
+      success: true,
+      ledgerSource: 'database',
+      ...legacy,
+    })
+  } catch (error) {
+    console.error('Error fetching received Stripe payments:', error)
     next(error)
   }
 }

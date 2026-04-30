@@ -339,6 +339,64 @@ PaymentSchema.statics.getCustomerHistory = async function (customerId, page = 1,
   };
 };
 
+/** Payments for a connected account (includes records where spaOwner is the location’s Stripe holder) */
+PaymentSchema.statics.getHistoryByStripeAccountId = async function (
+  stripeAccountId,
+  page = 1,
+  limit = 25
+) {
+  const skip = (page - 1) * limit;
+  const filter = { stripeAccountId };
+
+  const total = await this.countDocuments(filter);
+  const payments = await this.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('customer', 'name email avatar')
+    .populate('service', 'name basePrice');
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return {
+    payments,
+    pagination: {
+      currentPage: page,
+      totalPages,
+      totalPayments: total,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
+};
+
+/** Payments received by a spa owner / connected account holder (Stripe-synced ledger) */
+PaymentSchema.statics.getSpaOwnerHistory = async function (spaOwnerId, page = 1, limit = 20) {
+  const skip = (page - 1) * limit;
+  const filter = { spaOwner: spaOwnerId };
+
+  const total = await this.countDocuments(filter);
+  const payments = await this.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('customer', 'name email avatar')
+    .populate('service', 'name basePrice');
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return {
+    payments,
+    pagination: {
+      currentPage: page,
+      totalPages,
+      totalPayments: total,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
+};
+
 // Method to check if payment can be refunded
 PaymentSchema.methods.canBeRefunded = function () {
   const daysSincePayment = (Date.now() - this.createdAt) / (1000 * 60 * 60 * 24);

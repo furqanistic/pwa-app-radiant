@@ -21,6 +21,7 @@ import {
     getMembershipInvoices,
     getMembershipPaymentMethods,
     getPaymentHistory,
+    getReceivedStripePayments,
     getRevenueAnalytics,
     handleWebhook,
     processRefund,
@@ -99,6 +100,9 @@ router.post('/payment/confirm', verifyToken, confirmPayment);
 
 // Get payment history
 router.get('/payment/history', verifyToken, getPaymentHistory);
+
+// Stripe-synced payments received on the connected account (spa / revenue)
+router.get('/payment/received-history', verifyToken, checkManagementAccess, getReceivedStripePayments);
 
 // Get revenue analytics (spa role only)
 router.get('/payment/analytics', verifyToken, checkManagementAccess, getRevenueAnalytics);

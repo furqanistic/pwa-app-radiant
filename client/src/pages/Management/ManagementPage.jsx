@@ -180,7 +180,7 @@ const ManagementPage = () => {
     },
     {
       title: "Client Revenue",
-      description: "Track earnings per client and total revenue",
+      description: "Card and online charges for your location",
       icon: TrendingUp,
       path: "/management/revenue",
       color: "from-rose-500 to-rose-600",

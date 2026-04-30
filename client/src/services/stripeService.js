@@ -55,6 +55,25 @@ const stripeService = {
     return response.data
   },
 
+  /**
+   * Paginated list from DB and/or Stripe Connect charges (`locationId` + `startingAfter` recommended)
+   */
+  getReceivedStripePayments: async ({
+    page = 1,
+    limit = 25,
+    locationId,
+    startingAfter,
+  } = {}) => {
+    const response = await axiosInstance.get('stripe/payment/received-history', {
+      params: Object.fromEntries(
+        Object.entries({ page, limit, locationId, startingAfter }).filter(
+          ([, v]) => v !== undefined && v !== null && `${v}`.trim() !== ''
+        )
+      ),
+    })
+    return response.data
+  },
+
   // ==================== PAYMENTS ====================
 
   /**
