@@ -2,6 +2,7 @@
 import PushNotificationPrompt from '@/components/Notifications/PushNotificationPrompt'
 import { useBranding } from '@/context/BrandingContext'
 import { resolveImageUrl } from '@/lib/imageHelpers'
+import { useQueryClient } from '@tanstack/react-query'
 import {
     logout,
     selectCurrentUser,
@@ -95,6 +96,7 @@ const Layout = ({
   const navigate = useNavigate()
   const location = useLocation()
   const dispatch = useDispatch()
+  const queryClient = useQueryClient()
   const { branding, locationId } = useBranding()
   const sidebarSubtitle = branding?.subtitle?.trim() || ''
   const brandColor = branding?.themeColor || '#ec4899'
@@ -298,7 +300,15 @@ const Layout = ({
 
   const handleNavigation = async (href, isLogout = false) => {
     try {
-      const destination = withSpaParam(href)
+      const basePath = href.replace(/[?#].*$/, '')
+      const stripSpaForRegularUserLogout =
+        isLogout &&
+        basePath === '/auth' &&
+        currentUser?.role === 'user'
+
+      const destination = stripSpaForRegularUserLogout
+        ? '/auth'
+        : withSpaParam(href)
       // If we're already on this route and it's not a logout, just close the menu
       if (location.pathname === href && !isLogout) {
         setIsOpen(false)
@@ -309,8 +319,11 @@ const Layout = ({
 
       if (isLogout) {
         dispatch(logout())
+        localStorage.removeItem('token')
         localStorage.removeItem('userToken')
+        localStorage.removeItem('brandingLocationId')
         sessionStorage.clear()
+        queryClient.clear()
       }
 
       // Navigate to the new route

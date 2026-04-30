@@ -5,9 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 // Get user's referral stats with computed data
-export const useReferralStatsWithComputedData = () => {
+export const useReferralStatsWithComputedData = (scopeLocationId = null) => {
+  const scopeKey = scopeLocationId ?? 'global'
+
   return useQuery({
-    queryKey: ['referral', 'stats', 'computed'],
+    queryKey: ['referral', 'stats', 'computed', scopeKey],
     queryFn: async () => {
       const response = await axiosInstance.get('/referral/my-stats')
       const stats = response.data.data.stats

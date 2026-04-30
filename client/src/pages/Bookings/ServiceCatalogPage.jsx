@@ -1,6 +1,7 @@
 // client/src/pages/Bookings/ServiceCatalogPage.jsx - HIGH-END PREMIUM DESIGN
 import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
 import { useBranding } from '@/context/BrandingContext'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import {
   useActiveServices,
   useCategories,
@@ -340,9 +341,10 @@ const ServiceCatalog = ({ onServiceSelect }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const { currentUser } = useSelector((state) => state.user)
-  const { branding, locationId } = useBranding()
+  const { branding } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const effectiveLocationId =
-    locationId ||
+    scopedLocationId ||
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId ||
     ''
@@ -650,9 +652,9 @@ const ServiceCatalog = ({ onServiceSelect }) => {
 const ServiceCatalogPage = () => {
   const navigate = useNavigate()
   const { currentUser } = useSelector((state) => state.user)
-  const { locationId } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const effectiveLocationId =
-    locationId ||
+    scopedLocationId ||
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId ||
     ''

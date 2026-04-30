@@ -23,13 +23,14 @@ import {
     Zap
 } from "lucide-react";
 import QRCodeLib from "qrcode";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
 import { updateProfile } from "../../redux/userSlice";
 import { Button } from "@/components/ui/button";
 import Layout from "../Layout/Layout";
 import { useBranding } from '@/context/BrandingContext';
+import { useScopedLocationId } from '@/hooks/useScopedLocationId';
 
 
 // API Functions
@@ -442,6 +443,11 @@ const ProfilePage = () => {
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
   const { branding } = useBranding();
+  const scopedLocationId = useScopedLocationId();
+  const currentUserQueryKey = useMemo(
+    () => ["currentUser", scopedLocationId ?? "global"],
+    [scopedLocationId]
+  );
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '');
@@ -475,7 +481,7 @@ const ProfilePage = () => {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["currentUser"],
+    queryKey: currentUserQueryKey,
     queryFn: profileAPI.getCurrentUser,
     initialData: currentUser,
     staleTime: 5 * 60 * 1000,
@@ -487,7 +493,7 @@ const ProfilePage = () => {
   const updateProfileMutation = useMutation({
     mutationFn: profileAPI.updateUser,
     onSuccess: (updatedUser) => {
-      queryClient.setQueryData(["currentUser"], updatedUser);
+      queryClient.setQueryData(currentUserQueryKey, updatedUser);
       dispatch(updateProfile(updatedUser)); // Update Redux state
       toastSuccess("Profile updated successfully");
     },

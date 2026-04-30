@@ -3,6 +3,7 @@
 // Renders nothing if the user has no cycles due within 30 days.
 
 import { useBranding } from '@/context/BrandingContext'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { bookingService } from '@/services/bookingService'
 import { useQuery } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -112,12 +113,13 @@ const CycleRow = ({ cycle, onBook, brandColor }) => {
 const TreatmentCycleCard = () => {
   const { currentUser } = useSelector((state) => state.user)
   const { branding, locationId } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const navigate = useNavigate()
 
   const brandColor = branding?.themeColor || '#ec4899'
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['treatment-cycles', currentUser?._id],
+    queryKey: ['treatment-cycles', currentUser?._id, scopedLocationId ?? 'global'],
     queryFn: bookingService.getTreatmentCycles,
     enabled: !!currentUser?._id && currentUser?.role === 'user',
     staleTime: 10 * 60 * 1000, // 10 minutes — cycles don't change that fast

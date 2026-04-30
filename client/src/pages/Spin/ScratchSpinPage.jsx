@@ -3,6 +3,7 @@ import SlideReveal from '@/components/Games/SlideReveal'
 import SpinWheel from '@/components/Games/SpinWheel'
 import { useBranding } from '@/context/BrandingContext'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import confetti from 'canvas-confetti'
 import { AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion'
 import {
@@ -26,6 +27,7 @@ const ScratchSpinPage = () => {
 
   const { currentUser } = useSelector((state) => state.user)
   const { branding } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const c = brandColor.replace('#', '')
@@ -44,7 +46,9 @@ const ScratchSpinPage = () => {
     }
   }, [currentUser])
 
-  const { data: gamesData, isLoading, refetch } = useAvailableGames()
+  const { data: gamesData, isLoading, refetch } = useAvailableGames(
+    scopedLocationId ? { locationId: scopedLocationId } : {}
+  )
 
   const playGameMutation = usePlayGame({
     onSuccess: () => { refetch() },

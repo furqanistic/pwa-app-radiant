@@ -4,6 +4,7 @@ import PushNotificationSettings from '@/components/Layout/PushNotificationSettin
 import { axiosInstance } from '@/config'
 import { useBranding } from '@/context/BrandingContext'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -131,6 +132,8 @@ const NotificationPanel = ({ className = '' }) => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [hasMarkedAsSeen, setHasMarkedAsSeen] = useState(false)
   const token = useSelector((state) => state.user.token)
+  const scopedLocationId = useScopedLocationId()
+  const notifyScope = scopedLocationId ?? 'global'
   const { branding } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
@@ -184,7 +187,7 @@ const NotificationPanel = ({ className = '' }) => {
   }, [queryClient])
 
   const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['notifications', 'unread-count'],
+    queryKey: ['notifications', 'unread-count', notifyScope],
     queryFn: () => fetchUnreadCount(token),
     enabled: !!token && isOnline,
     refetchInterval: isOpen ? 30000 : 60000,
@@ -192,7 +195,7 @@ const NotificationPanel = ({ className = '' }) => {
   })
 
   const { data: notificationsData, isLoading: notificationsLoading } = useQuery({
-    queryKey: ['notifications', 'all'],
+    queryKey: ['notifications', 'all', notifyScope],
     queryFn: () => fetchNotifications(token, { limit: 15 }),
     enabled: !!token && isOpen && isOnline,
     refetchInterval: isOpen ? 30000 : false,

@@ -86,6 +86,9 @@ export function useSyncSelectedSpaFromBranding() {
 
         queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.all })
         queryClient.invalidateQueries({ queryKey: rewardQueryKeys.catalog })
+        queryClient.invalidateQueries({ queryKey: ['gameWheel'] })
+        queryClient.invalidateQueries({ queryKey: ['referral'] })
+        queryClient.invalidateQueries({ queryKey: ['treatment-cycles'] })
       } catch (error) {
         if (!cancelled) {
           selectSpaFailedForTargetRef.current = targetId

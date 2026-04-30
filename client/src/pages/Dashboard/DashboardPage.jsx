@@ -8,6 +8,7 @@ import { useBranding } from '@/context/BrandingContext'
 import { dashboardQueryKeys, useDashboardData } from '@/hooks/useDashboard'
 import { useAvailableGames } from '@/hooks/useGameWheel'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { dashboardService } from '@/services/dashboardService'
 import { rewardsService } from '@/services/rewardsService'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -400,11 +401,13 @@ const DashboardCard = ({
 const SpaRewardsSection = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
-  const { locationId } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const [optimisticRewards, setOptimisticRewards] = useState(new Set())
   const withSpaParam = (path) =>
-    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
-  const catalogFilters = locationId ? { locationId } : {}
+    scopedLocationId
+      ? `${path}?spa=${encodeURIComponent(scopedLocationId)}`
+      : path
+  const catalogFilters = scopedLocationId ? { locationId: scopedLocationId } : {}
   const {
     rewards = [],
     isLoading,
@@ -764,12 +767,13 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
 // Need More Points Section
 const NeedMorePointsSection = ({ methods = [] }) => {
   const navigate = useNavigate()
-  const { locationId, branding } = useBranding()
+  const { branding } = useBranding()
+  const scopedLocationId = useScopedLocationId()
 
   const withSpaParam = (path) => {
-    if (!locationId) return path
+    if (!scopedLocationId) return path
     const separator = path.includes('?') ? '&' : '?'
-    return `${path}${separator}spa=${encodeURIComponent(locationId)}`
+    return `${path}${separator}spa=${encodeURIComponent(scopedLocationId)}`
   }
 
   const reviewLink = branding?.reviewLink || null
@@ -898,14 +902,16 @@ const NeedMorePointsSection = ({ methods = [] }) => {
 
 const NextRewardProgressSection = () => {
   const navigate = useNavigate()
-  const { locationId } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const { currentUser } = useSelector((state) => state.user)
-  const catalogFilters = locationId ? { locationId } : {}
+  const catalogFilters = scopedLocationId ? { locationId: scopedLocationId } : {}
   const { rewards = [], userPoints, isLoading } = useEnhancedRewardsCatalog(
     catalogFilters
   )
   const withSpaParam = (path) =>
-    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+    scopedLocationId
+      ? `${path}?spa=${encodeURIComponent(scopedLocationId)}`
+      : path
 
   const rewardPool = rewards
     .filter(
@@ -1021,17 +1027,19 @@ const NextRewardProgressSection = () => {
 const DashboardPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { locationId } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const { currentUser } = useSelector((state) => state.user)
 
   const withSpaParam = (path) =>
-    locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
+    scopedLocationId
+      ? `${path}?spa=${encodeURIComponent(scopedLocationId)}`
+      : path
   const dashboardFilters = useMemo(
     () => ({
       ...DASHBOARD_DATA_FILTERS,
-      ...(locationId ? { locationId } : {}),
+      ...(scopedLocationId ? { locationId: scopedLocationId } : {}),
     }),
-    [locationId]
+    [scopedLocationId]
   )
 
   // Fetch dashboard data
@@ -1069,7 +1077,10 @@ const DashboardPage = () => {
     })
   }, [dashboardFilters, queryClient])
   // Prefetch games in parallel so GamesSection appears faster.
-  useAvailableGames({}, { enabled: currentUser?.role === 'user' })
+  useAvailableGames(
+    scopedLocationId ? { locationId: scopedLocationId } : {},
+    { enabled: currentUser?.role === 'user' }
+  )
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {

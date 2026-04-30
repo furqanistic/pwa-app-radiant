@@ -85,10 +85,11 @@ export const BrandingProvider = ({ children }) => {
         if (isEntryPage) {
           // Explicitly clear branding on entry pages without spa param or subdomain
           activeLocationId = null;
+        } else if (currentUser?.selectedLocation?.locationId?.trim()) {
+          // Prefer session-selected spa over stale localStorage when authenticated
+          activeLocationId = currentUser.selectedLocation.locationId.trim();
         } else if (storedLocationId) {
           activeLocationId = storedLocationId;
-        } else if (currentUser?.selectedLocation?.locationId) {
-          activeLocationId = currentUser.selectedLocation.locationId;
         } else if (spaLocationId) {
           activeLocationId = spaLocationId;
         }

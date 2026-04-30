@@ -2,6 +2,7 @@
 import SlideReveal from '@/components/Games/SlideReveal'
 import SpinWheel from '@/components/Games/SpinWheel'
 import { useBranding } from '@/context/BrandingContext'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -359,7 +360,8 @@ const GamesSection = () => {
   const [gameResult, setGameResult] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isAnimationComplete, setIsAnimationComplete] = useState(false)
-  const { branding, locationId } = useBranding()
+  const { branding } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -381,7 +383,9 @@ const GamesSection = () => {
   }
 
   const { data: gamesData, isLoading, isFetching, refetch } =
-    useAvailableGames({ locationId })
+    useAvailableGames(
+      scopedLocationId ? { locationId: scopedLocationId } : {}
+    )
 
   const playGameMutation = usePlayGame({
     onSuccess: (data) => {
@@ -419,7 +423,7 @@ const GamesSection = () => {
       setIsAnimationComplete(false)
       const response = await playGameMutation.mutateAsync({
         gameId,
-        locationId,
+        locationId: scopedLocationId,
       })
       return response
     } catch (error) {

@@ -7,6 +7,7 @@ import BNPLBanner from "@/components/Common/BNPLBanner";
 import { useBranding } from '@/context/BrandingContext';
 import { useBookingStats, usePastBookings, useUpcomingBookings, useRateBooking } from "@/hooks/useBookings";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useScopedLocationId } from "@/hooks/useScopedLocationId";
 import Layout from "@/pages/Layout/Layout";
 import { clearCart, removeFromCart } from "@/redux/cartSlice";
 import { notificationService } from "@/services/notificationService";
@@ -245,7 +246,8 @@ const BookingsPage = () => {
 
   const { currentUser } = useSelector((state) => state.user);
   const cartItems = useSelector((state) => state.cart?.items || []);
-  const { branding, locationId } = useBranding();
+  const { branding } = useBranding();
+  const scopedLocationId = useScopedLocationId();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '');
@@ -290,7 +292,7 @@ const BookingsPage = () => {
 
   const sessionId = searchParams.get("session_id");
   const tabParam = searchParams.get("tab");
-  const activeLocationFilter = locationId ? { locationId } : {};
+  const activeLocationFilter = scopedLocationId ? { locationId: scopedLocationId } : {};
 
   // ✅ Fetch upcoming bookings
   const {
@@ -307,7 +309,7 @@ const BookingsPage = () => {
 
   // ✅ Fetch notifications to check for birthday gift
   const { data: notificationsData } = useQuery({
-    queryKey: ['notifications', 'birthday-check'],
+    queryKey: ['notifications', 'birthday-check', scopedLocationId ?? 'global'],
     queryFn: () => notificationService.getUserNotifications({ unreadOnly: true }),
     enabled: !!currentUser,
   });
@@ -388,10 +390,13 @@ const BookingsPage = () => {
 
   const scopedCartItems = React.useMemo(
     () =>
-      locationId
-        ? cartItems.filter((item) => !item.locationId || item.locationId === locationId)
+      scopedLocationId
+        ? cartItems.filter(
+            (item) =>
+              !item.locationId || item.locationId === scopedLocationId
+          )
         : cartItems,
-    [cartItems, locationId]
+    [cartItems, scopedLocationId]
   );
 
   const allBookings = React.useMemo(() => [

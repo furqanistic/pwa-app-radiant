@@ -2,6 +2,7 @@ import CreditsPurchaseDialog from '@/components/Membership/CreditsPurchaseDialog
 import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
 import MembershipBillingSection from '@/components/Membership/MembershipBillingSection'
 import { useBranding } from '@/context/BrandingContext'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { useActiveServices } from '@/hooks/useServices'
 import { locationService } from '@/services/locationService'
 import { authService } from '@/services/authService'
@@ -30,6 +31,7 @@ const MembershipPage = () => {
     const queryClient = useQueryClient()
     const { currentUser } = useSelector((state) => state.user)
     const { branding, locationId } = useBranding()
+    const scopedLocationId = useScopedLocationId()
     const brandColor = branding?.themeColor || '#ec4899'
     const brandColorDark = (() => {
         const cleaned = brandColor.replace('#', '')
@@ -44,6 +46,7 @@ const MembershipPage = () => {
     })()
 
     const activeLocationId =
+        scopedLocationId ||
         locationId ||
         currentUser?.membershipBilling?.locationId ||
         currentUser?.membership?.locationId ||

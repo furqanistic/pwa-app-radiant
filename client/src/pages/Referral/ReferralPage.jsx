@@ -4,6 +4,7 @@ import {
     useGenerateMyReferralCode,
     useReferralStatsWithComputedData,
 } from '@/hooks/useReferral'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { motion } from 'framer-motion'
 import {
     Check,
@@ -84,6 +85,7 @@ const ErrorState = ({ error, retry }) => (
 const ReferralPage = () => {
     const [copied, setCopied] = useState(false)
     const [linkCopied, setLinkCopied] = useState(false)
+    const scopedLocationId = useScopedLocationId()
     const { branding } = useBranding()
     const brandColor = branding?.themeColor || '#ec4899'
     const brandColorDark = (() => {
@@ -103,7 +105,7 @@ const ReferralPage = () => {
         isLoading: statsLoading,
         error: statsError,
         refetch: refetchStats,
-    } = useReferralStatsWithComputedData()
+    } = useReferralStatsWithComputedData(scopedLocationId)
 
     const generateCodeMutation = useGenerateMyReferralCode({
         onSuccess: () => refetchStats(),

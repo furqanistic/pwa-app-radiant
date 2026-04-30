@@ -29,7 +29,7 @@ import React, { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
-import { useBranding } from '@/context/BrandingContext'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import {
   buildAutoApplyRewardState,
   mergeCatalogRewardsWithClaims,
@@ -418,15 +418,15 @@ const RewardCard = ({ reward, onClaim }) => {
 // Main Rewards Catalog Component
 const RewardsCatalogPage = () => {
   const navigate = useNavigate()
-  const { locationId } = useBranding()
+  const scopedLocationId = useScopedLocationId()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState('all')
   const [sortBy, setSortBy] = useState('pointCost-low')
 
   const withSpaParam = (path) => {
-    if (!locationId) return path
+    if (!scopedLocationId) return path
     const separator = path.includes('?') ? '&' : '?'
-    return `${path}${separator}spa=${encodeURIComponent(locationId)}`
+    return `${path}${separator}spa=${encodeURIComponent(scopedLocationId)}`
   }
   const pageBrandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
 
@@ -440,11 +440,12 @@ const RewardsCatalogPage = () => {
     search: searchTerm,
     type: selectedType === 'all' ? '' : selectedType,
     sortBy: sortBy,
-    ...(locationId ? { locationId } : {}),
+    ...(scopedLocationId ? { locationId: scopedLocationId } : {}),
   })
   const { data: userRewardsData } = useUserRewards({
     status: 'active',
     limit: 100,
+    ...(scopedLocationId ? { locationId: scopedLocationId } : {}),
   })
 
   const claimRewardMutation = useClaimReward({

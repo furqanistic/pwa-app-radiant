@@ -2,10 +2,12 @@ import QRCodeScanner from '@/components/QRCode/QRCodeScanner';
 import { useBranding } from '@/context/BrandingContext';
 import {
     logout,
+    selectCurrentUser,
     selectIsElevatedUser,
     selectIsSuperAdmin,
     selectUserRole,
 } from '@/redux/userSlice';
+import { useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Calendar,
@@ -56,6 +58,8 @@ const BottomNav = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  const queryClient = useQueryClient()
+  const currentUser = useSelector(selectCurrentUser)
   const { branding, locationId } = useBranding()
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -230,11 +234,21 @@ const BottomNav = () => {
   }
 
   const handleNavigation = (href, isLogout = false) => {
-    const destination = withSpaParam(href)
+    const basePath = href.replace(/[?#].*$/, '')
+    const stripSpaForRegularUserLogout =
+      isLogout &&
+      basePath === '/auth' &&
+      currentUser?.role === 'user'
+
+    const destination = stripSpaForRegularUserLogout ? '/auth' : withSpaParam(href)
+
     if (isLogout) {
       dispatch(logout())
+      localStorage.removeItem('token')
       localStorage.removeItem('userToken')
+      localStorage.removeItem('brandingLocationId')
       sessionStorage.clear()
+      queryClient.clear()
     }
     navigate(destination)
   }
