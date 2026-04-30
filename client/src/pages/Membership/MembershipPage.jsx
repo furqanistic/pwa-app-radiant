@@ -204,34 +204,35 @@ const MembershipPage = () => {
             return {
                 disabled: false,
                 ctaLabel: hasExistingSubscription ? 'Add Card to Continue' : 'Add Card to Subscribe',
-                helperText: 'A saved card is required for monthly membership billing.',
+                helperText:
+                    'A saved card is required for calendar-monthly membership billing.',
             }
         }
 
         if (!hasExistingSubscription) {
             return {
                 ctaLabel: 'Subscribe',
-                statusBadge: 'Monthly billing',
+                statusBadge: 'Calendar-month billing',
             }
         }
 
         if (planPrice > currentPlanPrice) {
             return {
                 ctaLabel: 'Upgrade',
-                statusBadge: 'Monthly billing',
+                statusBadge: 'Calendar-month billing',
             }
         }
 
         if (planPrice < currentPlanPrice) {
             return {
                 ctaLabel: 'Downgrade',
-                statusBadge: 'Monthly billing',
+                statusBadge: 'Calendar-month billing',
             }
         }
 
         return {
             ctaLabel: 'Change Plan',
-            statusBadge: 'Monthly billing',
+            statusBadge: 'Calendar-month billing',
         }
     }
 
@@ -263,7 +264,9 @@ const MembershipPage = () => {
             if (!hasSavedCard) {
                 setPendingDirectSubscriptionPayload(payload)
                 setCardDialogOpen(true)
-                toast.message('Add a card to start this monthly membership plan.')
+                toast.message(
+                    'Add a card to start this calendar-monthly membership plan.'
+                )
                 return
             }
 

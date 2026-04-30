@@ -175,7 +175,7 @@ const MembershipAddCardDialog = ({ open, onOpenChange, locationId, onSuccess }) 
                   Add Payment Method
                 </DialogTitle>
                 <DialogDescription className="text-sm text-slate-600">
-                  Save a payment method for monthly membership renewals.
+                  Save a payment method for calendar-monthly membership renewals.
                 </DialogDescription>
               </DialogHeader>
 

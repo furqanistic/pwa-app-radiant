@@ -868,6 +868,34 @@ const getMembershipLocationIdFromRequest = (req) =>
   req.user?.spaLocation?.locationId ||
   null
 
+const normalizeMembershipLocationId = (value) => `${value || ''}`.trim()
+
+const assertMembershipBillingMatchesRequestLocation = (user, locationId) => {
+  const normalizedRequest = normalizeMembershipLocationId(locationId)
+  if (!normalizedRequest) {
+    throw createError(400, 'Location ID is required for membership billing.')
+  }
+  const normalizedBilling = normalizeMembershipLocationId(user?.membershipBilling?.locationId)
+  if (!normalizedBilling || normalizedBilling !== normalizedRequest) {
+    throw createError(
+      400,
+      'Use the same location as your membership billing for this action.'
+    )
+  }
+}
+
+const assertNewMembershipLocationCompatibleWithBillingProfile = (user, locationId) => {
+  const normalizedBilling = normalizeMembershipLocationId(user?.membershipBilling?.locationId)
+  if (!normalizedBilling) return
+  const normalizedRequest = normalizeMembershipLocationId(locationId)
+  if (!normalizedRequest || normalizedBilling !== normalizedRequest) {
+    throw createError(
+      400,
+      'Membership billing is already set up for a different location.'
+    )
+  }
+}
+
 const resolveMembershipLocationAndOwner = async (locationId) => {
   if (!locationId) {
     throw createError(400, 'Location ID is required for membership billing.')
@@ -2425,6 +2453,11 @@ export const createMembershipSubscription = async (req, res, next) => {
     }
 
     const locationId = getMembershipLocationIdFromRequest(req)
+    try {
+      assertNewMembershipLocationCompatibleWithBillingProfile(user, locationId)
+    } catch (billingLocationError) {
+      return next(billingLocationError)
+    }
     const { location, stripeAccountId } =
       await resolveMembershipLocationAndOwner(locationId)
     const service = await findMembershipServiceForLocation({
@@ -2586,6 +2619,11 @@ export const changeMembershipSubscriptionPlan = async (req, res, next) => {
     }
 
     const locationId = getMembershipLocationIdFromRequest(req)
+    try {
+      assertMembershipBillingMatchesRequestLocation(user, locationId)
+    } catch (billingLocationError) {
+      return next(billingLocationError)
+    }
     const { location } = await resolveMembershipLocationAndOwner(locationId)
     const resolvedPlan = resolveMembershipPlanForLocation({ location, planId, planName })
     const stripeAccountId = user.membershipBilling.stripeAccountId
@@ -4898,7 +4936,17 @@ export const processRefund = async (req, res, next) => {
 // ==================== WEBHOOK HANDLER ====================
 
 /**
- * Handle Stripe webhooks
+ * Stripe subscription + membership sync for Connect.
+ *
+ * Configure this endpoint in the Stripe Dashboard on the **platform** webhook and enable
+ * events from **connected accounts** (Connect). Membership renewal and status rely on
+ * `event.account` being passed into handlers below.
+ *
+ * Membership-related types handled here:
+ * - invoice.paid — renewals, first payment; syncs user membership and clears pending plan changes
+ * - invoice.payment_failed — marks failure state / grace period path
+ * - customer.subscription.updated — keeps subscription status and pending-plan UX coherent
+ * - customer.subscription.deleted — subscription cleanup (handled in switch)
  */
 export const handleWebhook = async (req, res, next) => {
   const sig = req.headers['stripe-signature']

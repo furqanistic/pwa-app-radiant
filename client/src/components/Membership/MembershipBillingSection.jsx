@@ -124,12 +124,12 @@ const MembershipBillingSection = ({
               </div>
 
               <h2 className="mt-2 text-[1.15rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl md:text-[2rem]">
-                {membership?.planName || 'Choose a monthly membership'}
+                {membership?.planName || 'Choose a calendar-monthly membership'}
               </h2>
 
               <p className="mt-1 text-[13px] sm:text-sm text-slate-600">
                 {membership?.price
-                  ? `${formatMoney(membership.price, membership.currency)} / month`
+                  ? `${formatMoney(membership.price, membership.currency)} / calendar month`
                   : 'Add a card, then pick a plan below.'}
               </p>
             </div>
