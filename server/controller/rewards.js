@@ -791,9 +791,12 @@ export const getRewardsCatalog = async (req, res, next) => {
 
     let userPoints = Number(req.user.points || 0)
     if (resolvedCatalogLocationId) {
+      const clamp =
+        !['admin', 'spa', 'super-admin'].includes(req.user?.role)
       userPoints = await getLocationScopedPointBalance(
         userId,
-        resolvedCatalogLocationId
+        resolvedCatalogLocationId,
+        { clampNonNegative: clamp }
       )
     }
 
@@ -1057,12 +1060,13 @@ export const claimReward = async (req, res, next) => {
     })
 
     const selectedLocId = `${user.selectedLocation?.locationId || ''}`.trim()
-    const nextGlobalPoints =
+    const nextGlobalPointsRaw =
       selectedLocId === rewardLocationId
         ? newBalanceAtRewardLocation
         : selectedLocId
           ? await getLocationScopedPointBalance(user._id, selectedLocId)
           : Number(user.points || 0)
+    const nextGlobalPoints = Math.max(0, Number(nextGlobalPointsRaw) || 0)
 
     await User.findByIdAndUpdate(userId, { points: nextGlobalPoints })
 
@@ -1152,12 +1156,13 @@ export const claimReward = async (req, res, next) => {
             })
 
             const selectedLocId = `${user.selectedLocation?.locationId || ''}`.trim()
-            const nextGlobalPoints =
+            const nextGlobalPointsRaw =
               selectedLocId === refundLocId
                 ? refundBalance
                 : selectedLocId
                   ? await getLocationScopedPointBalance(user._id, selectedLocId)
                   : Number(user.points || 0)
+            const nextGlobalPoints = Math.max(0, Number(nextGlobalPointsRaw) || 0)
 
             await User.findByIdAndUpdate(refundUserId, {
               points: nextGlobalPoints,

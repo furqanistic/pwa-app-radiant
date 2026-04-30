@@ -1922,8 +1922,24 @@ export const getCurrentUser = async (req, res, next) => {
     }
 
     // Add hasSelectedSpa to user object for frontend
+    const userObj = user.toObject()
+
+    // End-customers: expose points as ledger balance for selected spa so GET /me matches catalog /
+    // PointTransaction (User.points can be stale vs aggregates until repaired).
+    if (
+      !['admin', 'super-admin', 'spa'].includes(user.role) &&
+      userObj.selectedLocation?.locationId
+    ) {
+      const locId = `${userObj.selectedLocation.locationId}`.trim()
+      if (locId) {
+        userObj.points = await getLocationScopedPointBalance(user._id, locId, {
+          clampNonNegative: true,
+        })
+      }
+    }
+
     const userWithStatus = {
-      ...user.toObject(),
+      ...userObj,
       hasSelectedSpa,
     }
 
@@ -2715,7 +2731,8 @@ export const selectSpa = async (req, res, next) => {
       rewardResponse.profileCompletion = 0
     }
 
-    user.points = locationScopedBalance
+    // Mirror field on User: never persist negative (ledger can still sum negative until repaired).
+    user.points = Math.max(0, Number(locationScopedBalance) || 0)
     await user.save()
 
     res.status(200).json({
@@ -2728,7 +2745,7 @@ export const selectSpa = async (req, res, next) => {
           assignedLocations: user.assignedLocations,
           profileCompleted: user.profileCompleted,
           points: user.points,
-          locationPoints: locationScopedBalance,
+          locationPoints: user.points,
         },
         rewards: rewardResponse,
       },

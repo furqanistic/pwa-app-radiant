@@ -28,15 +28,17 @@ const PointsCard = () => {
   const { branding, locationId } = useBranding()
   const { isSyncingSelectedSpa } = useSpaSync()
   const catalogFilters = locationId ? { locationId } : {}
-  const { userPoints, isLoading: catalogLoading } =
-    useEnhancedRewardsCatalog(catalogFilters)
+  const {
+    userPoints,
+    isFetched: catalogFetched,
+  } = useEnhancedRewardsCatalog(catalogFilters)
 
   const reduxPoints = Number(currentUser?.points ?? 0)
   const catalogPts = Number(userPoints ?? 0)
+  // Prefer location-scoped catalog balance whenever it has loaded. Falling back to Redux
+  // during refetch or spa sync showed stale/negative User.points while transactions summed correctly.
   const displayPoints =
-    locationId && !catalogLoading && !isSyncingSelectedSpa
-      ? catalogPts
-      : reduxPoints
+    locationId && catalogFetched ? catalogPts : reduxPoints
 
   const brandColor = branding?.themeColor || '#ec4899'
   const brandRgb = hexToRgb(brandColor)
@@ -153,7 +155,9 @@ const PointsCard = () => {
                 initial={{ opacity: 0, scale: 0.9, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 className={`text-4xl sm:text-5xl md:text-6xl leading-none font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-white to-white/60 drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)] tracking-tighter tabular-nums ${
-                  isSyncingSelectedSpa ? 'animate-pulse' : ''
+                  isSyncingSelectedSpa || (!locationId && reduxPoints < 0)
+                    ? 'animate-pulse'
+                    : ''
                 }`}
               >
                 {displayPoints.toLocaleString()}
