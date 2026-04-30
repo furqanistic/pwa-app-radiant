@@ -16,7 +16,7 @@ import Layout from '@/pages/Layout/Layout';
 import { locationService } from '@/services/locationService';
 import stripeService from '@/services/stripeService';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CreditCard, Filter, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, CreditCard, ExternalLink, Filter, RefreshCw, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -60,6 +60,23 @@ const shortenId = (id) => {
   if (!id || typeof id !== 'string') return '—';
   return id.length > 14 ? `…${id.slice(-12)}` : id;
 };
+
+/** Hosted membership invoice URL, saved on Payment, or card receipt URL from the processor. */
+const paymentDocumentHref = (p) => {
+  if (!p || typeof p !== 'object') return null;
+  const invoice =
+    p.hostedInvoiceUrl ||
+    (typeof p.membershipDetails?.invoiceUrl === 'string' ? p.membershipDetails.invoiceUrl : null);
+  if (invoice && /^https?:\/\//i.test(invoice)) return invoice;
+  if (typeof p.receiptUrl === 'string' && /^https?:\/\//i.test(p.receiptUrl)) return p.receiptUrl;
+  return null;
+};
+
+const paymentDocumentLabel = (p) =>
+  paymentDocumentHref(p) &&
+  (p.hostedInvoiceUrl || p.membershipDetails?.invoiceUrl
+    ? 'Invoice'
+    : 'Receipt');
 
 /** booking | membership | credits | other */
 const normalizedCategoryBucket = (p) => {
@@ -109,7 +126,15 @@ function applyPaymentFilters(payments, f) {
       const desc = `${p.description || ''}`.toLowerCase();
       const svc = `${p.service?.name || ''}`.toLowerCase();
       const ref = `${p.stripePaymentIntentId || ''}${p.stripeChargeId || ''}`.toLowerCase();
-      if (!name.includes(q) && !email.includes(q) && !desc.includes(q) && !svc.includes(q) && !ref.includes(q)) {
+      const docUrl = `${paymentDocumentHref(p) || ''}`.toLowerCase();
+      if (
+        !name.includes(q) &&
+        !email.includes(q) &&
+        !desc.includes(q) &&
+        !svc.includes(q) &&
+        !ref.includes(q) &&
+        !docUrl.includes(q)
+      ) {
         return false;
       }
     }
@@ -493,7 +518,7 @@ const ClientRevenuePage = () => {
                       <Input
                         id="pay-filter-search"
                         type="search"
-                        placeholder="Customer, email, note, reference…"
+                        placeholder="Customer, email, note, invoice link…"
                         value={filterSearch}
                         onChange={(e) => setFilterSearch(e.target.value)}
                         className="bg-white"
@@ -526,6 +551,7 @@ const ClientRevenuePage = () => {
                         <th className="px-4 py-3 font-medium whitespace-nowrap">Type</th>
                         <th className="px-4 py-3 font-medium whitespace-nowrap">Amount</th>
                         <th className="px-4 py-3 font-medium whitespace-nowrap">Status</th>
+                        <th className="px-4 py-3 font-medium whitespace-nowrap hidden md:table-cell">Document</th>
                         <th className="px-4 py-3 font-medium whitespace-nowrap hidden lg:table-cell">Reference</th>
                       </tr>
                     </thead>
@@ -582,6 +608,22 @@ const ClientRevenuePage = () => {
                             <Badge variant={STATUS_VARIANT[p.status] || 'secondary'} className="capitalize">
                               {p.status?.replace(/_/g, ' ') || '—'}
                             </Badge>
+                          </td>
+                          <td className="px-4 py-3 hidden md:table-cell">
+                            {paymentDocumentHref(p) ? (
+                              <a
+                                href={paymentDocumentHref(p)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold underline-offset-2 hover:underline"
+                                style={{ color: brandColorDark }}
+                              >
+                                <ExternalLink className="size-3.5 shrink-0 opacity-90" aria-hidden />
+                                <span>{paymentDocumentLabel(p)}</span>
+                              </a>
+                            ) : (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-slate-600 font-mono text-xs hidden lg:table-cell">
                             {shortenId(p.stripePaymentIntentId || p.stripeChargeId)}

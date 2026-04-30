@@ -4542,6 +4542,7 @@ async function enrichStripeChargesWithAppPayments(charges) {
       status: charge.status,
       stripePaymentIntentId: piId,
       stripeChargeId: charge.id,
+      stripeInvoiceId: doc?.stripeInvoiceId ?? null,
       paymentCategory: doc?.paymentCategory ?? null,
       customer: doc?.customer
         ? doc.customer
@@ -4553,6 +4554,15 @@ async function enrichStripeChargesWithAppPayments(charges) {
       description: charge.description || null,
       livemode: charge.livemode,
       ledgerSource: doc ? 'app' : 'stripe',
+      receiptUrl: charge.receipt_url || null,
+      hostedInvoiceUrl: doc?.membershipDetails?.invoiceUrl || null,
+      membershipDetails: doc?.membershipDetails
+        ? {
+            invoiceUrl: doc.membershipDetails.invoiceUrl ?? null,
+            planName: doc.membershipDetails.planName ?? null,
+            invoiceStatus: doc.membershipDetails.invoiceStatus ?? null,
+          }
+        : null,
     }
   })
 }
