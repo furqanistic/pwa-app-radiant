@@ -20,6 +20,24 @@ const resolveLocationIdFromRequest = (req) =>
     ''
   }`.trim()
 
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids]
+}
+
+const canAccessLocation = (user, locationId) => {
+  if (!locationId) return false
+  if (['super-admin', 'admin'].includes(user?.role)) return true
+  return getUserAccessibleLocationIds(user).includes(locationId)
+}
+
 const createPlainError = (message, statusCode = 400) => {
   const error = new Error(message)
   error.statusCode = statusCode
@@ -2358,14 +2376,13 @@ export const getCalendars = async (req, res, next) => {
     res.set('Expires', '0')
     res.set('Surrogate-Control', 'no-store')
 
-    const { locationId } = req.query
+    const locationId = `${req.query.locationId || ''}`.trim()
     if (!locationId) {
       return res.status(400).json({
         success: false,
         message: 'locationId is required',
       })
     }
-
     const token = await getTokenForLocation(locationId)
     if (!token) {
       return res.status(400).json({
@@ -2428,11 +2445,17 @@ export const getCalendarServices = async (req, res, next) => {
     res.set('Expires', '0')
     res.set('Surrogate-Control', 'no-store')
 
-    const { locationId } = req.query
+    const locationId = `${req.query.locationId || ''}`.trim()
     if (!locationId) {
       return res.status(400).json({
         success: false,
         message: 'locationId is required',
+      })
+    }
+    if (!canAccessLocation(req.user, locationId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this location',
       })
     }
 
@@ -2731,13 +2754,19 @@ export const getCalendarServiceById = async (req, res, next) => {
     res.set('Expires', '0')
     res.set('Surrogate-Control', 'no-store')
 
-    const { locationId } = req.query
+    const locationId = `${req.query.locationId || ''}`.trim()
     const { serviceId } = req.params
 
     if (!locationId || !serviceId) {
       return res.status(400).json({
         success: false,
         message: 'locationId and serviceId are required',
+      })
+    }
+    if (!canAccessLocation(req.user, locationId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this location',
       })
     }
 

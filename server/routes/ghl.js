@@ -18,6 +18,7 @@ import {
   testConnection,
   updateContact,
 } from '../controller/ghl.js'
+import { verifyToken } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
@@ -36,8 +37,8 @@ router.delete('/contacts/:contactId', deleteContact)
 // Other resource routes
 router.get('/opportunities', getOpportunities)
 router.get('/calendars', getCalendars)
-router.get('/calendar-services', getCalendarServices)
-router.get('/calendar-services/:serviceId', getCalendarServiceById)
+router.get('/calendar-services', verifyToken, getCalendarServices)
+router.get('/calendar-services/:serviceId', verifyToken, getCalendarServiceById)
 router.get('/bookings', getLocationBookingsByDate)
 router.get('/workflows', getWorkflows)
 router.get('/custom-fields', getCustomFields)

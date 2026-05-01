@@ -34,6 +34,7 @@ import {
     Zap,
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
+import { useSelector } from 'react-redux'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -56,6 +57,29 @@ const normalizeForSearch = (value) =>
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
+
+const resolveLocationId = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string') return value.trim()
+  return `${value.locationId || value._id || value.id || ''}`.trim()
+}
+
+const resolveManagementLocationId = (currentUser, brandingLocationId, serviceLocationId = '') =>
+  resolveLocationId(currentUser?.selectedLocation?.locationId) ||
+  resolveLocationId(brandingLocationId) ||
+  resolveLocationId(serviceLocationId) ||
+  resolveLocationId(currentUser?.spaLocation?.locationId)
+
+const getManagementLocationDebugContext = (
+  currentUser,
+  brandingLocationId,
+  serviceLocationId = ''
+) => ({
+  selectedLocationId: resolveLocationId(currentUser?.selectedLocation?.locationId),
+  spaLocationId: resolveLocationId(currentUser?.spaLocation?.locationId),
+  serviceLocationId: resolveLocationId(serviceLocationId),
+  brandingLocationId: resolveLocationId(brandingLocationId),
+})
 
 const normalizeMembershipPlans = (membership) => {
   if (!membership) return []
@@ -907,6 +931,7 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 // Complete Service Form with fixed linked services handling
 const ServiceForm = ({ service, onSave, onCancel }) => {
   const { branding, locationId: brandedLocationId } = useBranding()
+  const { currentUser } = useSelector((state) => state.user)
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = (() => {
     const cleaned = brandColor.replace('#', '')
@@ -965,10 +990,34 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
   const [showServiceModal, setShowServiceModal] = useState(false)
 
   // API hooks
-  const effectiveLocationId =
-    service?.locationId ||
-    brandedLocationId ||
-    ''
+  const effectiveLocationId = resolveManagementLocationId(
+    currentUser,
+    brandedLocationId,
+    service?.locationId
+  )
+
+  useEffect(() => {
+    const debugContext = getManagementLocationDebugContext(
+      currentUser,
+      brandedLocationId,
+      service?.locationId
+    )
+    console.log('[ServiceManagement][GHL dropdown] resolved location', {
+      ...debugContext,
+      effectiveLocationId,
+      serviceId: service?._id || '',
+      serviceName: service?.name || '',
+    })
+  }, [
+    currentUser?.selectedLocation?.locationId,
+    currentUser?.spaLocation?.locationId,
+    brandedLocationId,
+    service?.locationId,
+    service?._id,
+    service?.name,
+    effectiveLocationId,
+  ])
+
   const { data: categories = [], isLoading: categoriesLoading } =
     useCategories(
       true,
@@ -976,8 +1025,14 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     )
   const { data: ghlCalendarServicesData, isLoading: ghlCalendarServicesLoading } = useQuery({
     queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
-    queryFn: () => ghlService.getCalendarServices(effectiveLocationId),
-    enabled: !!effectiveLocationId,
+    queryFn: () => {
+      console.log('[ServiceManagement][GHL dropdown] fetching calendar services', {
+        locationId: effectiveLocationId,
+        queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
+      })
+      return ghlService.getCalendarServices(effectiveLocationId)
+    },
+    enabled: Boolean(effectiveLocationId),
     retry: false,
   })
   const ghlCalendarServices = useMemo(
@@ -2432,6 +2487,29 @@ const ServiceManagementPage = () => {
   const [selectedService, setSelectedService] = useState(null)
 
   const { locationId: brandedLocationId } = useBranding()
+  const { currentUser } = useSelector((state) => state.user)
+  const effectiveLocationId = resolveManagementLocationId(
+    currentUser,
+    brandedLocationId
+  )
+
+  useEffect(() => {
+    const debugContext = getManagementLocationDebugContext(
+      currentUser,
+      brandedLocationId
+    )
+    console.log('[ServiceManagement][page] resolved location', {
+      ...debugContext,
+      effectiveLocationId,
+      role: currentUser?.role || '',
+    })
+  }, [
+    currentUser?.selectedLocation?.locationId,
+    currentUser?.spaLocation?.locationId,
+    brandedLocationId,
+    currentUser?.role,
+    effectiveLocationId,
+  ])
 
   // API hooks
   const {
@@ -2440,7 +2518,7 @@ const ServiceManagementPage = () => {
     error: servicesError,
   } = useServices({
     search: searchTerm,
-    locationId: brandedLocationId,
+    locationId: effectiveLocationId,
     excludeTestUsers: true,
     excludeEmailDomain: 'test.com',
   })

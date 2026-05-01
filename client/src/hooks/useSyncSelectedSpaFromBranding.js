@@ -11,7 +11,7 @@ import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 
 const shouldSyncSelectedLocationForRole = (role) => {
-  if (['admin', 'super-admin', 'spa'].includes(role)) return false
+  if (['admin', 'super-admin'].includes(role)) return false
   return true
 }
 
@@ -58,6 +58,12 @@ export function useSyncSelectedSpaFromBranding() {
       inFlightRef.current = true
       setSpaSyncing(true)
       try {
+        console.log('[SpaSync] syncing selected spa from branding', {
+          role: currentUser?.role || '',
+          selectedLocationId: selectedId,
+          brandingLocationId: targetId,
+          pathname,
+        })
         const selectionResponse = await authService.selectSpa(targetId)
         if (cancelled) return
 
@@ -66,6 +72,10 @@ export function useSyncSelectedSpaFromBranding() {
         const selectedLocation =
           selectionResponse?.data?.user?.selectedLocation
         if (selectedLocation?.locationId) {
+          console.log('[SpaSync] selected spa synced', {
+            selectedLocationId: selectedLocation.locationId,
+            selectedLocationName: selectedLocation.locationName || '',
+          })
           dispatch(
             updateProfile({
               selectedLocation,
@@ -92,6 +102,12 @@ export function useSyncSelectedSpaFromBranding() {
       } catch (error) {
         if (!cancelled) {
           selectSpaFailedForTargetRef.current = targetId
+          console.error('[SpaSync] failed to sync selected spa from branding', {
+            role: currentUser?.role || '',
+            selectedLocationId: selectedId,
+            brandingLocationId: targetId,
+            message: error.response?.data?.message || error.message,
+          })
           const message =
             error.response?.data?.message ||
             'Could not switch to this location. Please try again.'
