@@ -473,7 +473,9 @@ const ServiceDetailPage = () => {
     subdomain: bookingSubdomain,
     serviceId: linkedGhlServiceId,
   });
-  const hasGhlBooking = ghlBookingConfig.isEnabled;
+  // Keep checkout inside this app so the selected slot is paid here and then
+  // synced into the linked GoHighLevel calendar by the server webhook.
+  const hasGhlBooking = false;
   const hasEmbeddedGhlBooking = Boolean(ghlBookingConfig.embedSrc);
   const shouldRenderEmbeddedBooking =
     hasEmbeddedGhlBooking && !isFrameLikelyBlocked(ghlBookingConfig.embedSrc);
@@ -500,10 +502,14 @@ const ServiceDetailPage = () => {
 
   const availableSlots = availabilityData?.slots || [];
   const availabilityMeta = availabilityData?.metadata || {};
-  const externalBookingsCount = availabilityMeta.externalBookingsCount || 0;
   const externalSourceUnavailable = Boolean(
     availabilityMeta.externalSourceUnavailable
   );
+  const ghlFreeSlotsUnavailable = Boolean(
+    availabilityMeta.ghlFreeSlotsUnavailable
+  );
+  const ghlFreeSlotsReason = availabilityMeta.ghlFreeSlotsReason || "";
+  const ghlCalendarMissing = Boolean(availabilityMeta.ghlCalendarMissing);
   const ghlCalendarName =
     availabilityMeta?.ghlCalendar?.name ||
     service?.ghlService?.name ||
@@ -1609,19 +1615,17 @@ const ServiceDetailPage = () => {
                           <div className="flex items-center justify-between mb-3">
                              <label className="block text-sm font-medium text-gray-700">Available Slots</label>
                              <div className="flex items-center gap-3">
-                               {selectedDate && !loadingAvailability && (
-                                 <span className="text-xs text-gray-500">
-                                   {externalSourceUnavailable
-                                     ? "GHL unavailable"
-                                     : ghlCalendarName
-                                     ? `${ghlCalendarName}: ${externalBookingsCount} booked`
-                                     : `GHL booked: ${externalBookingsCount}`}
-                                 </span>
-                               )}
+                               {selectedDate &&
+                                 !loadingAvailability &&
+                                 (externalSourceUnavailable || ghlCalendarName) && (
+                                   <span className="text-xs text-gray-500">
+                                     {externalSourceUnavailable ? "GHL unavailable" : ghlCalendarName}
+                                   </span>
+                                 )}
                               {loadingAvailability && (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--brand-primary)/0.10] px-2.5 py-1 text-xs font-semibold text-[color:var(--brand-primary)]">
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  Loading slots...
+                                  Checking available slots...
                                 </span>
                               )}
                              </div>
@@ -1684,8 +1688,20 @@ const ServiceDetailPage = () => {
                                </div>
                              ) : (
                                <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
-                                  <p className="text-gray-700 font-medium">No slots available for this date.</p>
-                                  <p className="text-sm text-gray-500 mt-1">Try another day for more availability.</p>
+                                  <p className="text-gray-700 font-medium">
+                                    {ghlCalendarMissing
+                                      ? "No GoHighLevel calendar linked."
+                                      : ghlFreeSlotsUnavailable
+                                      ? "Unable to load GoHighLevel slots."
+                                      : "No slots available for this date."}
+                                  </p>
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    {ghlCalendarMissing
+                                      ? "Link a calendar to this service before accepting bookings."
+                                      : ghlFreeSlotsUnavailable
+                                      ? ghlFreeSlotsReason || "Please try again in a moment."
+                                      : "Try another day for more availability."}
+                                  </p>
                                </div>
                              )
                           ) : (
