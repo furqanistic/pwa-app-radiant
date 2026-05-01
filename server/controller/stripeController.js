@@ -3616,7 +3616,7 @@ export const createCheckoutSession = async (req, res, next) => {
               refundedAt: new Date(),
               refundedBy: null,
             }
-            await payment.save()
+            if (typeof payment.save === 'function') await payment.save()
           }
 
           booking.paymentStatus = 'refunded'
@@ -5448,7 +5448,6 @@ async function handleCheckoutSessionCompleted(session) {
         booking.finalPrice,
         purchaseMethodCache
       )
-      totalPointsEarned += pointsEarned
 
       let spaOwnerId = paymentIntent?.metadata?.spaOwnerId || null
       let stripeAccountId = paymentIntent?.transfer_data?.destination || null
@@ -5507,14 +5506,77 @@ async function handleCheckoutSessionCompleted(session) {
       booking.pointsEarned = pointsEarned
       await booking.save()
 
-      // Activate membership on customer profile when a membership product is purchased.
       const service = await Service.findById(booking.serviceId)
+      const syncResult = await syncBookingToGhlWithRetry(booking, customerId)
+      if (!syncResult.ok) {
+        const syncReason = `${booking?.ghl?.syncError || 'Failed to sync booking to GHL'}`
+        const refundAmount = Math.round((Number(booking.finalPrice) || 0) * 100)
+
+        if (refundAmount > 0 && fallbackPaymentIntentId) {
+          try {
+            const refund = await stripe.refunds.create({
+              payment_intent: fallbackPaymentIntentId,
+              amount: refundAmount,
+              reason: 'requested_by_customer',
+              metadata: {
+                bookingId: booking._id.toString(),
+                customerId: `${customerId || ''}`,
+                syncFailure: 'true',
+                cartCheckout: 'true',
+              },
+            })
+
+            payment.status = 'refunded'
+            payment.refund = {
+              amount: refundAmount,
+              reason: syncReason,
+              stripeRefundId: refund?.id || null,
+              refundedAt: new Date(),
+              refundedBy: null,
+            }
+            if (typeof payment.save === 'function') await payment.save()
+          } catch (refundError) {
+            console.error('[Stripe webhook] Cart item auto-refund failed after GHL sync failure', {
+              bookingId: `${booking?._id || ''}`,
+              paymentIntentId: fallbackPaymentIntentId,
+              error: refundError?.response?.data || refundError?.message || refundError,
+            })
+          }
+        } else {
+          payment.status = 'refunded'
+          payment.refund = {
+            amount: 0,
+            reason: syncReason,
+            stripeRefundId: null,
+            refundedAt: new Date(),
+            refundedBy: null,
+          }
+          if (typeof payment.save === 'function') await payment.save()
+        }
+
+        booking.paymentStatus = 'refunded'
+        booking.status = 'cancelled'
+        booking.cancelledAt = new Date()
+        booking.cancelReason = `GHL sync failed: ${syncReason}`
+        booking.pointsEarned = 0
+        await booking.save()
+
+        console.warn('[Stripe webhook] Cart booking refunded due to GHL sync failure', {
+          bookingId: `${booking?._id || ''}`,
+          reason: syncReason,
+        })
+        continue
+      }
+
+      // Activate membership on customer profile only after the paid booking
+      // has been confirmed in GoHighLevel.
       await activateMembershipForCustomer({
         customerId,
         booking,
         service,
       })
-      await syncBookingToGhlWithRetry(booking, customerId)
+
+      totalPointsEarned += pointsEarned
     }
 
     // Award points to customer and handle deductions
@@ -5655,7 +5717,7 @@ async function handleCheckoutSessionCompleted(session) {
           refundedAt: new Date(),
           refundedBy: null,
         }
-        await payment.save()
+        if (typeof payment.save === 'function') await payment.save()
       } catch (refundError) {
         console.error('[Stripe webhook] Auto-refund failed after GHL sync failure', {
           bookingId: `${booking?._id || ''}`,
@@ -5672,7 +5734,7 @@ async function handleCheckoutSessionCompleted(session) {
         refundedAt: new Date(),
         refundedBy: null,
       }
-      await payment.save()
+      if (typeof payment.save === 'function') await payment.save()
     }
 
     booking.paymentStatus = 'refunded'

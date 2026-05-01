@@ -97,6 +97,12 @@ const normalizeMembershipPlans = (membership) => {
 const resolveGhlCalendarId = (value = {}) =>
   `${value?.calendarId || value?.calendarID || value?.calendar_id || value?.calendar?.id || value?.calendar?._id || ''}`.trim()
 
+const resolveValidGhlCalendarId = (value = {}) => {
+  const calendarId = resolveGhlCalendarId(value)
+  const serviceId = resolveGhlServiceId(value)
+  return calendarId && calendarId !== serviceId ? calendarId : ''
+}
+
 const resolveGhlCalendarName = (value = {}) =>
   `${value?.calendarName || value?.calendar?.name || value?.calendar?.title || value?.title || ''}`.trim()
 
@@ -1222,7 +1228,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     setFormData((prev) => ({
       ...prev,
       ghlCalendar: {
-        calendarId: resolveGhlCalendarId(selectedGhlService),
+        calendarId: resolveValidGhlCalendarId(selectedGhlService),
         name:
           resolveGhlCalendarName(selectedGhlService) ||
           resolveGhlServiceName(selectedGhlService),

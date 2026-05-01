@@ -128,13 +128,11 @@ export const getAvailability = async (req, res, next) => {
 
     const effectiveTimeZone = schedulingContext.calendarSelection.timeZone || ''
 
-    let potentialSlots = generateSlots(
-      '00:00',
-      '23:59',
-      duration,
-      date,
-      effectiveTimeZone
-    )
+    let potentialSlots = []
+    let ghlFreeSlotsUnavailable = false
+    let ghlFreeSlotsReason = ''
+    let ghlFreeSlotsSource = ''
+    const ghlCalendarMissing = !schedulingContext.calendarSelection.calendarId
 
     if (schedulingContext.calendarSelection.calendarId) {
       try {
@@ -143,12 +141,15 @@ export const getAvailability = async (req, res, next) => {
           schedulingContext.calendarSelection.calendarId,
           date
         )
+        ghlFreeSlotsUnavailable = Boolean(freeSlots.unavailable)
+        ghlFreeSlotsReason = freeSlots.reason || ''
+        ghlFreeSlotsSource = freeSlots.source || ''
 
         if (!schedulingContext.calendarSelection.timeZone && freeSlots.timeZone) {
           schedulingContext.calendarSelection.timeZone = freeSlots.timeZone
         }
 
-        if (Array.isArray(freeSlots.slots) && freeSlots.slots.length > 0) {
+        if (!freeSlots.unavailable && Array.isArray(freeSlots.slots)) {
           potentialSlots = freeSlots.slots.map((slotLabel) => {
             const window = buildBookingWindow(
               date,
@@ -164,6 +165,12 @@ export const getAvailability = async (req, res, next) => {
           })
         }
       } catch (slotError) {
+        ghlFreeSlotsUnavailable = true
+        ghlFreeSlotsReason =
+          slotError.response?.data?.message ||
+          slotError.response?.data?.msg ||
+          slotError.message ||
+          'Failed loading GoHighLevel free slots'
         console.warn(
           `Failed loading free slots for ${schedulingContext.calendarSelection.calendarId}:`,
           slotError.response?.data || slotError.message
@@ -198,7 +205,13 @@ export const getAvailability = async (req, res, next) => {
         metadata: {
           localBookingsCount: schedulingContext.localBookings.length,
           externalBookingsCount: schedulingContext.externalEvents.length,
-          externalSourceUnavailable: schedulingContext.externalSourceUnavailable,
+          externalSourceUnavailable:
+            schedulingContext.externalSourceUnavailable || ghlFreeSlotsUnavailable,
+          ghlFreeSlotsUnavailable,
+          ghlFreeSlotsReason,
+          ghlFreeSlotsSource,
+          ghlFreeSlotsCount: potentialSlots.length,
+          ghlCalendarMissing,
           ghlCalendar: schedulingContext.calendarSelection,
           effectiveTimeZone,
         },

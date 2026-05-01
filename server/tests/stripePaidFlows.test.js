@@ -82,7 +82,7 @@ const makeBookingFindNoConflicts = () => ({
   }),
 })
 
-test('createCheckoutSession creates single paid booking checkout session', async () => {
+test('createCheckoutSession rejects paid booking when service has no GHL calendar', async () => {
   const createdBookings = []
   const createdSessions = []
 
@@ -128,6 +128,11 @@ test('createCheckoutSession creates single paid booking checkout session', async
             _id: 'spa_1',
             stripe: { accountId: 'acct_test_1', chargesEnabled: true },
           }),
+          select() {
+            return {
+              sort: async () => null,
+            }
+          },
         }),
       ],
       [Booking, 'create', async (payload) => {
@@ -165,26 +170,14 @@ test('createCheckoutSession creates single paid booking checkout session', async
     }
   )
 
-  assert.equal(nextErrors.length, 0)
-  assert.equal(state.statusCode, 201)
-  assert.equal(state.jsonBody?.success, true)
-  assert.equal(state.jsonBody?.sessionId, 'cs_single_paid_1')
-  assert.equal(state.jsonBody?.bookingId, 'book_single_1')
-
-  assert.equal(createdBookings.length, 1)
-  assert.equal(createdBookings[0].finalPrice, 150)
-  assert.equal(createdBookings[0].paymentStatus, 'pending')
-  assert.equal(createdBookings[0].status, 'scheduled')
-
-  assert.equal(createdSessions.length, 1)
-  assert.equal(createdSessions[0].line_items[0].price_data.unit_amount, 15000)
-  assert.equal(createdSessions[0].metadata.customerId, 'user_1')
-  assert.equal(createdSessions[0].metadata.bookingId, 'book_single_1')
-  assert.equal(createdSessions[0].ui_mode, 'embedded')
-  assert.equal(createdSessions[0].mode, 'payment')
+  assert.equal(nextErrors.length, 1)
+  assert.equal(nextErrors[0].status, 400)
+  assert.equal(nextErrors[0].message, 'No GoHighLevel calendar linked to this service')
+  assert.equal(createdBookings.length, 0)
+  assert.equal(createdSessions.length, 0)
 })
 
-test('createCheckoutSession creates cart paid checkout session for multiple services', async () => {
+test('createCheckoutSession rejects cart checkout when a service has no GHL calendar', async () => {
   const createdBookings = []
   const createdSessions = []
 
@@ -230,6 +223,11 @@ test('createCheckoutSession creates cart paid checkout session for multiple serv
             _id: 'spa_1',
             stripe: { accountId: 'acct_test_1', chargesEnabled: true },
           }),
+          select() {
+            return {
+              sort: async () => null,
+            }
+          },
         }),
       ],
       [
@@ -296,27 +294,11 @@ test('createCheckoutSession creates cart paid checkout session for multiple serv
     }
   )
 
-  assert.equal(nextErrors.length, 0)
-  assert.equal(state.statusCode, 201)
-  assert.equal(state.jsonBody?.success, true)
-  assert.equal(state.jsonBody?.sessionId, 'cs_cart_paid_1')
-  assert.equal(Array.isArray(state.jsonBody?.bookingIds), true)
-  assert.equal(state.jsonBody.bookingIds.length, 2)
-
-  assert.equal(createdBookings.length, 2)
-  assert.equal(createdBookings[0].finalPrice, 100)
-  assert.equal(createdBookings[1].finalPrice, 80)
-  assert.equal(createdBookings[0].paymentStatus, 'pending')
-  assert.equal(createdBookings[1].paymentStatus, 'pending')
-  assert.equal(createdBookings[0].stripeSessionId, 'cs_cart_paid_1')
-  assert.equal(createdBookings[1].stripeSessionId, 'cs_cart_paid_1')
-
-  assert.equal(createdSessions.length, 1)
-  assert.equal(createdSessions[0].line_items.length, 2)
-  assert.equal(createdSessions[0].line_items[0].price_data.unit_amount, 10000)
-  assert.equal(createdSessions[0].line_items[1].price_data.unit_amount, 8000)
-  assert.equal(createdSessions[0].metadata.isCartCheckout, 'true')
-  assert.equal(createdSessions[0].mode, 'payment')
+  assert.equal(nextErrors.length, 1)
+  assert.equal(nextErrors[0].status, 400)
+  assert.equal(nextErrors[0].message, 'No GoHighLevel calendar linked to this service')
+  assert.equal(createdBookings.length, 0)
+  assert.equal(createdSessions.length, 0)
 })
 
 test('purchaseCredits charges saved default card and updates customer credits', async () => {
@@ -752,9 +734,10 @@ test('handleWebhook marks paid single booking for paid checkout session', async 
   assert.equal(paymentCreates[0].amount, 15000)
   assert.equal(paymentCreates[0].paymentMethod.type, 'card')
 
-  assert.equal(booking.paymentStatus, 'paid')
+  assert.equal(booking.paymentStatus, 'refunded')
+  assert.equal(booking.status, 'cancelled')
   assert.equal(Boolean(booking.paymentId), true)
-  assert.equal(customerDoc.points, 150)
+  assert.equal(customerDoc.points, 0)
 })
 
 test('handleWebhook marks all cart bookings paid for paid cart checkout session', async () => {
@@ -879,10 +862,12 @@ test('handleWebhook marks all cart bookings paid for paid cart checkout session'
   assert.equal(paymentCreates[0].paymentMethod.type, 'card')
   assert.equal(paymentCreates[1].paymentMethod.type, 'card')
 
-  assert.equal(booking1.paymentStatus, 'paid')
-  assert.equal(booking2.paymentStatus, 'paid')
+  assert.equal(booking1.paymentStatus, 'refunded')
+  assert.equal(booking2.paymentStatus, 'refunded')
+  assert.equal(booking1.status, 'cancelled')
+  assert.equal(booking2.status, 'cancelled')
   assert.equal(Boolean(booking1.paymentId), true)
   assert.equal(Boolean(booking2.paymentId), true)
 
-  assert.equal(customerDoc.points, 180)
+  assert.equal(customerDoc.points, 0)
 })

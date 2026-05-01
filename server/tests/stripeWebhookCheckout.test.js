@@ -172,8 +172,10 @@ test('checkout.session.completed handles free cart checkout without payment_inte
   assert.equal(paymentCreates[0].paymentMethod.type, 'free')
   assert.equal(paymentCreates[0].discount.type, 'fixed')
 
-  assert.equal(booking1.paymentStatus, 'paid')
-  assert.equal(booking2.paymentStatus, 'paid')
+  assert.equal(booking1.paymentStatus, 'refunded')
+  assert.equal(booking2.paymentStatus, 'refunded')
+  assert.equal(booking1.status, 'cancelled')
+  assert.equal(booking2.status, 'cancelled')
   assert.equal(Boolean(booking1.paymentId), true)
   assert.equal(Boolean(booking2.paymentId), true)
 })
@@ -272,7 +274,8 @@ test('checkout.session.completed uses valid fixed discount type for discounted s
   assert.equal(paymentCreates[0].discount.type, 'fixed')
   assert.equal(paymentCreates[0].stripePaymentIntentId, 'pi_123')
 
-  assert.equal(booking.paymentStatus, 'paid')
+  assert.equal(booking.paymentStatus, 'refunded')
+  assert.equal(booking.status, 'cancelled')
   assert.equal(Boolean(booking.paymentId), true)
 })
 

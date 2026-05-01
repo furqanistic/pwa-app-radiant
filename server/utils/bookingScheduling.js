@@ -21,16 +21,16 @@ export const getServiceCalendarSelection = (service = null) => {
   const calendar = service?.ghlCalendar || {}
   const linkedGhlServiceId = `${service?.ghlService?.serviceId || ''}`.trim()
   const rawCalendarId = `${calendar.calendarId || ''}`.trim()
-  const looksLikeServiceIdStoredAsCalendarId =
-    Boolean(rawCalendarId && linkedGhlServiceId && rawCalendarId === linkedGhlServiceId)
 
   return {
-    calendarId: looksLikeServiceIdStoredAsCalendarId ? '' : rawCalendarId,
+    calendarId: rawCalendarId,
     name: `${calendar.name || ''}`.trim(),
     timeZone:
       `${calendar.timeZone || calendar.calendarTimeZone || calendar.timezone || ''}`.trim(),
     userId: `${calendar.userId || ''}`.trim(),
     teamId: `${calendar.teamId || ''}`.trim(),
+    serviceId: linkedGhlServiceId,
+    serviceLocationId: `${service?.ghlService?.serviceLocationId || ''}`.trim(),
   }
 }
 
@@ -195,7 +195,48 @@ export const getDailySchedulingContext = async ({
   )
 
   const calendarSelection = getServiceCalendarSelection(service)
-  if (!calendarSelection.calendarId && (calendarSelection.name || service?.ghlCalendar?.calendarId)) {
+  let didResolveStoredCalendar = false
+
+  if (calendarSelection.calendarId) {
+    try {
+      const resolvedCalendar = await resolveCalendarDetailsForLocation(
+        locationId,
+        calendarSelection.calendarId
+      )
+      if (resolvedCalendar?.id) {
+        didResolveStoredCalendar = true
+        calendarSelection.calendarId = `${resolvedCalendar.id}`.trim()
+      }
+      if (resolvedCalendar?.name) {
+        calendarSelection.name = resolvedCalendar.name
+      }
+      if (resolvedCalendar?.timeZone) {
+        calendarSelection.timeZone = resolvedCalendar.timeZone
+      }
+      if (resolvedCalendar?.userId) {
+        calendarSelection.userId = resolvedCalendar.userId
+      }
+      if (resolvedCalendar?.teamId) {
+        calendarSelection.teamId = resolvedCalendar.teamId
+      }
+    } catch (error) {
+      console.warn(
+        `Failed resolving calendar details for ${calendarSelection.calendarId}:`,
+        error.response?.data || error.message
+      )
+    }
+  }
+
+  const hasStoredCalendarHint = Boolean(
+    calendarSelection.calendarId ||
+      calendarSelection.name ||
+      `${service?.ghlCalendar?.calendarId || ''}`.trim()
+  )
+
+  if (
+    hasStoredCalendarHint &&
+    (!didResolveStoredCalendar || !calendarSelection.calendarId || !calendarSelection.timeZone)
+  ) {
     try {
       const resolvedCalendar = await resolveUsableCalendarForLocation(locationId, {
         preferredCalendarId: `${service?.ghlCalendar?.calendarId || ''}`.trim(),
@@ -204,7 +245,7 @@ export const getDailySchedulingContext = async ({
       if (resolvedCalendar?.id) {
         calendarSelection.calendarId = `${resolvedCalendar.id}`.trim()
       }
-      if (resolvedCalendar?.name && !calendarSelection.name) {
+      if (resolvedCalendar?.name) {
         calendarSelection.name = `${resolvedCalendar.name}`.trim()
       }
       if (resolvedCalendar?.timeZone) {
@@ -219,32 +260,6 @@ export const getDailySchedulingContext = async ({
     } catch (error) {
       console.warn(
         `Failed resolving usable calendar for location ${locationId}:`,
-        error.response?.data || error.message
-      )
-    }
-  }
-
-  if (calendarSelection.calendarId && !calendarSelection.timeZone) {
-    try {
-      const resolvedCalendar = await resolveCalendarDetailsForLocation(
-        locationId,
-        calendarSelection.calendarId
-      )
-      if (resolvedCalendar?.timeZone) {
-        calendarSelection.timeZone = resolvedCalendar.timeZone
-      }
-      if (resolvedCalendar?.name && !calendarSelection.name) {
-        calendarSelection.name = resolvedCalendar.name
-      }
-      if (resolvedCalendar?.userId && !calendarSelection.userId) {
-        calendarSelection.userId = resolvedCalendar.userId
-      }
-      if (resolvedCalendar?.teamId && !calendarSelection.teamId) {
-        calendarSelection.teamId = resolvedCalendar.teamId
-      }
-    } catch (error) {
-      console.warn(
-        `Failed resolving calendar details for ${calendarSelection.calendarId}:`,
         error.response?.data || error.message
       )
     }
@@ -345,34 +360,50 @@ export const assertSlotAvailable = async ({
     excludeBookingId,
   })
 
-  if (context.calendarSelection.calendarId) {
-    try {
-      const freeSlots = await fetchCalendarFreeSlotsForDate(
-        locationId,
-        context.calendarSelection.calendarId,
-        date
-      )
-      if (!context.calendarSelection.timeZone && freeSlots.timeZone) {
-        context.calendarSelection.timeZone = freeSlots.timeZone
-      }
-      if (Array.isArray(freeSlots.slots) && freeSlots.slots.length > 0) {
-        const selectedTimeNormalized = `${time || ''}`.trim().toUpperCase()
-        const hasExactFreeSlot = freeSlots.slots.some(
-          (slot) => `${slot || ''}`.trim().toUpperCase() === selectedTimeNormalized
-        )
-        if (!hasExactFreeSlot) {
-          throw createError(409, 'Selected date and time are no longer available')
-        }
-      }
-    } catch (error) {
-      if (error?.status === 409 || error?.statusCode === 409) {
-        throw error
-      }
-      console.warn(
-        `Failed fetching GHL free slots for calendar ${context.calendarSelection.calendarId}:`,
-        error.response?.data || error.message
+  if (!context.calendarSelection.calendarId) {
+    throw createError(400, 'No GoHighLevel calendar linked to this service')
+  }
+
+  let freeSlots = null
+  try {
+    freeSlots = await fetchCalendarFreeSlotsForDate(
+      locationId,
+      context.calendarSelection.calendarId,
+      date
+    )
+    if (!context.calendarSelection.timeZone && freeSlots.timeZone) {
+      context.calendarSelection.timeZone = freeSlots.timeZone
+    }
+    if (freeSlots?.unavailable) {
+      throw createError(
+        503,
+        freeSlots.reason || 'Unable to load GoHighLevel availability'
       )
     }
+
+    const selectedTimeNormalized = `${time || ''}`.trim().toUpperCase()
+    const freeSlotLabels = Array.isArray(freeSlots?.slots) ? freeSlots.slots : []
+    const hasExactFreeSlot = freeSlotLabels.some(
+      (slot) => `${slot || ''}`.trim().toUpperCase() === selectedTimeNormalized
+    )
+    if (!hasExactFreeSlot) {
+      throw createError(409, 'Selected date and time are no longer available')
+    }
+  } catch (error) {
+    if (error?.status === 409 || error?.statusCode === 409) {
+      throw error
+    }
+    if (error?.status === 503 || error?.statusCode === 503) {
+      throw error
+    }
+    console.error(
+      `Failed verifying GHL free slots for calendar ${context.calendarSelection.calendarId}:`,
+      error.response?.data || error.message
+    )
+    throw createError(
+      503,
+      'Unable to verify GoHighLevel availability. Please try again.'
+    )
   }
 
   const requestedWindow = buildBookingWindow(
