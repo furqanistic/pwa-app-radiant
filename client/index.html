@@ -383,6 +383,23 @@
         line-height: 1;
       }
 
+      .splash-logo-img {
+        display: none;
+        width: 72%;
+        height: 72%;
+        max-width: 96px;
+        max-height: 96px;
+        object-fit: contain;
+      }
+
+      .splash-logo.has-image .splash-logo-img {
+        display: block;
+      }
+
+      .splash-logo.has-image .splash-mark {
+        display: none;
+      }
+
       .logo-ring {
         position: absolute;
         inset: -10px;
@@ -488,6 +505,10 @@
       @media (max-width: 480px) {
         .splash-logo { width: 100px; height: 100px; border-radius: 28px; }
         .splash-mark { font-size: 34px; }
+        .splash-logo-img {
+          max-width: 76px;
+          max-height: 76px;
+        }
         .splash-title { font-size: 28px; }
         .splash-subtitle { font-size: 13px; }
       }
@@ -513,6 +534,45 @@
 
       const API_BASE = `${API_ORIGIN}/api`
 
+      let CLOUDINARY_CLOUD_NAME = '%VITE_CLOUDINARY_CLOUD_NAME%'
+      if (CLOUDINARY_CLOUD_NAME.includes('%VITE_')) CLOUDINARY_CLOUD_NAME = ''
+
+      const isCloudinaryUrl = (url) =>
+        typeof url === 'string' && url.includes('res.cloudinary.com/')
+
+      const buildCloudinaryUrl = (publicId, options = {}) => {
+        if (!CLOUDINARY_CLOUD_NAME || !publicId) return publicId
+        const parts = ['f_auto', 'q_auto']
+        if (options.width) parts.push(`w_${options.width}`)
+        if (options.height) parts.push(`h_${options.height}`)
+        if (options.width || options.height) parts.push('c_fill')
+        const transform = parts.join(',')
+        return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${transform}/${publicId}`
+      }
+
+      const buildCloudinaryUrlFromFull = (url, options = {}) => {
+        if (!isCloudinaryUrl(url)) return url
+        const splitMarker = '/image/upload/'
+        const idx = url.indexOf(splitMarker)
+        if (idx === -1) return url
+        const base = url.slice(0, idx)
+        const rest = url.slice(idx + splitMarker.length)
+        const parts = ['f_auto', 'q_auto']
+        if (options.width) parts.push(`w_${options.width}`)
+        if (options.height) parts.push(`h_${options.height}`)
+        if (options.width || options.height) parts.push('c_fill')
+        const transform = parts.join(',')
+        return `${base}${splitMarker}${transform}/${rest}`
+      }
+
+      /** Matches client/src/lib/imageHelpers.js resolveImageUrl (Topbar logo). */
+      const resolveSplashLogoUrl = (value, fallback, options = {}) => {
+        if (!value || typeof value !== 'string') return fallback
+        if (isCloudinaryUrl(value)) return buildCloudinaryUrlFromFull(value, options)
+        if (value.startsWith('http')) return value
+        return buildCloudinaryUrl(value, options) || fallback
+      }
+
       const getCurrentSubdomain = () => {
         const host = window.location.hostname.toLowerCase()
         const parts = host.split('.')
@@ -530,6 +590,9 @@
         return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`
       }
 
+      const SPLASH_GENERIC_TITLE = 'Loading'
+      const SPLASH_GENERIC_SUBTITLE = ''
+
       const applySplashBranding = (branding) => {
         const primary = branding?.themeColor || '#ec4899'
         const rgb = hexToRgb(primary)
@@ -540,32 +603,75 @@
         const titleEl = document.querySelector('.splash-title')
         const subtitleEl = document.querySelector('.splash-subtitle')
         const markEl = document.querySelector('.splash-mark')
+        const logoImgEl = document.querySelector('.splash-logo-img')
+        const logoBoxEl = document.querySelector('.splash-logo')
         const contentEl = document.querySelector('.splash-content')
 
-        if (titleEl) titleEl.textContent = branding?.name || 'CxR Systems'
-        if (subtitleEl) subtitleEl.textContent = branding?.subtitle || branding?.tagline || 'Beauty & Wellness AI'
+        const name = (branding?.name || '').trim()
+        const tag = (branding?.subtitle || branding?.tagline || '').trim()
 
-        if (markEl) {
-          const source = (branding?.name || 'CxR Systems').trim()
-          const initials = source
+        if (titleEl) titleEl.textContent = name || SPLASH_GENERIC_TITLE
+        if (subtitleEl) {
+          subtitleEl.textContent = tag || SPLASH_GENERIC_SUBTITLE
+          subtitleEl.style.display = tag ? '' : 'none'
+        }
+
+        let initialsText = ''
+        if (name && markEl) {
+          initialsText = name
             .split(/\s+/)
             .filter(Boolean)
             .slice(0, 2)
             .map((part) => part[0])
             .join('')
             .toUpperCase()
-          markEl.textContent = initials || 'RA'
+        }
+        if (markEl) markEl.textContent = initialsText
+
+        const logoKey = branding?.logo || branding?.logoPublicId
+        const resolvedLogo =
+          logoKey && typeof logoKey === 'string'
+            ? resolveSplashLogoUrl(logoKey, branding?.logo, { width: 128, height: 128 })
+            : ''
+
+        if (logoBoxEl && logoImgEl) {
+          if (resolvedLogo) {
+            logoBoxEl.classList.add('has-image')
+            logoImgEl.alt = name || 'Brand logo'
+            logoImgEl.onerror = () => {
+              logoBoxEl.classList.remove('has-image')
+              logoImgEl.removeAttribute('src')
+              logoImgEl.alt = ''
+              logoImgEl.onerror = null
+            }
+            logoImgEl.src = resolvedLogo
+          } else {
+            logoBoxEl.classList.remove('has-image')
+            logoImgEl.removeAttribute('src')
+            logoImgEl.alt = ''
+            logoImgEl.onerror = null
+          }
         }
 
         if (contentEl) contentEl.classList.add('revealed')
+      }
+
+      const getStoredBrandingLocationId = () => {
+        try {
+          return localStorage.getItem('brandingLocationId')?.trim() || null
+        } catch {
+          return null
+        }
       }
 
       const getSplashBrandingCacheKey = () => {
         const params = new URLSearchParams(window.location.search)
         const spaLocationId = params.get('spa')?.trim()
         const subdomain = getCurrentSubdomain()
+        const storedLocationId = getStoredBrandingLocationId()
         if (spaLocationId) return `splash-branding:spa:${spaLocationId}`
         if (subdomain) return `splash-branding:subdomain:${subdomain}`
+        if (storedLocationId) return `splash-branding:location:${storedLocationId}`
         return 'splash-branding:default'
       }
 
@@ -593,12 +699,15 @@
           const params = new URLSearchParams(window.location.search)
           const spaLocationId = params.get('spa')?.trim()
           const subdomain = getCurrentSubdomain()
+          const storedLocationId = getStoredBrandingLocationId()
           
           let response
           if (spaLocationId) {
             response = await fetch(`${API_BASE}/branding/location/${encodeURIComponent(spaLocationId)}`)
           } else if (subdomain) {
             response = await fetch(`${API_BASE}/branding/${encodeURIComponent(subdomain)}`)
+          } else if (storedLocationId) {
+            response = await fetch(`${API_BASE}/branding/location/${encodeURIComponent(storedLocationId)}`)
           }
 
           if (response?.ok) {
@@ -703,6 +812,20 @@
       // Make function globally available for React
       window.hideSplashScreen = hideSplashScreen
 
+      // Second load in the same tab session (e.g. service worker activated → reload):
+      // show splash only briefly so first-open does not feel like a "double splash".
+      const SPLASH_QUICK_HIDE_MS = 120
+      const splashSessionKey = 'radiant-splash-session-dismissed'
+      let splashHideDelayMs = 400
+      try {
+        if (sessionStorage.getItem(splashSessionKey)) {
+          splashHideDelayMs = SPLASH_QUICK_HIDE_MS
+        }
+        sessionStorage.setItem(splashSessionKey, '1')
+      } catch {
+        // Ignore private mode / storage errors.
+      }
+
       // Auto-hide splash screen after 5 seconds (failsafe)
       setTimeout(() => {
         hideSplashScreen()
@@ -712,7 +835,7 @@
       window.addEventListener('load', () => {
         setTimeout(() => {
           hideSplashScreen()
-        }, 800)
+        }, splashHideDelayMs)
       })
     </script>
   </head>
@@ -728,6 +851,7 @@
         <div class="splash-logo-container">
           <div class="logo-ring"></div>
           <div class="splash-logo">
+            <img class="splash-logo-img" alt="" width="128" height="128" decoding="async" />
             <span class="splash-mark"></span>
           </div>
         </div>
@@ -742,9 +866,7 @@
         </div>
       </div>
 
-      <div class="splash-footer">
-        <p>Powered by CxR Systems</p>
-      </div>
+      <div class="splash-footer" style="display: none"></div>
     </div>
 
     <!-- React App Root -->

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Database,
   Edit3,
+  MapPin,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -63,6 +64,8 @@ const ServicesDatabasePage = () => {
 
   const [editingService, setEditingService] = useState(null)
   const [editForm, setEditForm] = useState(buildInitialForm(null))
+  const [movingService, setMovingService] = useState(null)
+  const [moveForm, setMoveForm] = useState({ locationId: '', categoryId: '' })
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -122,6 +125,20 @@ const ServicesDatabasePage = () => {
     },
   })
 
+  const moveServiceMutation = useMutation({
+    mutationFn: ({ id, payload }) => servicesService.updateService(id, payload),
+    onSuccess: () => {
+      toast.success('Service location updated')
+      setMovingService(null)
+      queryClient.invalidateQueries({ queryKey: ['services-database'] })
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+      refetch()
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update location')
+    },
+  })
+
   const services = databaseData?.data?.services || []
   const pagination = databaseData?.data?.pagination || {
     currentPage: 1,
@@ -132,6 +149,33 @@ const ServicesDatabasePage = () => {
   }
 
   const locations = locationsData?.data?.locations || []
+
+  const getLocationLabel = (targetLocationId) => {
+    if (!targetLocationId) return 'Unassigned'
+    const location = locations.find((item) => item.locationId === targetLocationId)
+    return location?.name || targetLocationId
+  }
+
+  const getCategoriesForLocation = (targetLocationId) => {
+    if (!targetLocationId) return []
+    return categories.filter((category) => category.locationId === targetLocationId)
+  }
+
+  const findMatchingCategoryId = (service, targetLocationId) => {
+    const sourceName = service?.categoryId?.name || ''
+    if (!sourceName || !targetLocationId) return ''
+
+    const match = categories.find(
+      (category) =>
+        category.locationId === targetLocationId &&
+        category.name?.trim().toLowerCase() === sourceName.trim().toLowerCase()
+    )
+
+    return match?._id || ''
+  }
+
+  const editCategoryOptions = getCategoriesForLocation(editForm.locationId)
+  const moveCategoryOptions = getCategoriesForLocation(moveForm.locationId)
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -150,6 +194,35 @@ const ServicesDatabasePage = () => {
   const closeEdit = () => {
     if (updateServiceMutation.isPending) return
     setEditingService(null)
+  }
+
+  const openMove = (service) => {
+    const nextLocationId = service.locationId || ''
+    setMovingService(service)
+    setMoveForm({
+      locationId: nextLocationId,
+      categoryId: findMatchingCategoryId(service, nextLocationId) || buildInitialForm(service).categoryId,
+    })
+  }
+
+  const closeMove = () => {
+    if (moveServiceMutation.isPending) return
+    setMovingService(null)
+  }
+
+  const handleMoveLocationChange = (nextLocationId) => {
+    setMoveForm({
+      locationId: nextLocationId,
+      categoryId: findMatchingCategoryId(movingService, nextLocationId),
+    })
+  }
+
+  const handleEditLocationChange = (nextLocationId) => {
+    setEditForm((prev) => ({
+      ...prev,
+      locationId: nextLocationId,
+      categoryId: findMatchingCategoryId(editingService, nextLocationId),
+    }))
   }
 
   const resetFilters = () => {
@@ -191,6 +264,22 @@ const ServicesDatabasePage = () => {
         duration: durationNum,
         status: editForm.status,
         locationId: editForm.locationId,
+      },
+    })
+  }
+
+  const handleSaveMove = () => {
+    if (!movingService?._id) return
+    if (!moveForm.locationId) return toast.error('Location is required')
+    if (!moveForm.categoryId) {
+      return toast.error('Choose a category for the target location')
+    }
+
+    moveServiceMutation.mutate({
+      id: movingService._id,
+      payload: {
+        locationId: moveForm.locationId,
+        categoryId: moveForm.categoryId,
       },
     })
   }
@@ -421,6 +510,13 @@ const ServicesDatabasePage = () => {
                   <Edit3 className='w-4 h-4' />
                   Edit Service
                 </button>
+                <button
+                  onClick={() => openMove(service)}
+                  className='w-full h-10 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 flex items-center justify-center gap-2'
+                >
+                  <MapPin className='w-4 h-4' />
+                  Change Location
+                </button>
               </div>
             ))
           )}
@@ -471,9 +567,14 @@ const ServicesDatabasePage = () => {
                       <td className='px-4 py-4 text-right text-sm font-semibold text-gray-900'>${service.basePrice}</td>
                       <td className='px-4 py-4 text-right text-sm font-semibold text-gray-900'>{service.duration}m</td>
                       <td className='px-4 py-4 text-right'>
-                        <button onClick={() => openEdit(service)} className='inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-white'>
-                          <Edit3 className='w-3.5 h-3.5' /> Edit
-                        </button>
+                        <div className='flex items-center justify-end gap-2'>
+                          <button onClick={() => openMove(service)} className='inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-white'>
+                            <MapPin className='w-3.5 h-3.5' /> Move
+                          </button>
+                          <button onClick={() => openEdit(service)} className='inline-flex items-center gap-1.5 px-3 h-8 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 hover:bg-white'>
+                            <Edit3 className='w-3.5 h-3.5' /> Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -483,8 +584,8 @@ const ServicesDatabasePage = () => {
           </div>
         </div>
 
-        <div className='fixed bottom-[72px] md:bottom-4 left-0 right-0 z-40 px-3 md:px-6 lg:px-8'>
-          <div className='max-w-7xl mx-auto bg-white/95 backdrop-blur border border-gray-200 rounded-2xl px-3 py-2.5 flex items-center justify-between shadow-lg'>
+        <div className='fixed bottom-[72px] left-3 right-3 z-40 md:hidden'>
+          <div className='bg-white/95 backdrop-blur border border-gray-200 rounded-2xl px-3 py-2.5 flex items-center justify-between shadow-lg'>
             <p className='text-xs font-semibold text-gray-700'>
               Page {pagination.currentPage} of {pagination.totalPages}
             </p>
@@ -500,6 +601,30 @@ const ServicesDatabasePage = () => {
                 onClick={() => setPage((prev) => prev + 1)}
                 disabled={!pagination.hasNext || isFetching}
                 className='h-9 px-3 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 disabled:opacity-50 flex items-center gap-1'
+              >
+                Next <ChevronRight className='w-4 h-4' />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className='hidden md:block pt-2'>
+          <div className='bg-white border border-gray-200 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm'>
+            <p className='text-sm font-semibold text-gray-700'>
+              Page {pagination.currentPage} of {pagination.totalPages}
+            </p>
+            <div className='flex items-center gap-2'>
+              <button
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={!pagination.hasPrev || isFetching}
+                className='h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 disabled:opacity-50 flex items-center gap-1.5'
+              >
+                <ChevronLeft className='w-4 h-4' /> Prev
+              </button>
+              <button
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={!pagination.hasNext || isFetching}
+                className='h-10 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 disabled:opacity-50 flex items-center gap-1.5'
               >
                 Next <ChevronRight className='w-4 h-4' />
               </button>
@@ -578,7 +703,7 @@ const ServicesDatabasePage = () => {
                 </div>
                 <div>
                   <label className='text-xs font-bold uppercase tracking-wider text-gray-500'>Location</label>
-                  <select value={editForm.locationId} onChange={(e) => setEditForm((prev) => ({ ...prev, locationId: e.target.value }))} className='mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-medium'>
+                  <select value={editForm.locationId} onChange={(e) => handleEditLocationChange(e.target.value)} className='mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-medium'>
                     <option value=''>Select location</option>
                     {locations.map((location) => (
                       <option key={location._id} value={location.locationId}>{location.name || location.locationId}</option>
@@ -588,11 +713,14 @@ const ServicesDatabasePage = () => {
                 <div>
                   <label className='text-xs font-bold uppercase tracking-wider text-gray-500'>Category</label>
                   <select value={editForm.categoryId} onChange={(e) => setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))} className='mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-medium'>
-                    <option value=''>Select category</option>
-                    {categories.map((category) => (
+                    <option value=''>{editForm.locationId ? 'Select category' : 'Select location first'}</option>
+                    {editCategoryOptions.map((category) => (
                       <option key={category._id} value={category._id}>{category.name}</option>
                     ))}
                   </select>
+                  {editForm.locationId && editCategoryOptions.length === 0 && (
+                    <p className='mt-1 text-xs font-medium text-red-500'>No categories exist for this location yet.</p>
+                  )}
                 </div>
                 <div>
                   <label className='text-xs font-bold uppercase tracking-wider text-gray-500'>Price</label>
@@ -615,6 +743,61 @@ const ServicesDatabasePage = () => {
                 <button onClick={closeEdit} disabled={updateServiceMutation.isPending} className='h-11 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 disabled:opacity-50'>Cancel</button>
                 <button onClick={handleSaveEdit} disabled={updateServiceMutation.isPending} className='h-11 px-5 rounded-xl text-white text-sm font-semibold disabled:opacity-50' style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))' }}>
                   {updateServiceMutation.isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {movingService && (
+          <div className='fixed inset-0 z-[130] bg-black/50 p-0 md:p-4 flex items-end md:items-center justify-center'>
+            <div className='bg-white rounded-t-3xl md:rounded-2xl w-full max-w-lg overflow-hidden'>
+              <div className='w-12 h-1.5 bg-gray-200 rounded-full mx-auto mt-3 mb-2 md:hidden' />
+              <div className='px-5 py-4 border-b border-gray-100 flex items-center justify-between'>
+                <div>
+                  <h3 className='text-lg font-bold text-gray-900'>Change Location</h3>
+                  <p className='mt-0.5 text-sm font-medium text-gray-500'>{movingService.name}</p>
+                </div>
+                <button onClick={closeMove} disabled={moveServiceMutation.isPending} className='p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50'>
+                  <X className='w-5 h-5 text-gray-500' />
+                </button>
+              </div>
+
+              <div className='p-4 md:p-5 space-y-4'>
+                <div className='rounded-2xl border border-gray-100 bg-gray-50 p-3'>
+                  <p className='text-xs font-bold uppercase tracking-wider text-gray-500'>Current Location</p>
+                  <p className='mt-1 text-sm font-bold text-gray-900'>{movingService.locationName || getLocationLabel(movingService.locationId)}</p>
+                  <p className='text-xs text-gray-500'>{movingService.locationId || 'N/A'}</p>
+                </div>
+
+                <div>
+                  <label className='text-xs font-bold uppercase tracking-wider text-gray-500'>New Location</label>
+                  <select value={moveForm.locationId} onChange={(e) => handleMoveLocationChange(e.target.value)} className='mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-medium'>
+                    <option value=''>Select location</option>
+                    {locations.map((location) => (
+                      <option key={location._id} value={location.locationId}>{location.name || location.locationId}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className='text-xs font-bold uppercase tracking-wider text-gray-500'>Category In New Location</label>
+                  <select value={moveForm.categoryId} onChange={(e) => setMoveForm((prev) => ({ ...prev, categoryId: e.target.value }))} className='mt-1 w-full h-11 rounded-xl border border-gray-200 px-3 text-sm font-medium'>
+                    <option value=''>{moveForm.locationId ? 'Select category' : 'Select location first'}</option>
+                    {moveCategoryOptions.map((category) => (
+                      <option key={category._id} value={category._id}>{category.name}</option>
+                    ))}
+                  </select>
+                  {moveForm.locationId && moveCategoryOptions.length === 0 && (
+                    <p className='mt-1 text-xs font-medium text-red-500'>No categories exist for this location yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className='px-4 md:px-5 pb-4 md:pb-5 flex items-center justify-end gap-3 border-t border-gray-100 pt-4'>
+                <button onClick={closeMove} disabled={moveServiceMutation.isPending} className='h-11 px-4 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 disabled:opacity-50'>Cancel</button>
+                <button onClick={handleSaveMove} disabled={moveServiceMutation.isPending} className='h-11 px-5 rounded-xl text-white text-sm font-semibold disabled:opacity-50' style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))' }}>
+                  {moveServiceMutation.isPending ? 'Moving...' : 'Update Location'}
                 </button>
               </div>
             </div>

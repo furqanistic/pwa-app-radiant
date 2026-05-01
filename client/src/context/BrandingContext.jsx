@@ -134,8 +134,8 @@ export const BrandingProvider = ({ children }) => {
   // Update document title and favicon when branding changes
   useEffect(() => {
     if (branding) {
-      // Update title
-      document.title = `${branding.name} - CxR Systems`;
+      // Tenant-facing title only (see index.html splash — same name source)
+      document.title = (branding.name && branding.name.trim()) || 'Beauty & Wellness';
       
       // Update favicon
       if (branding.favicon || branding.faviconPublicId) {
@@ -158,10 +158,32 @@ export const BrandingProvider = ({ children }) => {
       }
     } else {
       // Primary default title
-      document.title = "CxR Systems - Luxury Beauty Management";
+      document.title = 'Beauty & Wellness';
       document.documentElement.style.setProperty('--brand-primary', '#ec4899'); // Default pink
     }
   }, [branding]);
+
+  // Persist branding JSON for the inline splash in index.html (same keys as getSplashBrandingCacheKey there).
+  useEffect(() => {
+    if (!branding) return;
+    try {
+      const spaParam = new URLSearchParams(location.search).get('spa')?.trim();
+      if (spaParam) {
+        localStorage.setItem(`splash-branding:spa:${spaParam}`, JSON.stringify(branding));
+        return;
+      }
+      if (subdomain) {
+        localStorage.setItem(`splash-branding:subdomain:${subdomain}`, JSON.stringify(branding));
+        return;
+      }
+      const id = locationId?.trim();
+      if (id) {
+        localStorage.setItem(`splash-branding:location:${id}`, JSON.stringify(branding));
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, [branding, location.search, subdomain, locationId]);
 
   const value = {
     branding,
