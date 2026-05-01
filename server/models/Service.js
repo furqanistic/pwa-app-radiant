@@ -260,6 +260,14 @@ const ServiceSchema = new mongoose.Schema(
 
     // ✅ NEW: Linked services as add-ons
     linkedServices: [LinkedServiceSchema],
+    showPriceRange: {
+      type: Boolean,
+      default: false,
+    },
+    offerDiscountListPrice: {
+      type: Boolean,
+      default: false,
+    },
 
     // Per-membership-plan service pricing
     membershipPricing: [MembershipPricingSchema],

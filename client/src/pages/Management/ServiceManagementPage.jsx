@@ -6,6 +6,7 @@ import {
     useCreateService,
     useDeleteCategory,
     useDeleteService,
+    useService,
     useServices,
     useUpdateCategory,
     useUpdateService,
@@ -35,6 +36,7 @@ import {
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
 import { resolveImageUrl } from '@/lib/imageHelpers'
@@ -190,16 +192,6 @@ const ServiceSelectionModal = ({
     })
   }
 
-  const handleCustomPriceChange = (serviceId, field, value) => {
-    setCustomPricing((prev) => ({
-      ...prev,
-      [serviceId]: {
-        ...prev[serviceId],
-        [field]: value,
-      },
-    }))
-  }
-
   const handleConfirm = () => {
     // Combine selected services with their custom pricing
     const servicesWithCustomPricing = selectedServices.map((service) => ({
@@ -333,37 +325,23 @@ const ServiceSelectionModal = ({
                       </div>
                     </div>
 
-                    {/* Custom Pricing Section (only show if selected) */}
+                    {/* Add-on pricing summary (only show if selected) */}
                     {isSelected && (
                       <div className='px-4 pb-4 border-t border-pink-200 bg-pink-25'>
                         <div className='pt-4'>
                           <h4 className='text-sm font-semibold text-gray-700 mb-3'>
-                            Customize Add-on Pricing & Duration
+                            Add-on Pricing & Duration
                           </h4>
                           <div className='grid grid-cols-2 gap-4'>
                             <div>
                               <label className='block text-xs font-medium text-gray-600 mb-1'>
                                 Add-on Price ($)
                               </label>
-                              <input
-                                type='number'
-                                min='0'
-                                step='0.01'
-                                value={
-                                  customPricing[service._id]?.customPrice ||
-                                  service.basePrice
-                                }
-                                onChange={(e) =>
-                                  handleCustomPriceChange(
-                                    service._id,
-                                    'customPrice',
-                                    e.target.value
-                                  )
-                                }
-                                className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] text-sm'
-                                placeholder={service.basePrice.toString()}
-                                onClick={(e) => e.stopPropagation()}
-                              />
+                              <div className='flex h-8 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-700'>
+                                $
+                                {customPricing[service._id]?.customPrice ||
+                                  service.basePrice}
+                              </div>
                               <p className='text-xs text-gray-500 mt-1'>
                                 Original: ${service.basePrice}
                               </p>
@@ -372,24 +350,11 @@ const ServiceSelectionModal = ({
                               <label className='block text-xs font-medium text-gray-600 mb-1'>
                                 Add-on Duration (min)
                               </label>
-                              <input
-                                type='number'
-                                min='1'
-                                value={
-                                  customPricing[service._id]?.customDuration ||
-                                  service.duration
-                                }
-                                onChange={(e) =>
-                                  handleCustomPriceChange(
-                                    service._id,
-                                    'customDuration',
-                                    e.target.value
-                                  )
-                                }
-                                className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] text-sm'
-                                placeholder={service.duration.toString()}
-                                onClick={(e) => e.stopPropagation()}
-                              />
+                              <div className='flex h-8 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-700'>
+                                {customPricing[service._id]?.customDuration ||
+                                  service.duration}{' '}
+                                min
+                              </div>
                               <p className='text-xs text-gray-500 mt-1'>
                                 Original: {service.duration} min
                               </p>
@@ -934,6 +899,13 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
   )
 }
 
+const initialServiceBasePrice = (svc) => {
+  if (!svc) return ''
+  if (!svc.showPriceRange) return svc.basePrice ?? ''
+  if (svc.offerDiscountListPrice) return svc.basePrice || ''
+  return 0
+}
+
 // Complete Service Form with fixed linked services handling
 const ServiceForm = ({ service, onSave, onCancel }) => {
   const { branding, locationId: brandedLocationId } = useBranding()
@@ -954,7 +926,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     name: service?.name || '',
     description: service?.description || '',
     categoryId: service?.categoryId?._id || service?.categoryId || '',
-    basePrice: service?.basePrice || '',
+    basePrice: initialServiceBasePrice(service),
     duration: service?.duration || '',
     discount: service?.discount || {
       percentage: 0,
@@ -968,6 +940,8 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     status: service?.status || 'active',
     subTreatments: service?.subTreatments || [],
     linkedServices: service?.linkedServices || [],
+    showPriceRange: service?.showPriceRange === true,
+    offerDiscountListPrice: service?.offerDiscountListPrice === true,
     membershipPricing: service?.membershipPricing || [],
     creditValue: Number.isFinite(Number(service?.creditValue))
       ? Number(service.creditValue)
@@ -1122,7 +1096,7 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
         name: service.name || '',
         description: service.description || '',
         categoryId: service.categoryId?._id || service.categoryId || '',
-        basePrice: service.basePrice || '',
+        basePrice: initialServiceBasePrice(service),
         duration: service.duration || '',
         discount: service.discount || {
           percentage: 0,
@@ -1136,6 +1110,8 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
         status: service.status || 'active',
         subTreatments: service.subTreatments || [],
         linkedServices: formattedLinkedServices,
+        showPriceRange: service.showPriceRange === true,
+        offerDiscountListPrice: service.offerDiscountListPrice === true,
         membershipPricing: Array.isArray(service.membershipPricing)
           ? service.membershipPricing.map((entry) => ({
               membershipPlanId: entry.membershipPlanId || null,
@@ -1184,8 +1160,16 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
     if (!formData.description.trim())
       newErrors.description = 'Description is required'
     if (!formData.categoryId) newErrors.categoryId = 'Category is required'
-    if (!formData.basePrice || formData.basePrice <= 0)
+    if (!formData.showPriceRange && (!formData.basePrice || formData.basePrice <= 0))
       newErrors.basePrice = 'Valid price required'
+    if (
+      formData.showPriceRange &&
+      formData.offerDiscountListPrice &&
+      (!formData.basePrice || formData.basePrice <= 0)
+    ) {
+      newErrors.basePrice =
+        'Enter a list price to show in the catalog (e.g. before discount)'
+    }
     if (!formData.duration || formData.duration <= 0)
       newErrors.duration = 'Valid duration required'
     if (!formData.limit || formData.limit <= 0)
@@ -1307,7 +1291,18 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
       }
 
       // Ensure numeric fields are properly formatted
-      if (submissionData.basePrice) {
+      submissionData.showPriceRange = Boolean(submissionData.showPriceRange)
+      submissionData.offerDiscountListPrice = Boolean(
+        submissionData.offerDiscountListPrice
+      )
+
+      if (!submissionData.showPriceRange) {
+        submissionData.offerDiscountListPrice = false
+      }
+
+      if (submissionData.showPriceRange && !submissionData.offerDiscountListPrice) {
+        submissionData.basePrice = 0
+      } else {
         submissionData.basePrice = parseFloat(submissionData.basePrice)
       }
       if (submissionData.duration) {
@@ -1617,10 +1612,61 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
               )}
             </div>
 
-            <div>
-              <label className='block text-sm font-semibold text-gray-700 mb-2'>
-                Base Price ($) *
+            <div
+              className={`rounded-xl border p-4 transition-colors ${
+                formData.showPriceRange
+                  ? 'border-slate-200 bg-slate-50/90'
+                  : 'border-transparent p-0'
+              }`}
+            >
+              <label
+                className={`mb-2 block text-sm font-semibold ${
+                  formData.showPriceRange && !formData.offerDiscountListPrice
+                    ? 'text-slate-500'
+                    : 'text-gray-700'
+                }`}
+              >
+                {!formData.showPriceRange
+                  ? 'Base price ($) *'
+                  : formData.offerDiscountListPrice
+                    ? 'List price ($) * — shown in catalog'
+                    : 'Base price ($)'}
+                {formData.showPriceRange && !formData.offerDiscountListPrice && (
+                  <span className='ml-2 text-xs font-normal normal-case text-slate-500'>
+                    (locked — add-on prices drive the catalog range)
+                  </span>
+                )}
               </label>
+
+              {formData.showPriceRange && (
+                <label className='mb-3 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-white/90 px-3 py-3'>
+                  <input
+                    type='checkbox'
+                    checked={formData.offerDiscountListPrice}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setFormData((prev) => ({
+                        ...prev,
+                        offerDiscountListPrice: on,
+                        basePrice: on ? prev.basePrice || '' : 0,
+                      }))
+                    }}
+                    className='mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]'
+                    disabled={isSubmitting}
+                  />
+                  <span className='text-xs leading-snug text-slate-700'>
+                    <span className='block font-semibold text-slate-900'>
+                      I want to offer a list price (e.g. before discount)
+                    </span>
+                    <span className='mt-1 block text-slate-600'>
+                      Enable this to set a price clients see as the main amount
+                      on the catalog. Optional add-ons still appear as a second
+                      line from the lowest add-on price to the highest.
+                    </span>
+                  </span>
+                </label>
+              )}
+
               <input
                 type='number'
                 value={formData.basePrice}
@@ -1630,15 +1676,55 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                     basePrice: parseFloat(e.target.value) || '',
                   })
                 }
-                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
-                  errors.basePrice ? 'border-red-300' : 'border-gray-300'
+                className={`w-full rounded-lg border px-4 h-8 focus:outline-none ${
+                  formData.showPriceRange && !formData.offerDiscountListPrice
+                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500 placeholder:text-slate-400 shadow-inner'
+                    : `focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
+                        errors.basePrice ? 'border-red-300' : 'border-gray-300'
+                      }`
                 }`}
                 placeholder='450'
                 min='0'
                 step='0.01'
-                disabled={isSubmitting}
+                disabled={
+                  isSubmitting ||
+                  (formData.showPriceRange && !formData.offerDiscountListPrice)
+                }
+                aria-disabled={
+                  formData.showPriceRange && !formData.offerDiscountListPrice
+                }
               />
-              <p className='text-[10px] text-gray-500 mt-1'>The starting price for this service. Variations can be added below.</p>
+              {formData.showPriceRange && !formData.offerDiscountListPrice ? (
+                <div className='mt-3 space-y-2 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2.5 text-[11px] leading-relaxed text-slate-600'>
+                  <p className='font-semibold text-slate-700'>
+                    Why base price is zero
+                  </p>
+                  <p>
+                    The catalog builds the visible range from your{' '}
+                    <span className='font-medium'>linked add-ons</span> only:
+                    the <span className='font-medium'>cheapest add-on</span> is
+                    the low end and the{' '}
+                    <span className='font-medium'>most expensive add-on</span> is
+                    the high end. Turn on{' '}
+                    <span className='font-medium'>list price</span> above if you
+                    want a single headline price (for example a pre-discount
+                    amount) shown instead.
+                  </p>
+                </div>
+              ) : null}
+              {formData.showPriceRange && formData.offerDiscountListPrice ? (
+                <p className='mt-2 text-[10px] text-slate-600'>
+                  Clients see this amount as the main catalog price. Add-on
+                  prices still define the optional range line underneath when you
+                  have linked add-ons.
+                </p>
+              ) : null}
+              {!formData.showPriceRange ? (
+                <p className='text-[10px] text-gray-500 mt-1'>
+                  The starting price for this service. Variations can be added
+                  below.
+                </p>
+              ) : null}
               {errors.basePrice && (
                 <p className='text-red-500 text-xs mt-1'>{errors.basePrice}</p>
               )}
@@ -2266,6 +2352,55 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
           </div>
 
           <div className='space-y-4'>
+            <div className='flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between'>
+              <div>
+                <p className='text-sm font-semibold text-gray-900'>
+                  Catalog Price Display
+                </p>
+                <p className='text-xs text-gray-500'>
+                  When on, the catalog can show prices from your add-ons only
+                  (lowest to highest add-on), or you can optionally set a list
+                  price below. Base price stays at zero unless you enable list
+                  price.
+                </p>
+              </div>
+              <label className='inline-flex cursor-pointer items-center gap-3'>
+                <span className='text-sm font-semibold text-gray-700'>
+                  Show Price Range
+                </span>
+                <input
+                  type='checkbox'
+                  checked={formData.showPriceRange}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setFormData((prev) => ({
+                      ...prev,
+                      showPriceRange: checked,
+                      offerDiscountListPrice: false,
+                      basePrice: checked
+                        ? 0
+                        : service
+                          ? service.basePrice ?? ''
+                          : '',
+                    }))
+                  }}
+                  className='sr-only'
+                  disabled={isSubmitting}
+                />
+                <span
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.showPriceRange ? 'bg-green-600' : 'bg-gray-300'
+                  } ${isSubmitting ? 'opacity-60' : ''}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      formData.showPriceRange ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </span>
+              </label>
+            </div>
+
             {formData.linkedServices.length === 0 ? (
               <div className='text-center py-8 border-2 border-dashed border-pink-200 rounded-lg bg-pink-50'>
                 <Zap className='w-8 h-8 text-pink-400 mx-auto mb-2' />
@@ -2491,6 +2626,9 @@ const ServiceManagementPage = () => {
   const [view, setView] = useState('grid')
   const [currentView, setCurrentView] = useState('list')
   const [selectedService, setSelectedService] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const editServiceId = searchParams.get('editService')
+  const formMode = searchParams.get('mode')
 
   const { locationId: brandedLocationId } = useBranding()
   const { currentUser } = useSelector((state) => state.user)
@@ -2530,6 +2668,9 @@ const ServiceManagementPage = () => {
   })
 
   const { data: categories = [] } = useCategories(true)
+  const { data: serviceFromUrl } = useService(editServiceId, {
+    enabled: Boolean(editServiceId),
+  })
 
   const deleteServiceMutation = useDeleteService({
     onSuccess: () => {
@@ -2557,14 +2698,41 @@ const ServiceManagementPage = () => {
     })
   }, [services, searchTerm])
 
+  useEffect(() => {
+    if (formMode === 'create') {
+      setSelectedService(null)
+      setCurrentView('form')
+      return
+    }
+
+    if (!editServiceId) {
+      if (currentView === 'form') {
+        setSelectedService(null)
+        setCurrentView('list')
+      }
+      return
+    }
+
+    const serviceToEdit =
+      serviceFromUrl ||
+      services.find((service) => String(service._id) === String(editServiceId))
+
+    if (!serviceToEdit) return
+
+    setSelectedService(serviceToEdit)
+    setCurrentView('form')
+  }, [currentView, editServiceId, formMode, serviceFromUrl, services])
+
   const handleAddService = () => {
     setSelectedService(null)
     setCurrentView('form')
+    setSearchParams({ mode: 'create' })
   }
 
   const handleEditService = (service) => {
     setSelectedService(service)
     setCurrentView('form')
+    setSearchParams({ editService: service._id })
   }
 
   const handleDeleteService = (service) => {
@@ -2576,11 +2744,13 @@ const ServiceManagementPage = () => {
   const handleFormSave = () => {
     setCurrentView('list')
     setSelectedService(null)
+    setSearchParams({})
   }
 
   const handleFormCancel = () => {
     setCurrentView('list')
     setSelectedService(null)
+    setSearchParams({})
   }
 
   // Loading state

@@ -72,6 +72,80 @@ const getBestMemberDealPrice = (service) => {
   return Math.min(...activePrices)
 }
 
+const getFinitePrice = (value) => {
+  const price = Number(value)
+  return Number.isFinite(price) && price >= 0 ? price : null
+}
+
+const getLinkedServicePrice = (linkedService) => {
+  const customPrice = getFinitePrice(linkedService?.customPrice)
+  if (customPrice !== null) return customPrice
+
+  const finalPrice = getFinitePrice(linkedService?.finalPrice)
+  if (finalPrice !== null) return finalPrice
+
+  return getFinitePrice(linkedService?.basePrice) || 0
+}
+
+const getCatalogPriceInfo = (service) => {
+  const dbBase = getFinitePrice(service?.basePrice) || 0
+  const addOnPrices = Array.isArray(service?.linkedServices)
+    ? service.linkedServices
+        .filter((linkedService) => linkedService?.isActive !== false)
+        .map(getLinkedServicePrice)
+        .filter((price) => Number.isFinite(price) && price >= 0)
+    : []
+  const rangeMode = service?.showPriceRange === true
+  const hasLinkedAddons = addOnPrices.length > 0
+  const minAddon = hasLinkedAddons ? Math.min(...addOnPrices) : 0
+  const maxAddon = hasLinkedAddons ? Math.max(...addOnPrices) : 0
+  const addonRangeActive = rangeMode && hasLinkedAddons
+  const addonSpread = maxAddon > minAddon
+  const offerListPrice =
+    rangeMode &&
+    service?.offerDiscountListPrice === true &&
+    dbBase > 0
+
+  if (offerListPrice) {
+    return {
+      regularPrice: dbBase,
+      priceDisplay: formatPrice(dbBase),
+      priceLabel: 'Regular price',
+      secondaryLine: addonRangeActive
+        ? addonSpread
+          ? `Optional add-ons from ${formatPrice(minAddon)} to ${formatPrice(maxAddon)}`
+          : `Optional add-ons from ${formatPrice(minAddon)}`
+        : null,
+      bookAnchor: dbBase,
+      bookFromRange: false,
+    }
+  }
+
+  if (addonRangeActive) {
+    return {
+      regularPrice: minAddon,
+      priceDisplay: addonSpread
+        ? `${formatPrice(minAddon)} - ${formatPrice(maxAddon)}`
+        : formatPrice(minAddon),
+      priceLabel: 'Price range',
+      secondaryLine: addonSpread
+        ? `Based on add-on prices up to ${formatPrice(maxAddon)}`
+        : null,
+      bookAnchor: minAddon,
+      bookFromRange: true,
+    }
+  }
+
+  return {
+    regularPrice: dbBase,
+    priceDisplay: formatPrice(dbBase),
+    priceLabel: 'Regular price',
+    secondaryLine: null,
+    bookAnchor: dbBase,
+    bookFromRange: false,
+  }
+}
+
 const isMembershipEligible = (currentUser) => {
   if (!currentUser) return false
   if (['super-admin', 'admin', 'spa', 'enterprise'].includes(currentUser.role)) {
@@ -138,7 +212,14 @@ const ServiceCard = ({
   locationMembershipPlans = [],
   onViewMembership,
 }) => {
-  const regularPrice = Number(service?.basePrice) || 0
+  const {
+    regularPrice,
+    priceDisplay,
+    priceLabel,
+    secondaryLine,
+    bookAnchor,
+    bookFromRange,
+  } = getCatalogPriceInfo(service)
   const memberDealPrice = getBestMemberDealPrice(service)
   const hasMemberDeal =
     Number.isFinite(memberDealPrice) &&
@@ -153,7 +234,12 @@ const ServiceCard = ({
   const description = service?.description || 'Personalized treatment tailored to your wellness goals.'
   const categoryLabel = service.categoryId?.name || 'Service'
   const durationLabel = service?.duration ? `${service.duration} mins` : 'Flexible time'
-  const bookLabel = regularPrice > 0 ? `Book for ${formatPrice(regularPrice)}` : 'Book now'
+  const bookLabel =
+    bookAnchor > 0
+      ? bookFromRange
+        ? `Book from ${formatPrice(bookAnchor)}`
+        : `Book for ${formatPrice(bookAnchor)}`
+      : 'Book now'
   const saveLabel =
     savePercent > 0 ? `Save ${savePercent}%` : 'Member deal'
   const cardStyle = isMembership
@@ -240,15 +326,20 @@ const ServiceCard = ({
         </div>
 
         <div
-          className='mb-2 rounded-[1.05rem] border bg-white px-3 py-2.5 sm:mb-2.5 sm:rounded-[1.15rem] sm:px-3.5 sm:py-3'
+          className='mb-2 mt-auto rounded-[1.05rem] border bg-white px-3 py-2.5 sm:mb-2.5 sm:rounded-[1.15rem] sm:px-3.5 sm:py-3'
           style={regularPriceStyle}
         >
           <p className='text-[0.7rem] font-medium tracking-[-0.01em] text-slate-500 sm:text-[0.74rem]'>
-            Regular Price
+            {priceLabel}
           </p>
-          <p className='mt-1 text-[1.95rem] font-semibold leading-none tracking-[-0.05em] text-slate-950 sm:text-[2.15rem]'>
-            {formatPrice(regularPrice)}
+          <p className='mt-1 text-[1.75rem] font-semibold leading-none tracking-[-0.05em] text-slate-950 sm:text-[1.95rem]'>
+            {priceDisplay}
           </p>
+          {secondaryLine && (
+            <p className='mt-1.5 text-[0.68rem] font-medium leading-snug text-slate-500 sm:text-[0.72rem]'>
+              {secondaryLine}
+            </p>
+          )}
         </div>
 
         {hasMemberDeal && (
@@ -311,7 +402,7 @@ const ServiceCard = ({
           </div>
         )}
 
-        <div className='mt-auto flex items-center gap-2 pt-0.5'>
+        <div className='flex items-center gap-2 pt-0.5'>
           <div className='inline-flex min-h-[2.35rem] shrink-0 items-center justify-center gap-1.5 self-start rounded-full border border-slate-200/80 bg-slate-100/85 px-2.5 text-[0.68rem] font-medium uppercase tracking-[0.08em] text-slate-500 sm:min-w-[7.25rem] sm:px-3 sm:text-[0.72rem]'>
             <Clock size={14} />
             {durationLabel}

@@ -18,6 +18,8 @@ export const validateServiceData = async (req, res, next) => {
       linkedServices, // NEW: Added linkedServices validation
       membershipPricing,
       creditValue,
+      showPriceRange,
+      offerDiscountListPrice,
       ghlCalendar,
       ghlService,
       ghlBooking,
@@ -60,7 +62,7 @@ export const validateServiceData = async (req, res, next) => {
       } else if (basePrice !== undefined) {
         const price = parseFloat(basePrice)
         if (isNaN(price) || price < 0) {
-          errors.push('Base price must be a valid positive number')
+          errors.push('Base price must be a valid non-negative number')
         }
       }
     }
@@ -81,6 +83,20 @@ export const validateServiceData = async (req, res, next) => {
       if (isNaN(lim) || lim < 1) {
         errors.push('Limit must be a valid positive integer')
       }
+    }
+
+    if (
+      showPriceRange !== undefined &&
+      typeof showPriceRange !== 'boolean'
+    ) {
+      errors.push('Show price range must be a boolean')
+    }
+
+    if (
+      offerDiscountListPrice !== undefined &&
+      typeof offerDiscountListPrice !== 'boolean'
+    ) {
+      errors.push('Offer discount list price must be a boolean')
     }
 
     // Discount validation
@@ -409,6 +425,14 @@ export const sanitizeServiceData = (req, res, next) => {
 
     if (req.body.limit !== undefined) {
       req.body.limit = parseInt(req.body.limit)
+    }
+
+    if (req.body.showPriceRange !== undefined) {
+      req.body.showPriceRange = Boolean(req.body.showPriceRange)
+    }
+
+    if (req.body.offerDiscountListPrice !== undefined) {
+      req.body.offerDiscountListPrice = Boolean(req.body.offerDiscountListPrice)
     }
 
     // Sanitize discount object

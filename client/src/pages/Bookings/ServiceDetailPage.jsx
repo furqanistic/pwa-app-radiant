@@ -1688,20 +1688,24 @@ const ServiceDetailPage = () => {
                                </div>
                              ) : (
                                <div className="p-6 bg-gray-50 rounded-xl text-center border border-gray-200/70">
-                                  <p className="text-gray-700 font-medium">
-                                    {ghlCalendarMissing
-                                      ? "No GoHighLevel calendar linked."
-                                      : ghlFreeSlotsUnavailable
-                                      ? "Unable to load GoHighLevel slots."
-                                      : "No slots available for this date."}
-                                  </p>
-                                  <p className="text-sm text-gray-500 mt-1">
-                                    {ghlCalendarMissing
-                                      ? "Link a calendar to this service before accepting bookings."
-                                      : ghlFreeSlotsUnavailable
-                                      ? ghlFreeSlotsReason || "Please try again in a moment."
-                                      : "Try another day for more availability."}
-                                  </p>
+                                  {ghlCalendarMissing ? (
+                                    <p className="text-gray-700 font-medium">
+                                      Calendar is not linked yet, contact admin to make it available.
+                                    </p>
+                                  ) : (
+                                    <>
+                                      <p className="text-gray-700 font-medium">
+                                        {ghlFreeSlotsUnavailable
+                                          ? "Unable to load GoHighLevel slots."
+                                          : "No slots available for this date."}
+                                      </p>
+                                      <p className="text-sm text-gray-500 mt-1">
+                                        {ghlFreeSlotsUnavailable
+                                          ? ghlFreeSlotsReason || "Please try again in a moment."
+                                          : "Try another day for more availability."}
+                                      </p>
+                                    </>
+                                  )}
                                </div>
                              )
                           ) : (

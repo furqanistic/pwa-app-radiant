@@ -607,13 +607,22 @@ export const createService = async (req, res, next) => {
       defaultRewardPoints = 100,
       membershipPricing = [],
       creditValue = 0,
+      showPriceRange = false,
+      offerDiscountListPrice = false,
       ghlCalendar = {},
       ghlService = {},
       ghlBooking = {},
     } = req.body
 
     // Validate required fields
-    if (!name || !description || !categoryId || !basePrice || !duration) {
+    if (
+      !name ||
+      !description ||
+      !categoryId ||
+      basePrice === undefined ||
+      basePrice === null ||
+      !duration
+    ) {
       return next(
         createError(
           400,
@@ -661,6 +670,8 @@ export const createService = async (req, res, next) => {
       },
       limit: parseInt(limit),
       subTreatments,
+      showPriceRange: Boolean(showPriceRange),
+      offerDiscountListPrice: Boolean(offerDiscountListPrice),
       membershipPricing: normalizeMembershipPricing(membershipPricing),
       creditValue: Math.max(
         0,
@@ -856,6 +867,12 @@ export const updateService = async (req, res, next) => {
           : 0
       )
     }
+    if (updateData.showPriceRange !== undefined) {
+      updateData.showPriceRange = Boolean(updateData.showPriceRange)
+    }
+    if (updateData.offerDiscountListPrice !== undefined) {
+      updateData.offerDiscountListPrice = Boolean(updateData.offerDiscountListPrice)
+    }
     if (updateData.ghlCalendar !== undefined) {
       updateData.ghlCalendar = {
         calendarId: `${updateData.ghlCalendar?.calendarId || ''}`.trim(),
@@ -893,7 +910,16 @@ export const updateService = async (req, res, next) => {
     const updatedService = await Service.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
-    }).populate('categoryId', 'name color')
+    })
+      .populate('categoryId', 'name color')
+      .populate({
+        path: 'linkedServices.serviceId',
+        select: 'name description basePrice duration image categoryId status',
+        populate: {
+          path: 'categoryId',
+          select: 'name color',
+        },
+      })
 
     if (!updatedService) {
       return next(createError(404, 'Service not found after update'))
@@ -943,11 +969,39 @@ export const updateService = async (req, res, next) => {
       // Continue without failing the service update
     }
 
+    const transformedService = updatedService.toObject()
+    if (
+      transformedService.linkedServices &&
+      transformedService.linkedServices.length > 0
+    ) {
+      transformedService.linkedServices = transformedService.linkedServices
+        .filter((link) => link.serviceId && !link.serviceId.isDeleted)
+        .map((link) => ({
+          _id: link._id,
+          serviceId: link.serviceId._id,
+          customPrice: link.customPrice,
+          customDuration: link.customDuration,
+          order: link.order,
+          isActive: link.isActive,
+          addedAt: link.addedAt,
+          name: link.serviceId.name,
+          description: link.serviceId.description,
+          basePrice: link.serviceId.basePrice,
+          duration: link.serviceId.duration,
+          image: link.serviceId.image,
+          categoryId: link.serviceId.categoryId,
+          status: link.serviceId.status,
+          finalPrice: link.customPrice || link.serviceId.basePrice,
+          finalDuration: link.customDuration || link.serviceId.duration,
+        }))
+        .sort((a, b) => a.order - b.order)
+    }
+
     res.status(200).json({
       status: 'success',
       message: 'Service updated successfully',
       data: {
-        service: updatedService,
+        service: transformedService,
       },
     })
   } catch (error) {
