@@ -233,6 +233,16 @@ const SIGNUP_TRIGGER_TAGS = Array.from(
   )
 )
 
+const normalizeWorkflowIds = (workflowIds = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(workflowIds) ? workflowIds : [workflowIds])
+        .flatMap((entry) => parseCsvEnv(entry))
+        .map((entry) => `${entry || ''}`.trim())
+        .filter(Boolean)
+    )
+  )
+
 const summarizeGhlError = (error) => {
   const statusCode = error?.response?.status || error?.response?.data?.statusCode || null
   const message = `${error?.response?.data?.message || error?.response?.data?.msg || error?.message || ''}`.trim()
@@ -245,10 +255,15 @@ const summarizeGhlError = (error) => {
 const attemptSignupWorkflowEnrollment = async ({
   user = null,
   locationId = '',
+  workflowIds = [],
 } = {}) => {
   const normalizedLocationId = `${locationId || ''}`.trim()
   const normalizedEmail = `${user?.email || ''}`.trim().toLowerCase()
   const normalizedPhone = `${user?.phone || ''}`.trim()
+  const linkedWorkflowIds = normalizeWorkflowIds(workflowIds)
+  const fallbackWorkflowIds = SIGNUP_WORKFLOW_IDS.filter(
+    (workflowId) => !linkedWorkflowIds.includes(workflowId)
+  )
 
   if (
     !user?._id ||
@@ -277,7 +292,8 @@ const attemptSignupWorkflowEnrollment = async ({
     hasEmail: Boolean(normalizedEmail),
     hasPhone: Boolean(normalizedPhone),
     tags: SIGNUP_TRIGGER_TAGS,
-    workflowIds: SIGNUP_WORKFLOW_IDS,
+    linkedWorkflowIds,
+    fallbackWorkflowIds,
   })
 
   const attemptErrors = []
@@ -288,8 +304,56 @@ const attemptSignupWorkflowEnrollment = async ({
     email: normalizedEmail || '',
     hasPhone: Boolean(normalizedPhone),
     tags: SIGNUP_TRIGGER_TAGS,
-    workflowIds: SIGNUP_WORKFLOW_IDS,
+    linkedWorkflowIds,
+    fallbackWorkflowIds,
   })
+
+  for (const workflowId of linkedWorkflowIds) {
+    try {
+      const result = await enrollContactInWorkflowForLocation(normalizedLocationId, {
+        workflowId,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        name: user.name,
+      })
+
+      debugInfo('[Auth:SignupWorkflow] Linked enrollment success', {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        workflowId,
+        contactId: result?.contactId || '',
+      })
+      console.info('[Auth:SignupWorkflow] Linked workflow success', {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        workflowId,
+        contactId: result?.contactId || '',
+      })
+
+      return {
+        attempted: true,
+        success: true,
+        mode: 'linked_workflow',
+        workflowId,
+        contactId: result?.contactId || '',
+      }
+    } catch (error) {
+      const summary = summarizeGhlError(error)
+      attemptErrors.push({
+        mode: 'linked_workflow',
+        workflowId,
+        ...summary,
+      })
+      const failureInfo = {
+        userId: `${user._id}`,
+        locationId: normalizedLocationId,
+        workflowId,
+        ...summary,
+      }
+      debugWarn('[Auth:SignupWorkflow] Linked enrollment failed', failureInfo)
+      console.warn('[Auth:SignupWorkflow] Linked workflow failed', failureInfo)
+    }
+  }
 
   if (SIGNUP_TRIGGER_TAGS.length) {
     try {
@@ -338,18 +402,18 @@ const attemptSignupWorkflowEnrollment = async ({
     }
   }
 
-  if (!SIGNUP_WORKFLOW_IDS.length) {
+  if (!fallbackWorkflowIds.length) {
     return {
       attempted: attemptErrors.length > 0,
       success: false,
       reason: attemptErrors.length
-        ? 'Signup tag trigger failed'
+        ? 'Configured signup automation triggers failed'
         : 'No signup workflow IDs configured',
       errors: attemptErrors,
     }
   }
 
-  for (const workflowId of SIGNUP_WORKFLOW_IDS) {
+  for (const workflowId of fallbackWorkflowIds) {
     try {
       const result = await enrollContactInWorkflowForLocation(normalizedLocationId, {
         workflowId,
@@ -1271,6 +1335,7 @@ export const signup = async (req, res, next) => {
     }
 
     let locationData = null
+    let signupWorkflowIds = []
     if (assignedLocation) {
       const location = await Location.findOne({
         $or: [
@@ -1294,6 +1359,14 @@ export const signup = async (req, res, next) => {
         logo: location.logo,
         selectedAt: new Date(),
       }
+      const signupAutomationLink = Array.isArray(location.ghlAutomationLinks)
+        ? location.ghlAutomationLinks.find(
+            (link) => `${link?.key || ''}`.trim() === 'signup'
+          )
+        : null
+      signupWorkflowIds = normalizeWorkflowIds(
+        signupAutomationLink?.workflowId || location.ghlSignupWorkflowId
+      )
     }
 
     const userData = {
@@ -1332,6 +1405,7 @@ export const signup = async (req, res, next) => {
     const signupWorkflowResult = await attemptSignupWorkflowEnrollment({
       user: newUser,
       locationId: locationData?.locationId || '',
+      workflowIds: signupWorkflowIds,
     })
     console.info('[Auth:Signup] Signup automation result', {
       userId: `${newUser?._id || ''}`,

@@ -44,6 +44,48 @@ const LocationSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    ghlSignupWorkflowId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    ghlSignupWorkflowName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    ghlSignupWorkflowLinkedAt: {
+      type: Date,
+      default: null,
+    },
+    ghlAutomationLinks: [
+      {
+        key: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        label: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        workflowId: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        workflowName: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+        linkedAt: {
+          type: Date,
+          default: null,
+        },
+      },
+    ],
     isActive: {
       type: Boolean,
       default: true,

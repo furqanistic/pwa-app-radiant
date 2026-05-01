@@ -3,6 +3,10 @@ import PointTransaction from "../models/PointTransaction.js";
 import QRCodeScan from "../models/QRCodeScan.js";
 import User from "../models/User.js";
 import { createSystemNotification } from "../controller/notification.js";
+import {
+  AUTOMATION_KEYS,
+  runLocationAutomationLink,
+} from "./ghlAutomationLinks.js";
 
 const CHECKIN_SCAN_TYPE = "checkin";
 const getStartOfUtcDay = (dateInput = new Date()) => {
@@ -99,6 +103,36 @@ export const processPendingQrClaimsForUser = async (user) => {
         locationDoc.checkInQrCode.scans = (locationDoc.checkInQrCode.scans || 0) + 1;
         locationDoc.checkInQrCode.lastScannedAt = new Date();
         await locationDoc.save();
+      }
+
+      if (locationDoc) {
+        try {
+          const automationResult = await runLocationAutomationLink({
+            location: locationDoc,
+            key: AUTOMATION_KEYS.CHECKIN,
+            user,
+          });
+
+          if (automationResult?.attempted) {
+            console.info("[PendingQR:CheckInAutomation] Linked automation result", {
+              locationId: location.locationId,
+              userId: `${user._id || ""}`,
+              workflowId: automationResult.workflowId || "",
+              contactId: automationResult.contactId || "",
+              success: Boolean(automationResult.success),
+            });
+          }
+        } catch (automationError) {
+          console.warn("[PendingQR:CheckInAutomation] Linked automation failed", {
+            locationId: location.locationId,
+            userId: `${user._id || ""}`,
+            email: user.email || "",
+            error:
+              automationError?.response?.data?.message ||
+              automationError?.message ||
+              "Unknown error",
+          });
+        }
       }
 
       processedScans += 1;

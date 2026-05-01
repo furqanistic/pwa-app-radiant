@@ -1,8 +1,19 @@
 import { useBranding } from "@/context/BrandingContext";
 import ghlService from "@/services/ghlService";
 import { locationService } from "@/services/locationService";
-import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronLeft, Copy, RefreshCw, Zap } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  BatteryCharging,
+  Check,
+  ChevronLeft,
+  Copy,
+  Link2,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Unlink,
+  Zap,
+} from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -12,6 +23,18 @@ import Layout from "@/pages/Layout/Layout";
 
 const EMPTY_LOCATIONS = [];
 const EMPTY_WORKFLOWS = [];
+const AUTOMATION_TYPES = [
+  {
+    key: "signup",
+    label: "Signup Page",
+    description: "Runs after a client creates an account from this location's signup page.",
+  },
+  {
+    key: "checkin",
+    label: "Check-In",
+    description: "Runs after a verified client check-in is recorded for this location.",
+  },
+];
 
 const clampChannel = (value) => Math.max(0, Math.min(255, value));
 const adjustHex = (hex, amount) => {
@@ -43,11 +66,14 @@ const toTitle = (value = "") => {
 const AutomationsManagementPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
   const { branding, locationId: brandedLocationId } = useBranding();
   const brandColor = branding?.themeColor || "#0ea5e9";
   const brandColorDark = adjustHex(brandColor, -24);
   const [selectedLocationId, setSelectedLocationId] = useState("");
+  const [selectedAutomationKey, setSelectedAutomationKey] = useState("signup");
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
   const [copiedKey, setCopiedKey] = useState("");
   const isGhlDebugEnabled = useMemo(() => {
     if (typeof window === "undefined") return true;
@@ -78,8 +104,7 @@ const AutomationsManagementPage = () => {
     currentUser?.selectedLocation?.locationId ||
     currentUser?.spaLocation?.locationId ||
     "";
-  const currentUserLocationId =
-    spaParamLocationId || brandedLocationId || userProfileLocationId || "";
+  const currentUserLocationId = brandedLocationId || userProfileLocationId || "";
   useEffect(() => {
     logGhlDebug("Role and location context", {
       role: currentUser?.role || "",
@@ -113,8 +138,8 @@ const AutomationsManagementPage = () => {
       selectedLocationId ||
       userProfileLocationId ||
       ""
-    : spaParamLocationId ||
-      selectedLocationId ||
+    : selectedLocationId ||
+      spaParamLocationId ||
       currentUserLocationId ||
       locations[0]?.locationId ||
       brandedLocationId ||
@@ -141,7 +166,9 @@ const AutomationsManagementPage = () => {
 
   useEffect(() => {
     const forcedLocationForContext =
-      spaParamLocationId || (isSpaUser ? brandedLocationId || userProfileLocationId : "");
+      isSpaUser
+        ? spaParamLocationId || brandedLocationId || userProfileLocationId
+        : "";
     if (forcedLocationForContext) {
       if (selectedLocationId !== forcedLocationForContext) {
         setSelectedLocationId(forcedLocationForContext);
@@ -150,6 +177,10 @@ const AutomationsManagementPage = () => {
     }
 
     if (selectedLocationId) return;
+    if (spaParamLocationId) {
+      setSelectedLocationId(spaParamLocationId);
+      return;
+    }
     if (currentUserLocationId) {
       setSelectedLocationId(currentUserLocationId);
       return;
@@ -187,13 +218,83 @@ const AutomationsManagementPage = () => {
   });
 
   const workflows = workflowsData?.data?.workflows || EMPTY_WORKFLOWS;
+  const selectedLocation = useMemo(
+    () =>
+      locations.find((entry) => entry?.locationId === effectiveLocationId) ||
+      null,
+    [locations, effectiveLocationId]
+  );
+  const automationLinks = useMemo(() => {
+    const normalizedLinks = Array.isArray(selectedLocation?.ghlAutomationLinks)
+      ? selectedLocation.ghlAutomationLinks
+          .map((link) => ({
+            key: `${link?.key || ""}`.trim(),
+            label: `${link?.label || ""}`.trim(),
+            workflowId: `${link?.workflowId || ""}`.trim(),
+            workflowName: `${link?.workflowName || ""}`.trim(),
+            linkedAt: link?.linkedAt || null,
+          }))
+          .filter((link) => link.key && link.workflowId)
+      : [];
+    const hasSignupLink = normalizedLinks.some((link) => link.key === "signup");
+    const legacySignupWorkflowId = `${selectedLocation?.ghlSignupWorkflowId || ""}`.trim();
+
+    if (!hasSignupLink && legacySignupWorkflowId) {
+      normalizedLinks.push({
+        key: "signup",
+        label: "Signup Page",
+        workflowId: legacySignupWorkflowId,
+        workflowName: `${selectedLocation?.ghlSignupWorkflowName || ""}`.trim(),
+        linkedAt: selectedLocation?.ghlSignupWorkflowLinkedAt || null,
+      });
+    }
+
+    return normalizedLinks;
+  }, [selectedLocation]);
+  const selectedAutomationType =
+    AUTOMATION_TYPES.find((type) => type.key === selectedAutomationKey) ||
+    AUTOMATION_TYPES[0];
+  const selectedAutomationLink = automationLinks.find(
+    (link) => link.key === selectedAutomationType.key
+  );
+  const selectedWorkflow = workflows.find(
+    (workflow) => `${workflow?.id || ""}`.trim() === selectedWorkflowId
+  );
+  const selectedLocationName =
+    selectedLocation?.name || effectiveLocationId || "No location selected";
+  const source = workflowsData?.data?.source || "ghl";
+  const isUnavailable = Boolean(workflowsData?.data?.unavailable);
+  const setupChecks = [
+    {
+      key: "api-key",
+      label: "API key",
+      isReady: Boolean(`${selectedLocation?.ghlApiKey || ""}`.trim()),
+    },
+    {
+      key: "workflows",
+      label: "Workflows",
+      isReady: workflows.length > 0 && !isUnavailable,
+    },
+    {
+      key: "automation-links",
+      label: "Links",
+      isReady: automationLinks.length > 0,
+    },
+  ];
+  const setupScore = setupChecks.filter((check) => check.isReady).length;
   const activeAutomationsCount = workflows.filter((workflow) => workflow?.isActive).length;
   const inactiveAutomationsCount = Math.max(
     workflows.length - activeAutomationsCount,
     0
   );
-  const source = workflowsData?.data?.source || "ghl";
-  const isUnavailable = Boolean(workflowsData?.data?.unavailable);
+
+  useEffect(() => {
+    setSelectedWorkflowId(`${selectedAutomationLink?.workflowId || ""}`.trim());
+  }, [
+    effectiveLocationId,
+    selectedAutomationKey,
+    selectedAutomationLink?.workflowId,
+  ]);
   useEffect(() => {
     logGhlDebug("Workflows query result", {
       isLoadingWorkflows,
@@ -226,6 +327,134 @@ const AutomationsManagementPage = () => {
       return;
     }
     navigate("/management");
+  };
+
+  const handleLocationChange = (nextLocationId) => {
+    setSelectedLocationId(nextLocationId);
+    if (!nextLocationId || isSpaUser) return;
+    navigate(`/management/automations?spa=${encodeURIComponent(nextLocationId)}`, {
+      replace: true,
+    });
+  };
+
+  const updateAutomationLinkMutation = useMutation({
+    mutationFn: ({ automationKey = "", workflowId = "", workflowName = "" }) => {
+      if (!selectedLocation?._id) {
+        throw new Error("Selected location could not be resolved");
+      }
+
+      const automationType =
+        AUTOMATION_TYPES.find((type) => type.key === automationKey) ||
+        selectedAutomationType;
+      const normalizedWorkflowId = `${workflowId || ""}`.trim();
+      const normalizedWorkflowName = `${workflowName || ""}`.trim();
+      const nextLinks = automationLinks.filter(
+        (link) => link.key !== automationType.key
+      );
+
+      if (normalizedWorkflowId) {
+        nextLinks.push({
+          key: automationType.key,
+          label: automationType.label,
+          workflowId: normalizedWorkflowId,
+          workflowName: normalizedWorkflowName,
+          linkedAt: new Date().toISOString(),
+        });
+      }
+
+      return locationService.updateLocation(selectedLocation._id, {
+        ghlAutomationLinks: nextLinks,
+        ...(automationType.key === "signup"
+          ? {
+              ghlSignupWorkflowId: normalizedWorkflowId,
+              ghlSignupWorkflowName: normalizedWorkflowName,
+            }
+          : {}),
+      });
+    },
+    onSuccess: (_data, variables) => {
+      const automationType =
+        AUTOMATION_TYPES.find((type) => type.key === variables?.automationKey) ||
+        selectedAutomationType;
+      const normalizedWorkflowId = `${variables?.workflowId || ""}`.trim();
+      const normalizedWorkflowName = `${variables?.workflowName || ""}`.trim();
+
+      queryClient.setQueryData(["locations"], (previous) => {
+        const existing = previous?.data?.locations || [];
+        return {
+          ...(previous || {}),
+          data: {
+            ...(previous?.data || {}),
+            locations: existing.map((entry) =>
+              entry?.locationId === effectiveLocationId
+                ? {
+                    ...entry,
+                    ...(automationType.key === "signup"
+                      ? {
+                          ghlSignupWorkflowId: normalizedWorkflowId,
+                          ghlSignupWorkflowName: normalizedWorkflowName,
+                          ghlSignupWorkflowLinkedAt: normalizedWorkflowId
+                            ? new Date().toISOString()
+                            : null,
+                        }
+                      : {}),
+                    ghlAutomationLinks: normalizedWorkflowId
+                      ? [
+                          ...(
+                            Array.isArray(entry?.ghlAutomationLinks)
+                              ? entry.ghlAutomationLinks
+                              : []
+                          ).filter((link) => link?.key !== automationType.key),
+                          {
+                            key: automationType.key,
+                            label: automationType.label,
+                            workflowId: normalizedWorkflowId,
+                            workflowName: normalizedWorkflowName,
+                            linkedAt: new Date().toISOString(),
+                          },
+                        ]
+                      : (
+                          Array.isArray(entry?.ghlAutomationLinks)
+                            ? entry.ghlAutomationLinks
+                            : []
+                        ).filter((link) => link?.key !== automationType.key),
+                  }
+                : entry
+            ),
+          },
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ["locations"] });
+      toast.success(
+        normalizedWorkflowId
+          ? `${automationType.label} automation linked`
+          : `${automationType.label} automation cleared`
+      );
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.message || error?.message || "Failed to update automation link");
+    },
+  });
+
+  const saveAutomationLink = () => {
+    if (!selectedWorkflowId) {
+      toast.error("Choose a workflow first");
+      return;
+    }
+
+    updateAutomationLinkMutation.mutate({
+      automationKey: selectedAutomationType.key,
+      workflowId: selectedWorkflowId,
+      workflowName: selectedWorkflow?.name || "",
+    });
+  };
+
+  const clearAutomationLink = () => {
+    updateAutomationLinkMutation.mutate({
+      automationKey: selectedAutomationType.key,
+      workflowId: "",
+      workflowName: "",
+    });
   };
 
   const copyText = useCallback(
@@ -314,30 +543,245 @@ const AutomationsManagementPage = () => {
           </div>
 
           {canSelectLocation && (
-            <div className="mt-4 space-y-1.5 md:mt-6">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Location
-              </label>
-              <select
-                value={selectedLocationId}
-                onChange={(e) => setSelectedLocationId(e.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-transparent focus:ring-2 sm:h-11 sm:rounded-xl"
-                style={{ "--tw-ring-color": `${brandColor}33` }}
-              >
-                {isLoadingLocations ? (
-                  <option value="">Loading locations...</option>
-                ) : locations.length === 0 ? (
-                  <option value={effectiveLocationId || ""}>
-                    {effectiveLocationId || "No locations found"}
-                  </option>
+            <div className="mt-4 grid gap-3 md:mt-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Active Location
+                </label>
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white"
+                    style={{
+                      background: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})`,
+                    }}
+                  >
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <select
+                      value={selectedLocationId || effectiveLocationId}
+                      onChange={(e) => handleLocationChange(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-transparent focus:ring-2 sm:h-11 sm:rounded-xl"
+                      style={{ "--tw-ring-color": `${brandColor}33` }}
+                    >
+                      {isLoadingLocations ? (
+                        <option value="">Loading locations...</option>
+                      ) : locations.length === 0 ? (
+                        <option value={effectiveLocationId || ""}>
+                          {effectiveLocationId || "No locations found"}
+                        </option>
+                      ) : (
+                        locations.map((entry) => (
+                          <option key={entry.locationId} value={entry.locationId}>
+                            {entry.name || entry.locationId}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    <p className="mt-2 truncate text-xs text-slate-500">
+                      {selectedLocationName}
+                      {effectiveLocationId ? ` · ${effectiveLocationId}` : ""}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Setup Battery
+                    </p>
+                    <p className="mt-1 text-lg font-black">{setupScore}/3 ready</p>
+                  </div>
+                  <BatteryCharging className="h-6 w-6 text-emerald-300" />
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-1.5">
+                  {setupChecks.map((check) => (
+                    <div
+                      key={check.key}
+                      className={`h-3 rounded-full ${
+                        check.isReady ? "bg-emerald-400" : "bg-slate-700"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {setupChecks.map((check) => (
+                    <span
+                      key={check.key}
+                      className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                        check.isReady
+                          ? "bg-emerald-400/15 text-emerald-200"
+                          : "bg-white/10 text-slate-300"
+                      }`}
+                    >
+                      {check.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentUser?.role === "super-admin" && effectiveLocationId && (
+            <div className="mt-4 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:mt-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] sm:p-5">
+              <div className="min-w-0">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                    <Link2 className="h-4 w-4 text-sky-600" />
+                    Automation Links
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Pick what the automation is for, then assign one workflow from this location.
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Automation Type
+                    </label>
+                    <select
+                      value={selectedAutomationKey}
+                      onChange={(event) => setSelectedAutomationKey(event.target.value)}
+                      className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-transparent focus:ring-2"
+                      style={{ "--tw-ring-color": `${brandColor}33` }}
+                    >
+                      {AUTOMATION_TYPES.map((type) => (
+                        <option key={type.key} value={type.key}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selectedAutomationType.description}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Workflow
+                    </label>
+                    <select
+                      value={selectedWorkflowId}
+                      onChange={(event) => setSelectedWorkflowId(event.target.value)}
+                      disabled={isLoadingWorkflows || workflows.length === 0}
+                      className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-transparent focus:ring-2 disabled:bg-slate-100 disabled:text-slate-400"
+                      style={{ "--tw-ring-color": `${brandColor}33` }}
+                    >
+                      <option value="">
+                        {isLoadingWorkflows
+                          ? "Loading workflows..."
+                          : workflows.length
+                          ? "Choose workflow"
+                          : "No workflows available"}
+                      </option>
+                      {workflows.map((workflow) => (
+                        <option key={workflow.id} value={workflow.id}>
+                          {workflow.name || workflow.id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={saveAutomationLink}
+                    disabled={
+                      updateAutomationLinkMutation.isPending ||
+                      !selectedWorkflowId ||
+                      !selectedLocation?._id
+                    }
+                    className="h-10 rounded-lg px-4 text-sm font-semibold text-white"
+                    style={{
+                      background: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})`,
+                    }}
+                  >
+                    {updateAutomationLinkMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="mr-2 h-4 w-4" />
+                    )}
+                    Save Link
+                  </Button>
+                  {selectedAutomationLink?.workflowId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={clearAutomationLink}
+                      disabled={updateAutomationLinkMutation.isPending}
+                      className="h-10 rounded-lg border-slate-200 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      {updateAutomationLinkMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Unlink className="mr-2 h-4 w-4" />
+                      )}
+                      Clear Selected Type
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Linked For This Location
+                </p>
+                {automationLinks.length ? (
+                  <div className="mt-3 space-y-2">
+                    {automationLinks.map((link) => (
+                      <div
+                        key={link.key}
+                        className="rounded-lg border border-slate-100 bg-slate-50 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-900">
+                              {link.label || link.key}
+                            </p>
+                            <p className="mt-0.5 truncate text-xs font-medium text-slate-600">
+                              {link.workflowName || "Linked workflow"}
+                            </p>
+                            <p className="mt-1 break-all text-[11px] text-slate-500">
+                              ID: {link.workflowId}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyText(
+                                link.workflowId,
+                                `automation-link-${link.key}`,
+                                `${link.label || link.key} workflow ID`
+                              )
+                            }
+                            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                          >
+                            {copiedKey === `automation-link-${link.key}` ? (
+                              <>
+                                <Check className="h-3 w-3" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3 w-3" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  locations.map((entry) => (
-                    <option key={entry.locationId} value={entry.locationId}>
-                      {entry.name || entry.locationId}
-                    </option>
-                  ))
+                  <p className="mt-3 text-sm text-slate-600">
+                    No automation links saved yet.
+                  </p>
                 )}
-              </select>
+              </div>
             </div>
           )}
 

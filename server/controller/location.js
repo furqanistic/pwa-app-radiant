@@ -35,6 +35,27 @@ const normalizeMethodPointsValue = (value, fallback = 0) => {
   return Math.round(parsed)
 }
 
+const normalizeGhlAutomationLinks = (links = []) => {
+  if (!Array.isArray(links)) return []
+
+  const linksByKey = new Map()
+  links.forEach((link) => {
+    const key = `${link?.key || ''}`.trim()
+    const workflowId = `${link?.workflowId || ''}`.trim()
+    if (!key || !workflowId) return
+
+    linksByKey.set(key, {
+      key,
+      label: `${link?.label || key}`.trim(),
+      workflowId,
+      workflowName: `${link?.workflowName || ''}`.trim(),
+      linkedAt: link?.linkedAt ? new Date(link.linkedAt) : new Date(),
+    })
+  })
+
+  return [...linksByKey.values()]
+}
+
 const DEFAULT_MEMBERSHIP_PLAN = {
   name: 'Gold Glow Membership',
   description: 'Unlock exclusive perks and premium benefits',
@@ -434,6 +455,9 @@ export const createLocation = async (req, res, next) => {
       phone,
       reviewLink,
       ghlApiKey,
+      ghlSignupWorkflowId,
+      ghlSignupWorkflowName,
+      ghlAutomationLinks,
       hours,
       coordinates,
       logo,
@@ -465,6 +489,10 @@ export const createLocation = async (req, res, next) => {
       phone: phone?.trim() || '',
       reviewLink: reviewLink?.trim() || '',
       ghlApiKey: ghlApiKey?.trim() || '',
+      ghlSignupWorkflowId: ghlSignupWorkflowId?.trim() || '',
+      ghlSignupWorkflowName: ghlSignupWorkflowName?.trim() || '',
+      ghlSignupWorkflowLinkedAt: ghlSignupWorkflowId?.trim() ? new Date() : null,
+      ghlAutomationLinks: normalizeGhlAutomationLinks(ghlAutomationLinks),
       hours: hours || [],
       coordinates: coordinates || { latitude: null, longitude: null },
       logo: logo || '',
@@ -521,6 +549,9 @@ export const updateLocation = async (req, res, next) => {
       phone,
       reviewLink,
       ghlApiKey,
+      ghlSignupWorkflowId,
+      ghlSignupWorkflowName,
+      ghlAutomationLinks,
       hours,
       isActive,
       coordinates,
@@ -550,6 +581,14 @@ export const updateLocation = async (req, res, next) => {
       }
     }
 
+    const hasSignupWorkflowUpdate =
+      ghlSignupWorkflowId !== undefined ||
+      ghlSignupWorkflowName !== undefined ||
+      ghlAutomationLinks !== undefined
+    if (hasSignupWorkflowUpdate && req.user.role !== 'super-admin') {
+      return next(createError(403, 'Super-Admin access required to link signup automation'))
+    }
+
     // If updating locationId, check if new one already exists
     if (locationId && locationId.trim() !== location.locationId) {
       const existingLocation = await Location.findOne({
@@ -571,6 +610,20 @@ export const updateLocation = async (req, res, next) => {
     if (phone !== undefined) updateData.phone = phone.trim()
     if (reviewLink !== undefined) updateData.reviewLink = reviewLink.trim()
     if (ghlApiKey !== undefined) updateData.ghlApiKey = ghlApiKey.trim()
+    if (ghlSignupWorkflowId !== undefined) {
+      const normalizedWorkflowId = ghlSignupWorkflowId.trim()
+      updateData.ghlSignupWorkflowId = normalizedWorkflowId
+      updateData.ghlSignupWorkflowLinkedAt = normalizedWorkflowId ? new Date() : null
+      if (!normalizedWorkflowId && ghlSignupWorkflowName === undefined) {
+        updateData.ghlSignupWorkflowName = ''
+      }
+    }
+    if (ghlSignupWorkflowName !== undefined) {
+      updateData.ghlSignupWorkflowName = ghlSignupWorkflowName.trim()
+    }
+    if (ghlAutomationLinks !== undefined) {
+      updateData.ghlAutomationLinks = normalizeGhlAutomationLinks(ghlAutomationLinks)
+    }
     if (hours !== undefined) updateData.hours = hours
     if (isActive !== undefined) updateData.isActive = isActive
     if (coordinates !== undefined) updateData.coordinates = coordinates

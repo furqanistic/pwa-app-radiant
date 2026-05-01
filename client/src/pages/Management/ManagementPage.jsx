@@ -299,8 +299,8 @@ const ManagementPage = () => {
       ? [
           {
             key: "view-automations",
-            title: "View Automations",
-            description: "See all available GoHighLevel automations.",
+            title: "Automations",
+            description: "View GHL automations and link them to app events.",
             icon: Zap,
             onClick: () => navigateWithSpa("/management/automations"),
             className:

@@ -8,6 +8,10 @@ import QRCodeScan from "../models/QRCodeScan.js";
 import User from "../models/User.js";
 import { createSystemNotification } from "./notification.js";
 import { mergePointsMethodsWithDefaults } from "../utils/pointsSettings.js";
+import {
+  AUTOMATION_KEYS,
+  runLocationAutomationLink,
+} from "../utils/ghlAutomationLinks.js";
 
 const CLAIM_PURPOSE = "claim";
 const CHECKIN_PURPOSE = "checkin";
@@ -548,6 +552,34 @@ export const scanQRCode = async (req, res, next) => {
       location.checkInQrCode.scans = (location.checkInQrCode?.scans || 0) + 1;
       location.checkInQrCode.lastScannedAt = new Date();
       await location.save();
+
+      try {
+        const automationResult = await runLocationAutomationLink({
+          location,
+          key: AUTOMATION_KEYS.CHECKIN,
+          user,
+        });
+
+        if (automationResult?.attempted) {
+          console.info("[QRCode:CheckInAutomation] Linked automation result", {
+            locationId: location.locationId,
+            userId: `${user._id || ""}`,
+            workflowId: automationResult.workflowId || "",
+            contactId: automationResult.contactId || "",
+            success: Boolean(automationResult.success),
+          });
+        }
+      } catch (automationError) {
+        console.warn("[QRCode:CheckInAutomation] Linked automation failed", {
+          locationId: location.locationId,
+          userId: `${user._id || ""}`,
+          email: user.email || "",
+          error:
+            automationError?.response?.data?.message ||
+            automationError?.message ||
+            "Unknown error",
+        });
+      }
 
       try {
         await createSystemNotification(
