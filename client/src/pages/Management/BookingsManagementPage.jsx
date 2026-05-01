@@ -1155,7 +1155,7 @@ const BookingsManagementPage = () => {
               }}
             >
               <RefreshCw className='size-4' />
-              Refresh GHL
+              Refresh
             </Button>
           </div>
 
