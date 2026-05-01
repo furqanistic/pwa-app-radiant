@@ -440,7 +440,43 @@ const getStartAndEndISOForDate = (dateString, timeZone = '') => {
   }
 }
 
+const getStartAndEndISOForDateRange = (
+  startDateString,
+  endDateString = startDateString,
+  timeZone = ''
+) => {
+  if (!endDateString || endDateString === startDateString) {
+    return getStartAndEndISOForDate(startDateString, timeZone)
+  }
+
+  if (timeZone) {
+    const start = zonedDateTimeToUtc(startDateString, timeZone, false)
+    const end = zonedDateTimeToUtc(endDateString, timeZone, true)
+    return {
+      startIso: start.toISOString(),
+      endIso: end.toISOString(),
+    }
+  }
+
+  const start = parseDateOnly(startDateString)
+  const end = parseDateOnly(endDateString)
+
+  start.setHours(0, 0, 0, 0)
+  end.setHours(23, 59, 59, 999)
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  }
+}
+
 const normalizeCalendarEvent = (event) => {
+  const contact = event?.contact || event?.contactDetails || event?.customer || {}
+  const contactFirstName =
+    contact?.firstName || contact?.first_name || event?.firstName || event?.first_name || ''
+  const contactLastName =
+    contact?.lastName || contact?.last_name || event?.lastName || event?.last_name || ''
+  const contactNameFromParts = `${contactFirstName} ${contactLastName}`.trim()
   const rawStart =
     event?.startTime ||
     event?.start ||
@@ -477,18 +513,71 @@ const normalizeCalendarEvent = (event) => {
     event?.calendar?.timezone ||
     event?.calendarSettings?.timeZone ||
     null
+  const resolvedCalendarName =
+    event?.calendarName ||
+    event?.calendar_name ||
+    event?.calendar?.name ||
+    event?.calendar?.title ||
+    null
+  const resolvedContactName =
+    event?.contactName ||
+    event?.contact?.name ||
+    event?.contact?.fullName ||
+    event?.customerName ||
+    contactNameFromParts ||
+    null
+  const resolvedContactEmail =
+    event?.contactEmail ||
+    event?.email ||
+    event?.contact?.email ||
+    event?.customerEmail ||
+    null
+  const resolvedContactPhone =
+    event?.contactPhone ||
+    event?.phone ||
+    event?.contact?.phone ||
+    event?.customerPhone ||
+    null
 
   return {
     id: event?.id || event?._id || event?.appointmentId || null,
-    title: event?.title || event?.appointmentTitle || event?.contactName || 'Booked',
+    title: event?.title || event?.appointmentTitle || resolvedContactName || 'Booked',
     status,
     startTime,
     endTime,
     startTimeRaw: rawStart,
     endTimeRaw: rawEnd,
     calendarId: resolvedCalendarId,
+    calendarName: resolvedCalendarName,
     locationId: event?.locationId || null,
     timeZone: resolvedTimeZone,
+    contactId:
+      event?.contactId || event?.contact_id || event?.contact?.id || event?.contact?._id || null,
+    contactName: resolvedContactName,
+    contactEmail: resolvedContactEmail,
+    contactPhone: resolvedContactPhone,
+    assignedUserId:
+      event?.assignedUserId ||
+      event?.assignedUserID ||
+      event?.userId ||
+      event?.user_id ||
+      event?.user?.id ||
+      null,
+    assignedUserName:
+      event?.assignedUserName ||
+      event?.userName ||
+      event?.user?.name ||
+      event?.assignedUser?.name ||
+      null,
+    notes: event?.notes || event?.description || event?.appointmentNotes || null,
+    sourceUrl:
+      event?.sourceUrl ||
+      event?.appointmentUrl ||
+      event?.bookingUrl ||
+      event?.calendarEventUrl ||
+      null,
+    dateAdded: event?.dateAdded || event?.createdAt || event?.created_at || null,
+    dateUpdated: event?.dateUpdated || event?.updatedAt || event?.updated_at || null,
   }
 }
 
@@ -1164,6 +1253,27 @@ const matchesRequestedDate = (event, requestedDate, requestedTimeZone = '') => {
   return getDateKeyInTimeZone(event?.startTime, tz) === requestedDate
 }
 
+const matchesRequestedDateRange = (
+  event,
+  requestedStartDate,
+  requestedEndDate = requestedStartDate,
+  requestedTimeZone = ''
+) => {
+  if (!requestedEndDate || requestedStartDate === requestedEndDate) {
+    return matchesRequestedDate(event, requestedStartDate, requestedTimeZone)
+  }
+
+  const rawDatePrefix = getDatePrefix(event?.startTimeRaw)
+  if (rawDatePrefix) {
+    return rawDatePrefix >= requestedStartDate && rawDatePrefix <= requestedEndDate
+  }
+
+  const tz = requestedTimeZone || event?.timeZone || ''
+  if (!tz) return true
+  const eventDate = getDateKeyInTimeZone(event?.startTime, tz)
+  return eventDate >= requestedStartDate && eventDate <= requestedEndDate
+}
+
 const extractRawEventsPayload = (payload) => {
   if (!payload || typeof payload !== 'object') return []
   const candidates = [
@@ -1360,9 +1470,11 @@ export const fetchLocationCalendarEventsByDate = async (
   locationId,
   date,
   calendarId = '',
-  timeZone = ''
+  timeZone = '',
+  endDate = ''
 ) => {
-  const { startIso, endIso } = getStartAndEndISOForDate(date, timeZone)
+  const requestedCalendarId = `${calendarId || ''}`.trim()
+  const requestedEndDate = endDate || date
   const token = await getTokenForLocation(locationId)
 
   if (!token) {
@@ -1376,6 +1488,65 @@ export const fetchLocationCalendarEventsByDate = async (
     }
   }
 
+  if (!requestedCalendarId) {
+    const calendarsResult = await loadCalendarsForLocation(locationId, token)
+    const calendars = (calendarsResult.calendars || [])
+      .filter((calendar) => calendar?.id && !isCalendarMarkedInactive(calendar))
+
+    if (calendars.length) {
+      const results = await Promise.all(
+        calendars.map((calendar) =>
+          fetchLocationCalendarEventsByDate(
+            locationId,
+            date,
+            calendar.id,
+            timeZone || calendar.timeZone || '',
+            requestedEndDate
+          ).catch((error) => ({
+            events: [],
+            rawCount: 0,
+            total: 0,
+            source: 'ghl',
+            unavailable: true,
+            error: error.response?.data || error.message,
+          }))
+        )
+      )
+
+      const eventsById = new Map()
+      let rawCount = 0
+      let hasUnavailable = false
+      results.forEach((result) => {
+        rawCount += Number(result?.rawCount || 0)
+        if (result?.unavailable) hasUnavailable = true
+        ;(result?.events || []).forEach((event) => {
+          const key = `${event?.id || ''}:${event?.startTime || ''}:${event?.calendarId || ''}`
+          if (key.trim()) eventsById.set(key, event)
+        })
+      })
+
+      const events = [...eventsById.values()].sort(
+        (a, b) => new Date(a.startTime) - new Date(b.startTime)
+      )
+
+      return {
+        events,
+        rawCount,
+        total: events.length,
+        source: `${calendarsResult.source}-all-calendars`,
+        effectiveTimeZone: timeZone || events[0]?.timeZone || '',
+        calendarsChecked: calendars.length,
+        unavailable: hasUnavailable && events.length === 0,
+      }
+    }
+  }
+
+  const { startIso, endIso } = getStartAndEndISOForDateRange(
+    date,
+    requestedEndDate,
+    timeZone
+  )
+
   const startMs = Date.parse(startIso)
   const endMs = Date.parse(endIso)
 
@@ -1387,7 +1558,7 @@ export const fetchLocationCalendarEventsByDate = async (
         locationId,
         startTime: startIso,
         endTime: endIso,
-        ...(calendarId ? { calendarId } : {}),
+        ...(requestedCalendarId ? { calendarId: requestedCalendarId } : {}),
       },
       source: 'ghl-v2-events-iso',
     },
@@ -1397,7 +1568,7 @@ export const fetchLocationCalendarEventsByDate = async (
         locationId,
         startTime: startMs,
         endTime: endMs,
-        ...(calendarId ? { calendarId } : {}),
+        ...(requestedCalendarId ? { calendarId: requestedCalendarId } : {}),
       },
       source: 'ghl-v2-events-ms',
     },
@@ -1407,7 +1578,7 @@ export const fetchLocationCalendarEventsByDate = async (
         locationId,
         startTime: startIso,
         endTime: endIso,
-        ...(calendarId ? { calendarId } : {}),
+        ...(requestedCalendarId ? { calendarId: requestedCalendarId } : {}),
       },
       source: 'ghl-v2-appointments-iso',
     },
@@ -1417,7 +1588,7 @@ export const fetchLocationCalendarEventsByDate = async (
         locationId,
         startTime: startMs,
         endTime: endMs,
-        ...(calendarId ? { calendarId } : {}),
+        ...(requestedCalendarId ? { calendarId: requestedCalendarId } : {}),
       },
       source: 'ghl-v2-appointments-ms',
     },
@@ -1446,8 +1617,8 @@ export const fetchLocationCalendarEventsByDate = async (
           (event) =>
             event.startTime &&
             !['cancelled', 'canceled'].includes(event.status) &&
-            matchesCalendar(event.calendarId, calendarId) &&
-            matchesRequestedDate(event, date, timeZone)
+            matchesCalendar(event.calendarId, requestedCalendarId) &&
+            matchesRequestedDateRange(event, date, requestedEndDate, timeZone)
         )
 
       return {
@@ -1474,7 +1645,7 @@ export const fetchLocationCalendarEventsByDate = async (
   }
 
   const selector = await resolveV1Selector(locationId, token)
-  const effectiveCalendarId = calendarId || selector.calendarId
+  const effectiveCalendarId = requestedCalendarId || selector.calendarId
   if (!selector.calendarId && !selector.userId && !selector.teamId) {
     return {
       events: [],
@@ -1510,8 +1681,8 @@ export const fetchLocationCalendarEventsByDate = async (
       (event) =>
         event.startTime &&
         !['cancelled', 'canceled'].includes(event.status) &&
-        matchesCalendar(event.calendarId, calendarId) &&
-        matchesRequestedDate(event, date, timeZone)
+        matchesCalendar(event.calendarId, requestedCalendarId) &&
+        matchesRequestedDateRange(event, date, requestedEndDate, timeZone)
     )
 
   return {
@@ -2058,6 +2229,128 @@ export const cancelGhlAppointmentForBooking = async ({
   throw lastError || new Error('Failed to cancel GHL appointment')
 }
 
+const normalizeBookingStatusForGhl = (status) => {
+  const normalized = `${status || ''}`.trim().toLowerCase()
+  if (normalized === 'canceled') return 'cancelled'
+  if (normalized === 'noshow') return 'no-show'
+  return normalized
+}
+
+const getStatusPayloadCandidates = (status, notes = '') => {
+  const normalized = normalizeBookingStatusForGhl(status)
+  const baseNotes = `${notes || ''}`.trim()
+  const withNotes = (payload) => (baseNotes ? { ...payload, notes: baseNotes } : payload)
+
+  if (normalized === 'cancelled') {
+    return [
+      withNotes({ appointmentStatus: 'cancelled' }),
+      withNotes({ appointmentStatus: 'canceled' }),
+      withNotes({ status: 'cancelled' }),
+    ]
+  }
+
+  if (normalized === 'no-show') {
+    return [
+      withNotes({ appointmentStatus: 'no-show' }),
+      withNotes({ appointmentStatus: 'noshow' }),
+      withNotes({ status: 'no-show' }),
+    ]
+  }
+
+  return [
+    withNotes({ appointmentStatus: normalized }),
+    withNotes({ status: normalized }),
+  ]
+}
+
+export const updateLocationBookingStatus = async (req, res) => {
+  try {
+    const { appointmentId } = req.params
+    const { locationId, status, notes = '' } = req.body || {}
+    const normalizedLocationId = `${locationId || ''}`.trim()
+    const normalizedAppointmentId = `${appointmentId || ''}`.trim()
+    const normalizedStatus = normalizeBookingStatusForGhl(status)
+    const allowedStatuses = new Set([
+      'booked',
+      'scheduled',
+      'confirmed',
+      'completed',
+      'cancelled',
+      'no-show',
+    ])
+
+    if (!normalizedLocationId || !normalizedAppointmentId || !normalizedStatus) {
+      return res.status(400).json({
+        success: false,
+        message: 'locationId, appointmentId, and status are required',
+      })
+    }
+
+    if (!allowedStatuses.has(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Unsupported booking status',
+      })
+    }
+
+    if (!canAccessLocation(req.user, normalizedLocationId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this location',
+      })
+    }
+
+    const token = await getTokenForLocation(normalizedLocationId)
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: `No GHL API key configured for location ${normalizedLocationId}`,
+      })
+    }
+
+    let lastError = null
+    for (const payload of getStatusPayloadCandidates(normalizedStatus, notes)) {
+      try {
+        const response = await makeGHLV2Request(
+          `/calendars/events/appointments/${normalizedAppointmentId}`,
+          {
+            method: 'PUT',
+            token,
+            data: {
+              locationId: normalizedLocationId,
+              ...payload,
+            },
+          }
+        )
+
+        return res.status(200).json({
+          success: true,
+          message: 'GHL booking status updated successfully',
+          data: {
+            appointmentId: normalizedAppointmentId,
+            status: normalizedStatus,
+            response,
+          },
+        })
+      } catch (error) {
+        lastError = error
+      }
+    }
+
+    throw lastError || new Error('Failed to update GHL booking status')
+  } catch (error) {
+    res.status(error?.response?.status || 500).json({
+      success: false,
+      message:
+        error?.response?.data?.message ||
+        error?.response?.data?.msg ||
+        error?.message ||
+        'Failed to update GHL booking status',
+      error: error?.response?.data || null,
+    })
+  }
+}
+
 // Test API connection
 export const testConnection = async (req, res, next) => {
   try {
@@ -2381,6 +2674,12 @@ export const getCalendars = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'locationId is required',
+      })
+    }
+    if (!canAccessLocation(req.user, locationId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this location',
       })
     }
     const token = await getTokenForLocation(locationId)
@@ -2870,20 +3169,29 @@ export const getLocationBookingsByDate = async (req, res, next) => {
     res.set('Expires', '0')
     res.set('Surrogate-Control', 'no-store')
 
-    const { locationId, date, calendarId, timeZone } = req.query
+    const { locationId, date, startDate, endDate, calendarId, timeZone } = req.query
+    const requestedStartDate = `${startDate || date || ''}`.trim()
+    const requestedEndDate = `${endDate || requestedStartDate || ''}`.trim()
 
-    if (!locationId || !date) {
+    if (!locationId || !requestedStartDate) {
       return res.status(400).json({
         success: false,
         message: 'locationId and date are required',
       })
     }
+    if (!canAccessLocation(req.user, locationId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this location',
+      })
+    }
 
     const data = await fetchLocationCalendarEventsByDate(
       locationId,
-      date,
+      requestedStartDate,
       calendarId,
-      timeZone
+      timeZone,
+      requestedEndDate
     )
 
     res.status(200).json({

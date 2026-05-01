@@ -17,6 +17,7 @@ import {
   lookupContact,
   testConnection,
   updateContact,
+  updateLocationBookingStatus,
 } from '../controller/ghl.js'
 import { verifyToken } from '../middleware/authMiddleware.js'
 
@@ -36,10 +37,11 @@ router.delete('/contacts/:contactId', deleteContact)
 
 // Other resource routes
 router.get('/opportunities', getOpportunities)
-router.get('/calendars', getCalendars)
+router.get('/calendars', verifyToken, getCalendars)
 router.get('/calendar-services', verifyToken, getCalendarServices)
 router.get('/calendar-services/:serviceId', verifyToken, getCalendarServiceById)
-router.get('/bookings', getLocationBookingsByDate)
+router.get('/bookings', verifyToken, getLocationBookingsByDate)
+router.put('/bookings/:appointmentId/status', verifyToken, updateLocationBookingStatus)
 router.get('/workflows', getWorkflows)
 router.get('/custom-fields', getCustomFields)
 
