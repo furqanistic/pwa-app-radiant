@@ -152,14 +152,27 @@ export const BrandingProvider = ({ children }) => {
         );
       }
       
-      // Update theme color CSS variable
+      // Update theme color CSS variables (matches tenant branding used across the app)
       if (branding.themeColor) {
-        document.documentElement.style.setProperty('--brand-primary', branding.themeColor);
+        document.documentElement.style.setProperty('--brand-primary', branding.themeColor)
+        const cleaned = branding.themeColor.replace('#', '')
+        let brandPrimaryDark = '#b0164e'
+        if (cleaned.length === 6) {
+          const num = parseInt(cleaned, 16)
+          const r = Math.max(0, ((num >> 16) & 255) - 24)
+          const g = Math.max(0, ((num >> 8) & 255) - 24)
+          const b = Math.max(0, (num & 255) - 24)
+          brandPrimaryDark = `#${r.toString(16).padStart(2, '0')}${g
+            .toString(16)
+            .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+        }
+        document.documentElement.style.setProperty('--brand-primary-dark', brandPrimaryDark)
       }
     } else {
       // Primary default title
       document.title = 'Beauty & Wellness';
       document.documentElement.style.setProperty('--brand-primary', '#ec4899'); // Default pink
+      document.documentElement.style.setProperty('--brand-primary-dark', '#b0164e');
     }
   }, [branding]);
 

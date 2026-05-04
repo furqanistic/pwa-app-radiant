@@ -942,6 +942,13 @@ export const getDashboardData = async (req, res, next) => {
         }
       })
 
+    const userReviewMeta = await User.findById(userId).select('reviewRewards').lean()
+    const reviewLinkBonusClaimed = Boolean(
+      userReviewMeta?.reviewRewards?.googleReview?.awarded
+    )
+    const pointsEarningMethodsPayload = pointsEarningMethods.filter(
+      (row) => !(reviewLinkBonusClaimed && row.key === 'review')
+    )
 
     res.status(200).json({
       status: 'success',
@@ -961,7 +968,8 @@ export const getDashboardData = async (req, res, next) => {
           expiring: nearestExpiring ? nearestExpiring.expiresAt : null,
           expiringReward: nearestExpiring,
         },
-        pointsEarningMethods,
+        pointsEarningMethods: pointsEarningMethodsPayload,
+        reviewLinkBonusClaimed,
         automatedGifts,
         userPoints: user.points || 0,
       },

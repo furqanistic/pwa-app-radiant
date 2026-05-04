@@ -33,9 +33,9 @@ export const rewardsService = {
     return response.data
   },
 
-  // One-time Google review reward
-  awardGoogleReview: async () => {
-    const response = await axiosInstance.post('/rewards/google-review')
+  /** One-time review-page bonus — send dwellMs (ms since opening link) after user spends time on page */
+  awardGoogleReview: async (payload = {}) => {
+    const response = await axiosInstance.post('/rewards/google-review', payload)
     return response.data
   },
   // Search users for reward giving

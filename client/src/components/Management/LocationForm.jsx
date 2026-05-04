@@ -979,7 +979,8 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
               className='rounded-xl'
             />
             <p className='text-xs text-gray-400 font-medium'>
-              This link is used for the "Leave Review" action on the user dashboard.
+              This URL is opened from the member dashboard. Point amount and rules are configured under the
+              location&apos;s Points settings (review method).
             </p>
           </div>
 

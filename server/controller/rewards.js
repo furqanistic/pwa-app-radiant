@@ -5,6 +5,7 @@ import PointTransaction from '../models/PointTransaction.js'
 import Reward from '../models/Reward.js'
 import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
+import { awardPoints } from '../utils/rewardHelpers.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
 import { getLocationScopedPointBalance } from '../utils/getLocationScopedPointBalance.js'
 
@@ -2289,9 +2290,23 @@ export const getUserManualRewards = async (req, res, next) => {
   }
 }
 
-// Award one-time Google review points (lifetime)
+/** Minimum dwell (ms) before bonus — must match client `REVIEW_PAGE_MIN_DWELL_MS` */
+const REVIEW_PAGE_MIN_DWELL_MS = 3000
+
+// Award one-time review-page bonus (lifetime; client sends dwell after visiting external review URL)
 export const awardGoogleReviewPoints = async (req, res, next) => {
   try {
+    const dwellMs = Number(req.body?.dwellMs)
+    if (!Number.isFinite(dwellMs) || dwellMs < REVIEW_PAGE_MIN_DWELL_MS) {
+      const sec = Math.max(1, Math.round(REVIEW_PAGE_MIN_DWELL_MS / 1000))
+      return next(
+        createError(
+          400,
+          `Return here after at least ${sec} second${sec === 1 ? '' : 's'} on the review page to earn points.`
+        )
+      )
+    }
+
     const userId = req.user.id
     const user = await User.findById(userId)
 
@@ -2300,7 +2315,7 @@ export const awardGoogleReviewPoints = async (req, res, next) => {
     }
 
     if (user.reviewRewards?.googleReview?.awarded) {
-      return next(createError(409, 'Google review reward already claimed'))
+      return next(createError(409, 'Review page bonus already claimed'))
     }
 
     const locationId =
@@ -2323,14 +2338,19 @@ export const awardGoogleReviewPoints = async (req, res, next) => {
     const awardResult = await awardPoints(
       userId,
       reviewPoints,
-      'Google review reward',
+      'Review page bonus',
       'bonus',
       null,
       locationId
     )
 
     if (!awardResult?.success) {
-      return next(createError(500, 'Failed to award review points'))
+      return next(
+        createError(
+          500,
+          awardResult?.error || 'Could not add points to your account'
+        )
+      )
     }
 
     user.reviewRewards = user.reviewRewards || {}
@@ -2344,14 +2364,14 @@ export const awardGoogleReviewPoints = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      message: 'Google review points awarded',
+      message: 'Review page bonus awarded',
       data: {
         pointsAwarded: reviewPoints,
         totalPoints: awardResult.totalPoints,
       },
     })
   } catch (error) {
-    console.error('Error awarding Google review points:', error)
-    next(createError(500, 'Failed to award Google review points'))
+    console.error('Error awarding review page bonus:', error)
+    next(createError(500, 'Failed to award review page bonus'))
   }
 }

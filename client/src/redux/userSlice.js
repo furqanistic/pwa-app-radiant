@@ -60,6 +60,21 @@ export const userSlice = createSlice({
         }
       }
     },
+
+    /** Review-link grab bonus is once per lifetime — mirror server after successful award */
+    markReviewLinkBonusClaimed: (state) => {
+      if (!state.currentUser) return
+      state.currentUser = {
+        ...state.currentUser,
+        reviewRewards: {
+          ...(state.currentUser.reviewRewards || {}),
+          googleReview: {
+            ...(state.currentUser.reviewRewards?.googleReview || {}),
+            awarded: true,
+          },
+        },
+      }
+    },
     logout: (state) => {
       localStorage.removeItem('token')
       sessionStorage.removeItem('token')
@@ -157,6 +172,7 @@ export const {
   loginSuccess,
   loginFailure,
   updateProfile,
+  markReviewLinkBonusClaimed,
   logout,
   // New point management actions
   updatePoints,

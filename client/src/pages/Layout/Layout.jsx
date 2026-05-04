@@ -392,9 +392,6 @@ const Layout = ({
               {item.badge.count || item.badge.text}
             </span>
           )}
-          {isNavigating && location.pathname !== item.href && (
-            <div className='w-4 h-4 border-2 border-[color:var(--brand-primary)] border-t-transparent rounded-full animate-spin flex-shrink-0' />
-          )}
         </div>
         {isActive && (
           <div

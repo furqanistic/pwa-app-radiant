@@ -9,9 +9,14 @@ import { dashboardQueryKeys, useDashboardData } from '@/hooks/useDashboard'
 import { useAvailableGames } from '@/hooks/useGameWheel'
 import { useClaimReward, useEnhancedRewardsCatalog } from '@/hooks/useRewards'
 import { useScopedLocationId } from '@/hooks/useScopedLocationId'
+import { resolveImageUrl } from '@/lib/imageHelpers'
+import { markReviewLinkBonusClaimed, setPoints } from '@/redux/userSlice'
 import { dashboardService } from '@/services/dashboardService'
 import { rewardsService } from '@/services/rewardsService'
-import { resolveImageUrl } from '@/lib/imageHelpers'
+import {
+  isGoogleBusinessReviewUrl,
+  normalizeReviewUrl,
+} from '@/utils/reviewLinks'
 import { buildAutoApplyRewardState } from '@/utils/rewardFlow'
 import { useQueryClient } from '@tanstack/react-query'
 import confetti from 'canvas-confetti'
@@ -25,6 +30,7 @@ import {
   Clock,
   CreditCard,
   DollarSign,
+  ExternalLink,
   Gift,
   Heart,
   Pause,
@@ -79,15 +85,12 @@ const iconMap = {
 }
 
 // Enhanced Reward Card Component with better UX
-const RewardCard = ({
-  reward,
-  onClaim,
-  isOptimisticUpdate = false,
-}) => {
+const RewardCard = ({ reward, onClaim, isOptimisticUpdate = false }) => {
   const [isClaiming, setIsClaiming] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef(null)
-  const brandGradient = 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
+  const brandGradient =
+    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))'
 
   const fireClaimConfetti = (targetElement) => {
     const rect = targetElement?.getBoundingClientRect?.()
@@ -121,7 +124,7 @@ const RewardCard = ({
   const toggleVoiceNote = (e) => {
     e.stopPropagation()
     if (!audioRef.current) return
-    
+
     if (isPlaying) {
       audioRef.current.pause()
     } else {
@@ -182,7 +185,8 @@ const RewardCard = ({
     if (isOptimisticUpdate) return 'Claiming...'
     if (hasActiveClaim) return 'Claimed'
     if (canAfford) return 'Claim Reward'
-    if (!(reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth)) return 'Limit Reached'
+    if (!(reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth))
+      return 'Limit Reached'
     return `Need ${reward.pointsNeeded} more`
   }
 
@@ -196,10 +200,10 @@ const RewardCard = ({
         canAfford && !isOptimisticUpdate
           ? 'hover:border-[#f9f9fa] hover:-translate-y-0.5 cursor-pointer group border-[#f9f9fa]'
           : isOptimisticUpdate
-          ? 'border-[#f9f9fa] opacity-75'
-          : hasActiveClaim
-          ? 'border-[#f9f9fa] cursor-default'
-          : 'opacity-60 border-gray-100'
+            ? 'border-[#f9f9fa] opacity-75'
+            : hasActiveClaim
+              ? 'border-[#f9f9fa] cursor-default'
+              : 'opacity-60 border-gray-100'
       } ${isClaiming ? 'animate-pulse' : ''}`}
     >
       <div className='relative h-32 sm:h-36 md:h-40 overflow-hidden'>
@@ -207,7 +211,7 @@ const RewardCard = ({
           src={resolveImageUrl(
             reward.image,
             'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=400&h=300&fit=crop',
-            { width: 500, height: 300 }
+            { width: 500, height: 300 },
           )}
           alt={reward.name}
           className={`w-full h-full object-cover transition-transform duration-300 ${
@@ -245,19 +249,23 @@ const RewardCard = ({
               type='button'
               onClick={toggleVoiceNote}
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-lg ${
-                isPlaying 
-                  ? 'text-white animate-pulse' 
+                isPlaying
+                  ? 'text-white animate-pulse'
                   : 'bg-white/90 text-[color:var(--brand-primary)] hover:bg-white hover:scale-110'
               }`}
               style={isPlaying ? { background: brandGradient } : undefined}
             >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              {isPlaying ? (
+                <Pause className='w-4 h-4' />
+              ) : (
+                <Volume2 className='w-4 h-4' />
+              )}
             </button>
-            <audio 
-              ref={audioRef} 
-              src={reward.voiceNoteUrl} 
+            <audio
+              ref={audioRef}
+              src={reward.voiceNoteUrl}
               onEnded={() => setIsPlaying(false)}
-              className="hidden"
+              className='hidden'
             />
           </div>
         )}
@@ -269,8 +277,8 @@ const RewardCard = ({
               hasActiveClaim
                 ? 'bg-[color:var(--brand-primary)] text-white'
                 : reward.status === 'active'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-500 text-white'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-500 text-white'
             }`}
           >
             {hasActiveClaim ? 'claimed' : reward.status}
@@ -290,7 +298,9 @@ const RewardCard = ({
         {/* Reward Value */}
         <div className='bg-[#fafafb] p-2.5 rounded-[0.8rem] mb-2.5 border border-[#f1f1f3]'>
           <div className='flex items-center justify-between'>
-            <span className='text-[0.72rem] font-medium text-gray-700'>Value</span>
+            <span className='text-[0.72rem] font-medium text-gray-700'>
+              Value
+            </span>
             <span className='font-semibold text-[0.9rem] text-gray-900'>
               {reward.displayValue}
             </span>
@@ -300,7 +310,9 @@ const RewardCard = ({
         {/* Details Grid */}
         <div className='grid grid-cols-2 gap-2 mb-3'>
           <div className='text-center bg-gray-50 rounded-[0.8rem] p-2.5 border border-[#f3f3f5]'>
-            <div className='text-[0.64rem] text-gray-500 mb-1 uppercase tracking-[0.08em]'>Valid For</div>
+            <div className='text-[0.64rem] text-gray-500 mb-1 uppercase tracking-[0.08em]'>
+              Valid For
+            </div>
             <div className='font-medium text-[0.75rem] text-gray-900 leading-tight'>
               {reward.validDays && reward.validDays > 0
                 ? `${reward.validDays} days`
@@ -308,9 +320,12 @@ const RewardCard = ({
             </div>
           </div>
           <div className='text-center bg-gray-50 rounded-[0.8rem] p-2.5 border border-[#f3f3f5]'>
-            <div className='text-[0.64rem] text-gray-500 mb-1 uppercase tracking-[0.08em]'>Claim Limit</div>
+            <div className='text-[0.64rem] text-gray-500 mb-1 uppercase tracking-[0.08em]'>
+              Claim Limit
+            </div>
             <div className='font-medium text-[0.75rem] text-gray-900 leading-tight'>
-              {(reward.limitCount || reward.limit || 1)} per {(reward.limitDays || 30)} days
+              {reward.limitCount || reward.limit || 1} per{' '}
+              {reward.limitDays || 30} days
             </div>
           </div>
         </div>
@@ -321,17 +336,21 @@ const RewardCard = ({
           onClick={handleClaim}
           disabled={!canAfford || isClaiming || isOptimisticUpdate}
           whileTap={{ scale: canAfford ? 0.98 : 1 }}
-          style={canAfford && !isClaiming && !isOptimisticUpdate ? { background: brandGradient } : undefined}
+          style={
+            canAfford && !isClaiming && !isOptimisticUpdate
+              ? { background: brandGradient }
+              : undefined
+          }
           className={`mt-auto w-full min-h-[2.5rem] py-2.5 rounded-[0.9rem] font-medium text-[0.82rem] transition-all flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 ${
             isClaiming
               ? 'bg-[color:var(--brand-primary)] text-white cursor-wait'
-            : isOptimisticUpdate
-              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-            : hasActiveClaim
-              ? 'bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] cursor-default'
-              : canAfford
-              ? 'text-white hover:brightness-105'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : isOptimisticUpdate
+                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                : hasActiveClaim
+                  ? 'bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] cursor-default'
+                  : canAfford
+                    ? 'text-white hover:brightness-105'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
           }`}
         >
           {isClaiming ? (
@@ -407,7 +426,9 @@ const SpaRewardsSection = () => {
     scopedLocationId
       ? `${path}?spa=${encodeURIComponent(scopedLocationId)}`
       : path
-  const catalogFilters = scopedLocationId ? { locationId: scopedLocationId } : {}
+  const catalogFilters = scopedLocationId
+    ? { locationId: scopedLocationId }
+    : {}
   const {
     rewards = [],
     isLoading,
@@ -491,15 +512,15 @@ const SpaRewardsSection = () => {
   const claimableRewards = orderedRewards.filter(
     (reward) =>
       reward?.canClaim &&
-      (reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth ?? true)
+      (reward.canClaimMoreInWindow ?? reward.canClaimMoreThisMonth ?? true),
   )
-  const claimableRewardIds = new Set(claimableRewards.map((reward) => reward._id))
+  const claimableRewardIds = new Set(
+    claimableRewards.map((reward) => reward._id),
+  )
   const lockedRewards = orderedRewards.filter(
-    (reward) => !claimableRewardIds.has(reward._id)
+    (reward) => !claimableRewardIds.has(reward._id),
   )
-  const recentRewards = claimableRewards
-    .concat(lockedRewards)
-    .slice(0, 4)
+  const recentRewards = claimableRewards.concat(lockedRewards).slice(0, 4)
 
   // Pull to refresh handler for PWA
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -648,7 +669,7 @@ const SpaRewardsSection = () => {
             <span className='bg-[color:var(--brand-primary)/0.12] text-[color:var(--brand-primary)] px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-semibold'>
               {
                 recentRewards.filter(
-                  (r) => r.canClaim && !optimisticRewards.has(r._id)
+                  (r) => r.canClaim && !optimisticRewards.has(r._id),
                 ).length
               }{' '}
               Available
@@ -764,11 +785,39 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
   )
 }
 
+/** Minimum ms before claiming after opening review — must match server `REVIEW_PAGE_MIN_DWELL_MS` */
+const REVIEW_PAGE_MIN_DWELL_MS = 3000
+
 // Need More Points Section
-const NeedMorePointsSection = ({ methods = [] }) => {
+const NeedMorePointsSection = ({
+  methods = [],
+  reviewLinkBonusClaimed = false,
+  refetchDashboard,
+}) => {
   const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const queryClient = useQueryClient()
+  const currentUser = useSelector((state) => state.user.currentUser)
   const { branding } = useBranding()
   const scopedLocationId = useScopedLocationId()
+
+  const reviewBonusClaimed =
+    Boolean(reviewLinkBonusClaimed) ||
+    Boolean(currentUser?.reviewRewards?.googleReview?.awarded)
+
+  const visibleMethods = useMemo(() => {
+    if (!reviewBonusClaimed) return methods
+    return methods.filter((m) => m.key !== 'review')
+  }, [methods, reviewBonusClaimed])
+
+  const reviewFocusSessionRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      reviewFocusSessionRef.current?.cleanup?.()
+      reviewFocusSessionRef.current = null
+    }
+  }, [])
 
   const withSpaParam = (path) => {
     if (!scopedLocationId) return path
@@ -777,6 +826,9 @@ const NeedMorePointsSection = ({ methods = [] }) => {
   }
 
   const reviewLink = branding?.reviewLink || null
+  const normalizedReviewLink = reviewLink ? normalizeReviewUrl(reviewLink) : ''
+  const isGoogleReviewDestination =
+    Boolean(normalizedReviewLink) && isGoogleBusinessReviewUrl(reviewLink)
 
   const actionMap = {
     'Share Now': '/referrals',
@@ -790,112 +842,338 @@ const NeedMorePointsSection = ({ methods = [] }) => {
     if (path) navigate(withSpaParam(path))
   }
 
-  const handleExternalReview = async () => {
-    if (!reviewLink) {
+  /** Native `<a target="_blank">` opens the review page (avoids popup blockers); this only tracks return + dwell. */
+  const handleReviewLinkClick = (event) => {
+    if (reviewBonusClaimed) {
+      event.preventDefault()
+      return
+    }
+    if (!normalizedReviewLink) {
+      event.preventDefault()
       toast.error('Review link not available')
       return
     }
-    try {
-      const response = await rewardsService.awardGoogleReview()
-      if (response?.data?.pointsAwarded) {
-        toast.success(`+${response.data.pointsAwarded} points added`)
-      }
-    } catch (error) {
-      const message =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        'Review reward already claimed'
-      toast.message(message)
-    } finally {
-      window.open(reviewLink, '_blank', 'noopener,noreferrer')
+
+    if (reviewFocusSessionRef.current?.waiting) {
+      event.preventDefault()
+      return
     }
+
+    const openedAt = Date.now()
+    let finalizeStarted = false
+
+    const cleanup = () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+      reviewFocusSessionRef.current = null
+    }
+
+    const tryFinalize = async () => {
+      if (finalizeStarted) return
+      const elapsed = Date.now() - openedAt
+      if (elapsed < REVIEW_PAGE_MIN_DWELL_MS) {
+        return
+      }
+      finalizeStarted = true
+      cleanup()
+
+      try {
+        const response = await rewardsService.awardGoogleReview({
+          dwellMs: elapsed,
+        })
+        const pts = response?.data?.pointsAwarded
+        const total = response?.data?.totalPoints
+        dispatch(markReviewLinkBonusClaimed())
+        if (pts != null) {
+          toast.success(`+${pts} points added`)
+        }
+        if (total != null) {
+          dispatch(setPoints(total))
+        }
+        await queryClient.invalidateQueries({
+          queryKey: dashboardQueryKeys.all,
+        })
+        await refetchDashboard?.()
+      } catch (error) {
+        const message =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          'Something went wrong'
+        toast.error(message)
+      }
+    }
+
+    function onFocus() {
+      void tryFinalize()
+    }
+
+    function onVisibility() {
+      if (document.visibilityState === 'visible') void tryFinalize()
+    }
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    reviewFocusSessionRef.current = { waiting: true, cleanup }
   }
 
   const handleInAppReview = () => {
     navigate(withSpaParam('/Booking?tab=history&review=1'))
   }
 
+  const hasExternalReviewLink = Boolean(normalizedReviewLink)
+  const showGoogleBanner = hasExternalReviewLink && isGoogleReviewDestination
+  /** Review-link promo card: visible whenever branding has a URL (grab flow or “already claimed”). */
+  const showReviewLinkCard = hasExternalReviewLink
+
+  const grabPointsPretty = useMemo(() => {
+    const row = methods.find(
+      (m) => m.actionType === 'review' || m.action === 'Review',
+    )
+    const raw = row?.points != null ? `${row.points}`.trim() : ''
+    if (!raw) return '+50 pts'
+    return /pts/i.test(raw) ? raw : `${raw} pts`
+  }, [methods])
+
+  const onceChipLabel = 'Once only · lifetime'
+  const claimedChipLabel = 'Already claimed · lifetime'
+
+  if (!visibleMethods?.length && !showReviewLinkCard) {
+    return null
+  }
+
   return (
     <DashboardCard gradient='purple'>
-      <div className='flex flex-wrap items-center justify-between gap-2 sm:gap-4 mb-3'>
-        <div className='flex items-center gap-2'>
-          <div className='rounded-xl bg-white p-2 shadow-sm'>
-            <Zap className='w-5 h-5 text-[color:var(--brand-primary)]' />
-          </div>
-          <div>
-            <h2 className='text-lg font-bold text-gray-900'>Earn More Points</h2>
-            <p className='text-xs text-gray-500'>Small actions that boost your balance</p>
+      <div className='mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
+        <div className='flex min-w-0 items-start gap-3'>
+          <div className='min-w-0'>
+            <h2 className='text-lg font-bold tracking-tight text-gray-900 sm:text-xl'>
+              Earn more points
+            </h2>
+            <p className='mt-1 text-sm leading-snug text-gray-600'>
+              Small actions that grow your balance.
+            </p>
           </div>
         </div>
-        <span className='text-xs uppercase tracking-[0.3em] text-[color:var(--brand-primary)]'>
-          {methods.length} ideas
-        </span>
+        {visibleMethods.length > 0 ? (
+          <p className='shrink-0 rounded-xl bg-[color:var(--brand-primary)]/[0.06] px-3 py-2 text-center text-xs font-medium leading-snug text-[color:var(--brand-primary-dark)] ring-1 ring-[color:var(--brand-primary)]/15 sm:max-w-[12rem] sm:text-right'>
+            {visibleMethods.length === 1
+              ? '1 more option below'
+              : `${visibleMethods.length} more options below`}
+          </p>
+        ) : null}
       </div>
-      <div className='grid grid-cols-2 gap-3'>
-        {methods.slice(0, 4).map((method) => {
-          const IconComponent = iconMap[method.icon] || Zap
-          const isReview =
-            method.actionType === 'review' || method.action === 'Review'
-          const hasNavigateAction =
-            method.actionType === 'navigate' &&
-            Boolean(actionMap[method.action] || method.path)
-          return (
+
+      {showReviewLinkCard && (
+        <div className='mb-5 overflow-hidden rounded-[1.5rem] border border-[color:var(--brand-primary)]/20 bg-white shadow-[0_14px_48px_-28px_rgba(15,23,42,0.14)] sm:mb-6'>
+          <div className='relative px-4 pb-6 pt-6 sm:px-7 sm:pb-7 sm:pt-7'>
             <div
-              key={method.id}
-              className='flex flex-col items-start gap-2 rounded-xl border border-gray-200 bg-white/80 p-3 text-left transition hover:border-[color:var(--brand-primary)] hover:shadow-lg'
-            >
-              <div className='flex items-center justify-center rounded-full bg-[color:var(--brand-primary)/0.12] w-9 h-9'>
-                <IconComponent className='w-4 h-4 text-[color:var(--brand-primary)]' />
-              </div>
-              <div>
-                <p className='text-sm font-semibold text-gray-900'>{method.title}</p>
-                <p className='text-xs text-gray-500'>{method.description}</p>
-              </div>
-              {isReview ? (
-                <div className='mt-auto flex flex-col gap-2 w-full'>
-                  <button
-                    type='button'
-                    onClick={handleInAppReview}
-                    className='w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+              className={`pointer-events-none absolute inset-0 bg-gradient-to-br via-transparent to-transparent ${
+                reviewBonusClaimed
+                  ? 'from-emerald-500/[0.06]'
+                  : 'from-[color:var(--brand-primary)]/[0.09]'
+              }`}
+            />
+            <div className='relative flex flex-col gap-5'>
+              {reviewBonusClaimed ? (
+                <>
+                  <div className='flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:gap-5 sm:text-left'>
+                    <div className='flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 shadow-lg shadow-emerald-600/25 sm:h-[4.25rem] sm:w-[4.25rem] sm:rounded-[1.15rem]'>
+                      <CheckCircle
+                        className='h-8 w-8 text-white sm:h-9 sm:w-9'
+                        aria-hidden
+                      />
+                    </div>
+                    <div className='min-w-0 flex-1 space-y-3'>
+                      <div className='flex flex-col items-center gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3'>
+                        <div className='text-center sm:text-left'>
+                          <h3 className='text-xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-2xl'>
+                            Already claimed
+                          </h3>
+                          {showGoogleBanner ? (
+                            <p className='mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400'>
+                              Google listing
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className='inline-flex items-center rounded-full border border-emerald-600/25 bg-emerald-50 px-3.5 py-1.5 text-[11px] font-semibold tabular-nums text-emerald-800'>
+                          {claimedChipLabel}
+                        </span>
+                      </div>
+                      <p className='mx-auto max-w-md text-center text-sm leading-relaxed text-gray-600 sm:mx-0 sm:text-left'>
+                        You’ve already received your one-time{' '}
+                        <span className='font-semibold text-gray-900'>
+                          {grabPointsPretty}
+                        </span>{' '}
+                        bonus for this review offer. It won’t appear again on
+                        your account.
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    role='status'
+                    aria-live='polite'
+                    className='flex min-h-[3.25rem] w-full cursor-default touch-manipulation items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-5 py-3.5 text-[15px] font-semibold text-gray-600 sm:min-h-[3.5rem] sm:text-base'
                   >
-                    In-App Review
-                  </button>
-                  <button
-                    type='button'
-                    onClick={handleExternalReview}
-                    disabled={!reviewLink}
-                    className='w-full rounded-lg bg-gray-900 text-white text-xs font-bold py-2 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2'
-                  >
-                    Google Review
-                  </button>
-                  <span className='text-[10px] font-black text-[color:var(--brand-primary)]'>
-                    {method.points} pts (in-app)
-                  </span>
-                </div>
+                    <CheckCircle
+                      className='h-5 w-5 shrink-0 text-emerald-600'
+                      aria-hidden
+                    />
+                    Already claimed
+                  </div>
+                </>
               ) : (
                 <>
-                  {hasNavigateAction ? (
-                    <button
-                      type='button'
-                      onClick={() => handleAction(method)}
-                      className='mt-auto w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+                  <div className='flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:gap-5 sm:text-left'>
+                    <div
+                      className='flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg shadow-[color:var(--brand-primary)]/25 sm:h-[4.25rem] sm:w-[4.25rem] sm:rounded-[1.15rem]'
+                      style={{
+                        background:
+                          'linear-gradient(145deg, var(--brand-primary), var(--brand-primary-dark))',
+                      }}
                     >
-                      {method.action}
-                    </button>
-                  ) : (
-                    <span className='mt-auto inline-flex rounded-lg bg-gray-100 px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-gray-600'>
-                      Automatic when eligible
-                    </span>
-                  )}
-                  <span className='text-xs font-black text-[color:var(--brand-primary)]'>
-                    {method.points} pts
-                  </span>
+                      <Gift
+                        className='h-8 w-8 text-white sm:h-9 sm:w-9'
+                        aria-hidden
+                      />
+                    </div>
+                    <div className='min-w-0 flex-1 space-y-3'>
+                      <div className='flex flex-col items-center gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3'>
+                        <div className='text-center sm:text-left'>
+                          <h3 className='text-xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-2xl'>
+                            Grab{' '}
+                            <span className='text-[color:var(--brand-primary-dark)]'>
+                              {grabPointsPretty}
+                            </span>
+                          </h3>
+                          {showGoogleBanner ? (
+                            <p className='mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400'>
+                              Google listing
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className='inline-flex items-center rounded-full border border-[color:var(--brand-primary)]/30 bg-[color:var(--brand-primary)]/10 px-3.5 py-1.5 text-[11px] font-semibold tabular-nums text-[color:var(--brand-primary-dark)]'>
+                          {onceChipLabel}
+                        </span>
+                      </div>
+                      <p className='mx-auto max-w-md text-center text-sm leading-relaxed text-gray-600 sm:mx-0 sm:text-left'>
+                        Earn{' '}
+                        <span className='font-semibold text-gray-900'>
+                          {grabPointsPretty}
+                        </span>{' '}
+                        one time — tap{' '}
+                        <span className='font-semibold text-gray-900'>
+                          Grab my points now
+                        </span>{' '}
+                        to lock it in (opens in a new tab).
+                      </p>
+                    </div>
+                  </div>
+
+                  <a
+                    href={normalizedReviewLink}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    onClick={handleReviewLinkClick}
+                    aria-label={`Grab ${grabPointsPretty} — opens in a new tab`}
+                    className='flex min-h-[3.25rem] w-full touch-manipulation items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[15px] font-semibold text-white no-underline shadow-lg shadow-[color:var(--brand-primary)]/35 transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 sm:min-h-[3.5rem] sm:text-base'
+                    style={{
+                      background:
+                        'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                    }}
+                  >
+                    <Sparkles
+                      className='h-5 w-5 shrink-0 opacity-95'
+                      aria-hidden
+                    />
+                    Grab my points now
+                  </a>
                 </>
               )}
             </div>
-          )
-        })}
-      </div>
+          </div>
+        </div>
+      )}
+
+      {visibleMethods.length > 0 ? (
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4'>
+          {visibleMethods.slice(0, 4).map((method) => {
+            const IconComponent = iconMap[method.icon] || Zap
+            const isReview =
+              method.actionType === 'review' || method.action === 'Review'
+            const hasNavigateAction =
+              method.actionType === 'navigate' &&
+              Boolean(actionMap[method.action] || method.path)
+            return (
+              <div
+                key={method.id}
+                className='flex flex-col items-start gap-2.5 rounded-2xl border border-gray-200/90 bg-white/95 p-4 text-left shadow-sm transition hover:border-[color:var(--brand-primary)]/35 hover:shadow-md sm:gap-3 sm:p-4'
+              >
+                <div className='flex items-center justify-center rounded-full bg-[color:var(--brand-primary)/0.12] w-9 h-9'>
+                  <IconComponent className='w-4 h-4 text-[color:var(--brand-primary)]' />
+                </div>
+                <div>
+                  <p className='text-sm font-semibold text-gray-900'>
+                    {method.title}
+                  </p>
+                  <p className='text-xs text-gray-500'>{method.description}</p>
+                </div>
+                {isReview ? (
+                  <div className='mt-auto flex flex-col gap-2 w-full'>
+                    {isGoogleReviewDestination ? (
+                      <>
+                        <button
+                          type='button'
+                          onClick={handleInAppReview}
+                          className='w-full min-h-[44px] rounded-xl bg-[color:var(--brand-primary)]/12 text-[color:var(--brand-primary)] text-xs font-bold py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+                        >
+                          In-app review after a visit
+                        </button>
+                        <span className='text-[10px] font-bold text-[color:var(--brand-primary)] leading-snug'>
+                          Extra points when you rate a completed booking in the
+                          app
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type='button'
+                          onClick={handleInAppReview}
+                          className='w-full min-h-[44px] rounded-xl bg-[color:var(--brand-primary)] text-white text-xs font-bold py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+                        >
+                          Review in app after a visit
+                        </button>
+                        <span className='text-[10px] font-bold text-[color:var(--brand-primary)] leading-snug'>
+                          {method.points} pts per eligible visit (one review per
+                          booking)
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {hasNavigateAction ? (
+                      <button
+                        type='button'
+                        onClick={() => handleAction(method)}
+                        className='mt-auto w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+                      >
+                        {method.action}
+                      </button>
+                    ) : (
+                      <span className='mt-auto inline-flex rounded-lg bg-gray-100 px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-gray-600'>
+                        Automatic when eligible
+                      </span>
+                    )}
+                    <span className='text-xs font-black text-[color:var(--brand-primary)]'>
+                      {method.points} pts
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
     </DashboardCard>
   )
 }
@@ -904,10 +1182,14 @@ const NextRewardProgressSection = () => {
   const navigate = useNavigate()
   const scopedLocationId = useScopedLocationId()
   const { currentUser } = useSelector((state) => state.user)
-  const catalogFilters = scopedLocationId ? { locationId: scopedLocationId } : {}
-  const { rewards = [], userPoints, isLoading } = useEnhancedRewardsCatalog(
-    catalogFilters
-  )
+  const catalogFilters = scopedLocationId
+    ? { locationId: scopedLocationId }
+    : {}
+  const {
+    rewards = [],
+    userPoints,
+    isLoading,
+  } = useEnhancedRewardsCatalog(catalogFilters)
   const withSpaParam = (path) =>
     scopedLocationId
       ? `${path}?spa=${encodeURIComponent(scopedLocationId)}`
@@ -918,7 +1200,7 @@ const NextRewardProgressSection = () => {
       (reward) =>
         reward?.status === 'active' &&
         Number.isFinite(Number(reward?.pointCost)) &&
-        (reward.canClaimMoreInWindow ?? true)
+        (reward.canClaimMoreInWindow ?? true),
     )
     .sort((a, b) => Number(a.pointCost) - Number(b.pointCost))
 
@@ -929,8 +1211,8 @@ const NextRewardProgressSection = () => {
   const currentPoints = Number.isFinite(pointsFromCatalog)
     ? pointsFromCatalog
     : Number.isFinite(pointsFromUser)
-    ? pointsFromUser
-    : 0
+      ? pointsFromUser
+      : 0
 
   const nextReward =
     rewardPool.find((reward) => currentPoints < Number(reward.pointCost)) ||
@@ -973,13 +1255,18 @@ const NextRewardProgressSection = () => {
               <Star className='w-4 h-4 sm:w-5 sm:h-5 text-[color:var(--brand-primary)]' />
             </div>
             <div className='min-w-0'>
-              <h2 className='text-base sm:text-lg font-bold text-gray-900 truncate'>Next Reward</h2>
-              <p className='text-[10px] sm:text-xs text-gray-500 truncate'>Track progress</p>
+              <h2 className='text-base sm:text-lg font-bold text-gray-900 truncate'>
+                Next Reward
+              </h2>
+              <p className='text-[10px] sm:text-xs text-gray-500 truncate'>
+                Track progress
+              </p>
             </div>
           </div>
           <div className='flex-shrink-0 rounded-full border border-[color:var(--brand-primary)/0.2] bg-[color:var(--brand-primary)/0.08] px-2 py-0.5 sm:px-3 sm:py-1'>
             <p className='text-[10px] sm:text-[11px] font-bold text-[color:var(--brand-primary)] whitespace-nowrap'>
-              <span className="hidden sm:inline">Current: </span>{formatPoints(currentPoints)} pts
+              <span className='hidden sm:inline'>Current: </span>
+              {formatPoints(currentPoints)} pts
             </p>
           </div>
         </div>
@@ -999,14 +1286,16 @@ const NextRewardProgressSection = () => {
               className='h-full rounded-full transition-all duration-500'
               style={{
                 width: `${Math.max(3, progressPercent)}%`,
-                background: 'linear-gradient(90deg, var(--brand-primary), #f59e0b)',
+                background:
+                  'linear-gradient(90deg, var(--brand-primary), #f59e0b)',
               }}
             />
           </div>
 
           <div className='mt-3 flex items-center justify-between gap-2'>
             <p className='text-xs font-medium text-gray-600'>
-              {formatPoints(Math.max(0, currentPoints))} / {formatPoints(targetPoints)} pts
+              {formatPoints(Math.max(0, currentPoints))} /{' '}
+              {formatPoints(targetPoints)} pts
             </p>
             <p
               className={`text-xs font-semibold ${
@@ -1039,48 +1328,52 @@ const DashboardPage = () => {
       ...DASHBOARD_DATA_FILTERS,
       ...(scopedLocationId ? { locationId: scopedLocationId } : {}),
     }),
-    [scopedLocationId]
+    [scopedLocationId],
   )
 
   // Fetch dashboard data
-  const { data: dashboardData, isLoading, error, refetch } = useDashboardData(
-    dashboardFilters,
-    {
-      refetchInterval: false,
-      refetchIntervalInBackground: false,
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
-    }
-  )
+  const {
+    data: dashboardData,
+    isLoading,
+    error,
+    refetch,
+  } = useDashboardData(dashboardFilters, {
+    refetchInterval: false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  })
   const refreshRecentCheckInsOnly = useCallback(async () => {
     const response = await dashboardService.getDashboardData(dashboardFilters)
     const latestData = response?.data?.data || {}
 
-    queryClient.setQueryData(dashboardQueryKeys.data(dashboardFilters), (current) => {
-      if (!current?.data) {
-        return response?.data || current
-      }
+    queryClient.setQueryData(
+      dashboardQueryKeys.data(dashboardFilters),
+      (current) => {
+        if (!current?.data) {
+          return response?.data || current
+        }
 
-      return {
-        ...current,
-        data: {
-          ...current.data,
-          recentQrClaims: Array.isArray(latestData.recentQrClaims)
-            ? latestData.recentQrClaims
-            : current.data.recentQrClaims || [],
-          recentQrClaimsSummary:
-            latestData.recentQrClaimsSummary ||
-            current.data.recentQrClaimsSummary ||
-            {},
-        },
-      }
-    })
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            recentQrClaims: Array.isArray(latestData.recentQrClaims)
+              ? latestData.recentQrClaims
+              : current.data.recentQrClaims || [],
+            recentQrClaimsSummary:
+              latestData.recentQrClaimsSummary ||
+              current.data.recentQrClaimsSummary ||
+              {},
+          },
+        }
+      },
+    )
   }, [dashboardFilters, queryClient])
   // Prefetch games in parallel so GamesSection appears faster.
-  useAvailableGames(
-    scopedLocationId ? { locationId: scopedLocationId } : {},
-    { enabled: currentUser?.role === 'user' }
-  )
+  useAvailableGames(scopedLocationId ? { locationId: scopedLocationId } : {}, {
+    enabled: currentUser?.role === 'user',
+  })
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -1142,7 +1435,9 @@ const DashboardPage = () => {
     <Layout>
       <div className='min-h-screen bg-[color:var(--brand-primary)/0.06] p-3 sm:p-4 lg:p-6'>
         <div className='max-w-7xl mx-auto'>
-          {['spa', 'admin', 'super-admin'].includes(currentUser?.role || data.role) ? (
+          {['spa', 'admin', 'super-admin'].includes(
+            currentUser?.role || data.role,
+          ) ? (
             <SpaDashboard
               data={data}
               refetch={refetch}
@@ -1153,7 +1448,7 @@ const DashboardPage = () => {
             <>
               {/* Points Card - Full Width at Top */}
               <div className='mb-4 sm:mb-6 lg:mb-8'>
-                <PointsCard /> 
+                <PointsCard />
                 <TreatmentCycleCard />
               </div>
 
@@ -1173,12 +1468,14 @@ const DashboardPage = () => {
               <div className='mb-4 sm:mb-6 lg:mb-8'>
                 <ClinicLocations />
               </div>
-              {/* Need More Points Section - Full Width */}
-              {data.pointsEarningMethods?.length > 0 && (
-                <div className='mb-4 sm:mb-6 lg:mb-8'>
-                  <NeedMorePointsSection methods={data.pointsEarningMethods} />
-                </div>
-              )}
+              {/* Earn More Points — may include Google banner from branding */}
+              <div className='mb-4 sm:mb-6 lg:mb-8'>
+                <NeedMorePointsSection
+                  methods={data.pointsEarningMethods || []}
+                  reviewLinkBonusClaimed={Boolean(data.reviewLinkBonusClaimed)}
+                  refetchDashboard={refetch}
+                />
+              </div>
 
               {/* Rest of the Dashboard - Better Balanced Layout */}
               <div className='grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8'>
@@ -1193,7 +1490,9 @@ const DashboardPage = () => {
                             <Calendar className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
-                            <h2 className='text-lg font-bold text-gray-800'>Upcoming Appointments</h2>
+                            <h2 className='text-lg font-bold text-gray-800'>
+                              Upcoming Appointments
+                            </h2>
                             <p className='text-xs text-gray-500'>
                               {data.upcomingAppointments.length} scheduled
                             </p>
@@ -1233,7 +1532,9 @@ const DashboardPage = () => {
                       ) : (
                         <div className='text-center py-8'>
                           <Calendar className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-                          <p className='text-gray-600 mb-4'>No upcoming appointments</p>
+                          <p className='text-gray-600 mb-4'>
+                            No upcoming appointments
+                          </p>
                           <button
                             type='button'
                             onClick={() => navigate(withSpaParam('/services'))}
@@ -1255,7 +1556,9 @@ const DashboardPage = () => {
                             <Users className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
-                            <h2 className='text-lg font-bold text-gray-800'>Referral Program</h2>
+                            <h2 className='text-lg font-bold text-gray-800'>
+                              Referral Program
+                            </h2>
                             <p className='text-xs text-gray-500'>
                               Share your code and earn points
                             </p>
@@ -1294,13 +1597,18 @@ const DashboardPage = () => {
                             <p className={`text-2xl font-bold ${stat.accent}`}>
                               {stat.value}
                             </p>
-                            <p className='text-xs text-gray-500'>{stat.label}</p>
+                            <p className='text-xs text-gray-500'>
+                              {stat.label}
+                            </p>
                           </div>
                         ))}
                       </div>
                       <div className='mt-3 rounded-xl border border-dashed border-[color:var(--brand-primary)/40] bg-white/80 p-3 text-xs text-gray-600 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2'>
                         <span>
-                          Code: <span className='font-semibold text-gray-900'>{data.referralStats.referralCode || '—'}</span>
+                          Code:{' '}
+                          <span className='font-semibold text-gray-900'>
+                            {data.referralStats.referralCode || '—'}
+                          </span>
                         </span>
                         <span className='text-[0.65rem] uppercase tracking-[0.3em] text-[color:var(--brand-primary)]'>
                           Active
@@ -1321,7 +1629,9 @@ const DashboardPage = () => {
                             <Gift className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
-                            <h2 className='text-lg font-bold text-gray-800'>Credits & Gifts</h2>
+                            <h2 className='text-lg font-bold text-gray-800'>
+                              Credits & Gifts
+                            </h2>
                             <p className='text-xs text-gray-500'>
                               Quick view of available credits
                             </p>
@@ -1351,8 +1661,12 @@ const DashboardPage = () => {
                           >
                             <stat.icon className='w-5 h-5 text-[color:var(--brand-primary)]' />
                             <div>
-                              <p className='text-lg font-semibold text-gray-900'>{stat.value}</p>
-                              <p className='text-xs text-gray-500'>{stat.label}</p>
+                              <p className='text-lg font-semibold text-gray-900'>
+                                {stat.value}
+                              </p>
+                              <p className='text-xs text-gray-500'>
+                                {stat.label}
+                              </p>
                             </div>
                           </div>
                         ))}
@@ -1384,7 +1698,9 @@ const DashboardPage = () => {
                             <Heart className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
-                            <h2 className='text-lg font-bold text-gray-800'>Past Visits</h2>
+                            <h2 className='text-lg font-bold text-gray-800'>
+                              Past Visits
+                            </h2>
                             <p className='text-xs text-gray-500'>
                               Recent treatments & ratings
                             </p>
@@ -1414,11 +1730,12 @@ const DashboardPage = () => {
                                   {formatDate(visit.date)}
                                 </p>
                               </div>
-                              {Number.isFinite(Number(visit?.rating)) && Number(visit.rating) > 0 && (
-                                <div className='text-xs font-semibold text-[color:var(--brand-primary)] ml-3'>
-                                  {Number(visit.rating).toFixed(1)}★
-                                </div>
-                              )}
+                              {Number.isFinite(Number(visit?.rating)) &&
+                                Number(visit.rating) > 0 && (
+                                  <div className='text-xs font-semibold text-[color:var(--brand-primary)] ml-3'>
+                                    {Number(visit.rating).toFixed(1)}★
+                                  </div>
+                                )}
                             </motion.div>
                           ))
                         ) : (

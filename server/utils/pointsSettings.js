@@ -79,16 +79,16 @@ export const DEFAULT_POINTS_METHODS = [
   },
   {
     key: 'review',
-    title: 'Leave Verified Google Review',
-    description: 'Get 200 points after your review is verified',
-    pointsValue: 200,
-    pointsLabel: '+200',
+    title: 'Leave a review (review link)',
+    description: 'Earn 50 points once for visiting the spa review page',
+    pointsValue: 50,
+    pointsLabel: '+50',
     icon: 'Star',
     action: 'Review',
     actionType: 'review',
-    frequency: '1 per 90 days',
-    verification: 'Review verified by team',
-    notes: 'High ROI for local SEO',
+    frequency: 'Once per account',
+    verification: 'User opens review link from dashboard',
+    notes: 'Bonus after minimum time on external review page',
     isActive: true,
   },
   {
@@ -456,6 +456,7 @@ export const EARN_MORE_POINTS_METHOD_KEYS = [
   'share_referral_link',
   'booking',
   'purchase',
+  'review',
 ]
 
 const normalizePointsMethod = (method, fallback) => {
@@ -493,7 +494,21 @@ export const mergePointsMethodsWithDefaults = (methods = []) => {
     }
   })
 
-  return merged.filter((method) => method.key !== 'read_tip')
+  const reviewFallback = DEFAULT_POINTS_METHODS.find((m) => m.key === 'review')
+  const targetReviewPoints =
+    typeof reviewFallback?.pointsValue === 'number' ? reviewFallback.pointsValue : 50
+
+  const mergedWithReviewLegacyFix = merged.map((method) => {
+    if (method?.key !== 'review' || !reviewFallback) return method
+    const v = Number(method.pointsValue)
+    /** Older shipped defaults were 200 or +5; remap so UI and awards match current product default */
+    if (v === 200 || v === 5) {
+      return normalizePointsMethod({ ...method, pointsValue: targetReviewPoints }, reviewFallback)
+    }
+    return method
+  })
+
+  return mergedWithReviewLegacyFix.filter((method) => method.key !== 'read_tip')
 }
 
 export const ensureLocationPointsSettings = async (location) => {
