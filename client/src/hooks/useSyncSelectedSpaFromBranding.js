@@ -15,6 +15,9 @@ const shouldSyncSelectedLocationForRole = (role) => {
   return true
 }
 
+/** Public QR landing pages load `?spa=` for tenant theming only; do not switch the user's selected spa. */
+const PUBLIC_QR_SYNC_BLOCKLIST = new Set(['/check-in', '/claim-reward'])
+
 export function useSyncSelectedSpaFromBranding() {
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
@@ -32,6 +35,7 @@ export function useSyncSelectedSpaFromBranding() {
     if (brandingLoading) return
     if (!locationId) return
     if (pathname === '/auth') return
+    if (PUBLIC_QR_SYNC_BLOCKLIST.has(pathname)) return
 
     const selectedId =
       `${currentUser?.selectedLocation?.locationId || ''}`.trim()

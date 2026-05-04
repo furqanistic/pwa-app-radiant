@@ -590,7 +590,11 @@ const ProfilePage = () => {
       typeof window !== "undefined" ? window.location.origin : FRONTEND_URL;
 
     try {
-      const baseUrl = FRONTEND_URL || fallbackOrigin;
+      // In dev, always encode the host you're running on so scans/opens hit the same API/app.
+      const baseUrl =
+        import.meta.env.DEV && typeof window !== "undefined"
+          ? window.location.origin
+          : FRONTEND_URL || fallbackOrigin;
       const url = new URL(path, baseUrl);
       url.searchParams.set("qrId", qrId);
       if (spaId) {

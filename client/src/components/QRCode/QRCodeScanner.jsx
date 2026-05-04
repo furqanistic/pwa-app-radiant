@@ -105,7 +105,18 @@ const QRCodeScanner = ({ isOpen, onClose }) => {
           // Handle URL format: https://domain.com/claim-reward?qrId=QR_123
           if (code.data.includes('qrId=')) {
             try {
-              const url = new URL(code.data)
+              let raw = `${code.data}`.trim()
+              // Allow scheme-less hosts from some printers/encoders (e.g. example.com/check-in?qrId=...)
+              if (!/^https?:\/\//i.test(raw)) {
+                raw = raw.replace(/^\/+/, '')
+                if (raw.includes('?')) {
+                  const [hostPath, qs] = raw.split('?', 2)
+                  raw = `https://${hostPath}?${qs}`
+                } else {
+                  raw = `https://${raw}`
+                }
+              }
+              const url = new URL(raw)
               const qrId = url.searchParams.get('qrId')
               if (qrId) {
                 const urlPath = `${url.pathname || ''}`.toLowerCase()
