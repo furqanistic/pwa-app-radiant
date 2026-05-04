@@ -83,7 +83,7 @@ const RequirePhoneGate = () => {
             Add your number
           </h2>
           <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-            Finishes your profile and lets your spa reach you when it matters. Save to unlock the app.
+            Completes your profile. Save to continue.
           </p>
 
           <label className="mt-5 block text-xs font-bold uppercase tracking-wider text-gray-500">

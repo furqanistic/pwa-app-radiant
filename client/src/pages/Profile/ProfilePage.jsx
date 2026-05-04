@@ -1015,7 +1015,7 @@ const ProfilePage = () => {
                     value={
                       editingField === "phone"
                         ? tempValues.phone
-                        : `${user.phone || ""}`.trim() || "Not set — required for SMS"
+                        : `${user.phone || ""}`.trim() || "Not set"
                     }
                     onChange={(e) => handleInputChange("phone", e.target.value)}
                     isEditing={editingField === "phone"}
