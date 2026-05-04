@@ -80,15 +80,14 @@ const RequirePhoneGate = () => {
             <Phone className="h-6 w-6" />
           </div>
           <h2 id="require-phone-title" className="text-xl font-bold text-gray-900 tracking-tight">
-            Add your phone number
+            Add your number
           </h2>
           <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-            A phone number is required on your account for SMS notifications (for example check-in
-            messages) and to reach you about your bookings. You cannot continue until you add one.
+            Finishes your profile and lets your spa reach you when it matters. Save to unlock the app.
           </p>
 
           <label className="mt-5 block text-xs font-bold uppercase tracking-wider text-gray-500">
-            Mobile number
+            Mobile
           </label>
           <input
             type="tel"
