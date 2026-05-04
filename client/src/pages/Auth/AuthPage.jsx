@@ -648,9 +648,9 @@ const AuthPage = () => {
 
       const signupData = {
         name: formData.fullName,
-        email: formData.email,
+        email: `${formData.email || ''}`.trim().toLowerCase(),
         password: formData.password,
-        phone: formData.phone,
+        phone: `${formData.phone || ''}`.trim(),
         assignedLocation: locationId,
         dateOfBirth: formData.birthdate,
       }
@@ -959,6 +959,8 @@ const AuthPage = () => {
                               <Phone className='absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors' />
                               <input
                                 type='tel'
+                                inputMode='tel'
+                                autoComplete='tel'
                                 placeholder='+1 (555) 000-0000'
                                 value={formData.phone}
                                 onChange={(e) =>
