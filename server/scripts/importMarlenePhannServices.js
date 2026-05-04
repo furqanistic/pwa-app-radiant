@@ -176,8 +176,23 @@ async function importServices() {
       process.exit(0)
     }
     
-    // DO NOT DEDUPLICATE - import all 87 rows as-is
-    const uniqueRows = marleneServices.filter(s => (s['Service Name'] || '').trim())
+    // Remove duplicate rows (keep only unique service name + price + duration combinations)
+    const seenRows = new Set()
+    const uniqueRows = []
+    
+    for (const service of marleneServices) {
+      const serviceName = (service['Service Name'] || '').trim()
+      const price = (service['Regular Price'] || service['Price Range'] || '').trim()
+      const duration = (service['Session Length'] || '').trim()
+      const key = `${serviceName}|${price}|${duration}`
+      
+      if (!seenRows.has(key)) {
+        seenRows.add(key)
+        uniqueRows.push(service)
+      }
+    }
+    
+    console.log(`✅ After removing duplicates: ${uniqueRows.length} unique services`)
     
     // Prepare services for database
     const servicesData = uniqueRows
@@ -197,13 +212,14 @@ async function importServices() {
           locationId: MARLENE_PHANN_LOCATION_ID,
           categoryId: categoryId,
           createdBy: mongoose.Types.ObjectId.createFromHexString(MARLENE_PHANN_USER_ID),
-          // Default values
+          // Default values - ALL ACTIVE
           serviceType: 'treatment',
           isActive: true,
           hasRewards: true,
           showInMenu: true,
           limit: 5,
           status: 'active',
+          isDeleted: false,
         }
       })
     
