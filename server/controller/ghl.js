@@ -1750,10 +1750,13 @@ export const ensureGhlContactForLocation = async (
     name = '',
   } = {}
 ) => {
+  const trimmedPhone = `${phone || ''}`.trim()
+  const normalizedEmail = `${email || ''}`.trim().toLowerCase()
+
   console.info('[GHL:Contact] Ensure contact start', {
     locationId: `${locationId || ''}`.trim(),
-    email: `${email || ''}`.trim().toLowerCase(),
-    hasPhone: Boolean(`${phone || ''}`.trim()),
+    email: normalizedEmail,
+    hasPhone: Boolean(trimmedPhone),
     hasName: Boolean(`${name || ''}`.trim()),
   })
 
@@ -1762,7 +1765,7 @@ export const ensureGhlContactForLocation = async (
     throw new Error(`No GHL API key configured for location ${locationId}`)
   }
 
-  if (!email && !phone && !name) {
+  if (!normalizedEmail && !trimmedPhone && !name) {
     throw new Error('Customer identity is required to sync a GHL contact')
   }
 
@@ -1771,8 +1774,41 @@ export const ensureGhlContactForLocation = async (
     locationId,
     firstName,
     lastName,
-    ...(email ? { email } : {}),
-    ...(phone ? { phone } : {}),
+    ...(normalizedEmail ? { email: normalizedEmail } : {}),
+    ...(trimmedPhone ? { phone: trimmedPhone } : {}),
+  }
+
+  /** Push phone (and name) onto an existing GHL contact — lookup/v1 paths do not update fields. */
+  const syncContactPhoneToGhlV2 = async (contactId) => {
+    const id = `${contactId || ''}`.trim()
+    if (!id || !trimmedPhone) return
+
+    const body = {
+      locationId,
+      phone: trimmedPhone,
+    }
+    if (normalizedEmail) body.email = normalizedEmail
+    if (firstName) body.firstName = firstName
+    if (lastName) body.lastName = lastName
+
+    try {
+      await makeGHLV2Request(`/contacts/${id}`, {
+        method: 'PUT',
+        token,
+        data: body,
+        suppressErrorLog: true,
+      })
+      console.info('[GHL:Contact] Synced phone onto existing contact', {
+        locationId: `${locationId || ''}`.trim(),
+        contactId: id,
+      })
+    } catch (syncError) {
+      console.warn('[GHL:Contact] Failed to sync phone onto contact', {
+        locationId: `${locationId || ''}`.trim(),
+        contactId: id,
+        message: syncError?.response?.data?.message || syncError?.message || '',
+      })
+    }
   }
 
   // Prefer v2 contacts flow for Private Integration tokens.
@@ -1784,6 +1820,7 @@ export const ensureGhlContactForLocation = async (
     })
     const upsertedContactId = extractContactId(upsertResponse)
     if (upsertedContactId) {
+      await syncContactPhoneToGhlV2(upsertedContactId)
       console.info('[GHL:Contact] Ensure contact success via v2 upsert', {
         locationId: `${locationId || ''}`.trim(),
         contactId: `${upsertedContactId || ''}`,
@@ -1799,10 +1836,10 @@ export const ensureGhlContactForLocation = async (
 
   let existing = null
 
-  if (email || phone) {
+  if (normalizedEmail || trimmedPhone) {
     const query = new URLSearchParams()
-    if (email) query.set('email', email)
-    if (phone) query.set('phone', phone)
+    if (normalizedEmail) query.set('email', normalizedEmail)
+    if (trimmedPhone) query.set('phone', trimmedPhone)
 
     try {
       const lookupResponse = await makeGHLRequest(
@@ -1813,6 +1850,7 @@ export const ensureGhlContactForLocation = async (
       )
       const contactId = extractContactId(lookupResponse)
       if (contactId) {
+        await syncContactPhoneToGhlV2(contactId)
         console.info('[GHL:Contact] Found existing contact via lookup', {
           locationId: `${locationId || ''}`.trim(),
           contactId: `${contactId || ''}`,
@@ -1831,8 +1869,8 @@ export const ensureGhlContactForLocation = async (
   const createPayload = {
     firstName,
     lastName,
-    ...(email ? { email } : {}),
-    ...(phone ? { phone } : {}),
+    ...(normalizedEmail ? { email: normalizedEmail } : {}),
+    ...(trimmedPhone ? { phone: trimmedPhone } : {}),
   }
 
   const createResponse = await makeGHLRequest(
@@ -1846,6 +1884,8 @@ export const ensureGhlContactForLocation = async (
   if (!createdContactId) {
     throw new Error('Failed to resolve GHL contact ID after contact creation')
   }
+
+  await syncContactPhoneToGhlV2(createdContactId)
 
   console.info('[GHL:Contact] Created contact via v1 fallback', {
     locationId: `${locationId || ''}`.trim(),
