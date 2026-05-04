@@ -1323,6 +1323,15 @@ export const signup = async (req, res, next) => {
       return next(createError(400, 'Please provide name, email and password'))
     }
 
+    const trimmedSignupPhone = `${phone || ''}`.trim()
+    if (!trimmedSignupPhone) {
+      return next(createError(400, 'Phone number is required'))
+    }
+    const signupPhoneDigits = trimmedSignupPhone.replace(/\D/g, '')
+    if (signupPhoneDigits.length < 8 || signupPhoneDigits.length > 17) {
+      return next(createError(400, 'Please enter a valid phone number'))
+    }
+
     // Validate role - prevent creating super-admin through signup
     const userRole = role || 'user'
     if (userRole === 'super-admin') {
@@ -1376,7 +1385,7 @@ export const signup = async (req, res, next) => {
       role: userRole,
     }
 
-    if (phone) userData.phone = phone
+    userData.phone = trimmedSignupPhone
     if (dateOfBirth) userData.dateOfBirth = dateOfBirth
     if (locationData) userData.selectedLocation = locationData
     if (locationData) userData.assignedLocations = [locationData]
@@ -2376,7 +2385,7 @@ const processInitialReferral = async (referredUserId, referralCode) => {
 export const updateUser = async (req, res, next) => {
   try {
     const userId = req.params.id
-    const { name, email } = req.body // Removed role from here - use changeUserRole instead
+    const { name, email, phone } = req.body // Removed role from here - use changeUserRole instead
 
     const existingUser = await User.findById(userId)
 
@@ -2401,6 +2410,18 @@ export const updateUser = async (req, res, next) => {
     const updateData = {}
     if (name) updateData.name = name
     if (email) updateData.email = email
+
+    if (phone !== undefined) {
+      const trimmed = `${phone}`.trim()
+      if (!trimmed) {
+        return next(createError(400, 'Phone number is required'))
+      }
+      const digits = trimmed.replace(/\D/g, '')
+      if (digits.length < 8 || digits.length > 17) {
+        return next(createError(400, 'Please enter a valid phone number'))
+      }
+      updateData.phone = trimmed
+    }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
       new: true,

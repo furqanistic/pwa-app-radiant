@@ -15,6 +15,7 @@ import {
     Loader2,
     Lock,
     Mail,
+    Phone,
     MapPin,
     QrCode,
     Shield,
@@ -31,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import Layout from "../Layout/Layout";
 import { useBranding } from '@/context/BrandingContext';
 import { useScopedLocationId } from '@/hooks/useScopedLocationId';
+import { isValidProfilePhone } from '@/lib/phoneValidation';
 
 
 // API Functions
@@ -736,6 +738,18 @@ const ProfilePage = () => {
       }
     }
 
+    if (field === "phone") {
+      if (!isValidProfilePhone(value)) {
+        toast.error("Please enter a valid phone number (at least 8 digits).");
+        return;
+      }
+      if (value === `${user.phone || ""}`.trim()) {
+        setEditingField(null);
+        setTempValues({});
+        return;
+      }
+    }
+
     updateProfileMutation.mutate(
       {
         userId: user._id,
@@ -991,6 +1005,24 @@ const ProfilePage = () => {
                     onSave={() => handleSave("email")}
                     onCancel={handleCancel}
                     placeholder="Enter your email address"
+                    disabled={updateProfileMutation.isLoading}
+                  />
+
+                  <ProfileField
+                    icon={Phone}
+                    label="Phone Number"
+                    type="tel"
+                    value={
+                      editingField === "phone"
+                        ? tempValues.phone
+                        : `${user.phone || ""}`.trim() || "Not set — required for SMS"
+                    }
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    isEditing={editingField === "phone"}
+                    onEdit={() => handleEdit("phone")}
+                    onSave={() => handleSave("phone")}
+                    onCancel={handleCancel}
+                    placeholder="+1 (555) 000-0000"
                     disabled={updateProfileMutation.isLoading}
                   />
 

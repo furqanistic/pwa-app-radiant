@@ -9,6 +9,7 @@ import {
     Routes,
     useLocation,
 } from 'react-router-dom'
+import RequirePhoneGate from './components/Auth/RequirePhoneGate'
 import AppIconManager from './components/Common/AppIconManager'
 import AuthPage from './pages/Auth/AuthPage'
 import BookingsPage from './pages/Bookings/BookingsPage'
@@ -418,6 +419,7 @@ const App = () => {
           />
           <InstallPrompt />
           <AppIconManager />
+          <RequirePhoneGate />
 
           <Routes>
         {/* Public routes */}
