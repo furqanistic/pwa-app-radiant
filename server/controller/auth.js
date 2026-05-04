@@ -1481,9 +1481,12 @@ export const signup = async (req, res, next) => {
     if (!trimmedSignupPhone) {
       return next(createError(400, 'Phone number is required'))
     }
-    const signupPhoneDigits = trimmedSignupPhone.replace(/\D/g, '')
-    if (signupPhoneDigits.length < 8 || signupPhoneDigits.length > 17) {
-      return next(createError(400, 'Please enter a valid phone number'))
+    if (!trimmedSignupPhone.startsWith('+')) {
+      return next(createError(400, 'Add your country code — must start with +, e.g. +1 555 000 0000'))
+    }
+    const signupPhoneDigits = trimmedSignupPhone.slice(1).replace(/\D/g, '')
+    if (signupPhoneDigits.length < 7 || signupPhoneDigits.length > 15) {
+      return next(createError(400, 'Add your country code — must start with +, e.g. +1 555 000 0000'))
     }
 
     // Validate role - prevent creating super-admin through signup
@@ -2605,9 +2608,12 @@ export const updateUser = async (req, res, next) => {
       if (!trimmed) {
         return next(createError(400, 'Phone number is required'))
       }
-      const digits = trimmed.replace(/\D/g, '')
-      if (digits.length < 8 || digits.length > 17) {
-        return next(createError(400, 'Please enter a valid phone number'))
+      if (!trimmed.startsWith('+')) {
+        return next(createError(400, 'Add your country code — must start with +, e.g. +1 555 000 0000'))
+      }
+      const digits = trimmed.slice(1).replace(/\D/g, '')
+      if (digits.length < 7 || digits.length > 15) {
+        return next(createError(400, 'Add your country code — must start with +, e.g. +1 555 000 0000'))
       }
       updateData.phone = trimmed
     }

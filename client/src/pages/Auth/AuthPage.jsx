@@ -34,6 +34,7 @@ import {
   User,
   Zap,
 } from 'lucide-react'
+import { isValidProfilePhone, PHONE_FORMAT_ERROR, PHONE_FORMAT_HINT } from '@/lib/phoneValidation'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -594,8 +595,16 @@ const AuthPage = () => {
 
   const handleNextStep = () => {
     if (signupStep === 1) {
-      if (!formData.fullName || !formData.phone) {
-        setLocalError('Please fill in your name and phone number.')
+      if (!formData.fullName) {
+        setLocalError('Please enter your full name.')
+        return
+      }
+      if (!formData.phone) {
+        setLocalError('Phone number is required.')
+        return
+      }
+      if (!isValidProfilePhone(formData.phone)) {
+        setLocalError(PHONE_FORMAT_ERROR)
         return
       }
     } else if (signupStep === 2) {
@@ -976,7 +985,7 @@ const AuthPage = () => {
                                 type='tel'
                                 inputMode='tel'
                                 autoComplete='tel'
-                                placeholder='+1 (555) 000-0000'
+                                placeholder='+1 555 000 0000'
                                 value={formData.phone}
                                 onChange={(e) =>
                                   updateFormData('phone', e.target.value)
@@ -986,6 +995,7 @@ const AuthPage = () => {
                                 required
                               />
                             </div>
+                            <p className='mt-1.5 text-xs text-gray-400 pl-1'>{PHONE_FORMAT_HINT}</p>
                           </div>
 
                           <button
