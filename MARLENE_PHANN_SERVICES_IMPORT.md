@@ -16,45 +16,45 @@ Successfully imported 25 unique laser services for the location **Marlene Phann 
 - **Staff Member**: Marlene Phann
 - **Status**: All active and visible in the menu
 
-### Services List
+### Services List (All 25 Services)
 
 | # | Service Name | Price | Duration |
 |---|---|---|---|
-| 1 | Chin Laser Hair Removal | $44 | 15 min |
-| 2 | Upper Lip Laser Hair Removal | $44 | 15 min |
-| 3 | Cheeks Laser Hair Removal | $44 | 15 min |
-| 4 | Sideburns Laser Hair Removal | $44 | 15 min |
-| 5 | Full Face Laser Hair Removal | $89 | 30 min |
-| 6 | Underarms Laser Hair Removal | $89 | 15 min |
-| 7 | Full Arms Laser Hair Removal | $170 | 60 min |
+| 1 | Silk Exclusive | $474 | 60 min |
+| 2 | Full Legs Laser Hair Removal | $260 | 60 min |
+| 3 | Silk Signature | $259 | 60 min |
+| 4 | IPL Décolletage | $250 | 30 min |
+| 5 | IPL Photofacial | $200 | 90 min |
+| 6 | Full Arms Laser Hair Removal | $170 | 60 min |
+| 7 | Half Legs | $170 | 45 min |
 | 8 | Forearms Laser Hair Removal | $125 | 60 min |
 | 9 | Abdominal/Stomach Laser Hair Removal | $125 | 45 min |
-| 10 | Stomach Line Laser Hair Removal | $44 | 15 min |
-| 11 | Bun Cheeks Laser Hair Removal | $89 | 30 min |
-| 12 | Bikini Line Laser Hair Removal | $75 | 30 min |
-| 13 | Extended Bikini Line Laser Hair Removal | $98 | 30 min |
-| 14 | Brazilian Laser Hair Removal | $125 | 45 min |
-| 15 | Full Legs Laser Hair Removal | $260 | 60 min |
-| 16 | Half Legs | $170 | 45 min |
-| 17 | Feet | $44 | 15 min |
-| 18 | IPL Photofacial | $200 | 90 min |
-| 19 | IPL Décolletage | $250 | - |
-| 20 | IPL Scar and Pigment Reduction | $0 | 30 min |
-| 21 | Neck Laser Hair Removal | $89 | 30 min |
-| 22 | Shoulders Laser Hair Removal | $116 | 30 min |
-| 23 | Smooth Start | $79 | 15 min |
-| 24 | Silk Signature | $159 | 60 min |
-| 25 | Silk Exclusive | $249 | 60 min |
+| 10 | Brazilian Laser Hair Removal | $125 | 45 min |
+| 11 | Shoulders Laser Hair Removal | $116 | 30 min |
+| 12 | Extended Bikini Line Laser Hair Removal | $98 | 30 min |
+| 13 | Bun Cheeks Laser Hair Removal | $89 | 30 min |
+| 14 | Underarms Laser Hair Removal | $89 | 15 min |
+| 15 | Full Face Laser Hair Removal | $89 | 30 min |
+| 16 | Neck Laser Hair Removal | $89 | 30 min |
+| 17 | Smooth Start | $89 | 15 min |
+| 18 | Bikini Line Laser Hair Removal | $75 | 30 min |
+| 19 | Upper Lip Laser Hair Removal | $44 | 15 min |
+| 20 | Stomach Line Laser Hair Removal | $44 | 15 min |
+| 21 | Feet | $44 | 15 min |
+| 22 | Sideburns Laser Hair Removal | $44 | 15 min |
+| 23 | Cheeks Laser Hair Removal | $44 | 15 min |
+| 24 | Chin Laser Hair Removal | $44 | 15 min |
+| 25 | IPL Scar and Pigment Reduction | $0 | 30 min |
 
 ### Price Range
-- **Minimum**: $0 (IPL Scar and Pigment Reduction - no regular price in CSV)
-- **Maximum**: $474 (member pricing available)
-- **Most Common**: $44, $89, $125, $170
+- **Minimum**: $0 (IPL Scar and Pigment Reduction - no price in CSV)
+- **Maximum**: $474 (Silk Exclusive - premium package)
+- **Average**: ~$126
 
 ### Duration Range
-- **Minimum**: 15 minutes
-- **Maximum**: 90 minutes (IPL Photofacial)
-- **Most Common**: 30 minutes
+- **Minimum**: 15 minutes (quick facial services & maintenance treatments)
+- **Maximum**: 90 minutes (IPL Photofacial - comprehensive treatment)
+- **Most Common**: 15-30 minutes (majority of services)
 
 ## Data Quality Notes
 
@@ -64,12 +64,10 @@ Successfully imported 25 unique laser services for the location **Marlene Phann 
 - Duplicated services were removed (kept first occurrence only)
 
 ### Missing Pricing
-Some services had missing "Regular Price" in the CSV:
-- IPL Scar and Pigment Reduction: $0 (no price provided)
-- Cheeks Laser Hair Removal: $0 (no price provided - shown as $44 in dedup)
-- Sideburns Laser Hair Removal: $0 (no price provided)
+Only 1 service has missing pricing:
+- **IPL Scar and Pigment Reduction**: $0 (no price provided in CSV)
 
-These should be verified and updated manually if needed.
+All other services have accurate pricing from the CSV.
 
 ## How Services Will Appear
 
