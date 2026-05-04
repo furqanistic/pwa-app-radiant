@@ -39,6 +39,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Layout from "../Layout/Layout";
 
+/** When listing users scoped to a location, show that location's label (not only last-selected spa). */
+function getContactLocationLabel(user, scopeLocationId) {
+  const scope = `${scopeLocationId || ""}`.trim();
+  if (scope) {
+    const fromAssigned = Array.isArray(user?.assignedLocations)
+      ? user.assignedLocations.find((loc) => loc?.locationId === scope)
+      : null;
+    if (fromAssigned?.locationName) return fromAssigned.locationName;
+    if (user?.selectedLocation?.locationId === scope) {
+      return user.selectedLocation.locationName || scope;
+    }
+    if (user?.spaLocation?.locationId === scope) {
+      return user.spaLocation.locationName || scope;
+    }
+  }
+  return (
+    user.selectedLocation?.locationName ||
+    user.spaLocation?.locationName ||
+    "Not assigned"
+  );
+}
+
 const ContactsPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -620,9 +642,7 @@ const ContactsPage = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {user.selectedLocation?.locationName ||
-                              user.spaLocation?.locationName ||
-                              "Not assigned"}
+                            {getContactLocationLabel(user, effectiveLocationFilter)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {user.points || 0}

@@ -614,6 +614,160 @@ const upsertAssignedLocation = (user, locationData) => {
   user.assignedLocations = existingLocations
 }
 
+/** Same rule as the auth client: customers may switch/link spas; admin/spa accounts do not. */
+const shouldSyncSpaSelectionForRole = (role) => {
+  if (['admin', 'super-admin', 'spa'].includes(role)) return false
+  return true
+}
+
+/**
+ * Core spa selection: updates selectedLocation, merges assignedLocations, points, rewards.
+ * Mutates and saves `user`. Throws createError-style errors (status + message).
+ */
+const applySpaSelectionToUserDocument = async (
+  user,
+  locationId,
+  referralCode = null
+) => {
+  const trimmedLocationId = `${locationId || ''}`.trim()
+  if (!trimmedLocationId) {
+    throw createError(400, 'Location ID is required')
+  }
+
+  const location = await Location.findOne({
+    locationId: trimmedLocationId,
+    isActive: true,
+  })
+
+  if (!location) {
+    throw createError(404, 'Location not found or inactive')
+  }
+
+  debugLog('applySpaSelectionToUserDocument found location:', location)
+
+  await ensureLegacyPointsAreScoped(user)
+
+  const locationData = {
+    locationId: location.locationId,
+    locationName: location.name,
+    locationAddress: location.address,
+    locationPhone: location.phone,
+    reviewLink: location.reviewLink,
+    logo: location.logo,
+    subdomain: location.subdomain,
+    favicon: location.favicon,
+    themeColor: location.themeColor,
+    selectedAt: new Date(),
+  }
+
+  user.selectedLocation = locationData
+  upsertAssignedLocation(user, locationData)
+  user.profileCompleted = true
+
+  let locationScopedBalance = await getLocationScopedPointBalance(
+    user._id,
+    location.locationId
+  )
+
+  const profileCompletionMethod = await getPointsMethodForLocation(
+    location.locationId,
+    'profile_completion'
+  )
+  const profileCompletionPoints =
+    profileCompletionMethod?.isActive &&
+    (profileCompletionMethod?.pointsValue || 0) > 0
+      ? profileCompletionMethod.pointsValue
+      : 0
+
+  let rewardResponse = {
+    profileCompletion: profileCompletionPoints,
+    referral: { success: false },
+  }
+
+  const userId = user._id
+
+  if (referralCode && referralCode.trim()) {
+    try {
+      const referralResult = await processReferralOnSpaSelection(
+        userId,
+        referralCode.trim()
+      )
+      rewardResponse.referral = referralResult
+      const referredPoints = Number(referralResult?.data?.referredPoints || 0)
+      if (referralResult?.success && referredPoints > 0) {
+        locationScopedBalance += referredPoints
+        await PointTransaction.create({
+          user: user._id,
+          type: 'referral',
+          points: referredPoints,
+          balance: locationScopedBalance,
+          description: `Referral bonus for joining ${location.name}`,
+          locationId: location.locationId,
+          metadata: {
+            rewardKey: 'referral',
+            transactionType: 'credit',
+            referralCode: referralCode.trim().toUpperCase(),
+            locationName: location.name,
+          },
+        })
+      }
+      debugLog('Referral processing result:', referralResult)
+    } catch (error) {
+      console.error('Referral processing error:', error)
+    }
+  }
+
+  const alreadyAwardedProfileCompletionForLocation = Boolean(
+    await PointTransaction.exists({
+      user: user._id,
+      locationId: location.locationId,
+      type: 'signup_bonus',
+      'metadata.rewardKey': 'profile_completion',
+    })
+  )
+  const legacyProfileCompletionForThisLocation = Boolean(
+    user.onboardingRewards?.profileCompletion?.awarded &&
+      user.onboardingRewards?.profileCompletion?.locationId === location.locationId
+  )
+
+  const shouldAwardProfileCompletion =
+    rewardResponse.profileCompletion > 0 &&
+    !alreadyAwardedProfileCompletionForLocation &&
+    !legacyProfileCompletionForThisLocation
+
+  if (shouldAwardProfileCompletion) {
+    locationScopedBalance += rewardResponse.profileCompletion
+    user.onboardingRewards = user.onboardingRewards || {}
+    user.onboardingRewards.profileCompletion = {
+      awarded: true,
+      awardedAt: new Date(),
+      pointsAwarded: rewardResponse.profileCompletion,
+      locationId: location.locationId,
+    }
+
+    await PointTransaction.create({
+      user: user._id,
+      type: 'signup_bonus',
+      points: rewardResponse.profileCompletion,
+      balance: locationScopedBalance,
+      description: `Profile completion bonus for ${location.name}`,
+      locationId: location.locationId,
+      metadata: {
+        rewardKey: 'profile_completion',
+        transactionType: 'credit',
+        locationName: location.name,
+      },
+    })
+  } else {
+    rewardResponse.profileCompletion = 0
+  }
+
+  user.points = Math.max(0, Number(locationScopedBalance) || 0)
+  await user.save()
+
+  return rewardResponse
+}
+
 // ENHANCED: Get all users with pagination and filtering
 export const getAllUsers = async (req, res, next) => {
   try {
@@ -1800,7 +1954,12 @@ export const unassignLocationFromUser = async (req, res, next) => {
 
 export const signin = async (req, res, next) => {
   try {
-    const { email, password } = req.body
+    const {
+      email,
+      password,
+      locationId: signinLocationId,
+      referralCode: signinReferralCode,
+    } = req.body
     if (!email || !password) {
       return res.status(400).json({
         status: 'error',
@@ -1840,7 +1999,37 @@ export const signin = async (req, res, next) => {
     }
 
     user.lastLogin = new Date()
-    await user.save({ validateBeforeSave: false })
+
+    const normalizedSigninLocationId = `${signinLocationId || ''}`.trim()
+    const normalizedReferral = `${signinReferralCode || ''}`.trim()
+
+    if (
+      normalizedSigninLocationId &&
+      shouldSyncSpaSelectionForRole(user.role)
+    ) {
+      try {
+        await applySpaSelectionToUserDocument(
+          user,
+          normalizedSigninLocationId,
+          normalizedReferral || null
+        )
+      } catch (applyErr) {
+        if (applyErr.status) {
+          return res.status(applyErr.status).json({
+            status: 'error',
+            message: applyErr.message,
+          })
+        }
+        console.error('Error linking spa at signin:', applyErr)
+        return res.status(500).json({
+          status: 'error',
+          message: 'An unexpected error occurred',
+        })
+      }
+    } else {
+      await user.save({ validateBeforeSave: false })
+    }
+
     createSendToken(user, 200, res)
   } catch (err) {
     console.error('Error in signin:', err)
@@ -2680,155 +2869,16 @@ export const selectSpa = async (req, res, next) => {
 
     debugLog('selectSpa called with:', { locationId, referralCode, userId })
 
-    if (!locationId) {
-      return next(createError(400, 'Location ID is required'))
-    }
-
-    // Find the user
     const user = await User.findById(userId)
     if (!user) {
       return next(createError(404, 'User not found'))
     }
 
-    // Find the location data
-    const location = await Location.findOne({
-      locationId: locationId,
-      isActive: true,
-    })
-
-    if (!location) {
-      return next(createError(404, 'Location not found or inactive'))
-    }
-
-    debugLog('Found location:', location)
-
-    await ensureLegacyPointsAreScoped(user)
-
-    // Update user's selected location with actual data
-    const locationData = {
-      locationId: location.locationId,
-      locationName: location.name,
-      locationAddress: location.address,
-      locationPhone: location.phone,
-      reviewLink: location.reviewLink,
-      logo: location.logo,
-      subdomain: location.subdomain,
-      favicon: location.favicon,
-      themeColor: location.themeColor,
-      selectedAt: new Date(),
-    }
-
-    user.selectedLocation = locationData
-    upsertAssignedLocation(user, locationData)
-
-    // Mark profile as completed since they selected a spa
-    user.profileCompleted = true
-
-    debugLog('User updated with location:', user.selectedLocation)
-
-    let locationScopedBalance = await getLocationScopedPointBalance(
-      user._id,
-      location.locationId
+    const rewardResponse = await applySpaSelectionToUserDocument(
+      user,
+      locationId,
+      referralCode
     )
-
-    const profileCompletionMethod = await getPointsMethodForLocation(
-      location.locationId,
-      'profile_completion'
-    )
-    const profileCompletionPoints =
-      profileCompletionMethod?.isActive &&
-      (profileCompletionMethod?.pointsValue || 0) > 0
-        ? profileCompletionMethod.pointsValue
-        : 0
-
-    // Initialize rewards response
-    let rewardResponse = {
-      profileCompletion: profileCompletionPoints,
-      referral: { success: false },
-    }
-
-    // Process referral if provided
-    if (referralCode && referralCode.trim()) {
-      try {
-        const referralResult = await processReferralOnSpaSelection(
-          userId,
-          referralCode.trim()
-        )
-        rewardResponse.referral = referralResult
-        const referredPoints = Number(referralResult?.data?.referredPoints || 0)
-        if (referralResult?.success && referredPoints > 0) {
-          locationScopedBalance += referredPoints
-          await PointTransaction.create({
-            user: user._id,
-            type: 'referral',
-            points: referredPoints,
-            balance: locationScopedBalance,
-            description: `Referral bonus for joining ${location.name}`,
-            locationId: location.locationId,
-            metadata: {
-              rewardKey: 'referral',
-              transactionType: 'credit',
-              referralCode: referralCode.trim().toUpperCase(),
-              locationName: location.name,
-            },
-          })
-        }
-        debugLog('Referral processing result:', referralResult)
-      } catch (error) {
-        console.error('Referral processing error:', error)
-        // Don't fail the entire request if referral fails
-      }
-    }
-
-    const alreadyAwardedProfileCompletionForLocation = Boolean(
-      await PointTransaction.exists({
-        user: user._id,
-        locationId: location.locationId,
-        type: 'signup_bonus',
-        'metadata.rewardKey': 'profile_completion',
-      })
-    )
-    const legacyProfileCompletionForThisLocation = Boolean(
-      user.onboardingRewards?.profileCompletion?.awarded &&
-        user.onboardingRewards?.profileCompletion?.locationId === location.locationId
-    )
-
-    const shouldAwardProfileCompletion =
-      rewardResponse.profileCompletion > 0 &&
-      !alreadyAwardedProfileCompletionForLocation &&
-      !legacyProfileCompletionForThisLocation
-
-    // Award profile completion points once per selected location.
-    if (shouldAwardProfileCompletion) {
-      locationScopedBalance += rewardResponse.profileCompletion
-      user.onboardingRewards = user.onboardingRewards || {}
-      user.onboardingRewards.profileCompletion = {
-        awarded: true,
-        awardedAt: new Date(),
-        pointsAwarded: rewardResponse.profileCompletion,
-        locationId: location.locationId,
-      }
-
-      await PointTransaction.create({
-        user: user._id,
-        type: 'signup_bonus',
-        points: rewardResponse.profileCompletion,
-        balance: locationScopedBalance,
-        description: `Profile completion bonus for ${location.name}`,
-        locationId: location.locationId,
-        metadata: {
-          rewardKey: 'profile_completion',
-          transactionType: 'credit',
-          locationName: location.name,
-        },
-      })
-    } else {
-      rewardResponse.profileCompletion = 0
-    }
-
-    // Mirror field on User: never persist negative (ledger can still sum negative until repaired).
-    user.points = Math.max(0, Number(locationScopedBalance) || 0)
-    await user.save()
 
     res.status(200).json({
       status: 'success',
@@ -2846,6 +2896,9 @@ export const selectSpa = async (req, res, next) => {
       },
     })
   } catch (error) {
+    if (error.status) {
+      return next(error)
+    }
     console.error('Error in selectSpa:', error)
     next(createError(500, 'Failed to select spa'))
   }

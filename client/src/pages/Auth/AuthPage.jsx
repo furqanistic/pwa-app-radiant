@@ -473,7 +473,17 @@ const AuthPage = () => {
       dispatch(loginSuccess(data))
       const role = getRoleFromAuthPayload(data)
 
-      if (locationId && shouldSyncSelectedLocationForRole(role)) {
+      const selectedFromServer = `${data?.data?.user?.selectedLocation?.locationId || ''}`.trim()
+      const locationSyncedAtSignin =
+        locationId &&
+        shouldSyncSelectedLocationForRole(role) &&
+        selectedFromServer === `${locationId}`.trim()
+
+      if (
+        locationId &&
+        shouldSyncSelectedLocationForRole(role) &&
+        !locationSyncedAtSignin
+      ) {
         try {
           const selectionResponse = await authService.selectSpa(locationId)
           const selectedLocation = selectionResponse?.data?.user?.selectedLocation
@@ -504,6 +514,10 @@ const AuthPage = () => {
           localStorage.removeItem('token')
           return
         }
+      }
+
+      if (locationSyncedAtSignin) {
+        dispatch(updateProfile({ hasSelectedSpa: true }))
       }
 
       setSuccess('Welcome back! Loading your dashboard...')
@@ -666,6 +680,7 @@ const AuthPage = () => {
       const signinData = {
         email: formData.email,
         password: formData.password,
+        ...(locationId ? { locationId } : {}),
       }
       signinMutation.mutate(signinData)
     }
