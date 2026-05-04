@@ -169,31 +169,18 @@ async function importServices() {
       return businessName === 'Marlene Phann | Laser Specialist' || businessName === 'Marlene Phann'
     })
     
-    console.log(`🔍 Found ${marleneServices.length} services for Marlene Phann (all variants)`)
+    console.log(`🔍 Found ${marleneServices.length} total rows for Marlene Phann (all variants)`)
     
     if (marleneServices.length === 0) {
-      console.warn('⚠️ No services found for Marlene Phann | Laser Specialist')
+      console.warn('⚠️ No services found for Marlene Phann')
       process.exit(0)
     }
     
-    // Deduplicate services by name (keep first occurrence)
-    const seenServices = new Set()
-    const uniqueServices = []
-    
-    for (const service of marleneServices) {
-      const serviceName = (service['Service Name'] || '').trim()
-      const key = `${serviceName}`
-      
-      if (!seenServices.has(key)) {
-        seenServices.add(key)
-        uniqueServices.push(service)
-      }
-    }
-    
-    console.log(`✅ After deduplication: ${uniqueServices.length} unique services`)
+    // DO NOT DEDUPLICATE - import all 87 rows as-is
+    const uniqueRows = marleneServices.filter(s => (s['Service Name'] || '').trim())
     
     // Prepare services for database
-    const servicesData = uniqueServices
+    const servicesData = uniqueRows
       .filter(s => (s['Service Name'] || '').trim()) // Skip empty names
       .map(s => {
         // Use Regular Price if available, otherwise fall back to Price Range
