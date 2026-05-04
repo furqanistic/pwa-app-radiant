@@ -65,6 +65,12 @@ function parseDuration(durationStr) {
   
   const str = String(durationStr).toLowerCase().trim()
   
+  // If it's just a number, assume it's already in minutes
+  const justNumber = parseInt(str)
+  if (!isNaN(justNumber) && justNumber > 0) {
+    return justNumber
+  }
+  
   // Handle "X hrs" format
   if (str.includes('hr')) {
     const match = str.match(/(\d+)\s*hrs?/)
@@ -157,13 +163,13 @@ async function importServices() {
     const records = parseCSV(csvContent)
     console.log(`📊 Total records in CSV: ${records.length}`)
     
-    // Filter for "Marlene Phann | Laser Specialist" services
+    // Filter for BOTH "Marlene Phann" and "Marlene Phann | Laser Specialist" services
     const marleneServices = records.filter(record => {
       const businessName = (record['Business Name'] || '').trim()
-      return businessName === 'Marlene Phann | Laser Specialist'
+      return businessName === 'Marlene Phann | Laser Specialist' || businessName === 'Marlene Phann'
     })
     
-    console.log(`🔍 Found ${marleneServices.length} services for Marlene Phann | Laser Specialist`)
+    console.log(`🔍 Found ${marleneServices.length} services for Marlene Phann (all variants)`)
     
     if (marleneServices.length === 0) {
       console.warn('⚠️ No services found for Marlene Phann | Laser Specialist')
@@ -189,24 +195,30 @@ async function importServices() {
     // Prepare services for database
     const servicesData = uniqueServices
       .filter(s => (s['Service Name'] || '').trim()) // Skip empty names
-      .map(s => ({
-        name: (s['Service Name'] || '').trim(),
-        description: (s['Description'] || 'Professional laser service').trim() || 'Professional laser service',
-        basePrice: parsePrice(s['Regular Price']),
-        memberPrice: parsePrice(s['Member Price']),
-        duration: parseDuration(s['Session Length']),
-        staffMember: STAFF_MEMBER_NAME,
-        locationId: MARLENE_PHANN_LOCATION_ID,
-        categoryId: categoryId,
-        createdBy: mongoose.Types.ObjectId.createFromHexString(MARLENE_PHANN_USER_ID),
-        // Default values
-        serviceType: 'treatment',
-        isActive: true,
-        hasRewards: true,
-        showInMenu: true,
-        limit: 5,
-        status: 'active',
-      }))
+      .map(s => {
+        // Use Regular Price if available, otherwise fall back to Price Range
+        const regularPrice = parsePrice(s['Regular Price'])
+        const priceToUse = regularPrice > 0 ? regularPrice : parsePrice(s['Price Range'])
+        
+        return {
+          name: (s['Service Name'] || '').trim(),
+          description: (s['Description'] || 'Professional laser service').trim() || 'Professional laser service',
+          basePrice: priceToUse,
+          memberPrice: parsePrice(s['Member Price']),
+          duration: parseDuration(s['Session Length']),
+          staffMember: STAFF_MEMBER_NAME,
+          locationId: MARLENE_PHANN_LOCATION_ID,
+          categoryId: categoryId,
+          createdBy: mongoose.Types.ObjectId.createFromHexString(MARLENE_PHANN_USER_ID),
+          // Default values
+          serviceType: 'treatment',
+          isActive: true,
+          hasRewards: true,
+          showInMenu: true,
+          limit: 5,
+          status: 'active',
+        }
+      })
     
     console.log(`\n📝 Sample service to be created:`)
     console.log(JSON.stringify(servicesData[0], null, 2))
