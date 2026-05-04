@@ -84,6 +84,10 @@ const LocationSchema = new mongoose.Schema(
           type: Date,
           default: null,
         },
+        triggerTags: {
+          type: [String],
+          default: undefined,
+        },
       },
     ],
     isActive: {

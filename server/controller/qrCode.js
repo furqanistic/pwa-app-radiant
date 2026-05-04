@@ -566,6 +566,7 @@ export const scanQRCode = async (req, res, next) => {
             userId: `${user._id || ""}`,
             workflowId: automationResult.workflowId || "",
             contactId: automationResult.contactId || "",
+            tagsAdded: automationResult.tagsAdded || [],
             success: Boolean(automationResult.success),
           });
         }

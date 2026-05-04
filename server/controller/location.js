@@ -35,6 +35,27 @@ const normalizeMethodPointsValue = (value, fallback = 0) => {
   return Math.round(parsed)
 }
 
+const parseCommaSeparatedTags = (value = '') =>
+  `${value || ''}`
+    .split(/[,|;]/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+const normalizeCheckInTriggerTagsPersisted = (key, triggerTagsRaw) => {
+  if (`${key || ''}`.trim() !== 'checkin') {
+    return null
+  }
+
+  let values = []
+  if (Array.isArray(triggerTagsRaw)) {
+    values = triggerTagsRaw.map((tag) => `${tag || ''}`.trim()).filter(Boolean)
+  } else if (typeof triggerTagsRaw === 'string') {
+    values = parseCommaSeparatedTags(triggerTagsRaw)
+  }
+
+  return [...new Set(values)].filter(Boolean)
+}
+
 const normalizeGhlAutomationLinks = (links = []) => {
   if (!Array.isArray(links)) return []
 
@@ -44,12 +65,17 @@ const normalizeGhlAutomationLinks = (links = []) => {
     const workflowId = `${link?.workflowId || ''}`.trim()
     if (!key || !workflowId) return
 
+    const checkInTags = normalizeCheckInTriggerTagsPersisted(key, link?.triggerTags)
+
     linksByKey.set(key, {
       key,
       label: `${link?.label || key}`.trim(),
       workflowId,
       workflowName: `${link?.workflowName || ''}`.trim(),
       linkedAt: link?.linkedAt ? new Date(link.linkedAt) : new Date(),
+      ...(key === 'checkin'
+        ? { triggerTags: checkInTags ?? [] }
+        : {}),
     })
   })
 

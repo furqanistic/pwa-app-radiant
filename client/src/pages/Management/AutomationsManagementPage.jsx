@@ -74,6 +74,7 @@ const AutomationsManagementPage = () => {
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [selectedAutomationKey, setSelectedAutomationKey] = useState("signup");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
+  const [checkinTriggerTagsDraft, setCheckinTriggerTagsDraft] = useState("");
   const [copiedKey, setCopiedKey] = useState("");
   const isGhlDebugEnabled = useMemo(() => {
     if (typeof window === "undefined") return true;
@@ -233,6 +234,11 @@ const AutomationsManagementPage = () => {
             workflowId: `${link?.workflowId || ""}`.trim(),
             workflowName: `${link?.workflowName || ""}`.trim(),
             linkedAt: link?.linkedAt || null,
+            triggerTags: Array.isArray(link?.triggerTags)
+              ? link.triggerTags
+                  .map((tag) => `${tag || ""}`.trim())
+                  .filter(Boolean)
+              : [],
           }))
           .filter((link) => link.key && link.workflowId)
       : [];
@@ -295,6 +301,22 @@ const AutomationsManagementPage = () => {
     selectedAutomationKey,
     selectedAutomationLink?.workflowId,
   ]);
+
+  useEffect(() => {
+    if (selectedAutomationKey !== "checkin") {
+      return;
+    }
+    const tags = selectedAutomationLink?.triggerTags;
+    setCheckinTriggerTagsDraft(
+      Array.isArray(tags) && tags.length ? tags.join(", ") : ""
+    );
+  }, [
+    effectiveLocationId,
+    selectedAutomationKey,
+    selectedAutomationLink?.workflowId,
+    selectedAutomationLink?.triggerTags,
+  ]);
+
   useEffect(() => {
     logGhlDebug("Workflows query result", {
       isLoadingWorkflows,
@@ -338,7 +360,12 @@ const AutomationsManagementPage = () => {
   };
 
   const updateAutomationLinkMutation = useMutation({
-    mutationFn: ({ automationKey = "", workflowId = "", workflowName = "" }) => {
+    mutationFn: ({
+      automationKey = "",
+      workflowId = "",
+      workflowName = "",
+      triggerTags,
+    }) => {
       if (!selectedLocation?._id) {
         throw new Error("Selected location could not be resolved");
       }
@@ -352,6 +379,11 @@ const AutomationsManagementPage = () => {
         (link) => link.key !== automationType.key
       );
 
+      const normalizedCheckInTags =
+        automationType.key === "checkin" && Array.isArray(triggerTags)
+          ? triggerTags.map((tag) => `${tag || ""}`.trim()).filter(Boolean)
+          : [];
+
       if (normalizedWorkflowId) {
         nextLinks.push({
           key: automationType.key,
@@ -359,6 +391,9 @@ const AutomationsManagementPage = () => {
           workflowId: normalizedWorkflowId,
           workflowName: normalizedWorkflowName,
           linkedAt: new Date().toISOString(),
+          ...(automationType.key === "checkin"
+            ? { triggerTags: normalizedCheckInTags }
+            : {}),
         });
       }
 
@@ -378,6 +413,10 @@ const AutomationsManagementPage = () => {
         selectedAutomationType;
       const normalizedWorkflowId = `${variables?.workflowId || ""}`.trim();
       const normalizedWorkflowName = `${variables?.workflowName || ""}`.trim();
+      const persistedCheckInTags =
+        automationType.key === "checkin" && Array.isArray(variables?.triggerTags)
+          ? variables.triggerTags.map((tag) => `${tag || ""}`.trim()).filter(Boolean)
+          : [];
 
       queryClient.setQueryData(["locations"], (previous) => {
         const existing = previous?.data?.locations || [];
@@ -411,6 +450,9 @@ const AutomationsManagementPage = () => {
                             workflowId: normalizedWorkflowId,
                             workflowName: normalizedWorkflowName,
                             linkedAt: new Date().toISOString(),
+                            ...(automationType.key === "checkin"
+                              ? { triggerTags: persistedCheckInTags }
+                              : {}),
                           },
                         ]
                       : (
@@ -442,10 +484,21 @@ const AutomationsManagementPage = () => {
       return;
     }
 
+    const parsedCheckInTags =
+      selectedAutomationType.key === "checkin"
+        ? `${checkinTriggerTagsDraft || ""}`
+            .split(/[,|;]/g)
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+        : [];
+
     updateAutomationLinkMutation.mutate({
       automationKey: selectedAutomationType.key,
       workflowId: selectedWorkflowId,
       workflowName: selectedWorkflow?.name || "",
+      ...(selectedAutomationType.key === "checkin"
+        ? { triggerTags: parsedCheckInTags }
+        : {}),
     });
   };
 
@@ -454,6 +507,7 @@ const AutomationsManagementPage = () => {
       automationKey: selectedAutomationType.key,
       workflowId: "",
       workflowName: "",
+      ...(selectedAutomationKey === "checkin" ? { triggerTags: [] } : {}),
     });
   };
 
@@ -686,6 +740,27 @@ const AutomationsManagementPage = () => {
                   </div>
                 </div>
 
+                {selectedAutomationKey === "checkin" && (
+                  <div className="mt-4">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      GHL workflow trigger tags
+                    </label>
+                    <textarea
+                      value={checkinTriggerTagsDraft}
+                      onChange={(e) => setCheckinTriggerTagsDraft(e.target.value)}
+                      placeholder="e.g. app_checkin_on_time (comma-separated for multiple)"
+                      rows={3}
+                      className="mt-1 w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-transparent focus:ring-2"
+                      style={{ "--tw-ring-color": `${brandColor}33` }}
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      If your automation starts on <strong>Contact Tag Added</strong>, enter the exact
+                      tag name(s) GHL listens for — the app enrolls the contact in the workflow and
+                      applies these tags on each verified check-in.
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -745,6 +820,11 @@ const AutomationsManagementPage = () => {
                             <p className="mt-0.5 truncate text-xs font-medium text-slate-600">
                               {link.workflowName || "Linked workflow"}
                             </p>
+                            {link.key === "checkin" && link.triggerTags?.length ? (
+                              <p className="mt-1 text-[11px] text-slate-500">
+                                Tags: {link.triggerTags.join(", ")}
+                              </p>
+                            ) : null}
                             <p className="mt-1 break-all text-[11px] text-slate-500">
                               ID: {link.workflowId}
                             </p>
