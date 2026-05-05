@@ -276,6 +276,9 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
       paymentLivemode === false
     )
   })
+  const recentLiveActivity = [...filteredLiveActivity]
+    .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
+    .slice(0, 5)
 
   const RewardSummaryChips = ({ rewardSummary, compact = false }) => {
     const labels = Array.isArray(rewardSummary?.labels)
@@ -693,12 +696,12 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
           >
             <Activity className="w-5 h-5" style={{ color: brandColor }} />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Daily Activity</h2>
+          <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
         </div>
         <span className="flex h-2 w-2 rounded-full bg-[color:var(--brand-primary)] animate-pulse" />
       </div>
       <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-        {filteredLiveActivity.map((activity) => (
+        {recentLiveActivity.map((activity) => (
           <div
             key={activity._id}
             className="flex items-start gap-4 p-4 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200/70 group"
@@ -740,7 +743,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
             </div>
           </div>
         ))}
-        {filteredLiveActivity.length === 0 && (
+        {recentLiveActivity.length === 0 && (
           <div className="text-center py-16">
             <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200/70">
               <Activity className="w-6 h-6 text-gray-300" />
