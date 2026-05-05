@@ -73,6 +73,48 @@ const resolveManagementLocationId = (currentUser, brandingLocationId, serviceLoc
   resolveLocationId(serviceLocationId) ||
   resolveLocationId(currentUser?.spaLocation?.locationId)
 
+// Helper to compute price display for management list (mirrors catalog logic)
+const getManagementPriceDisplay = (service) => {
+  if (!service?.showPriceRange) {
+    return `$${service?.basePrice ?? 0}`
+  }
+
+  // When showPriceRange is on, compute range from linked add-ons
+  const linkedServices = service?.linkedServices || []
+  const activeAddOns = linkedServices.filter((link) => link?.isActive !== false)
+
+  if (activeAddOns.length === 0) {
+    // No add-ons: show base price if offering discount list price, otherwise show $0
+    return service?.offerDiscountListPrice
+      ? `$${service?.basePrice ?? 0}`
+      : '$0'
+  }
+
+  // Get prices from linked add-ons
+  const prices = activeAddOns
+    .map((link) => {
+      const price =
+        link?.finalPrice ?? link?.customPrice ?? link?.basePrice ?? 0
+      return Number(price)
+    })
+    .filter((p) => Number.isFinite(p) && p >= 0)
+
+  if (prices.length === 0) {
+    return service?.offerDiscountListPrice
+      ? `$${service?.basePrice ?? 0}`
+      : '$0'
+  }
+
+  const minPrice = Math.min(...prices)
+  const maxPrice = Math.max(...prices)
+
+  if (minPrice === maxPrice) {
+    return `$${minPrice}`
+  }
+
+  return `$${minPrice} - $${maxPrice}`
+}
+
 const getManagementLocationDebugContext = (
   currentUser,
   brandingLocationId,
@@ -856,7 +898,7 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
               </span>
             </div>
             <span className='text-lg font-bold text-green-700'>
-              ${service.basePrice}
+              {getManagementPriceDisplay(service)}
             </span>
           </div>
 
@@ -2913,7 +2955,7 @@ const ServiceManagementPage = () => {
                       </td>
 
                       <td className='px-6 py-4 text-center'>
-                        <div className='font-bold text-gray-900'>${service.basePrice}</div>
+                        <div className='font-bold text-gray-900'>{getManagementPriceDisplay(service)}</div>
                       </td>
 
                       <td className='px-6 py-4 text-center'>
@@ -3010,7 +3052,7 @@ const ServiceManagementPage = () => {
                     </div>
                     <div className='bg-white p-3 flex flex-col'>
                       <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Price</span>
-                      <span className='text-[13px] font-bold text-emerald-600 mt-1'>${service.basePrice}</span>
+                      <span className='text-[13px] font-bold text-emerald-600 mt-1'>{getManagementPriceDisplay(service)}</span>
                     </div>
                     <div className='bg-white p-3 flex flex-col'>
                       <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Time</span>
