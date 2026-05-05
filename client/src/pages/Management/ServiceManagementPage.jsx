@@ -750,8 +750,8 @@ const ServiceHeader = ({
       </div>
     </div>
 
-    {/* View Toggle - Compact inline */}
-    <div className='relative z-10 mt-3 md:mt-4 flex justify-center md:justify-start md:absolute md:bottom-4 md:right-6'>
+    {/* View Toggle - Centered below header */}
+    <div className='relative z-10 mt-3 md:mt-4 flex justify-center'>
       <div className='flex bg-white/15 backdrop-blur-sm p-1 rounded-lg border border-white/20'>
         <button
           onClick={() => setView('grid')}
