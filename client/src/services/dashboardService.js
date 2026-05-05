@@ -5,7 +5,7 @@ export const dashboardService = {
   // Get complete dashboard data
   getDashboardData: (params = {}) => axiosInstance.get('/dashboard/data', { params }),
   resetRecentCheckIns: (params = {}) =>
-    axiosInstance.post('/dashboard/recent-checkins/reset', null, { params }),
+    axiosInstance.post('/dashboard/recent-checkins/reset', {}, { params }),
 
   // Bookings endpoints
   getUpcomingAppointments: (limit = 10) =>

@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useBranding } from '@/context/BrandingContext'
 import { cn } from '@/lib/utils'
-import { resolveImageUrl } from '@/lib/imageHelpers'
+import { resolveBrandingLogoUrl } from '@/lib/imageHelpers'
 import Layout from '@/pages/Layout/Layout'
 import ghlService from '@/services/ghlService'
 import { locationService } from '@/services/locationService'
@@ -65,6 +65,7 @@ const BOOKING_STATUS_OPTIONS = [
   { value: 'no-show', label: 'No Show' },
 ]
 const DATE_PRESETS = [
+  { value: 'currentMonth', label: 'Current Month', getStartDate: () => getCurrentMonthRange().startDate, getEndDate: () => getCurrentMonthRange().endDate },
   { value: 'today', label: 'Today', startOffset: 0, endOffset: 0 },
   { value: 'tomorrow', label: 'Tomorrow', startOffset: 1, endOffset: 1 },
   { value: 'next7', label: 'Next 7 Days', startOffset: 0, endOffset: 7 },
@@ -140,6 +141,16 @@ const getDateString = (offsetDays = 0) => {
   return format(addDays(new Date(), offsetDays), 'yyyy-MM-dd')
 }
 
+const getCurrentMonthRange = () => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return {
+    startDate: format(start, 'yyyy-MM-dd'),
+    endDate: format(end, 'yyyy-MM-dd'),
+  }
+}
+
 const formatDateTime = (value) => {
   if (!value) return { date: 'N/A', time: 'N/A' }
   const date = parseBookingDate(value)
@@ -167,17 +178,17 @@ const BookingsManagementPage = () => {
   const brandColor = branding?.themeColor || '#ec4899'
   const brandColorDark = adjustHex(brandColor, -26)
   const brandLogoSrc =
-    hasBranding && branding?.logo
-      ? resolveImageUrl(branding.logo, branding.logo, { width: 96, height: 96 })
+    hasBranding && (branding?.logo || branding?.logoPublicId)
+      ? resolveBrandingLogoUrl(branding, { width: 96, height: 96 })
       : null
 
   const [selectedLocationId, setSelectedLocationId] = useState('')
-  const [selectedCalendarServiceId, setSelectedCalendarServiceId] = useState('')
+  const [selectedCalendarServiceId, setSelectedCalendarServiceId] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [startDate, setStartDate] = useState(() => getDateString(0))
-  const [endDate, setEndDate] = useState(() => getDateString(30))
-  const [datePreset, setDatePreset] = useState('next30')
+  const [startDate, setStartDate] = useState(() => getCurrentMonthRange().startDate)
+  const [endDate, setEndDate] = useState(() => getCurrentMonthRange().endDate)
+  const [datePreset, setDatePreset] = useState('currentMonth')
   const [relativeStartFilter, setRelativeStartFilter] = useState('all')
   const [contactFilter, setContactFilter] = useState('all')
   const [sortField, setSortField] = useState('startTime')
@@ -282,8 +293,14 @@ const BookingsManagementPage = () => {
       ) || null,
     [calendars, selectedCalendarServiceId]
   )
+  const selectedBookingType =
+    selectedCalendarServiceId === 'services'
+      ? 'service'
+      : selectedCalendarServiceId === 'meetings'
+        ? 'meeting'
+        : 'all'
   const selectedBookingCalendarId =
-    selectedCalendarServiceId === 'all'
+    ['all', 'meetings', 'services'].includes(selectedCalendarServiceId)
       ? ''
       : `${selectedCalendar?.id || selectedCalendar?._id || ''}`.trim()
   const selectedCalendarTimeZone =
@@ -303,6 +320,9 @@ const BookingsManagementPage = () => {
 
   const getCalendarNameForBooking = useCallback((booking) => {
     const bookingCalendarId = `${booking?.calendarId || ''}`.trim()
+    if (booking?.bookingType === 'service') {
+      return booking.serviceName || booking.calendarName || 'Services'
+    }
     if (booking?.calendarName) return booking.calendarName
     if (bookingCalendarId && calendarNameById.has(bookingCalendarId)) {
       return calendarNameById.get(bookingCalendarId)
@@ -314,11 +334,7 @@ const BookingsManagementPage = () => {
   }, [calendarNameById, selectedCalendar, selectedCalendarServiceId])
 
   useEffect(() => {
-    if (!calendars.length) {
-      if (selectedCalendarServiceId) setSelectedCalendarServiceId('')
-      return
-    }
-    if (selectedCalendarServiceId === 'all') return
+    if (['all', 'meetings', 'services'].includes(selectedCalendarServiceId)) return
     const exists = calendars.some(
       (calendar) => (calendar.id || calendar._id) === selectedCalendarServiceId
     )
@@ -336,6 +352,7 @@ const BookingsManagementPage = () => {
       startDate,
       endDate,
       selectedBookingCalendarId,
+      selectedBookingType,
       selectedCalendarTimeZone,
     ],
     queryFn: () =>
@@ -344,6 +361,7 @@ const BookingsManagementPage = () => {
         startDate,
         endDate,
         calendarId: selectedBookingCalendarId,
+        bookingType: selectedBookingType,
         timeZone: selectedCalendarTimeZone,
       }),
     enabled: Boolean(effectiveLocationId && startDate && endDate),
@@ -452,16 +470,6 @@ const BookingsManagementPage = () => {
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   )
-  const todayDate = getDateString(0)
-  const todaysBookings = bookings.filter(
-    (booking) => `${booking.startTime || ''}`.slice(0, 10) === todayDate
-  ).length
-  const confirmedBookings = bookings.filter((booking) =>
-    ['confirmed', 'scheduled', 'booked'].includes(normalizeStatus(booking.status))
-  ).length
-  const completedBookings = bookings.filter(
-    (booking) => normalizeStatus(booking.status) === 'completed'
-  ).length
   const filterCount = [
     searchTerm.trim(),
     statusFilter !== 'all',
@@ -522,7 +530,7 @@ const BookingsManagementPage = () => {
     setStartDate(
       preset.startDate || preset.getStartDate?.() || getDateString(preset.startOffset)
     )
-    setEndDate(getDateString(preset.endOffset))
+    setEndDate(preset.getEndDate?.() || getDateString(preset.endOffset))
     setCurrentPage(1)
   }
 
@@ -537,7 +545,7 @@ const BookingsManagementPage = () => {
   }
 
   const resetFilters = () => {
-    const defaultPreset = DATE_PRESETS.find((preset) => preset.value === 'next30')
+    const defaultPreset = DATE_PRESETS.find((preset) => preset.value === 'currentMonth')
     setSearchTerm('')
     setStatusFilter('all')
     setRelativeStartFilter('all')
@@ -620,7 +628,7 @@ const BookingsManagementPage = () => {
           isCompactToolbar ? 'min-w-[8.5rem] flex-1 sm:min-w-[10rem]' : 'md:col-span-2'
         )}
       >
-        <Label className='text-muted-foreground text-xs'>Calendar</Label>
+        <Label className='text-muted-foreground text-xs'>Booking type</Label>
         <select
           value={selectedCalendarServiceId}
           onChange={(e) => {
@@ -631,17 +639,22 @@ const BookingsManagementPage = () => {
         >
           {isLoadingCalendars ? (
             <option value=''>Loading calendars...</option>
-          ) : calendars.length === 0 ? (
-            <option value=''>No GHL calendars</option>
           ) : (
             <>
-              <option value='all'>All calendars</option>
+              <option value='all'>All bookings</option>
+              <option value='meetings'>Meetings</option>
+              <option value='services'>Services</option>
+              {calendars.length === 0 ? (
+                <option value='__no-calendars' disabled>
+                  No meeting calendars loaded
+                </option>
+              ) : null}
               {calendars.map((calendar) => {
                 const id = calendar.id || calendar._id || ''
                 const name = calendar.name || calendar.title || 'Unnamed Calendar'
                 return (
                   <option key={id} value={id}>
-                    {name}
+                    Meetings · {name}
                   </option>
                 )
               })}
@@ -777,8 +790,8 @@ const BookingsManagementPage = () => {
       <div>
         <p className='text-card-foreground text-sm font-semibold'>Load from GoHighLevel</p>
         <p className='text-muted-foreground mt-0.5 text-xs leading-snug'>
-          Calendar and date bounds decide the API fetch. Adjust From/To for a custom span, or pick a
-          quick range.
+          All bookings loads GoHighLevel Meetings and Services for the selected location. Adjust
+          From/To for a custom span, or pick a quick range.
         </p>
       </div>
     )
@@ -1159,30 +1172,6 @@ const BookingsManagementPage = () => {
             </Button>
           </div>
 
-          <div className='grid grid-cols-2 gap-2.5 px-4 py-4 sm:gap-3 sm:px-6 sm:py-5 xl:grid-cols-4 xl:gap-3'>
-            {[
-              { label: 'In view', value: totalBookings },
-              { label: 'Today', value: todaysBookings },
-              { label: 'Active', value: confirmedBookings },
-              { label: 'Done', value: completedBookings },
-            ].map(({ label, value }) => (
-              <div
-                key={label}
-                className={cn(
-                  'rounded-lg border border-border bg-muted/35 shadow-xs min-w-0',
-                  'flex flex-row items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3',
-                  'xl:flex-col xl:items-stretch xl:justify-start xl:gap-1'
-                )}
-              >
-                <p className='text-muted-foreground text-[11px] font-medium leading-tight sm:text-xs xl:leading-none'>
-                  {label}
-                </p>
-                <p className='text-card-foreground shrink-0 text-right text-xl font-semibold tabular-nums tracking-tight sm:text-2xl xl:text-left xl:text-2xl'>
-                  {value}
-                </p>
-              </div>
-            ))}
-          </div>
         </Card>
 
         <Card className='py-4 shadow-sm md:hidden'>
@@ -1524,7 +1513,10 @@ const BookingsManagementPage = () => {
                 {selectedBooking?.title || 'Booking details'}
               </DialogTitle>
               <DialogDescription className='text-muted-foreground text-sm'>
-                {selectedLocation?.name || effectiveLocationId || 'Location'} · GHL appointment
+                {selectedLocation?.name || effectiveLocationId || 'Location'} ·{' '}
+                {selectedBooking?.bookingType === 'service'
+                  ? 'GHL service booking'
+                  : 'GHL appointment'}
               </DialogDescription>
             </DialogHeader>
 

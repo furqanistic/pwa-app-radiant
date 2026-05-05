@@ -5,7 +5,7 @@ import { useBranding } from '@/context/BrandingContext'
 import { locationService } from '@/services/locationService'
 import { uploadService } from '@/services/uploadService'
 import { buildSubdomainUrl, validateSubdomainFormat } from '@/utils/subdomain'
-import { resolveImageUrl } from '@/lib/imageHelpers'
+import { resolveBrandingFaviconUrl, resolveBrandingLogoUrl } from '@/lib/imageHelpers'
 import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import L from "leaflet"
@@ -675,7 +675,10 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                   {formData.logo ? (
                     <>
                       <img
-                        src={resolveImageUrl(formData.logo, formData.logo, { width: 192, height: 192 })}
+                        src={resolveBrandingLogoUrl(
+                          { logo: formData.logo, logoPublicId: formData.logoPublicId },
+                          { width: 192, height: 192 },
+                        )}
                         alt='Logo'
                         className='w-full h-full object-cover'
                         loading='lazy'
@@ -784,7 +787,15 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                   {formData.favicon ? (
                     <>
                       <img
-                        src={resolveImageUrl(formData.favicon, formData.favicon, { width: 128, height: 128 })}
+                        src={resolveBrandingFaviconUrl(
+                          {
+                            favicon: formData.favicon,
+                            faviconPublicId: formData.faviconPublicId,
+                            logo: formData.logo,
+                            logoPublicId: formData.logoPublicId,
+                          },
+                          { width: 128, height: 128 },
+                        )}
                         alt='Favicon'
                         className='w-full h-full object-cover'
                         loading='lazy'

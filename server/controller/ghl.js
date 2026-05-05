@@ -581,6 +581,260 @@ const normalizeCalendarEvent = (event) => {
   }
 }
 
+const normalizeServiceBookingEvent = (booking) => {
+  const appointments = Array.isArray(booking?.appointments)
+    ? booking.appointments
+    : Array.isArray(booking?.appointmentDetails)
+      ? booking.appointmentDetails
+      : []
+  const firstAppointment = booking?.appointment || appointments[0] || {}
+  const customer =
+    booking?.customer ||
+    booking?.contact ||
+    firstAppointment?.customer ||
+    firstAppointment?.contact ||
+    booking?.client ||
+    booking?.primaryContact ||
+    {}
+  const staff =
+    booking?.staff ||
+    booking?.staffMember ||
+    firstAppointment?.staff ||
+    firstAppointment?.staffMember ||
+    booking?.assignedUser ||
+    firstAppointment?.assignedUser ||
+    booking?.user ||
+    firstAppointment?.user ||
+    {}
+  const service =
+    booking?.service ||
+    booking?.calendarService ||
+    firstAppointment?.service ||
+    firstAppointment?.calendarService ||
+    booking?.primaryService ||
+    {}
+  const services = Array.isArray(booking?.services)
+    ? booking.services
+    : Array.isArray(firstAppointment?.services)
+      ? firstAppointment.services
+    : Array.isArray(booking?.items)
+      ? booking.items
+      : []
+  const firstService = services[0] || service || {}
+  const serviceNames = services
+    .map((entry) => entry?.name || entry?.title || entry?.serviceName)
+    .filter(Boolean)
+  const rawStart =
+    booking?.startTime ||
+    booking?.startDateTime ||
+    booking?.startAt ||
+    booking?.appointmentStartTime ||
+    firstAppointment?.startTime ||
+    firstAppointment?.startDateTime ||
+    firstAppointment?.startAt ||
+    firstAppointment?.appointmentStartTime ||
+    booking?.start ||
+    firstAppointment?.start ||
+    booking?.date ||
+    firstAppointment?.date ||
+    booking?.bookingDate ||
+    null
+  const rawEnd =
+    booking?.endTime ||
+    booking?.endDateTime ||
+    booking?.endAt ||
+    booking?.appointmentEndTime ||
+    firstAppointment?.endTime ||
+    firstAppointment?.endDateTime ||
+    firstAppointment?.endAt ||
+    firstAppointment?.appointmentEndTime ||
+    booking?.end ||
+    firstAppointment?.end ||
+    null
+  const firstName =
+    customer?.firstName ||
+    customer?.first_name ||
+    booking?.firstName ||
+    booking?.first_name ||
+    firstAppointment?.firstName ||
+    firstAppointment?.first_name ||
+    ''
+  const lastName =
+    customer?.lastName ||
+    customer?.last_name ||
+    booking?.lastName ||
+    booking?.last_name ||
+    firstAppointment?.lastName ||
+    firstAppointment?.last_name ||
+    ''
+  const contactNameFromParts = `${firstName} ${lastName}`.trim()
+  const serviceName =
+    booking?.serviceName ||
+    firstAppointment?.serviceName ||
+    service?.name ||
+    service?.title ||
+    service?.serviceName ||
+    firstService?.name ||
+    firstService?.title ||
+    firstService?.serviceName ||
+    serviceNames.join(', ') ||
+    ''
+  const staffName =
+    booking?.staffName ||
+    booking?.assignedUserName ||
+    firstAppointment?.staffName ||
+    firstAppointment?.assignedUserName ||
+    staff?.name ||
+    staff?.fullName ||
+    [staff?.firstName, staff?.lastName].filter(Boolean).join(' ').trim() ||
+    ''
+
+  return {
+    id:
+      booking?.id ||
+      booking?._id ||
+      booking?.bookingId ||
+      booking?.serviceBookingId ||
+      booking?.appointmentId ||
+      firstAppointment?.id ||
+      firstAppointment?._id ||
+      firstAppointment?.appointmentId ||
+      null,
+    title:
+      booking?.title ||
+      booking?.appointmentTitle ||
+      firstAppointment?.title ||
+      firstAppointment?.appointmentTitle ||
+      serviceName ||
+      booking?.name ||
+      'Service booking',
+    status: `${booking?.status || booking?.bookingStatus || booking?.appointmentStatus || firstAppointment?.status || firstAppointment?.appointmentStatus || ''}`.toLowerCase(),
+    startTime: rawStart,
+    endTime: rawEnd,
+    startTimeRaw: rawStart,
+    endTimeRaw: rawEnd,
+    calendarId:
+      booking?.calendarId ||
+      booking?.calendar?.id ||
+      booking?.calendar?._id ||
+      firstAppointment?.calendarId ||
+      firstAppointment?.calendar?.id ||
+      firstAppointment?.calendar?._id ||
+      service?.calendarId ||
+      firstService?.calendarId ||
+      null,
+    calendarName:
+      booking?.calendarName ||
+      booking?.calendar?.name ||
+      booking?.calendar?.title ||
+      firstAppointment?.calendarName ||
+      firstAppointment?.calendar?.name ||
+      firstAppointment?.calendar?.title ||
+      serviceName ||
+      'Services',
+    locationId: booking?.locationId || firstAppointment?.locationId || booking?.serviceLocationId || null,
+    serviceId:
+      booking?.serviceId ||
+      booking?.calendarServiceId ||
+      firstAppointment?.serviceId ||
+      firstAppointment?.calendarServiceId ||
+      service?.id ||
+      service?._id ||
+      service?.serviceId ||
+      firstService?.id ||
+      firstService?._id ||
+      firstService?.serviceId ||
+      null,
+    serviceName,
+    bookingType: 'service',
+    timeZone:
+      booking?.timeZone ||
+      booking?.timezone ||
+      firstAppointment?.timeZone ||
+      firstAppointment?.timezone ||
+      booking?.serviceTimeZone ||
+      booking?.locationTimeZone ||
+      null,
+    contactId:
+      booking?.contactId ||
+      booking?.contact_id ||
+      firstAppointment?.contactId ||
+      firstAppointment?.contact_id ||
+      customer?.id ||
+      customer?._id ||
+      null,
+    contactName:
+      booking?.contactName ||
+      booking?.customerName ||
+      firstAppointment?.contactName ||
+      firstAppointment?.customerName ||
+      customer?.name ||
+      customer?.fullName ||
+      contactNameFromParts ||
+      null,
+    contactEmail:
+      booking?.contactEmail ||
+      booking?.customerEmail ||
+      booking?.email ||
+      firstAppointment?.contactEmail ||
+      firstAppointment?.customerEmail ||
+      firstAppointment?.email ||
+      customer?.email ||
+      null,
+    contactPhone:
+      booking?.contactPhone ||
+      booking?.customerPhone ||
+      booking?.phone ||
+      firstAppointment?.contactPhone ||
+      firstAppointment?.customerPhone ||
+      firstAppointment?.phone ||
+      customer?.phone ||
+      null,
+    assignedUserId:
+      booking?.assignedUserId ||
+      booking?.staffId ||
+      firstAppointment?.assignedUserId ||
+      firstAppointment?.staffId ||
+      staff?.id ||
+      staff?._id ||
+      null,
+    assignedUserName: staffName || null,
+    notes:
+      booking?.notes ||
+      booking?.description ||
+      booking?.appointmentNotes ||
+      firstAppointment?.notes ||
+      firstAppointment?.description ||
+      firstAppointment?.appointmentNotes ||
+      null,
+    sourceUrl:
+      booking?.sourceUrl ||
+      booking?.appointmentUrl ||
+      booking?.bookingUrl ||
+      booking?.serviceBookingUrl ||
+      firstAppointment?.sourceUrl ||
+      firstAppointment?.appointmentUrl ||
+      firstAppointment?.bookingUrl ||
+      null,
+    dateAdded:
+      booking?.dateAdded ||
+      booking?.createdAt ||
+      booking?.created_at ||
+      firstAppointment?.dateAdded ||
+      firstAppointment?.createdAt ||
+      firstAppointment?.created_at ||
+      null,
+    dateUpdated:
+      booking?.dateUpdated ||
+      booking?.updatedAt ||
+      booking?.updated_at ||
+      firstAppointment?.dateUpdated ||
+      firstAppointment?.updatedAt ||
+      firstAppointment?.updated_at ||
+      null,
+  }
+}
+
 const normalizeCalendarsPayload = (payload) => {
   if (!payload || typeof payload !== 'object') return []
   return (
@@ -1293,6 +1547,215 @@ const extractRawEventsPayload = (payload) => {
   return []
 }
 
+const extractRawServiceBookingsPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') return []
+  const candidates = [
+    payload.bookings,
+    payload.serviceBookings,
+    payload.appointments,
+    payload.events,
+    payload.items,
+    payload.data?.bookings,
+    payload.data?.serviceBookings,
+    payload.data?.appointments,
+    payload.data?.events,
+    payload.data?.items,
+  ]
+
+  for (const entry of candidates) {
+    if (Array.isArray(entry)) return entry
+  }
+  return []
+}
+
+const fetchLocationServiceBookingsByDate = async (
+  locationId,
+  token,
+  date,
+  timeZone = '',
+  endDate = ''
+) => {
+  const requestedEndDate = endDate || date
+  const { startIso, endIso } = getStartAndEndISOForDateRange(
+    date,
+    requestedEndDate,
+    timeZone
+  )
+  const startMs = Date.parse(startIso)
+  const endMs = Date.parse(endIso)
+  const attempts = [
+    {
+      params: { locationId, startTime: startIso, endTime: endIso },
+      source: 'ghl-v2-service-bookings-iso',
+    },
+    {
+      params: { locationId, startDate: startIso, endDate: endIso },
+      source: 'ghl-v2-service-bookings-date-iso',
+    },
+    {
+      params: { locationId, startTime: startMs, endTime: endMs },
+      source: 'ghl-v2-service-bookings-ms',
+    },
+    {
+      params: { locationId, startDate: startMs, endDate: endMs },
+      source: 'ghl-v2-service-bookings-date-ms',
+    },
+  ]
+
+  let hadSuccess = false
+  let lastError = null
+
+  for (const attempt of attempts) {
+    try {
+      const response = await makeGHLV2Request('/calendars/services/bookings', {
+        token,
+        params: attempt.params,
+        suppressErrorLog: true,
+      })
+      hadSuccess = true
+
+      const rawBookings = extractRawServiceBookingsPayload(response)
+      if (!Array.isArray(rawBookings) || rawBookings.length === 0) {
+        continue
+      }
+
+      const normalizedEvents = rawBookings
+        .map(normalizeServiceBookingEvent)
+        .filter(
+          (event) =>
+            event.startTime &&
+            !['cancelled', 'canceled'].includes(event.status) &&
+            matchesRequestedDateRange(event, date, requestedEndDate, timeZone)
+        )
+
+      return {
+        events: normalizedEvents,
+        rawCount: rawBookings.length,
+        total: normalizedEvents.length,
+        source: attempt.source,
+        effectiveTimeZone: timeZone || normalizedEvents[0]?.timeZone || '',
+      }
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  if (hadSuccess) {
+    return {
+      events: [],
+      rawCount: 0,
+      total: 0,
+      source: 'ghl-v2-service-bookings',
+      effectiveTimeZone: timeZone || '',
+    }
+  }
+
+  return {
+    events: [],
+    rawCount: 0,
+    total: 0,
+    source: 'ghl-v2-service-bookings',
+    unavailable: true,
+    error: lastError?.response?.data || lastError?.message || 'Service bookings unavailable',
+  }
+}
+
+const fetchLocationMeetingEventsByDate = async (
+  locationId,
+  token,
+  date,
+  timeZone = '',
+  endDate = ''
+) => {
+  const requestedEndDate = endDate || date
+  const { startIso, endIso } = getStartAndEndISOForDateRange(
+    date,
+    requestedEndDate,
+    timeZone
+  )
+  const startMs = Date.parse(startIso)
+  const endMs = Date.parse(endIso)
+  const attempts = [
+    {
+      endpoint: '/calendars/events',
+      params: { locationId, startTime: startIso, endTime: endIso },
+      source: 'ghl-v2-events-location-iso',
+    },
+    {
+      endpoint: '/calendars/events',
+      params: { locationId, startTime: startMs, endTime: endMs },
+      source: 'ghl-v2-events-location-ms',
+    },
+    {
+      endpoint: '/calendars/events/appointments',
+      params: { locationId, startTime: startIso, endTime: endIso },
+      source: 'ghl-v2-appointments-location-iso',
+    },
+    {
+      endpoint: '/calendars/events/appointments',
+      params: { locationId, startTime: startMs, endTime: endMs },
+      source: 'ghl-v2-appointments-location-ms',
+    },
+  ]
+
+  let hadSuccess = false
+  let lastError = null
+
+  for (const attempt of attempts) {
+    try {
+      const response = await makeGHLV2Request(attempt.endpoint, {
+        token,
+        params: attempt.params,
+        suppressErrorLog: true,
+      })
+      hadSuccess = true
+
+      const rawEvents = extractRawEventsPayload(response)
+      if (!Array.isArray(rawEvents) || rawEvents.length === 0) {
+        continue
+      }
+
+      const normalizedEvents = rawEvents
+        .map(normalizeCalendarEvent)
+        .filter(
+          (event) =>
+            event.startTime &&
+            !['cancelled', 'canceled'].includes(event.status) &&
+            matchesRequestedDateRange(event, date, requestedEndDate, timeZone)
+        )
+
+      return {
+        events: normalizedEvents,
+        rawCount: rawEvents.length,
+        total: normalizedEvents.length,
+        source: attempt.source,
+        effectiveTimeZone: timeZone || normalizedEvents[0]?.timeZone || '',
+      }
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  if (hadSuccess) {
+    return {
+      events: [],
+      rawCount: 0,
+      total: 0,
+      source: 'ghl-v2-events-location',
+      effectiveTimeZone: timeZone || '',
+    }
+  }
+
+  return {
+    events: [],
+    rawCount: 0,
+    total: 0,
+    source: 'ghl-v2-events-location',
+    unavailable: true,
+    error: lastError?.response?.data || lastError?.message || 'Meeting events unavailable',
+  }
+}
+
 const splitFullName = (fullName = '') => {
   const normalized = `${fullName || ''}`.trim()
   if (!normalized) {
@@ -1471,10 +1934,12 @@ export const fetchLocationCalendarEventsByDate = async (
   date,
   calendarId = '',
   timeZone = '',
-  endDate = ''
+  endDate = '',
+  bookingType = 'all'
 ) => {
   const requestedCalendarId = `${calendarId || ''}`.trim()
   const requestedEndDate = endDate || date
+  const requestedBookingType = `${bookingType || 'all'}`.trim().toLowerCase()
   const token = await getTokenForLocation(locationId)
 
   if (!token) {
@@ -1493,9 +1958,98 @@ export const fetchLocationCalendarEventsByDate = async (
     const calendars = (calendarsResult.calendars || [])
       .filter((calendar) => calendar?.id && !isCalendarMarkedInactive(calendar))
 
+    const serviceBookingsResult =
+      requestedBookingType === 'meeting'
+        ? {
+            events: [],
+            rawCount: 0,
+            total: 0,
+            source: 'ghl-v2-service-bookings-skipped',
+          }
+        : await fetchLocationServiceBookingsByDate(
+            locationId,
+            token,
+            date,
+            timeZone,
+            requestedEndDate
+          ).catch((error) => ({
+            events: [],
+            rawCount: 0,
+            total: 0,
+            source: 'ghl-v2-service-bookings',
+            unavailable: true,
+            error: error.response?.data || error.message,
+          }))
+
+    if (requestedBookingType === 'service') {
+      return {
+        ...serviceBookingsResult,
+        source: serviceBookingsResult.source || 'ghl-v2-service-bookings',
+        serviceBookingsChecked: true,
+      }
+    }
+
+    const meetingEventsResult = await fetchLocationMeetingEventsByDate(
+      locationId,
+      token,
+      date,
+      timeZone,
+      requestedEndDate
+    ).catch((error) => ({
+      events: [],
+      rawCount: 0,
+      total: 0,
+      source: 'ghl-v2-events-location',
+      unavailable: true,
+      error: error.response?.data || error.message,
+    }))
+
+    if (meetingEventsResult.rawCount > 0) {
+      const results = [meetingEventsResult, serviceBookingsResult]
+      const eventsById = new Map()
+      let rawCount = 0
+      let hasUnavailable = false
+      results.forEach((result) => {
+        rawCount += Number(result?.rawCount || 0)
+        if (result?.unavailable) hasUnavailable = true
+        ;(result?.events || []).forEach((event) => {
+          const key = [
+            event?.bookingType || 'meeting',
+            event?.id || '',
+            event?.startTime || '',
+            event?.calendarId || event?.serviceId || '',
+            event?.contactId || event?.contactEmail || event?.contactPhone || '',
+            event?.title || '',
+          ].join(':')
+          if (key.trim()) eventsById.set(key, event)
+        })
+      })
+
+      const events = [...eventsById.values()].sort(
+        (a, b) => new Date(a.startTime) - new Date(b.startTime)
+      )
+
+      return {
+        events,
+        rawCount,
+        total: events.length,
+        source: `${meetingEventsResult.source}-all-scheduling-types`,
+        effectiveTimeZone:
+          timeZone ||
+          meetingEventsResult.effectiveTimeZone ||
+          serviceBookingsResult.effectiveTimeZone ||
+          events[0]?.timeZone ||
+          '',
+        calendarsChecked: 0,
+        serviceBookingsChecked: true,
+        unavailable: hasUnavailable && events.length === 0,
+      }
+    }
+
     if (calendars.length) {
-      const results = await Promise.all(
-        calendars.map((calendar) =>
+      const [resolvedServiceBookingsResult, ...calendarResults] = await Promise.all([
+        Promise.resolve(serviceBookingsResult),
+        ...calendars.map((calendar) =>
           fetchLocationCalendarEventsByDate(
             locationId,
             date,
@@ -1510,8 +2064,9 @@ export const fetchLocationCalendarEventsByDate = async (
             unavailable: true,
             error: error.response?.data || error.message,
           }))
-        )
-      )
+        ),
+      ])
+      const results = [...calendarResults, resolvedServiceBookingsResult]
 
       const eventsById = new Map()
       let rawCount = 0
@@ -1520,7 +2075,14 @@ export const fetchLocationCalendarEventsByDate = async (
         rawCount += Number(result?.rawCount || 0)
         if (result?.unavailable) hasUnavailable = true
         ;(result?.events || []).forEach((event) => {
-          const key = `${event?.id || ''}:${event?.startTime || ''}:${event?.calendarId || ''}`
+          const key = [
+            event?.bookingType || 'meeting',
+            event?.id || '',
+            event?.startTime || '',
+            event?.calendarId || event?.serviceId || '',
+            event?.contactId || event?.contactEmail || event?.contactPhone || '',
+            event?.title || '',
+          ].join(':')
           if (key.trim()) eventsById.set(key, event)
         })
       })
@@ -1533,10 +2095,19 @@ export const fetchLocationCalendarEventsByDate = async (
         events,
         rawCount,
         total: events.length,
-        source: `${calendarsResult.source}-all-calendars`,
+        source: `${calendarsResult.source}-all-scheduling-types`,
         effectiveTimeZone: timeZone || events[0]?.timeZone || '',
         calendarsChecked: calendars.length,
+        serviceBookingsChecked: true,
         unavailable: hasUnavailable && events.length === 0,
+      }
+    }
+
+    if (serviceBookingsResult.events?.length) {
+      return {
+        ...serviceBookingsResult,
+        source: serviceBookingsResult.source || 'ghl-v2-service-bookings',
+        serviceBookingsChecked: true,
       }
     }
   }
@@ -3209,7 +3780,7 @@ export const getLocationBookingsByDate = async (req, res, next) => {
     res.set('Expires', '0')
     res.set('Surrogate-Control', 'no-store')
 
-    const { locationId, date, startDate, endDate, calendarId, timeZone } = req.query
+    const { locationId, date, startDate, endDate, calendarId, bookingType, timeZone } = req.query
     const requestedStartDate = `${startDate || date || ''}`.trim()
     const requestedEndDate = `${endDate || requestedStartDate || ''}`.trim()
 
@@ -3231,7 +3802,8 @@ export const getLocationBookingsByDate = async (req, res, next) => {
       requestedStartDate,
       calendarId,
       timeZone,
-      requestedEndDate
+      requestedEndDate,
+      bookingType
     )
 
     res.status(200).json({

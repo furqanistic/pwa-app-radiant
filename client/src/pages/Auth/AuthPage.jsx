@@ -1,7 +1,7 @@
 // File: client/src/pages/Auth/AuthPage.jsx
 import { axiosInstance } from '@/config'
 import { useBranding } from '@/context/BrandingContext'
-import { resolveImageUrl } from '@/lib/imageHelpers'
+import { resolveBrandingLogoUrl } from '@/lib/imageHelpers'
 import {
   loginFailure,
   loginStart,
@@ -752,7 +752,7 @@ const AuthPage = () => {
                 {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
                   <div className="flex flex-col items-center">
                     <img 
-                      src={resolveImageUrl(branding.logo || branding.logoPublicId, branding.logo, { width: 256, height: 256 })}
+                      src={resolveBrandingLogoUrl(branding, { width: 256, height: 256 })}
                       alt={branding.name} 
                       className="h-24 w-auto mb-6 object-contain"
                       loading='lazy'
@@ -804,7 +804,7 @@ const AuthPage = () => {
                 {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
                   <div className="flex flex-col items-center gap-3">
                     <img 
-                      src={resolveImageUrl(branding.logo || branding.logoPublicId, branding.logo, { width: 160, height: 160 })}
+                      src={resolveBrandingLogoUrl(branding, { width: 160, height: 160 })}
                       alt={branding.name} 
                       className="h-20 w-20 object-contain"
                       loading='lazy'

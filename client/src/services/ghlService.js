@@ -46,6 +46,7 @@ export const ghlService = {
     startDate,
     endDate,
     calendarId,
+    bookingType,
     timeZone,
   }) => {
     const response = await axiosInstance.get('/ghl/bookings', {
@@ -54,6 +55,7 @@ export const ghlService = {
         startDate,
         endDate,
         ...(calendarId ? { calendarId } : {}),
+        ...(bookingType && bookingType !== 'all' ? { bookingType } : {}),
         ...(timeZone ? { timeZone } : {}),
       },
     })

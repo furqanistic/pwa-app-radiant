@@ -1,6 +1,6 @@
 
 import { useBranding } from '@/context/BrandingContext';
-import { resolveImageUrl } from '@/lib/imageHelpers';
+import { resolveBrandingFaviconUrl, resolveBrandingLogoUrl, resolveImageUrl } from '@/lib/imageHelpers';
 import { getCurrentSubdomain } from '@/utils/subdomain';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
@@ -51,16 +51,14 @@ const AppIconManager = () => {
 
     // Prefer subdomain branding, then selected spa data
     const brandName = branding?.name || spaName || subdomainFallbackName;
-    const resolvedBrandLogo = resolveImageUrl(
-        branding?.logo || branding?.logoPublicId || spaLogo,
-        branding?.logo || spaLogo,
-        { width: 512, height: 512 }
-    );
-    const resolvedBrandFavicon = resolveImageUrl(
-        branding?.favicon || branding?.faviconPublicId || branding?.logo || branding?.logoPublicId || spaLogo,
-        branding?.favicon || branding?.logo || spaLogo,
-        { width: 128, height: 128 }
-    );
+    const resolvedBrandLogo =
+        branding && (branding.logo || branding.logoPublicId)
+            ? resolveBrandingLogoUrl(branding, { width: 512, height: 512 })
+            : resolveImageUrl(spaLogo, spaLogo, { width: 512, height: 512, preserveTransparency: true });
+    const resolvedBrandFavicon =
+        branding && (branding.favicon || branding.faviconPublicId || branding.logo || branding.logoPublicId)
+            ? resolveBrandingFaviconUrl(branding, { width: 128, height: 128 })
+            : resolveImageUrl(spaLogo, spaLogo, { width: 128, height: 128, preserveTransparency: true });
     const brandLogo = resolvedBrandLogo;
     const brandFavicon = resolvedBrandFavicon || resolvedBrandLogo;
     const brandThemeColor = branding?.themeColor || spaThemeColor;

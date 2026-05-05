@@ -1,6 +1,6 @@
 import CreditsPurchaseDialog from "@/components/Membership/CreditsPurchaseDialog";
 import { useBranding } from "@/context/BrandingContext";
-import { resolveImageUrl } from "@/lib/imageHelpers";
+import { resolveBrandingLogoUrl } from "@/lib/imageHelpers";
 import { selectIsElevatedUser, selectIsSuperAdmin } from "@/redux/userSlice";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { BadgeCent, Plus, ShoppingCart } from "lucide-react";
@@ -74,11 +74,7 @@ const Topbar = ({
                 <>
                   <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center">
                     <img
-                      src={resolveImageUrl(
-                        branding.logo || branding.logoPublicId,
-                        branding.logo,
-                        { width: 64, height: 64 }
-                      )}
+                      src={resolveBrandingLogoUrl(branding, { width: 64, height: 64 })}
                       alt={branding?.name || "Brand Logo"}
                       className="w-full h-full object-contain"
                       loading="lazy"

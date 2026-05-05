@@ -222,9 +222,11 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
       setCurrentCheckInPage(1)
       await refetch?.()
     } catch (error) {
-      toast.error(
-        error.response?.data?.message || 'Could not clear recent check-ins.'
-      )
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Could not clear recent check-ins.'
+      toast.error(message)
     } finally {
       setIsResettingCheckIns(false)
     }

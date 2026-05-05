@@ -1,4 +1,5 @@
 import { useBranding } from "@/context/BrandingContext";
+import { resolveBrandingLogoUrl } from "@/lib/imageHelpers";
 import { qrCodeService } from "@/services/qrCodeService";
 import { motion } from "framer-motion";
 import { AlertCircle, Check, Loader2, QrCode, ScanLine } from "lucide-react";
@@ -114,9 +115,9 @@ const CheckInPage = () => {
           }}
         >
           <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm overflow-hidden p-2">
-            {hasBranding && branding.logo ? (
+            {hasBranding && (branding.logo || branding.logoPublicId) ? (
               <img
-                src={branding.logo}
+                src={resolveBrandingLogoUrl(branding, { width: 80, height: 80 })}
                 alt={branding.name}
                 className="w-10 h-10 object-contain rounded-lg"
               />
