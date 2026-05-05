@@ -267,6 +267,8 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
     const passesPaymentGate =
       activity?.paymentStatus === 'paid' ||
       `${activity?.displayStatus || ''}`.toLowerCase() === 'paid' ||
+      ['rewardClaim', 'pointTransaction'].includes(activity?.activityKind) ||
+      ['reward', 'points'].includes(activity?.activityType) ||
       activity?.activityKind === 'todaysAppointment'
 
     return !(
@@ -281,6 +283,37 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   const recentLiveActivity = [...filteredLiveActivity]
     .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
     .slice(0, 5)
+
+  const getActivityCustomer = (activity) =>
+    activity?.userId ||
+    activity?.customer ||
+    activity?.user ||
+    activity?.client ||
+    {}
+
+  const getActivityValueLabel = (activity) => {
+    if (activity?.valueLabel) return activity.valueLabel
+
+    const price = Number(activity?.finalPrice)
+    if (!Number.isFinite(price)) return ''
+
+    return `$${price.toFixed(2)}`
+  }
+
+  const getActivityStatus = (activity) =>
+    `${activity?.displayStatus || activity?.status || ''}`.trim()
+
+  const isPositiveActivityStatus = (activity) => {
+    const status = getActivityStatus(activity).toLowerCase()
+    return [
+      'completed',
+      'paid',
+      'claimed',
+      'redeemed',
+      'earned',
+      'active',
+    ].includes(status)
+  }
 
   const RewardSummaryChips = ({ rewardSummary, compact = false }) => {
     const labels = Array.isArray(rewardSummary?.labels)
@@ -353,49 +386,54 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   )
 
   const RecentCheckIns = () => (
-    <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100">
+    <div 
+      className="rounded-[24px] sm:rounded-[32px] p-4 sm:p-8 flex flex-col gap-6 sm:gap-8 border border-gray-100/50"
+      style={{ 
+        backgroundColor: `${brandColor}03`,
+        backgroundImage: `radial-gradient(circle at 100% 0%, ${brandColor}08 0%, transparent 50%), radial-gradient(circle at 0% 100%, ${brandColor}05 0%, transparent 50%)`
+      }}
+    >
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <div
-              className="p-2 rounded-xl"
-              style={{ backgroundColor: `${brandColor}15` }}
+              className="p-2 sm:p-2.5 rounded-xl bg-white shadow-sm border border-gray-100"
             >
-              <ScanLine className="w-5 h-5" style={{ color: brandColor }} />
+              <ScanLine className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: brandColor }} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                 Recent Check-Ins
               </h2>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 mt-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mt-0.5">
                 Last {filteredRecentQrClaimsSummary?.days || 3} days
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 lg:items-end">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+          <div className="flex flex-col gap-4 lg:items-end">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-xl sm:rounded-2xl bg-white px-3 py-2 sm:px-4 sm:py-3 border border-gray-100 shadow-sm">
+                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   Claims
                 </p>
-                <p className="text-2xl font-black text-gray-900 mt-1">
+                <p className="text-lg sm:text-2xl font-black text-gray-900 mt-0.5 sm:mt-1">
                   {filteredRecentQrClaimsSummary?.totalClaims || 0}
                 </p>
               </div>
-              <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+              <div className="rounded-xl sm:rounded-2xl bg-white px-3 py-2 sm:px-4 sm:py-3 border border-gray-100 shadow-sm">
+                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   Visitors
                 </p>
-                <p className="text-2xl font-black text-gray-900 mt-1">
+                <p className="text-lg sm:text-2xl font-black text-gray-900 mt-0.5 sm:mt-1">
                   {filteredRecentQrClaimsSummary?.uniqueVisitors || 0}
                 </p>
               </div>
-              <div className="rounded-2xl bg-gray-50 px-4 py-3 border border-gray-100">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
+              <div className="rounded-xl sm:rounded-2xl bg-white px-3 py-2 sm:px-4 sm:py-3 border border-gray-100 shadow-sm">
+                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
                   Latest
                 </p>
-                <p className="text-sm font-black text-gray-900 mt-2 leading-tight">
+                <p className="text-[11px] sm:text-sm font-black text-gray-900 mt-1 sm:mt-2 leading-tight">
                   {filteredRecentQrClaimsSummary?.latestClaimAt
                     ? formatRelativeTime(filteredRecentQrClaimsSummary.latestClaimAt)
                     : 'No scans'}
@@ -403,8 +441,8 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
               </div>
             </div>
 
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center lg:justify-end">
-              <p className="text-xs font-bold text-gray-400">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:justify-end">
+              <p className="text-[10px] sm:text-xs font-bold text-gray-400 w-full sm:w-auto">
                 Last reset:{' '}
                 <span className="text-gray-700">
                   {filteredRecentQrClaimsSummary?.lastResetAt
@@ -416,10 +454,10 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                 type="button"
                 onClick={handleRefresh}
                 disabled={isResettingCheckIns || isRefreshingCheckIns}
-                className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs sm:text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
               >
                 <RefreshCw
-                  className={`w-4 h-4 ${
+                  className={`w-3.5 h-3.5 sm:w-4 h-4 ${
                     isRefreshingCheckIns ? 'animate-spin' : ''
                   }`}
                 />
@@ -429,24 +467,30 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                 type="button"
                 onClick={() => setIsResetDialogOpen(true)}
                 disabled={isResettingCheckIns || filteredRecentQrClaims.length === 0}
-                className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-2xl border border-red-100 bg-red-50/50 px-3 py-2 text-xs sm:text-sm font-black text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
               >
-                <RotateCcw className="w-4 h-4" />
-                Reset Last 3 Days
+                <RotateCcw className="w-3.5 h-3.5 sm:w-4 h-4" />
+                Reset
               </button>
             </div>
           </div>
         </div>
 
         {latestVisibleQrClaim ? (
-          <button
+          <motion.button
             type="button"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
             onClick={() => openClientProfile(latestVisibleQrClaim)}
-            className="w-full text-left rounded-[28px] border border-[color:var(--brand-primary)/0.14] bg-gradient-to-br from-white via-[color:var(--brand-primary)/0.04] to-[color:var(--brand-primary)/0.1] p-5 sm:p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
+            className="w-full text-left rounded-[24px] sm:rounded-[28px] border border-white bg-white p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden"
           >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-start gap-4 min-w-0">
-                <div className="w-14 h-14 rounded-2xl bg-[color:var(--brand-primary)/0.16] flex items-center justify-center text-[color:var(--brand-primary)] font-black overflow-hidden shrink-0">
+            <div 
+              className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity pointer-events-none"
+              style={{ backgroundColor: brandColor }}
+            />
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between relative z-10">
+              <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 font-black overflow-hidden shrink-0 border border-gray-100 transition-transform duration-500 group-hover:scale-110">
                   {latestVisibleQrClaim.customer?.avatar ? (
                     <img
                       src={latestVisibleQrClaim.customer.avatar}
@@ -454,61 +498,62 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    (
-                      getClaimedCustomerName(latestVisibleQrClaim).charAt(0) || '?'
-                    ).toUpperCase()
+                    <span className="text-lg sm:text-2xl">
+                      {(getClaimedCustomerName(latestVisibleQrClaim).charAt(0) || '?').toUpperCase()}
+                    </span>
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[color:var(--brand-primary)]">
+                  <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.22em] text-[color:var(--brand-primary)]">
                     Latest customer scan
                   </p>
-                  <h3 className="text-2xl font-black text-gray-900 truncate mt-1">
+                  <h3 className="text-lg sm:text-2xl font-black text-gray-900 truncate mt-0.5">
                     {getClaimedCustomerName(latestVisibleQrClaim)}
                   </h3>
-                  <p className="text-sm text-gray-500 font-bold truncate mt-1">
+                  <p className="text-xs text-gray-500 font-bold truncate">
                     {latestVisibleQrClaim.customer?.email ||
                       latestVisibleQrClaim.scannedByEmail}
                   </p>
-                  <p className="text-xs text-gray-400 font-bold mt-2">
-                    Earned {latestVisibleQrClaim.pointsAwarded} points{' '}
-                    {formatRelativeTime(latestVisibleQrClaim.claimedAt)}
-                  </p>
-                  {creditSystemEnabled && (
-                    <p className="text-xs text-gray-500 font-bold mt-1">
-                      Available credits: {getCustomerCredits(latestVisibleQrClaim)}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+                    <p className="text-[10px] sm:text-xs text-gray-400 font-bold">
+                      Earned {latestVisibleQrClaim.pointsAwarded} pts • {formatRelativeTime(latestVisibleQrClaim.claimedAt)}
                     </p>
-                  )}
+                    {creditSystemEnabled && (
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-bold">
+                        Credits: {getCustomerCredits(latestVisibleQrClaim)}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-col items-start lg:items-end gap-3">
+              <div className="flex flex-col items-start lg:items-end gap-3 sm:gap-4">
                 <RewardSummaryChips
                   rewardSummary={latestVisibleQrClaim.activeRewardSummary}
                 />
-                <span className="inline-flex items-center gap-2 text-sm font-black text-[color:var(--brand-primary)]">
+                <span className="inline-flex items-center gap-2 text-xs sm:text-sm font-black text-[color:var(--brand-primary)]">
                   Open profile
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </div>
             </div>
-          </button>
+          </motion.button>
         ) : (
-          <div className="rounded-[28px] border border-dashed border-gray-200 bg-gray-50/80 px-6 py-10 text-center">
-            <div className="w-14 h-14 rounded-full bg-white border border-gray-200 flex items-center justify-center mx-auto mb-4">
-              <ScanLine className="w-6 h-6 text-gray-300" />
+          <div className="rounded-[24px] sm:rounded-[28px] border border-dashed border-gray-200 bg-white/50 px-6 py-10 text-center">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4 shadow-sm">
+              <ScanLine className="w-6 h-6 text-gray-200" />
             </div>
             <p className="text-gray-900 font-black">No verified check-ins yet</p>
-            <p className="text-sm text-gray-500 font-bold mt-2">
+            <p className="text-xs sm:text-sm text-gray-500 font-bold mt-2">
               New QR claims from the last {filteredRecentQrClaimsSummary?.days || 3}{' '}
               days will appear here automatically.
             </p>
           </div>
         )}
 
-        <div className="rounded-[28px] border border-gray-100 overflow-hidden">
+        <div className="rounded-[20px] sm:rounded-[28px] border border-gray-100/80 overflow-hidden bg-white shadow-sm">
           <div
-            className={`hidden md:grid gap-4 bg-gray-50 px-5 py-4 border-b border-gray-100 ${
+            className={`hidden md:grid gap-4 bg-gray-50/50 px-5 py-4 border-b border-gray-100 ${
               creditSystemEnabled
                 ? 'grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_95px_110px_160px_52px]'
                 : 'grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)_120px_160px_52px]'
@@ -540,33 +585,35 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                 key={claim._id}
                 type="button"
                 onClick={() => openClientProfile(claim)}
-                className="w-full text-left px-5 py-4 transition-colors hover:bg-gray-50 disabled:cursor-default disabled:hover:bg-transparent"
+                className="w-full text-left px-4 py-4 sm:px-5 sm:py-4 transition-colors hover:bg-gray-50/50 disabled:cursor-default disabled:hover:bg-transparent group"
                 disabled={!claim?.customer?._id}
               >
                 <div className="md:hidden space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-gray-900 truncate">
+                      <p className="text-sm font-black text-gray-900 truncate group-hover:text-[color:var(--brand-primary)] transition-colors">
                         {getClaimedCustomerName(claim)}
                       </p>
-                      <p className="text-xs text-gray-500 font-bold truncate mt-1">
+                      <p className="text-[11px] text-gray-500 font-bold truncate mt-0.5">
                         {claim.customer?.email || claim.scannedByEmail}
                       </p>
                     </div>
-                    <span className="text-xs font-black text-[color:var(--brand-primary)] whitespace-nowrap">
+                    <span className="text-xs font-black text-[color:var(--brand-primary)] whitespace-nowrap bg-[color:var(--brand-primary)/0.05] px-2 py-1 rounded-lg">
                       +{claim.pointsAwarded} pts
                     </span>
                   </div>
-                  {creditSystemEnabled && (
-                    <p className="text-[11px] font-bold text-gray-500">
-                      Credits: {getCustomerCredits(claim)}
-                    </p>
-                  )}
-                  <RewardSummaryChips
-                    rewardSummary={claim.activeRewardSummary}
-                    compact
-                  />
-                  <div className="flex items-center justify-between text-[11px] font-bold text-gray-400">
+                  <div className="flex items-center gap-3">
+                    <RewardSummaryChips
+                      rewardSummary={claim.activeRewardSummary}
+                      compact
+                    />
+                    {creditSystemEnabled && (
+                      <p className="text-[10px] font-bold text-gray-400 whitespace-nowrap">
+                        {getCustomerCredits(claim)} credits
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 pt-1 border-t border-gray-50">
                     <span>{formatDate(claim.claimedAt)}</span>
                     <span>{formatRelativeTime(claim.claimedAt)}</span>
                   </div>
@@ -580,7 +627,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-gray-900 truncate">
+                    <p className="text-sm font-black text-gray-900 truncate group-hover:text-[color:var(--brand-primary)] transition-colors">
                       {getClaimedCustomerName(claim)}
                     </p>
                     <p className="text-xs text-gray-500 font-bold truncate mt-1">
@@ -607,13 +654,13 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                       {formatRelativeTime(claim.claimedAt)}
                     </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 justify-self-end" />
+                  <ChevronRight className="w-4 h-4 text-gray-300 justify-self-end transition-transform group-hover:translate-x-1 group-hover:text-[color:var(--brand-primary)]" />
                 </div>
               </button>
             ))}
 
             {paginatedQrClaims.length === 0 && (
-              <div className="px-6 py-10 text-center">
+              <div className="px-6 py-12 text-center">
                 <p className="text-sm font-black text-gray-900">
                   No customer check-ins to list
                 </p>
@@ -626,16 +673,16 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
           </div>
 
           {filteredRecentQrClaims.length > 0 && (
-            <div className="flex flex-col gap-4 border-t border-gray-100 bg-white px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-4 border-t border-gray-100 bg-gray-50/30 px-4 py-4 sm:px-5 sm:py-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                <label className="flex items-center gap-3 text-sm font-bold text-gray-500">
+                <label className="flex items-center gap-3 text-xs sm:text-sm font-bold text-gray-500">
                   Rows
                   <select
                     value={checkInRowsPerPage}
                     onChange={(event) =>
                       setCheckInRowsPerPage(Number(event.target.value))
                     }
-                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[color:var(--brand-primary)]"
+                    className="rounded-xl border border-gray-200 bg-white px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-bold text-gray-900 outline-none focus:border-[color:var(--brand-primary)] shadow-sm"
                   >
                     {[10, 25, 50].map((size) => (
                       <option key={size} value={size}>
@@ -644,7 +691,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                     ))}
                   </select>
                 </label>
-                <p className="text-sm font-bold text-gray-400">
+                <p className="text-xs sm:text-sm font-bold text-gray-400">
                   Showing {checkInStartIndex + 1}-
                   {Math.min(
                     checkInStartIndex + paginatedQrClaims.length,
@@ -654,19 +701,19 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between sm:justify-end gap-3">
                 <button
                   type="button"
                   onClick={() =>
                     setCurrentCheckInPage((page) => Math.max(1, page - 1))
                   }
                   disabled={currentCheckInPage === 1}
-                  className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
                 >
-                  Previous
+                  Prev
                 </button>
-                <span className="text-sm font-black text-gray-900">
-                  Page {currentCheckInPage} / {totalCheckInPages}
+                <span className="text-xs sm:text-sm font-black text-gray-900">
+                  {currentCheckInPage} / {totalCheckInPages}
                 </span>
                 <button
                   type="button"
@@ -676,7 +723,7 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
                     )
                   }
                   disabled={currentCheckInPage >= totalCheckInPages}
-                  className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
                 >
                   Next
                 </button>
@@ -689,74 +736,137 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   )
 
   const ActivityFeed = () => (
-    <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 flex flex-col h-full">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div
-            className="p-2 rounded-xl"
-            style={{ backgroundColor: `${brandColor}15` }}
-          >
-            <Activity className="w-5 h-5" style={{ color: brandColor }} />
+    <section 
+      className="rounded-[24px] sm:rounded-[32px] p-4 sm:p-8 flex flex-col h-full transition-all duration-500 border border-gray-100/50"
+      style={{ 
+        backgroundColor: `${brandColor}03`,
+        backgroundImage: `radial-gradient(circle at 0% 0%, ${brandColor}08 0%, transparent 50%), radial-gradient(circle at 100% 100%, ${brandColor}05 0%, transparent 50%)`
+      }}
+    >
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 sm:mb-10 gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="flex h-1.5 w-1.5 rounded-full bg-[color:var(--brand-primary)] animate-pulse" />
+            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.25em] text-[color:var(--brand-primary)]">
+              Live Feed
+            </p>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-gray-900">
+            Recent Activity
+          </h2>
         </div>
-        <span className="flex h-2 w-2 rounded-full bg-[color:var(--brand-primary)] animate-pulse" />
+        <div className="flex flex-col md:items-end">
+          <p className="text-xs sm:text-sm text-gray-500 font-medium max-w-[240px] md:text-right leading-relaxed">
+            Real-time updates from your customers and service interactions.
+          </p>
+        </div>
       </div>
-      <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
-        {recentLiveActivity.map((activity) => (
-          <div
-            key={activity._id}
-            className="flex items-start gap-4 p-4 rounded-2xl bg-gray-50/50 hover:bg-gray-50 transition-all border border-transparent hover:border-gray-200/70 group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[color:var(--brand-primary)/0.12] flex-shrink-0 flex items-center justify-center font-black text-[color:var(--brand-primary)] border border-white shadow-sm overflow-hidden text-sm">
-              {activity.userId?.avatar ? (
-                <img src={activity.userId.avatar} alt="" />
-              ) : (
-                activity.userId?.name?.charAt(0)
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-black text-gray-900 truncate">
-                  {activity.userId?.name}
-                </p>
-                <p className="text-[10px] text-gray-400 uppercase font-black tracking-tight">
-                  {formatDate(activity.createdAt)}
-                </p>
+
+      <div className="grid gap-3 sm:gap-4 custom-scrollbar overflow-y-auto max-h-[500px] pr-1 sm:pr-2">
+        {recentLiveActivity.map((activity, index) => {
+          const customer = getActivityCustomer(activity)
+          const valueLabel = getActivityValueLabel(activity)
+          const statusLabel = getActivityStatus(activity)
+          const activityTitle = activity.activityLabel || activity.serviceName
+          const activityDetail =
+            activity.activityLabel && activity.serviceName
+              ? activity.serviceName
+              : customer.email
+
+          return (
+            <motion.div
+              key={activity._id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="group relative flex items-center gap-3 sm:gap-5 p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-white border border-gray-100/80 hover:border-[color:var(--brand-primary)/0.2] hover:shadow-[0_10px_30px_rgba(0,0,0,0.04)] transition-all duration-500 cursor-pointer"
+              onClick={() => customer?._id && openClientProfile({ customer })}
+            >
+              <div className="relative shrink-0">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-2xl bg-gray-50 flex items-center justify-center font-bold text-gray-300 border border-gray-100 overflow-hidden transition-transform duration-500 group-hover:scale-105">
+                  {customer.avatar ? (
+                    <img
+                      src={customer.avatar}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-base sm:text-xl">
+                      {(customer.name?.charAt(0) || customer.email?.charAt(0) || '?').toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                {isPositiveActivityStatus(activity) && (
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full bg-emerald-500 border-2 sm:border-[3px] border-white flex items-center justify-center shadow-sm">
+                    <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-white animate-pulse" />
+                  </div>
+                )}
               </div>
-              <p className="text-[11px] text-gray-500 font-bold leading-tight">
-                {activity.activityLabel || activity.serviceName}
-              </p>
-              <div className="mt-2 flex items-center justify-between">
-                <span
-                  className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                    (activity.displayStatus || activity.status) === 'completed' ||
-                    (activity.displayStatus || activity.status) === 'paid'
-                      ? 'bg-[color:var(--brand-primary)/0.15] text-[color:var(--brand-primary)]'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {activity.displayStatus || activity.status}
-                </span>
-                <span className="text-[11px] font-black text-gray-900">
-                  ${activity.finalPrice}
-                </span>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 sm:gap-4">
+                  <div className="min-w-0">
+                    <h4 className="text-sm sm:text-base font-bold text-gray-900 truncate group-hover:text-[color:var(--brand-primary)] transition-colors">
+                      {customer.name || customer.email || 'Guest Customer'}
+                    </h4>
+                    <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mt-0.5 truncate">
+                      {activityTitle}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[8px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      {formatDate(activity.createdAt)}
+                    </p>
+                    {valueLabel && (
+                      <p className="text-xs sm:text-sm font-black text-gray-900 mt-0.5 sm:mt-1.5 tabular-nums">
+                        {valueLabel}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-2 sm:mt-3.5 flex items-center gap-2 sm:gap-3">
+                  {statusLabel && (
+                    <span
+                      className={`text-[8px] sm:text-[9px] font-black uppercase tracking-[0.1em] px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg border ${
+                        isPositiveActivityStatus(activity)
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                          : 'bg-gray-100 text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      {statusLabel}
+                    </span>
+                  )}
+                  {activityDetail && activityDetail !== activityTitle && (
+                    <span className="text-[9px] sm:text-[11px] text-gray-400 font-medium truncate max-w-[120px] sm:max-w-[200px]">
+                      {activityDetail}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        ))}
+
+              <div className="shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 hidden sm:flex">
+                <div className="w-8 h-8 rounded-full bg-[color:var(--brand-primary)/0.05] flex items-center justify-center">
+                  <ChevronRight className="w-4 h-4 text-[color:var(--brand-primary)]" />
+                </div>
+              </div>
+            </motion.div>
+          )
+        })}
+
         {recentLiveActivity.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200/70">
-              <Activity className="w-6 h-6 text-gray-300" />
+          <div className="flex flex-col items-center justify-center py-12 sm:py-24 px-4 sm:px-6 rounded-[24px] sm:rounded-[32px] border border-dashed border-gray-200 bg-white/50">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6 shadow-sm border border-gray-100">
+              <Activity className="w-8 h-8 sm:w-10 sm:h-10 text-gray-200" />
             </div>
-            <p className="text-gray-400 font-black uppercase text-[10px] tracking-widest">
-              No activity to display
+            <h3 className="text-gray-900 font-bold text-base sm:text-lg text-center">No activity yet</h3>
+            <p className="text-xs sm:text-sm text-gray-400 mt-2 text-center max-w-[260px] leading-relaxed font-medium">
+              When customers interact with your services, their activity will appear here in real-time.
             </p>
           </div>
         )}
       </div>
-    </div>
+    </section>
   )
 
   const StatCard = ({ title, value, icon, growth, periodLabel }) => {

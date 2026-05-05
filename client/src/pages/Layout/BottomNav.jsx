@@ -186,6 +186,10 @@ const BottomNav = () => {
     if (userRole === 'spa' && item.id === 'clients') {
       return { ...item, inBottomBar: true }
     }
+    // Hide scan-qr from bottom bar for spa users
+    if (userRole === 'spa' && item.id === 'scan-qr') {
+      return { ...item, inBottomBar: false }
+    }
     // Apply redirects for Admin/SPA
     if (isElevatedUser) {
       if (item.id === 'services') {

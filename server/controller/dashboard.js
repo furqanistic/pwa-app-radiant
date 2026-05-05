@@ -4,6 +4,7 @@ import { createError } from '../error.js'
 import Booking from '../models/Booking.js'
 import Location from '../models/Location.js'
 import Payment from '../models/Payment.js'
+import PointTransaction from '../models/PointTransaction.js'
 import QRCodeScan from '../models/QRCodeScan.js'
 import Referral from '../models/Referral.js'
 import User from '../models/User.js'
@@ -74,6 +75,28 @@ const buildRewardSummary = (rewards = []) => {
     labels,
     nextExpiryAt,
   }
+}
+
+const getRewardActivityLabel = (reward) => {
+  const snapshot = reward?.rewardSnapshot || {}
+  const winningItem = snapshot?.winningItem || {}
+
+  return (
+    snapshot?.name ||
+    winningItem?.title ||
+    winningItem?.value ||
+    reward?.givenReason ||
+    'Reward'
+  )
+}
+
+const getPointActivityLabel = (transaction) => {
+  const type = `${transaction?.type || ''}`.replace(/_/g, ' ')
+  const description = `${transaction?.description || ''}`.trim()
+
+  if (description) return description
+  if (type) return `${type.charAt(0).toUpperCase()}${type.slice(1)}`
+  return 'Points updated'
 }
 
 const getUserAccessibleLocationIds = (user) => {
@@ -514,13 +537,18 @@ export const getDashboardData = async (req, res, next) => {
                 100
             )
 
-      // 3. Get Live Activity: Only paid bookings with a linked payment record
-      const [liveBookingActivity, livePaymentActivity] = await Promise.all([
+      // 3. Get Live Activity across customer purchases, rewards, points, and appointments.
+      const [
+        liveBookingActivity,
+        livePaymentActivity,
+        recentRewardActivity,
+        recentPointActivity,
+      ] = await Promise.all([
         Booking.find({
           ...productionBookingsScope,
           paymentStatus: 'paid',
           paymentId: { $ne: null },
-          status: 'completed',
+          status: { $nin: ['cancelled'] },
         })
           .sort({ createdAt: -1 })
           .limit(10)
@@ -529,12 +557,32 @@ export const getDashboardData = async (req, res, next) => {
           .lean(),
         Payment.find({
           ...productionPaymentsScope,
-          paymentCategory: { $in: ['credits', 'membership'] },
+          paymentCategory: { $in: ['booking', 'credits', 'membership'] },
           livemode: { $ne: false },
         })
           .sort({ createdAt: -1 })
-          .limit(10)
+          .limit(15)
           .populate('customer', 'name email avatar')
+          .populate('service', 'name basePrice')
+          .populate('booking', 'serviceName finalPrice status paymentStatus date time')
+          .lean(),
+        UserReward.find({
+          locationId,
+          userId: { $nin: testUserIds, $ne: null },
+        })
+          .sort({ claimedAt: -1, createdAt: -1 })
+          .limit(15)
+          .populate('userId', 'name email avatar role')
+          .lean(),
+        PointTransaction.find({
+          locationId,
+          user: { $nin: testUserIds, $ne: null },
+          points: { $ne: 0 },
+          type: { $nin: ['reward'] },
+        })
+          .sort({ createdAt: -1 })
+          .limit(15)
+          .populate('user', 'name email avatar role')
           .lean(),
       ])
 
@@ -545,8 +593,13 @@ export const getDashboardData = async (req, res, next) => {
 
       const normalizedPaymentActivity = livePaymentActivity.map((payment) => {
         const isCreditsPurchase = payment?.paymentCategory === 'credits'
+        const isServicePurchase = payment?.paymentCategory === 'booking'
         const quantity = Number(payment?.creditDetails?.quantity || 0)
         const planName = payment?.membershipDetails?.planName || 'Membership plan'
+        const serviceName =
+          payment?.service?.name ||
+          payment?.booking?.serviceName ||
+          'Service purchase'
 
         return {
           _id: `payment-${payment?._id}`,
@@ -561,16 +614,76 @@ export const getDashboardData = async (req, res, next) => {
             : null,
           serviceName: isCreditsPurchase
             ? `${quantity || ''} credit${quantity === 1 ? '' : 's'} purchased`.trim()
-            : planName,
+            : isServicePurchase
+              ? serviceName
+              : planName,
           finalPrice: Number(payment?.amount || 0) / 100,
           status: 'completed',
           paymentStatus: 'paid',
           activityType: payment?.paymentCategory || 'payment',
-          activityLabel: isCreditsPurchase ? 'Credit Purchase' : 'Membership Payment',
+          activityKind: isServicePurchase ? 'servicePurchase' : payment?.paymentCategory,
+          activityLabel: isCreditsPurchase
+            ? 'Credit Purchase'
+            : isServicePurchase
+              ? 'Service Purchased'
+              : 'Membership Payment',
           displayStatus: isCreditsPurchase ? 'paid' : 'paid',
           paymentId: { livemode: payment?.livemode },
         }
       })
+
+      const normalizedRewardActivity = recentRewardActivity
+        .filter((reward) => reward?.userId?.role === 'user')
+        .map((reward) => {
+          const pointCost = Number(reward?.rewardSnapshot?.pointCost || 0)
+          const statusLabel = reward?.status === 'used' ? 'redeemed' : 'claimed'
+
+          return {
+            _id: `reward-${reward?._id}`,
+            createdAt: reward?.claimedAt || reward?.createdAt,
+            userId: reward.userId
+              ? {
+                  _id: reward.userId._id,
+                  name: reward.userId.name,
+                  email: reward.userId.email,
+                  avatar: reward.userId.avatar,
+                }
+              : null,
+            serviceName: getRewardActivityLabel(reward),
+            status: reward?.status || 'active',
+            activityType: 'reward',
+            activityKind: 'rewardClaim',
+            activityLabel: reward?.isManualReward ? 'Reward Given' : 'Reward Claimed',
+            displayStatus: statusLabel,
+            valueLabel: pointCost > 0 ? `-${pointCost} pts` : 'Reward',
+          }
+        })
+
+      const normalizedPointActivity = recentPointActivity
+        .filter((transaction) => transaction?.user?.role === 'user')
+        .map((transaction) => {
+          const points = Number(transaction?.points || 0)
+
+          return {
+            _id: `points-${transaction?._id}`,
+            createdAt: transaction?.createdAt,
+            userId: transaction.user
+              ? {
+                  _id: transaction.user._id,
+                  name: transaction.user.name,
+                  email: transaction.user.email,
+                  avatar: transaction.user.avatar,
+                }
+              : null,
+            serviceName: getPointActivityLabel(transaction),
+            status: points >= 0 ? 'earned' : 'spent',
+            activityType: 'points',
+            activityKind: 'pointTransaction',
+            activityLabel: points >= 0 ? 'Points Earned' : 'Points Updated',
+            displayStatus: points >= 0 ? 'earned' : 'updated',
+            valueLabel: `${points > 0 ? '+' : ''}${points} pts`,
+          }
+        })
 
       const todayStart = new Date()
       todayStart.setHours(0, 0, 0, 0)
@@ -617,6 +730,8 @@ export const getDashboardData = async (req, res, next) => {
       const filteredLiveActivity = [
         ...filteredLiveBookingActivity,
         ...normalizedPaymentActivity,
+        ...normalizedRewardActivity,
+        ...normalizedPointActivity,
         ...filteredTodaysAppointmentActivity,
       ]
         .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
