@@ -692,7 +692,7 @@ const CategoryModal = ({ isOpen, onClose, locationId = '' }) => {
   )
 }
 
-// Service Header with stats from API
+// Premium Service Header matching catalog style
 const ServiceHeader = ({
   view,
   setView,
@@ -702,87 +702,85 @@ const ServiceHeader = ({
   totalServices,
   activeServices,
 }) => (
-  <div className='relative bg-white/60 backdrop-blur-md border border-white/20 rounded-2xl p-4 md:p-6 mb-4 md:mb-8 shadow-sm overflow-hidden'>
-    {/* Decorative background element */}
-    <div className='absolute -top-24 -right-24 w-48 h-48 bg-pink-100/50 rounded-full blur-3xl pointer-events-none' />
-    
-    <div className='relative flex flex-col lg:flex-row lg:items-center justify-between gap-4 md:gap-6 mb-4 md:mb-8'>
-      <div className='flex items-start gap-3 md:gap-4'>
-        <div
-          className='p-2 md:p-3 rounded-lg md:rounded-xl shadow-lg shrink-0'
-          style={{
-            background:
-              'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
-          }}
-        >
-          <Settings className='w-5 h-5 md:w-6 md:h-6 text-white' />
+  <div className='relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-6 md:p-12 mb-8'>
+    {/* Background Pattern */}
+    <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-10 mix-blend-overlay' />
+
+    <div className='relative z-10 flex flex-col md:flex-row items-center md:items-end justify-between gap-6'>
+      <div className='text-center md:text-left space-y-3 md:space-y-4 max-w-2xl w-full'>
+        <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-[10px] md:text-xs font-bold tracking-wider uppercase'>
+          <Settings className='w-3 h-3' />
+          Management
         </div>
-        <div>
-          <h1 className='text-xl md:text-3xl font-extrabold text-gray-900 tracking-tight leading-tight'>
-            Service Management
-          </h1>
-          <p className='text-gray-500 text-xs md:text-sm font-medium mt-0.5 md:mt-1'>
-            Manage your professional services
-          </p>
-          <div className='flex items-center gap-2 mt-2'>
-            <div className='flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm'>
-              <span className='w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse' />
-              <span className='text-[10px] font-bold uppercase tracking-wider'>{activeServices} Active</span>
-            </div>
-            <div className='flex items-center px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-100 shadow-sm'>
-              <span className='text-[10px] font-bold uppercase tracking-wider'>{totalServices} Total</span>
-            </div>
+        <h1 className='text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-none'>
+          Services <span className='text-white/90'>Hub.</span>
+        </h1>
+        <p className='text-base md:text-lg text-white/90 font-medium max-w-md hidden md:block'>
+          Manage your professional services, pricing, and add-ons all in one place.
+        </p>
+        <div className='flex items-center justify-center md:justify-start gap-2 mt-3'>
+          <div className='inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/30'>
+            <span className='w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse' />
+            <span className='text-[10px] font-bold uppercase tracking-wider'>{activeServices} Active</span>
+          </div>
+          <div className='inline-flex items-center px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20'>
+            <span className='text-[10px] font-bold uppercase tracking-wider'>{totalServices} Total</span>
           </div>
         </div>
       </div>
 
-      <button
-        onClick={onAddService}
-        className='group relative text-white px-5 md:px-6 py-2 md:py-2.5 rounded-lg md:rounded-xl font-bold active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 overflow-hidden text-sm md:text-base'
-        style={{
-          background:
-            'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
-        }}
-      >
-        <div className='absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300' />
-        <Plus className='w-4 h-4 md:w-5 md:h-5 relative z-10' />
-        <span className='relative z-10'>Add New Service</span>
-      </button>
+      {/* Search & Add Button */}
+      <div className='w-full md:w-auto flex flex-col md:flex-row items-center gap-3 min-w-full md:min-w-[420px]'>
+        <div className='relative group w-full md:flex-1'>
+          <div className='absolute inset-0 bg-white/10 blur-xl rounded-2xl group-hover:bg-white/20 transition-all' />
+          <div className='relative bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center p-1.5 transition-all group-hover:bg-white/20'>
+            <div className='bg-white/10 p-2 rounded-xl ml-1'>
+              <Search className='text-white' size={18} />
+            </div>
+            <input
+              type='text'
+              placeholder='Search services...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='bg-transparent border-none text-white placeholder-white/70 focus:outline-none w-full font-medium py-2 px-3 text-sm'
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={onAddService}
+          className='w-full md:w-auto group relative bg-white text-[color:var(--brand-primary)] px-5 py-3 rounded-2xl font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden'
+        >
+          <div className='absolute inset-0 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] opacity-0 group-hover:opacity-10 transition-opacity duration-300' />
+          <Plus className='w-5 h-5 relative z-10' />
+          <span className='relative z-10'>Add Service</span>
+        </button>
+      </div>
     </div>
 
-    <div className='relative flex flex-col md:flex-row items-center gap-3'>
-      <div className='w-full md:flex-1 relative group'>
-        <Search className='absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-pink-500 transition-colors w-4 h-4 md:w-5 md:h-5' />
-        <input
-          type='text'
-          placeholder='Search services...'
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className='w-full pl-10 pr-4 py-2 bg-gray-50/50 border border-gray-200 rounded-lg md:rounded-xl focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]/20 focus:border-pink-500 transition-all text-sm md:text-gray-700 placeholder-gray-400 font-medium'
-        />
-      </div>
-
-      <div className='flex bg-gray-100/80 p-1 rounded-lg md:rounded-xl border border-gray-200 w-full md:w-auto h-[40px] md:h-[46px]'>
+    {/* View Toggle - Positioned at bottom */}
+    <div className='relative z-10 mt-6 flex justify-center'>
+      <div className='flex bg-white/20 backdrop-blur-md p-1.5 rounded-2xl border border-white/30'>
         <button
           onClick={() => setView('grid')}
-          className={`flex-1 md:w-24 rounded-md md:rounded-lg text-[11px] md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 md:gap-2 ${
+          className={`flex-1 md:w-28 rounded-xl text-xs md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 py-2.5 ${
             view === 'grid'
-              ? 'bg-white text-gray-900 shadow-sm md:shadow-md transform scale-[1.01] md:scale-[1.02]'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'bg-white text-[color:var(--brand-primary)] shadow-lg transform scale-[1.02]'
+              : 'text-white hover:bg-white/10'
           }`}
         >
-          <LayoutGrid className='w-3.5 h-3.5 md:w-4 md:h-4' />
+          <LayoutGrid className='w-4 h-4' />
           Grid
         </button>
         <button
           onClick={() => setView('list')}
-          className={`flex-1 md:w-24 rounded-md md:rounded-lg text-[11px] md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 md:gap-2 ${
+          className={`flex-1 md:w-28 rounded-xl text-xs md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 py-2.5 ${
             view === 'list'
-              ? 'bg-white text-gray-900 shadow-sm md:shadow-md transform scale-[1.01] md:scale-[1.02]'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'bg-white text-[color:var(--brand-primary)] shadow-lg transform scale-[1.02]'
+              : 'text-white hover:bg-white/10'
           }`}
         >
-          <List className='w-3.5 h-3.5 md:w-4 md:h-4' />
+          <List className='w-4 h-4' />
           List
         </button>
       </div>
@@ -790,168 +788,208 @@ const ServiceHeader = ({
   </div>
 )
 
-// Enhanced Service Card with linked services display
+// Enhanced Service Card with premium catalog-style design
 const ServiceCard = ({ service, category, onEdit, onDelete }) => {
   const isDiscountActive =
     service.discount?.active &&
     new Date() >= new Date(service.discount.startDate) &&
     new Date() <= new Date(service.discount.endDate)
 
+  // Premium card styling matching catalog
+  const cardStyle = {
+    background:
+      'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 4%, #ffffff) 0%, #ffffff 35%)',
+    borderColor: 'color-mix(in srgb, var(--brand-primary) 14%, #e5e7eb)',
+  }
+
+  const regularPriceStyle = {
+    borderColor: 'rgba(15, 23, 42, 0.08)',
+    boxShadow: '0 10px 22px -24px rgba(15, 23, 42, 0.42)',
+  }
+
+  const brandBadgeStyle = {
+    background:
+      'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+  }
+
   return (
-    <div className='bg-white rounded-lg overflow-hidden hover:ring-2 hover:ring-pink-200 transition-all group'>
-      <div className='relative h-48 overflow-hidden bg-gray-100'>
+    <div
+      className='group relative flex h-full flex-col overflow-hidden rounded-[1.35rem] border p-2.5 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_42px_-32px_rgba(15,23,42,0.24)] sm:rounded-[1.55rem] sm:p-3'
+      style={cardStyle}
+    >
+      {/* Image Container */}
+      <div className='relative mb-3 overflow-hidden rounded-[1.05rem] bg-slate-100 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.22)] sm:mb-3.5 sm:rounded-[1.15rem]'>
         {hasServiceImage(service) ? (
           <>
             <img
               src={resolveImageUrl(service.image, fallbackServiceImage, { width: 500, height: 300 })}
               alt={service.name}
-              className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
+              className='aspect-[16/9] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]'
               loading='lazy'
               decoding='async'
             />
+            <div className='absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-950/18 via-slate-950/4 to-transparent opacity-70' />
           </>
         ) : (
           <ServiceImagePlaceholder
             serviceName={service.name}
             brandColor={'#ec4899'}
-            className='w-full h-full'
-            style={{ width: '100%', height: '100%' }}
+            className='aspect-[16/9]'
           />
         )}
 
-        <div className='absolute top-3 left-3 flex flex-col gap-2'>
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+        {/* Status Badge */}
+        <div className='absolute left-3 top-3'>
+          <div
+            className={`rounded-full border border-white/70 px-2 py-1 shadow-sm backdrop-blur-md ${
               service.status === 'active'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-500 text-white'
+                ? 'bg-emerald-500/92 text-white'
+                : 'bg-gray-500/92 text-white'
             }`}
           >
-            <CheckCircle className='w-3 h-3' />
-            {service.status}
-          </span>
-
-          {category && (
-            <span
-              className='px-2 py-1 rounded-full text-xs font-bold text-white'
-              style={{
-                background:
-                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
-              }}
-            >
-              {category.name}
+            <span className='flex items-center gap-1 text-[8px] font-semibold uppercase tracking-[0.16em]'>
+              <CheckCircle className='w-3 h-3' />
+              {service.status}
             </span>
-          )}
+          </div>
         </div>
 
-        {isDiscountActive && (
+        {/* Category Badge */}
+        {category && (
           <div className='absolute top-3 right-3'>
-            <span className='bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1'>
+            <div
+              className='rounded-full border border-white/70 px-2 py-1 shadow-sm backdrop-blur-md'
+              style={{ background: 'rgba(255,255,255,0.92)' }}
+            >
+              <span
+                className='text-[8px] font-semibold uppercase tracking-[0.16em]'
+                style={{ color: 'var(--brand-primary)' }}
+              >
+                {category.name}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Discount Badge */}
+        {isDiscountActive && (
+          <div className='absolute bottom-3 right-3'>
+            <span className='bg-red-500 text-white px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-lg'>
               <Percent className='w-3 h-3' />
               {service.discount.percentage}% OFF
             </span>
           </div>
         )}
 
-        <div className='absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity'>
+        {/* Edit/Delete Actions */}
+        <div className='absolute bottom-3 left-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300'>
           <button
             onClick={() => onEdit(service)}
-            className='bg-white/90 p-2 rounded-lg hover:bg-white'
+            className='bg-white/95 p-2 rounded-full hover:bg-white shadow-lg hover:scale-105 transition-all'
           >
-            <Edit3 className='w-4 h-4 text-pink-600' />
+            <Edit3 className='w-4 h-4' style={{ color: 'var(--brand-primary)' }} />
           </button>
           <button
             onClick={() => onDelete(service)}
-            className='bg-white/90 p-2 rounded-lg hover:bg-white'
+            className='bg-white/95 p-2 rounded-full hover:bg-white shadow-lg hover:scale-105 transition-all'
           >
             <Trash2 className='w-4 h-4 text-red-500' />
           </button>
         </div>
       </div>
 
-      <div className='p-6'>
-        <div className='flex items-start justify-between mb-3'>
-          <h3 className='text-lg font-bold text-gray-900 flex-1 leading-snug pr-1'>
-            {service.name}
-          </h3>
-          <div className='flex items-center gap-1 ml-3 bg-yellow-50 px-2 py-1 rounded-lg'>
-            <Star className='w-4 h-4 text-yellow-500 fill-current' />
-            <span className='text-sm font-semibold text-yellow-700'>
-              {service.rating?.toFixed(1) || '5.0'}
-            </span>
-            <span className='text-[10px] font-semibold text-yellow-600'>
-              ({Number(service.totalReviews || 0)})
-            </span>
-          </div>
-        </div>
-
-        <p className='text-gray-600 text-sm mb-4 line-clamp-2'>
-          {service.description}
-        </p>
-
-        <div className='grid grid-cols-2 gap-3 mb-4'>
-          <div className='bg-green-50 p-3 rounded-lg'>
-            <div className='flex items-center gap-2 mb-1'>
-              <DollarSign className='w-4 h-4 text-green-600' />
-              <span className='text-xs font-semibold text-green-700'>
-                Price
+      {/* Content */}
+      <div className='flex flex-1 flex-col px-1'>
+        {/* Title & Rating */}
+        <div className='mb-2 sm:mb-2.5'>
+          <div className='flex items-start justify-between gap-2'>
+            <h3 className='text-[1.08rem] font-semibold leading-[1.1] tracking-[-0.035em] text-slate-950 transition-colors group-hover:text-[color:var(--brand-primary)] sm:text-[1.18rem]'>
+              {service.name}
+            </h3>
+            <div className='flex items-center gap-0.5 shrink-0 bg-yellow-50 px-1.5 py-0.5 rounded-lg'>
+              <Star className='w-3 h-3 text-yellow-500 fill-current' />
+              <span className='text-xs font-semibold text-yellow-700'>
+                {service.rating?.toFixed(1) || '5.0'}
               </span>
             </div>
-            <span className='text-lg font-bold text-green-700'>
-              {getManagementPriceDisplay(service)}
-            </span>
           </div>
-
-          <div className='bg-blue-50 p-3 rounded-lg'>
-            <div className='flex items-center gap-2 mb-1'>
-              <Clock className='w-4 h-4 text-blue-600' />
-              <span className='text-xs font-semibold text-blue-700'>Time</span>
-            </div>
-            <span className='text-lg font-bold text-blue-700'>
-              {service.duration}min
-            </span>
-          </div>
+          <p className='mt-1.5 line-clamp-2 text-[0.74rem] font-normal leading-[1.42] text-slate-500 sm:text-[0.78rem]'>
+            {service.description || 'No description provided.'}
+          </p>
         </div>
 
-        <div className='flex items-center justify-between pt-4 border-t border-gray-100'>
-          <div className='flex items-center gap-2'>
-            <Layers className='w-4 h-4 text-gray-500' />
-            <span className='text-sm font-semibold text-gray-700'>
+        {/* Price Panel */}
+        <div
+          className='mb-2 mt-auto rounded-[1.05rem] border bg-white px-3 py-2.5 sm:mb-2.5 sm:rounded-[1.15rem] sm:px-3.5 sm:py-3'
+          style={regularPriceStyle}
+        >
+          <p className='text-[0.7rem] font-medium tracking-[-0.01em] text-slate-500 sm:text-[0.74rem]'>
+            Price
+          </p>
+          <p className='mt-1 text-[1.6rem] font-semibold leading-none tracking-[-0.05em] text-slate-950 sm:text-[1.8rem]'>
+            {getManagementPriceDisplay(service)}
+          </p>
+        </div>
+
+        {/* Duration Panel */}
+        <div
+          className='mb-2.5 rounded-[1.05rem] border px-3 py-2.5 sm:rounded-[1.15rem] sm:px-3.5 sm:py-3'
+          style={{
+            background: 'linear-gradient(135deg, color-mix(in srgb, #3b82f6 8%, #ffffff) 0%, #ffffff 65%)',
+            borderColor: 'color-mix(in srgb, #3b82f6 16%, #d1d5db)',
+          }}
+        >
+          <div className='flex items-center gap-1.5 mb-1'>
+            <Clock className='w-3.5 h-3.5 text-blue-600' />
+            <span className='text-[0.7rem] font-medium tracking-[-0.01em] text-blue-600 sm:text-[0.74rem]'>
+              Duration
+            </span>
+          </div>
+          <p className='text-[1.3rem] font-semibold leading-none tracking-[-0.05em] text-blue-700 sm:text-[1.5rem]'>
+            {service.duration}m
+          </p>
+        </div>
+
+        {/* Footer Stats */}
+        <div className='flex items-center justify-between pt-2 border-t border-slate-100/80'>
+          <div className='flex items-center gap-1.5'>
+            <Layers className='w-3.5 h-3.5 text-slate-400' />
+            <span className='text-[0.68rem] font-semibold text-slate-600 sm:text-[0.72rem]'>
               {service.subTreatments?.length || 0} options
             </span>
           </div>
-          <div className='flex items-center gap-2'>
-            <Zap className='w-4 h-4 text-pink-500' />
-            <span className='text-sm font-semibold text-pink-700'>
-              {service.linkedServicesCount ||
-                service.linkedServices?.length ||
-                0}{' '}
-              add-ons
+          <div className='flex items-center gap-1.5'>
+            <Zap className='w-3.5 h-3.5' style={{ color: 'var(--brand-primary)' }} />
+            <span
+              className='text-[0.68rem] font-semibold sm:text-[0.72rem]'
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              {service.linkedServicesCount || service.linkedServices?.length || 0} add-ons
             </span>
           </div>
         </div>
 
-        {/* Show linked services preview if any */}
+        {/* Linked Services Preview */}
         {service.linkedServices && service.linkedServices.length > 0 && (
-          <div className='mt-4 pt-4 border-t border-gray-100'>
-            <h4 className='text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1'>
+          <div className='mt-3 pt-3 border-t border-slate-100/80'>
+            <h4 className='text-[0.65rem] font-semibold text-slate-500 mb-2 flex items-center gap-1 uppercase tracking-wider'>
               <Zap className='w-3 h-3' />
-              Available Add-ons:
+              Linked Add-ons
             </h4>
-            <div className='space-y-1'>
+            <div className='space-y-1.5'>
               {service.linkedServices.slice(0, 2).map((addon, index) => (
                 <div
                   key={index}
-                  className='text-xs text-gray-600 flex items-center justify-between'
+                  className='text-[0.7rem] text-slate-600 flex items-center justify-between bg-slate-50/80 rounded-lg px-2 py-1'
                 >
-                  <span className='truncate'>{addon.name}</span>
-                  <span className='text-green-600 font-semibold'>
+                  <span className='truncate font-medium'>{addon.name}</span>
+                  <span className='text-emerald-600 font-semibold ml-2'>
                     +${addon.finalPrice || addon.customPrice || addon.basePrice}
                   </span>
                 </div>
               ))}
               {service.linkedServices.length > 2 && (
-                <div className='text-xs text-gray-500'>
+                <div className='text-[0.65rem] text-slate-400 text-center py-1'>
                   +{service.linkedServices.length - 2} more add-ons
                 </div>
               )}
@@ -2870,8 +2908,9 @@ const ServiceManagementPage = () => {
 
   return (
     <Layout>
-      <div className='px-4 py-6 max-w-[1600px] mx-auto'>
-        <ServiceHeader
+      <div className='min-h-screen bg-[#FAFAFA] pb-20'>
+        <div className='max-w-7xl mx-auto px-3 py-4 md:px-6 md:py-8'>
+          <ServiceHeader
           view={view}
           setView={setView}
           searchTerm={searchTerm}
@@ -2895,35 +2934,35 @@ const ServiceManagementPage = () => {
           </div>
         ) : (
           <div className='bg-white/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-sm overflow-hidden'>
-            {/* PC Table View */}
-            <div className='hidden md:block overflow-x-auto'>
+            {/* PC Table View - Premium Styling */}
+            <div className='hidden md:block overflow-x-auto rounded-[1.5rem] border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-[0_14px_34px_-28px_rgba(15,23,42,0.15)]'>
               <table className='w-full border-collapse min-w-[1000px]'>
                 <thead>
-                  <tr className='bg-gray-50/50 border-b border-gray-200'>
-                    <th className='px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider'>Service</th>
-                    <th className='px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider'>Category</th>
-                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Price</th>
-                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Duration</th>
-                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Options</th>
-                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Add-ons</th>
-                    <th className='px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider'>Status</th>
-                    <th className='px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap'>Actions</th>
+                  <tr className='bg-gradient-to-r from-slate-50/90 to-slate-100/80 border-b border-slate-200/80'>
+                    <th className='px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Service</th>
+                    <th className='px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Category</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Price</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Duration</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Options</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Add-ons</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Status</th>
+                    <th className='px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em] whitespace-nowrap'>Actions</th>
                   </tr>
                 </thead>
-                <tbody className='divide-y divide-gray-100'>
+                <tbody className='divide-y divide-slate-100/80'>
                   {filteredServices.map((service) => (
-                    <tr 
+                    <tr
                       key={service._id}
-                      className='group hover:bg-pink-50/30 transition-all duration-200'
+                      className='group hover:bg-gradient-to-r hover:from-[color:var(--brand-primary)]/5 hover:to-transparent transition-all duration-300'
                     >
                       <td className='px-6 py-4'>
                         <div className='flex items-center gap-3'>
-                          <div className='w-10 h-10 rounded-lg overflow-hidden border border-gray-100 shrink-0'>
+                          <div className='w-11 h-11 rounded-xl overflow-hidden border border-slate-100 shadow-sm shrink-0 ring-2 ring-transparent group-hover:ring-[color:var(--brand-primary)]/20 transition-all'>
                             {hasServiceImage(service) ? (
                               <img
                                 src={resolveImageUrl(service.image, fallbackServiceImage, { width: 100, height: 100 })}
                                 alt={service.name}
-                                className='w-10 h-10 rounded-lg object-cover'
+                                className='w-11 h-11 object-cover group-hover:scale-110 transition-transform duration-500'
                                 loading='lazy'
                                 decoding='async'
                               />
@@ -2936,7 +2975,7 @@ const ServiceManagementPage = () => {
                             )}
                           </div>
                           <div className='min-w-0'>
-                            <div className='font-bold text-gray-900 truncate' title={service.name}>
+                            <div className='font-semibold text-slate-900 truncate text-[0.9rem] tracking-[-0.02em]' title={service.name}>
                               {service.name}
                             </div>
                             <div className='text-[10px] text-gray-400 line-clamp-1 italic'>
@@ -2947,7 +2986,7 @@ const ServiceManagementPage = () => {
                       </td>
 
                       <td className='px-6 py-4'>
-                        <div className='text-sm text-gray-600 font-medium whitespace-nowrap'>
+                        <div className='text-[0.82rem] font-medium text-slate-600 whitespace-nowrap tracking-[-0.01em]'>
                           {typeof service.categoryId === 'object'
                             ? service.categoryId.name
                             : getCategoryById(service.categoryId)?.name || 'Uncategorized'}
@@ -2955,46 +2994,54 @@ const ServiceManagementPage = () => {
                       </td>
 
                       <td className='px-6 py-4 text-center'>
-                        <div className='font-bold text-gray-900'>{getManagementPriceDisplay(service)}</div>
+                        <div className='inline-flex items-center px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-100'>
+                          <span className='font-bold text-emerald-700 text-[0.95rem] tracking-[-0.02em]'>{getManagementPriceDisplay(service)}</span>
+                        </div>
                       </td>
 
                       <td className='px-6 py-4 text-center'>
-                        <div className='text-sm font-semibold text-gray-600'>{service.duration}m</div>
+                        <div className='inline-flex items-center px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-blue-100/50 border border-blue-100'>
+                          <Clock className='w-3.5 h-3.5 text-blue-500 mr-1.5' />
+                          <span className='font-semibold text-blue-700 text-[0.85rem]'>{service.duration}m</span>
+                        </div>
                       </td>
 
                       <td className='px-6 py-4 text-center'>
-                        <span className='inline-flex px-2 py-0.5 bg-purple-50 text-purple-600 rounded-md text-[10px] font-bold border border-purple-100'>
+                        <span className='inline-flex items-center px-2.5 py-1 bg-violet-50 text-violet-600 rounded-lg text-[11px] font-bold border border-violet-100 shadow-sm'>
+                          <Layers className='w-3 h-3 mr-1' />
                           {service.subTreatments?.length || 0}
                         </span>
                       </td>
 
                       <td className='px-6 py-4 text-center'>
-                        <span className='inline-flex px-2 py-0.5 bg-pink-50 text-pink-600 rounded-md text-[10px] font-bold border border-pink-100'>
+                        <span className='inline-flex items-center px-2.5 py-1 bg-gradient-to-r from-[color:var(--brand-primary)]/10 to-[color:var(--brand-primary)]/5 text-[color:var(--brand-primary)] rounded-lg text-[11px] font-bold border border-[color:var(--brand-primary)]/20 shadow-sm'>
+                          <Zap className='w-3 h-3 mr-1' />
                           {service.linkedServicesCount || service.linkedServices?.length || 0}
                         </span>
                       </td>
 
                       <td className='px-6 py-4 text-center'>
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-sm ${
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider border shadow-sm transition-all ${
                           service.status === 'active'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                            : 'bg-gray-50 text-gray-600 border-gray-100'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 group-hover:bg-emerald-100'
+                            : 'bg-slate-50 text-slate-600 border-slate-200'
                         }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${service.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
                           {service.status}
                         </span>
                       </td>
 
                       <td className='px-6 py-4 text-right'>
-                        <div className='flex justify-end gap-1'>
+                        <div className='flex justify-end gap-1.5'>
                           <button
                             onClick={() => handleEditService(service)}
-                            className='p-2 text-gray-400 hover:text-pink-600 hover:bg-white rounded-lg transition-all shadow-sm border border-transparent hover:border-pink-100'
+                            className='p-2.5 text-slate-400 hover:text-[color:var(--brand-primary)] hover:bg-white rounded-xl transition-all shadow-sm border border-slate-200/50 hover:border-[color:var(--brand-primary)]/30 hover:shadow-md hover:-translate-y-0.5'
                           >
                             <Edit3 className='w-4 h-4' />
                           </button>
                           <button
                             onClick={() => handleDeleteService(service)}
-                            className='p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-all shadow-sm border border-transparent hover:border-red-100'
+                            className='p-2.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-xl transition-all shadow-sm border border-slate-200/50 hover:border-red-200 hover:shadow-md hover:-translate-y-0.5'
                             disabled={deleteServiceMutation.isPending}
                           >
                             <Trash2 className='w-4 h-4' />
@@ -3007,17 +3054,24 @@ const ServiceManagementPage = () => {
               </table>
             </div>
 
-            {/* Mobile View (Organized Cards) */}
-            <div className='md:hidden divide-y divide-gray-100'>
+            {/* Mobile View (Premium Cards) */}
+            <div className='md:hidden space-y-4'>
               {filteredServices.map((service) => (
-                <div key={service._id} className='p-5 space-y-4 bg-white'>
-                  <div className='flex items-center gap-4'>
-                    <div className='w-14 h-14 rounded-xl overflow-hidden border border-gray-100 shadow-sm shrink-0'>
+                <div
+                  key={service._id}
+                  className='rounded-[1.35rem] border border-slate-200/70 p-4 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.15)] transition-all duration-300 active:scale-[0.99]'
+                  style={{
+                    background: 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 3%, #ffffff) 0%, #ffffff 40%)',
+                  }}
+                >
+                  {/* Header with image and title */}
+                  <div className='flex items-center gap-3 mb-4'>
+                    <div className='w-14 h-14 rounded-2xl overflow-hidden border border-slate-100 shadow-md shrink-0 ring-2 ring-[color:var(--brand-primary)]/10'>
                       {hasServiceImage(service) ? (
                         <img
                           src={resolveImageUrl(service.image, fallbackServiceImage, { width: 200, height: 200 })}
                           alt={service.name}
-                          className='w-14 h-14 rounded-xl object-cover'
+                          className='w-14 h-14 object-cover'
                           loading='lazy'
                           decoding='async'
                         />
@@ -3030,56 +3084,73 @@ const ServiceManagementPage = () => {
                       )}
                     </div>
                     <div className='min-w-0 flex-1'>
-                      <h3 className='font-bold text-gray-900 text-base leading-tight truncate'>{service.name}</h3>
-                      <div className={`mt-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border w-fit ${
-                        service.status === 'active'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                          : 'bg-gray-50 text-gray-600 border-gray-100'
-                      }`}>
-                        {service.status}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className='grid grid-cols-2 gap-px bg-gray-100 border border-gray-100 rounded-xl overflow-hidden shadow-sm'>
-                    <div className='bg-white p-3 flex flex-col'>
-                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Category</span>
-                      <span className='text-[13px] font-bold text-gray-700 mt-1 truncate'>
+                      <h3 className='font-semibold text-slate-900 text-[0.95rem] leading-tight tracking-[-0.02em] truncate'>{service.name}</h3>
+                      <span className='text-[0.7rem] text-slate-500 mt-0.5 block'>
                         {typeof service.categoryId === 'object'
                           ? service.categoryId.name
-                          : getCategoryById(service.categoryId)?.name || 'N/A'}
+                          : getCategoryById(service.categoryId)?.name || 'Uncategorized'}
                       </span>
                     </div>
-                    <div className='bg-white p-3 flex flex-col'>
-                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Price</span>
-                      <span className='text-[13px] font-bold text-emerald-600 mt-1'>{getManagementPriceDisplay(service)}</span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                      service.status === 'active'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}>
+                      <span className={`w-1 h-1 rounded-full ${service.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                      {service.status}
+                    </span>
+                  </div>
+
+                  {/* Stats Grid */}
+                  <div className='grid grid-cols-2 gap-3 mb-4'>
+                    <div className='rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/30 border border-emerald-100 p-3'>
+                      <span className='text-[10px] font-semibold text-emerald-600 uppercase tracking-wider flex items-center gap-1'>
+                        <DollarSign className='w-3 h-3' /> Price
+                      </span>
+                      <span className='text-[1.1rem] font-bold text-emerald-700 mt-0.5 block tracking-[-0.02em]'>{getManagementPriceDisplay(service)}</span>
                     </div>
-                    <div className='bg-white p-3 flex flex-col'>
-                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Time</span>
-                      <span className='text-[13px] font-bold text-blue-600 mt-1'>{service.duration} min</span>
+                    <div className='rounded-xl bg-gradient-to-r from-blue-50 to-blue-100/30 border border-blue-100 p-3'>
+                      <span className='text-[10px] font-semibold text-blue-600 uppercase tracking-wider flex items-center gap-1'>
+                        <Clock className='w-3 h-3' /> Duration
+                      </span>
+                      <span className='text-[1.1rem] font-bold text-blue-700 mt-0.5 block tracking-[-0.02em]'>{service.duration}m</span>
                     </div>
-                    <div className='bg-white p-3 flex flex-col'>
-                      <span className='text-[10px] font-extrabold text-gray-400 uppercase tracking-widest'>Add-ons</span>
-                      <span className='text-[13px] font-bold text-pink-600 mt-1'>
+                    <div className='rounded-xl bg-gradient-to-r from-violet-50 to-violet-100/30 border border-violet-100 p-3'>
+                      <span className='text-[10px] font-semibold text-violet-600 uppercase tracking-wider flex items-center gap-1'>
+                        <Layers className='w-3 h-3' /> Options
+                      </span>
+                      <span className='text-[1.1rem] font-bold text-violet-700 mt-0.5 block'>{service.subTreatments?.length || 0}</span>
+                    </div>
+                    <div className='rounded-xl bg-gradient-to-r from-[color:var(--brand-primary)]/10 to-[color:var(--brand-primary)]/5 border border-[color:var(--brand-primary)]/20 p-3'>
+                      <span className='text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1' style={{ color: 'var(--brand-primary)' }}>
+                        <Zap className='w-3 h-3' /> Add-ons
+                      </span>
+                      <span className='text-[1.1rem] font-bold mt-0.5 block' style={{ color: 'var(--brand-primary)' }}>
                         {service.linkedServicesCount || service.linkedServices?.length || 0}
                       </span>
                     </div>
                   </div>
 
-                  <div className='flex gap-2.5 pt-1'>
+                  {/* Action Buttons */}
+                  <div className='flex gap-3 pt-2 border-t border-slate-100'>
                     <button
                       onClick={() => handleEditService(service)}
-                      className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-50 text-gray-700 rounded-xl font-bold text-xs border border-gray-200 active:scale-95 transition-all'
+                      className='flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs border transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md'
+                      style={{
+                        background: 'color-mix(in srgb, var(--brand-primary) 8%, #ffffff)',
+                        borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)',
+                        color: 'var(--brand-primary)',
+                      }}
                     >
-                      <Edit3 className='w-4 h-4 text-pink-500' />
-                      Edit Details
+                      <Edit3 className='w-4 h-4' />
+                      Edit
                     </button>
                     <button
                       onClick={() => handleDeleteService(service)}
-                      className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-50 text-red-600 rounded-xl font-bold text-xs border border-red-100 active:scale-95 transition-all'
+                      className='flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs border border-red-200 bg-red-50 text-red-600 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-red-100'
                       disabled={deleteServiceMutation.isPending}
                     >
-                      <Trash2 className='w-4 h-4 text-red-500' />
+                      <Trash2 className='w-4 h-4' />
                       Delete
                     </button>
                   </div>
@@ -3090,28 +3161,29 @@ const ServiceManagementPage = () => {
         )}
 
         {filteredServices.length === 0 && (
-          <div className='text-center py-16 bg-white rounded-lg'>
+          <div className='text-center py-16 bg-white/90 backdrop-blur-sm border border-slate-200/60 rounded-[2rem] shadow-[0_14px_34px_-28px_rgba(15,23,42,0.15)]'>
             <div className='text-6xl mb-4'>🎯</div>
-            <h3 className='text-2xl font-bold text-gray-800 mb-3'>
+            <h3 className='text-2xl font-bold text-slate-900 tracking-[-0.03em] mb-3'>
               {searchTerm ? 'No services found' : 'No services yet'}
             </h3>
-            <p className='text-gray-600 mb-8 max-w-md mx-auto'>
+            <p className='text-slate-500 mb-8 max-w-md mx-auto'>
               {searchTerm
                 ? 'Try different search terms'
-                : 'Create your first service'}
+                : 'Create your first service to get started'}
             </p>
             <button
               onClick={handleAddService}
-              className='text-white px-8 h-8 rounded-lg font-semibold flex items-center justify-center'
+              className='text-white px-8 h-10 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300'
               style={{
-                background:
-                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
               }}
             >
+              <Plus className='w-5 h-5' />
               Create Service
             </button>
           </div>
         )}
+        </div>
       </div>
     </Layout>
   )
