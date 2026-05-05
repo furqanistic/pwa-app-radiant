@@ -708,28 +708,18 @@ const ServiceHeader = ({
 
     <div className='relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4'>
       {/* Left: Title & Stats */}
-      <div className='flex items-center gap-3 md:gap-4'>
-        <div
-          className='p-2.5 rounded-xl shadow-lg shrink-0 hidden sm:flex'
-          style={{
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.1))',
-          }}
-        >
-          <Settings className='w-5 h-5 md:w-6 md:h-6 text-white' />
-        </div>
-        <div>
-          <h1 className='text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight'>
-            Service Management
-          </h1>
-          <div className='flex items-center gap-2 mt-1'>
-            <span className='text-xs sm:text-sm text-white/80'>
-              {activeServices} active
-            </span>
-            <span className='text-white/40'>·</span>
-            <span className='text-xs sm:text-sm text-white/60'>
-              {totalServices} total
-            </span>
-          </div>
+      <div>
+        <h1 className='text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight'>
+          Service Management
+        </h1>
+        <div className='flex items-center gap-2 mt-1'>
+          <span className='text-xs sm:text-sm text-white/80'>
+            {activeServices} active
+          </span>
+          <span className='text-white/40'>·</span>
+          <span className='text-xs sm:text-sm text-white/60'>
+            {totalServices} total
+          </span>
         </div>
       </div>
 
