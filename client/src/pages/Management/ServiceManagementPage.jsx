@@ -702,85 +702,87 @@ const ServiceHeader = ({
   totalServices,
   activeServices,
 }) => (
-  <div className='relative overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-4 sm:p-6 md:p-12 mb-6 md:mb-8'>
+  <div className='relative overflow-hidden rounded-[1.25rem] sm:rounded-[1.5rem] md:rounded-2xl bg-gradient-to-br from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-4 sm:p-5 md:p-6 mb-6 md:mb-8'>
     {/* Background Pattern */}
     <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-10 mix-blend-overlay' />
 
-    <div className='relative z-10 flex flex-col lg:flex-row items-center lg:items-end justify-between gap-4 md:gap-6'>
-      <div className='text-center lg:text-left space-y-2 sm:space-y-3 md:space-y-4 max-w-2xl w-full'>
-        <div className='inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-[9px] sm:text-[10px] md:text-xs font-bold tracking-wider uppercase'>
-          <Settings className='w-2.5 h-2.5 sm:w-3 sm:h-3' />
-          Management
+    <div className='relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4'>
+      {/* Left: Title & Stats */}
+      <div className='flex items-center gap-3 md:gap-4'>
+        <div
+          className='p-2.5 rounded-xl shadow-lg shrink-0 hidden sm:flex'
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.1))',
+          }}
+        >
+          <Settings className='w-5 h-5 md:w-6 md:h-6 text-white' />
         </div>
-        <h1 className='text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tighter leading-none'>
-          Services <span className='text-white/90'>Hub.</span>
-        </h1>
-        <p className='text-sm md:text-base lg:text-lg text-white/90 font-medium max-w-md hidden sm:block'>
-          Manage your professional services, pricing, and add-ons all in one place.
-        </p>
-        <div className='flex items-center justify-center lg:justify-start gap-2 mt-2 sm:mt-3'>
-          <div className='inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/30'>
-            <span className='w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse' />
-            <span className='text-[9px] sm:text-[10px] font-bold uppercase tracking-wider'>{activeServices} Active</span>
-          </div>
-          <div className='inline-flex items-center px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20'>
-            <span className='text-[9px] sm:text-[10px] font-bold uppercase tracking-wider'>{totalServices} Total</span>
+        <div>
+          <h1 className='text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight'>
+            Service Management
+          </h1>
+          <div className='flex items-center gap-2 mt-1'>
+            <span className='text-xs sm:text-sm text-white/80'>
+              {activeServices} active
+            </span>
+            <span className='text-white/40'>·</span>
+            <span className='text-xs sm:text-sm text-white/60'>
+              {totalServices} total
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Search & Add Button */}
-      <div className='w-full lg:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3'>
-        <div className='relative group flex-1 sm:flex-none sm:w-[240px] md:w-[280px]'>
-          <div className='absolute inset-0 bg-white/10 blur-xl rounded-2xl group-hover:bg-white/20 transition-all' />
-          <div className='relative bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl flex items-center p-1.5 transition-all group-hover:bg-white/20'>
-            <div className='bg-white/10 p-2 rounded-xl ml-1'>
-              <Search className='text-white w-4 h-4 sm:w-[18px] sm:h-[18px]' />
+      {/* Right: Search & Add Button */}
+      <div className='w-full md:w-auto flex flex-row items-center gap-2 md:gap-3'>
+        <div className='relative group flex-1 md:flex-none md:w-[220px] lg:w-[260px]'>
+          <div className='relative bg-white/15 backdrop-blur-sm border border-white/25 rounded-xl flex items-center p-1.5 transition-all focus-within:bg-white/20 focus-within:border-white/40'>
+            <div className='p-1.5 rounded-lg ml-0.5'>
+              <Search className='text-white/70 w-4 h-4' />
             </div>
             <input
               type='text'
-              placeholder='Search services...'
+              placeholder='Search...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='bg-transparent border-none text-white placeholder-white/70 focus:outline-none w-full font-medium py-2 px-3 text-sm min-w-0'
+              className='bg-transparent border-none text-white placeholder-white/60 focus:outline-none w-full font-medium py-1.5 px-2 text-sm min-w-0'
             />
           </div>
         </div>
 
         <button
           onClick={onAddService}
-          className='group relative bg-white text-[color:var(--brand-primary)] px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all duration-300 flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden shrink-0'
+          className='group relative bg-white text-[color:var(--brand-primary)] px-3 md:px-4 py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden shrink-0'
         >
-          <div className='absolute inset-0 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] opacity-0 group-hover:opacity-10 transition-opacity duration-300' />
-          <Plus className='w-4 h-4 sm:w-5 sm:h-5 relative z-10' />
-          <span className='relative z-10 text-sm sm:text-base'>Add Service</span>
+          <Plus className='w-4 h-4 md:w-5 md:h-5' />
+          <span className='hidden sm:inline text-sm md:text-base'>Add</span>
         </button>
       </div>
     </div>
 
-    {/* View Toggle - Positioned at bottom */}
-    <div className='relative z-10 mt-4 sm:mt-6 flex justify-center'>
-      <div className='flex bg-white/20 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-white/30'>
+    {/* View Toggle - Compact inline */}
+    <div className='relative z-10 mt-3 md:mt-4 flex justify-center md:justify-start md:absolute md:bottom-4 md:right-6'>
+      <div className='flex bg-white/15 backdrop-blur-sm p-1 rounded-lg border border-white/20'>
         <button
           onClick={() => setView('grid')}
-          className={`flex-1 w-20 sm:w-24 md:w-28 rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 ${
+          className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 ${
             view === 'grid'
-              ? 'bg-white text-[color:var(--brand-primary)] shadow-md sm:shadow-lg transform scale-[1.02]'
+              ? 'bg-white text-[color:var(--brand-primary)] shadow-sm'
               : 'text-white hover:bg-white/10'
           }`}
         >
-          <LayoutGrid className='w-3.5 h-3.5 sm:w-4 sm:h-4' />
+          <LayoutGrid className='w-3.5 h-3.5' />
           <span className='hidden sm:inline'>Grid</span>
         </button>
         <button
           onClick={() => setView('list')}
-          className={`flex-1 w-20 sm:w-24 md:w-28 rounded-lg sm:rounded-xl text-[11px] sm:text-xs md:text-sm font-bold transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 ${
+          className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 ${
             view === 'list'
-              ? 'bg-white text-[color:var(--brand-primary)] shadow-md sm:shadow-lg transform scale-[1.02]'
+              ? 'bg-white text-[color:var(--brand-primary)] shadow-sm'
               : 'text-white hover:bg-white/10'
           }`}
         >
-          <List className='w-3.5 h-3.5 sm:w-4 sm:h-4' />
+          <List className='w-3.5 h-3.5' />
           <span className='hidden sm:inline'>List</span>
         </button>
       </div>
