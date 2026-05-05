@@ -84,7 +84,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
       rel="stylesheet"
     />
 
@@ -540,12 +540,61 @@
       const isCloudinaryUrl = (url) =>
         typeof url === 'string' && url.includes('res.cloudinary.com/')
 
+      const CLOUDINARY_VERSION_SEGMENT = /^v\d+$/
+
+      const isSingleSegmentCloudinaryTransform = (seg) => {
+        if (/^fl_[a-z0-9_]+$/i.test(seg)) return true
+        if (/^f_(auto|png|jpg|jpeg|webp|heif|avif|gif|bmp|ico|pdf|svg)$/i.test(seg)) return true
+        if (/^q_(auto|auto:best|auto:good|auto:eco|auto:low|\d{1,3})$/i.test(seg)) return true
+        if (/^w_\d{1,4}$/.test(seg)) return true
+        if (/^h_\d{1,4}$/.test(seg)) return true
+        if (/^dpr_(auto|[\d.]+)$/i.test(seg)) return true
+        if (/^ar_[\d.]+:[\d.]+$/.test(seg)) return true
+        if (/^c_(fill|fit|pad|limit|scale|thumb|crop|imag|if|ip)$/.test(seg)) return true
+        if (/^b_(auto|white|black|transparent|rgb:[0-9a-f]{3,8})$/i.test(seg)) return true
+        if (/^g_(north|south|east|west|center|face|custom)$/i.test(seg)) return true
+        if (/^x_\d+$/i.test(seg)) return true
+        if (/^y_\d+$/i.test(seg)) return true
+        if (/^z_\d+$/i.test(seg)) return true
+        if (/^u_[a-z]/i.test(seg)) return true
+        return false
+      }
+
+      /** Strip baked-in /image/upload/ transforms (keep in sync with client/src/lib/imageHelpers.js). */
+      const stripCloudinaryUploadPathSuffix = (rest) => {
+        if (!rest || typeof rest !== 'string') return ''
+        const segments = rest.split('/').filter(Boolean)
+        let i = 0
+        while (i < segments.length) {
+          const seg = segments[i]
+          if (CLOUDINARY_VERSION_SEGMENT.test(seg)) return segments.slice(i).join('/')
+          if (seg.includes(',')) {
+            i += 1
+            continue
+          }
+          if (isSingleSegmentCloudinaryTransform(seg)) {
+            i += 1
+            continue
+          }
+          return segments.slice(i).join('/')
+        }
+        return ''
+      }
+
       const buildCloudinaryUrl = (publicId, options = {}) => {
         if (!CLOUDINARY_CLOUD_NAME || !publicId) return publicId
-        const parts = ['f_auto', 'q_auto']
-        if (options.width) parts.push(`w_${options.width}`)
-        if (options.height) parts.push(`h_${options.height}`)
-        if (options.width || options.height) parts.push('c_fill')
+        const parts = []
+        if (options.preserveTransparency) {
+          parts.push('f_png', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_limit')
+        } else {
+          parts.push('f_auto', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_fill')
+        }
         const transform = parts.join(',')
         return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${transform}/${publicId}`
       }
@@ -556,16 +605,25 @@
         const idx = url.indexOf(splitMarker)
         if (idx === -1) return url
         const base = url.slice(0, idx)
-        const rest = url.slice(idx + splitMarker.length)
-        const parts = ['f_auto', 'q_auto']
-        if (options.width) parts.push(`w_${options.width}`)
-        if (options.height) parts.push(`h_${options.height}`)
-        if (options.width || options.height) parts.push('c_fill')
+        const rawRest = url.slice(idx + splitMarker.length)
+        const rest = stripCloudinaryUploadPathSuffix(rawRest) || rawRest
+        const parts = []
+        if (options.preserveTransparency) {
+          parts.push('f_png', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_limit')
+        } else {
+          parts.push('f_auto', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_fill')
+        }
         const transform = parts.join(',')
         return `${base}${splitMarker}${transform}/${rest}`
       }
 
-      /** Matches client/src/lib/imageHelpers.js resolveImageUrl (Topbar logo). */
+      /** Matches client/src/lib/imageHelpers.js (branding logo + transparency). */
       const resolveSplashLogoUrl = (value, fallback, options = {}) => {
         if (!value || typeof value !== 'string') return fallback
         if (isCloudinaryUrl(value)) return buildCloudinaryUrlFromFull(value, options)
@@ -628,10 +686,17 @@
         }
         if (markEl) markEl.textContent = initialsText
 
-        const logoKey = branding?.logo || branding?.logoPublicId
+        const pid = `${branding?.logoPublicId || ''}`.trim()
+        const logo = `${branding?.logo || ''}`.trim()
+        const logoKey =
+          pid && !/^https?:\/\//i.test(pid) ? pid : logo || pid
         const resolvedLogo =
           logoKey && typeof logoKey === 'string'
-            ? resolveSplashLogoUrl(logoKey, branding?.logo, { width: 128, height: 128 })
+            ? resolveSplashLogoUrl(logoKey, logo || pid, {
+                width: 128,
+                height: 128,
+                preserveTransparency: true,
+              })
             : ''
 
         if (logoBoxEl && logoImgEl) {

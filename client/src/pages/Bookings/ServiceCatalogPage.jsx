@@ -1,12 +1,13 @@
 // client/src/pages/Bookings/ServiceCatalogPage.jsx - HIGH-END PREMIUM DESIGN
 import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid'
+import ServiceImagePlaceholder from '@/components/ServiceImagePlaceholder'
 import { useBranding } from '@/context/BrandingContext'
 import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import {
   useActiveServices,
   useCategories,
 } from '@/hooks/useServices'
-import { resolveServiceImageUrl } from '@/lib/imageHelpers'
+import { hasServiceImage, resolveServiceImageUrl } from '@/lib/imageHelpers'
 import stripeService from '@/services/stripeService'
 import {
   Clock,
@@ -297,14 +298,24 @@ const ServiceCard = ({
       style={cardStyle}
     >
       <div className='relative mb-3 overflow-hidden rounded-[1.05rem] bg-slate-100 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.22)] sm:mb-3.5 sm:rounded-[1.15rem]'>
-        <img
-          src={resolveServiceImageUrl(service)}
-          alt={service.name}
-          className='aspect-[16/9] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]'
-          loading='lazy'
-          decoding='async'
-        />
-        <div className='absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-950/18 via-slate-950/4 to-transparent opacity-70' />
+        {hasServiceImage(service) ? (
+          <>
+            <img
+              src={resolveServiceImageUrl(service)}
+              alt={service.name}
+              className='aspect-[16/9] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]'
+              loading='lazy'
+              decoding='async'
+            />
+            <div className='absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-950/18 via-slate-950/4 to-transparent opacity-70' />
+          </>
+        ) : (
+          <ServiceImagePlaceholder
+            serviceName={service.name}
+            brandColor={isMembership ? '#f59e0b' : branding?.themeColor || '#ec4899'}
+            className='aspect-[16/9]'
+          />
+        )}
         <div className='absolute left-3 top-3'>
           <div className='rounded-full border border-white/70 bg-white/92 px-2 py-1 shadow-sm backdrop-blur-md'>
             <span className='flex items-center gap-1 text-[8px] font-semibold uppercase tracking-[0.16em] text-slate-700 sm:text-[9px]'>

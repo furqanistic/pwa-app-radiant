@@ -39,7 +39,8 @@ import { useSelector } from 'react-redux'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../Layout/Layout'
-import { resolveImageUrl } from '@/lib/imageHelpers'
+import { resolveImageUrl, hasServiceImage } from '@/lib/imageHelpers'
+import ServiceImagePlaceholder from '@/components/ServiceImagePlaceholder'
 import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
 import { useBranding } from '@/context/BrandingContext'
 
@@ -293,13 +294,23 @@ const ServiceSelectionModal = ({
                           )}
                         </div>
 
-                        <img
-                          src={resolveImageUrl(service.image, fallbackServiceImage, { width: 60, height: 60 })}
-                          alt={service.name}
-                          className='w-12 h-12 rounded-lg object-cover'
-                          loading='lazy'
-                          decoding='async'
-                        />
+                        <div className='flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden'>
+                          {hasServiceImage(service) ? (
+                            <img
+                              src={resolveImageUrl(service.image, fallbackServiceImage, { width: 60, height: 60 })}
+                              alt={service.name}
+                              className='w-12 h-12 rounded-lg object-cover'
+                              loading='lazy'
+                              decoding='async'
+                            />
+                          ) : (
+                            <ServiceImagePlaceholder
+                              serviceName={service.name}
+                              brandColor={branding?.themeColor || '#ec4899'}
+                              style={{ width: '100%', height: '100%' }}
+                            />
+                          )}
+                        </div>
 
                         <div className='flex-1'>
                           <h3 className='font-semibold text-gray-900'>
@@ -746,14 +757,25 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 
   return (
     <div className='bg-white rounded-lg overflow-hidden hover:ring-2 hover:ring-pink-200 transition-all group'>
-      <div className='relative h-48 overflow-hidden'>
-        <img
-          src={resolveImageUrl(service.image, fallbackServiceImage, { width: 500, height: 300 })}
-          alt={service.name}
-          className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
-          loading='lazy'
-          decoding='async'
-        />
+      <div className='relative h-48 overflow-hidden bg-gray-100'>
+        {hasServiceImage(service) ? (
+          <>
+            <img
+              src={resolveImageUrl(service.image, fallbackServiceImage, { width: 500, height: 300 })}
+              alt={service.name}
+              className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
+              loading='lazy'
+              decoding='async'
+            />
+          </>
+        ) : (
+          <ServiceImagePlaceholder
+            serviceName={service.name}
+            brandColor={'#ec4899'}
+            className='w-full h-full'
+            style={{ width: '100%', height: '100%' }}
+          />
+        )}
 
         <div className='absolute top-3 left-3 flex flex-col gap-2'>
           <span
@@ -2430,17 +2452,27 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                     >
                       <div className='flex items-center justify-between mb-3'>
                         <div className='flex items-center gap-3'>
-                          <img
-                            src={resolveImageUrl(
-                              getLinkedServiceImageSource(linkedService),
-                              fallbackServiceImage,
-                              { width: 100, height: 100 }
+                          <div className='w-12 h-12 rounded-lg overflow-hidden'>
+                            {getLinkedServiceImageSource(linkedService) ? (
+                              <img
+                                src={resolveImageUrl(
+                                  getLinkedServiceImageSource(linkedService),
+                                  fallbackServiceImage,
+                                  { width: 100, height: 100 }
+                                )}
+                                alt={linkedService.name}
+                                className='w-12 h-12 rounded-lg object-cover'
+                                loading='lazy'
+                                decoding='async'
+                              />
+                            ) : (
+                              <ServiceImagePlaceholder
+                                serviceName={linkedService.name}
+                                brandColor={'#ec4899'}
+                                style={{ width: '100%', height: '100%' }}
+                              />
                             )}
-                            alt={linkedService.name}
-                            className='w-12 h-12 rounded-lg object-cover'
-                            loading='lazy'
-                            decoding='async'
-                          />
+                          </div>
                           <div>
                             <h3 className='font-semibold text-gray-900 text-sm'>
                               {linkedService.name}
@@ -2844,13 +2876,23 @@ const ServiceManagementPage = () => {
                     >
                       <td className='px-6 py-4'>
                         <div className='flex items-center gap-3'>
-                          <img
-                            src={resolveImageUrl(service.image, fallbackServiceImage, { width: 100, height: 100 })}
-                            alt={service.name}
-                            className='w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0'
-                            loading='lazy'
-                            decoding='async'
-                          />
+                          <div className='w-10 h-10 rounded-lg overflow-hidden border border-gray-100 shrink-0'>
+                            {hasServiceImage(service) ? (
+                              <img
+                                src={resolveImageUrl(service.image, fallbackServiceImage, { width: 100, height: 100 })}
+                                alt={service.name}
+                                className='w-10 h-10 rounded-lg object-cover'
+                                loading='lazy'
+                                decoding='async'
+                              />
+                            ) : (
+                              <ServiceImagePlaceholder
+                                serviceName={service.name}
+                                brandColor={'#ec4899'}
+                                style={{ width: '100%', height: '100%' }}
+                              />
+                            )}
+                          </div>
                           <div className='min-w-0'>
                             <div className='font-bold text-gray-900 truncate' title={service.name}>
                               {service.name}
@@ -2928,13 +2970,23 @@ const ServiceManagementPage = () => {
               {filteredServices.map((service) => (
                 <div key={service._id} className='p-5 space-y-4 bg-white'>
                   <div className='flex items-center gap-4'>
-                    <img
-                      src={resolveImageUrl(service.image, fallbackServiceImage, { width: 200, height: 200 })}
-                      alt={service.name}
-                      className='w-14 h-14 rounded-xl object-cover border border-gray-100 shadow-sm shrink-0'
-                      loading='lazy'
-                      decoding='async'
-                    />
+                    <div className='w-14 h-14 rounded-xl overflow-hidden border border-gray-100 shadow-sm shrink-0'>
+                      {hasServiceImage(service) ? (
+                        <img
+                          src={resolveImageUrl(service.image, fallbackServiceImage, { width: 200, height: 200 })}
+                          alt={service.name}
+                          className='w-14 h-14 rounded-xl object-cover'
+                          loading='lazy'
+                          decoding='async'
+                        />
+                      ) : (
+                        <ServiceImagePlaceholder
+                          serviceName={service.name}
+                          brandColor={'#ec4899'}
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      )}
+                    </div>
                     <div className='min-w-0 flex-1'>
                       <h3 className='font-bold text-gray-900 text-base leading-tight truncate'>{service.name}</h3>
                       <div className={`mt-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border w-fit ${
