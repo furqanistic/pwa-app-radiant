@@ -2,8 +2,8 @@
 import SlideReveal from '@/components/Games/SlideReveal'
 import SpinWheel from '@/components/Games/SpinWheel'
 import { useBranding } from '@/context/BrandingContext'
-import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { useAvailableGames, usePlayGame } from '@/hooks/useGameWheel'
+import { useScopedLocationId } from '@/hooks/useScopedLocationId'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Clock,
@@ -24,7 +24,15 @@ import { toast } from 'sonner'
 const Motion = motion
 
 // Compact Game Card for Dashboard
-const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brandColorDark }) => {
+const CompactGameCard = ({
+  game,
+  title,
+  icon,
+  onPlay,
+  canPlay,
+  brandColor,
+  brandColorDark,
+}) => {
   const playsRemaining = game.eligibility?.playsRemaining ?? 0
   const nextReset = game.eligibility?.nextReset
 
@@ -59,19 +67,18 @@ const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brand
       <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-[0.03] mix-blend-overlay pointer-events-none' />
       {/* Background Glow */}
       <div
-        className="absolute -right-4 -top-4 w-16 h-16 blur-2xl rounded-full opacity-20 pointer-events-none transition-transform duration-500 group-hover:scale-150"
+        className='absolute -right-4 -top-4 w-16 h-16 blur-2xl rounded-full opacity-20 pointer-events-none transition-transform duration-500 group-hover:scale-150'
         style={{
-          background: game.type === 'spin' ? 'var(--brand-primary)' : 'var(--brand-dark)',
+          background:
+            game.type === 'spin' ? 'var(--brand-primary)' : 'var(--brand-dark)',
         }}
       />
 
       <div className='flex items-center gap-3'>
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-105 transition-transform duration-300 bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))]"
-        >
+        <div className='w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-105 transition-transform duration-300 bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))]'>
           {React.cloneElement(icon, { className: 'w-6 h-6 text-white' })}
         </div>
-        
+
         <div className='flex-1 min-w-0'>
           <h3 className='text-base font-black text-gray-800 truncate tracking-tight leading-tight'>
             {title}
@@ -81,14 +88,14 @@ const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brand
               <div className='flex items-center gap-1.5'>
                 <div className='w-2 h-2 bg-[color:var(--brand-primary)] rounded-full animate-pulse shadow-[0_0_8px_rgba(0,0,0,0.15)]'></div>
                 <span className='text-[10px] font-black uppercase tracking-widest text-[color:var(--brand-primary)]/80'>
-                   {playsRemaining > 0 ? `${playsRemaining} Left` : 'Active'}
+                  {playsRemaining > 0 ? `${playsRemaining} Left` : 'Active'}
                 </span>
               </div>
             ) : (
               <div className='flex items-center gap-1.5'>
                 <Clock className='w-3 h-3 text-gray-400' />
                 <span className='text-[10px] font-black uppercase tracking-widest text-gray-400'>
-                   Ends in {formatResetTime(nextReset)}
+                  Ends in {formatResetTime(nextReset)}
                 </span>
               </div>
             )}
@@ -96,13 +103,17 @@ const CompactGameCard = ({ game, title, icon, onPlay, canPlay, brandColor, brand
         </div>
 
         <Motion.div
-           initial={false}
-           animate={canPlay ? { x: 0, opacity: 1 } : { x: 5, opacity: 0.5 }}
+          initial={false}
+          animate={canPlay ? { x: 0, opacity: 1 } : { x: 5, opacity: 0.5 }}
           className={`p-1.5 rounded-lg flex items-center justify-center ${
-            canPlay ? 'bg-white/80 text-[color:var(--brand-primary)] shadow-sm' : 'bg-gray-100 text-gray-400'
-           }`}
+            canPlay
+              ? 'bg-white/80 text-[color:var(--brand-primary)] shadow-sm'
+              : 'bg-gray-100 text-gray-400'
+          }`}
         >
-          <Zap className={`w-3.5 h-3.5 ${canPlay ? 'text-[color:var(--brand-primary)] fill-[color:var(--brand-primary)]' : ''}`} />
+          <Zap
+            className={`w-3.5 h-3.5 ${canPlay ? 'text-[color:var(--brand-primary)] fill-[color:var(--brand-primary)]' : ''}`}
+          />
         </Motion.div>
       </div>
 
@@ -139,35 +150,36 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
         }}
       >
         {/* Animated Background Confetti */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-           {[...Array(15)].map((_, i) => (
-             <Motion.div
-               key={i}
-               initial={{ y: -20, x: Math.random() * 100 + '%', opacity: 0 }}
-               animate={{ 
-                 y: '120%', 
-                 opacity: [0, 1, 0],
-                 rotate: [0, 360],
-               }}
-               transition={{ 
-                 duration: 3 + Math.random() * 2, 
-                 repeat: Infinity,
-                 delay: Math.random() * 2
-               }}
-               className="absolute w-2 h-2 rounded-full"
-               style={{
-                 backgroundColor: i % 2 === 0 ? 'var(--brand-primary)' : 'var(--brand-dark)',
-               }}
-             />
-           ))}
+        <div className='absolute inset-0 pointer-events-none overflow-hidden'>
+          {[...Array(15)].map((_, i) => (
+            <Motion.div
+              key={i}
+              initial={{ y: -20, x: Math.random() * 100 + '%', opacity: 0 }}
+              animate={{
+                y: '120%',
+                opacity: [0, 1, 0],
+                rotate: [0, 360],
+              }}
+              transition={{
+                duration: 3 + Math.random() * 2,
+                repeat: Infinity,
+                delay: Math.random() * 2,
+              }}
+              className='absolute w-2 h-2 rounded-full'
+              style={{
+                backgroundColor:
+                  i % 2 === 0 ? 'var(--brand-primary)' : 'var(--brand-dark)',
+              }}
+            />
+          ))}
         </div>
 
-        <div className="relative z-10">
+        <div className='relative z-10'>
           <Motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-[32px] flex items-center justify-center mx-auto mb-6 shadow-2xl bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))]"
+            className='w-20 h-20 sm:w-24 sm:h-24 rounded-[32px] flex items-center justify-center mx-auto mb-6 shadow-2xl bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))]'
           >
             {isPointsPrize ? (
               <Coins className='w-10 h-10 sm:w-12 sm:h-12 text-white' />
@@ -186,7 +198,7 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
           <div className='bg-gradient-to-br from-[color:var(--brand-primary)/0.08] via-white to-[color:var(--brand-primary)/0.04] rounded-[32px] p-6 sm:p-8 mb-8 border border-gray-200/70 relative overflow-hidden group'>
             <Sparkles className='absolute top-4 left-4 w-6 h-6 text-[color:var(--brand-primary)]/40 opacity-60 group-hover:scale-125 transition-transform' />
             <Sparkles className='absolute bottom-4 right-4 w-6 h-6 text-[color:var(--brand-primary)]/40 opacity-60 group-hover:scale-125 transition-transform' />
-            
+
             <h3 className='text-xs sm:text-sm font-black text-[color:var(--brand-primary)] uppercase tracking-widest mb-2'>
               {winningItem.title}
             </h3>
@@ -195,8 +207,12 @@ const GameResultModal = ({ result, onClose, brandColor, brandColorDark }) => {
             </div>
             {result.result.newPointsBalance !== undefined && (
               <div className='mt-4 pt-4 border-t border-slate-200 flex items-center justify-center gap-2'>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">New Balance:</span>
-                <span className="text-sm font-black text-[color:var(--brand-primary)]">{result.result.newPointsBalance} pts</span>
+                <span className='text-[10px] font-black text-slate-400 uppercase tracking-widest text-center'>
+                  New Balance:
+                </span>
+                <span className='text-sm font-black text-[color:var(--brand-primary)]'>
+                  {result.result.newPointsBalance} pts
+                </span>
               </div>
             )}
           </div>
@@ -232,17 +248,22 @@ const GamePlayModal = ({
   brandColorDark,
   onAnimationComplete,
 }) => {
-   const canPlay = game.eligibility?.canPlay ?? true
-   const playsRemaining = game.eligibility?.playsRemaining ?? 0
-   const resetPeriod = game.eligibility?.resetPeriod
-   
-   const formatResetPeriod = (period) => {
+  const canPlay = game.eligibility?.canPlay ?? true
+  const playsRemaining = game.eligibility?.playsRemaining ?? 0
+  const resetPeriod = game.eligibility?.resetPeriod
+
+  const formatResetPeriod = (period) => {
     switch (period) {
-      case 'daily': return 'daily'
-      case 'weekly': return 'weekly'
-      case 'monthly': return 'monthly'
-      case 'never': return 'unlimited'
-      default: return period
+      case 'daily':
+        return 'daily'
+      case 'weekly':
+        return 'weekly'
+      case 'monthly':
+        return 'monthly'
+      case 'never':
+        return 'unlimited'
+      default:
+        return period
     }
   }
 
@@ -273,35 +294,44 @@ const GamePlayModal = ({
           <div className='px-6 py-5 border-b border-gray-200/70 flex items-center justify-between'>
             <div className='flex items-center gap-3'>
               <div className='bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] p-2.5 rounded-xl shadow-lg shadow-[color:var(--brand-primary)/0.2]'>
-                {game.type === 'spin' ? <Zap className='w-5 h-5 text-white' /> : <Gift className='w-5 h-5 text-white' />}
+                {game.type === 'spin' ? (
+                  <Zap className='w-5 h-5 text-white' />
+                ) : (
+                  <Gift className='w-5 h-5 text-white' />
+                )}
               </div>
               <div>
                 <h2 className='text-xl font-black text-gray-900 tracking-tight'>
                   {game.type === 'spin' ? 'Lucky Spin' : 'Scratch Cards'}
                 </h2>
                 <p className='text-[10px] font-bold text-gray-400 uppercase tracking-widest'>
-                  {game.type === 'spin' ? 'Test your luck' : 'Scratch to reveal'}
+                  {game.type === 'spin'
+                    ? 'Test your luck'
+                    : 'Scratch to reveal'}
                 </p>
               </div>
             </div>
-            <button 
+            <button
               type='button'
               onClick={onClose}
               className='p-2 hover:bg-[color:var(--brand-primary)/0.08] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
               aria-label='Close game modal'
             >
-              <Loader2 className={`w-5 h-5 text-gray-400 ${isPlaying ? 'animate-spin' : ''}`} />
+              <Loader2
+                className={`w-5 h-5 text-gray-400 ${isPlaying ? 'animate-spin' : ''}`}
+              />
             </button>
           </div>
-          
-           {/* Play Limit Display */}
-            {canPlay && playsRemaining > 0 && (
-              <div className='px-4 py-2 bg-[color:var(--brand-primary)/0.08] border-b border-[color:var(--brand-primary)/0.2]'>
-                <div className='text-center text-[color:var(--brand-primary)] text-xs'>
-                  {playsRemaining} plays remaining ({formatResetPeriod(resetPeriod)} limit)
-                </div>
+
+          {/* Play Limit Display */}
+          {canPlay && playsRemaining > 0 && (
+            <div className='px-4 py-2 bg-[color:var(--brand-primary)/0.08] border-b border-[color:var(--brand-primary)/0.2]'>
+              <div className='text-center text-[color:var(--brand-primary)] text-xs'>
+                {playsRemaining} plays remaining (
+                {formatResetPeriod(resetPeriod)} limit)
               </div>
-            )}
+            </div>
+          )}
 
           <div className='p-4'>
             {game.type === 'spin' ? (
@@ -382,10 +412,14 @@ const GamesSection = () => {
     },
   }
 
-  const { data: gamesData, isLoading, isFetching, refetch } =
-    useAvailableGames(
-      scopedLocationId ? { locationId: scopedLocationId } : {}
-    )
+  const {
+    data: gamesData,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useAvailableGames(
+    scopedLocationId ? { locationId: scopedLocationId } : {},
+  )
 
   const playGameMutation = usePlayGame({
     onSuccess: (data) => {
@@ -482,9 +516,6 @@ const GamesSection = () => {
 
         <div className='relative z-10 flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3'>
           <div className='flex items-center gap-3'>
-            <div className='bg-[radial-gradient(120%_120%_at_20%_0%,var(--brand-primary),var(--brand-dark))] p-3 rounded-xl shadow-lg shadow-[color:var(--brand-primary)/0.2]'>
-              <Dices className='w-5 h-5 text-white' />
-            </div>
             <div>
               <h2 className='text-xl sm:text-2xl font-black text-gray-800 tracking-tight'>
                 Lucky Games
