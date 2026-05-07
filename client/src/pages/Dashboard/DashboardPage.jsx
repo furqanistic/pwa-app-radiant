@@ -1040,14 +1040,14 @@ const NeedMorePointsSection = ({
                       <div className='flex flex-col items-center gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3'>
                         <div className='text-center sm:text-left'>
                           <h3 className='text-xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-2xl'>
-                            Grab{' '}
+                            Rate Us{' '}
                             <span className='text-[color:var(--brand-primary-dark)]'>
-                              {grabPointsPretty}
+                              → {grabPointsPretty}
                             </span>
                           </h3>
                           {showGoogleBanner ? (
                             <p className='mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400'>
-                              Google listing
+                              Leave a review
                             </p>
                           ) : null}
                         </div>
@@ -1056,15 +1056,11 @@ const NeedMorePointsSection = ({
                         </span>
                       </div>
                       <p className='mx-auto max-w-md text-center text-sm leading-relaxed text-gray-600 sm:mx-0 sm:text-left'>
-                        Earn{' '}
+                        Drop a quick review and unlock{' '}
                         <span className='font-semibold text-gray-900'>
                           {grabPointsPretty}
                         </span>{' '}
-                        one time — tap{' '}
-                        <span className='font-semibold text-gray-900'>
-                          Grab my points now
-                        </span>{' '}
-                        to lock it in (opens in a new tab).
+                        instantly. One time only.
                       </p>
                     </div>
                   </div>
@@ -1074,18 +1070,18 @@ const NeedMorePointsSection = ({
                     target='_blank'
                     rel='noopener noreferrer'
                     onClick={handleReviewLinkClick}
-                    aria-label={`Grab ${grabPointsPretty} — opens in a new tab`}
+                    aria-label={`Leave a Google review and earn ${grabPointsPretty} — opens in a new tab`}
                     className='flex min-h-[3.25rem] w-full touch-manipulation items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[15px] font-semibold text-white no-underline shadow-lg shadow-[color:var(--brand-primary)]/35 transition-[transform,filter] hover:brightness-[1.03] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 sm:min-h-[3.5rem] sm:text-base'
                     style={{
                       background:
                         'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
                     }}
                   >
-                    <Sparkles
+                    <Star
                       className='h-5 w-5 shrink-0 opacity-95'
                       aria-hidden
                     />
-                    Grab my points now
+                    Leave a Review
                   </a>
                 </>
               )}
