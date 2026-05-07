@@ -1102,69 +1102,82 @@ const NeedMorePointsSection = ({
             return (
               <div
                 key={method.id}
-                className='flex flex-col items-start gap-2.5 rounded-2xl border border-gray-200/90 bg-white/95 p-4 text-left shadow-sm transition hover:border-[color:var(--brand-primary)]/35 hover:shadow-md sm:gap-3 sm:p-4'
+                className='group relative flex flex-col gap-4 rounded-[1.35rem] border border-gray-100 bg-white p-5 text-left shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_30px_rgb(0,0,0,0.08)] hover:border-[color:var(--brand-primary)]/20 overflow-hidden'
               >
-                <div className='flex items-center justify-center rounded-full bg-[color:var(--brand-primary)/0.12] w-9 h-9'>
-                  <IconComponent className='w-4 h-4 text-[color:var(--brand-primary)]' />
-                </div>
-                <div>
-                  <p className='text-sm font-semibold text-gray-900'>
-                    {method.title}
-                  </p>
-                  <p className='text-xs text-gray-500'>{method.description}</p>
-                </div>
-                {isReview ? (
-                  <div className='mt-auto flex flex-col gap-2 w-full'>
-                    {isGoogleReviewDestination ? (
-                      <>
-                        <button
-                          type='button'
-                          onClick={handleInAppReview}
-                          className='w-full min-h-[44px] rounded-xl bg-[color:var(--brand-primary)]/12 text-[color:var(--brand-primary)] text-xs font-bold py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
-                        >
-                          In-app review after a visit
-                        </button>
-                        <span className='text-[10px] font-bold text-[color:var(--brand-primary)] leading-snug'>
-                          Extra points when you rate a completed booking in the
-                          app
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type='button'
-                          onClick={handleInAppReview}
-                          className='w-full min-h-[44px] rounded-xl bg-[color:var(--brand-primary)] text-white text-xs font-bold py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
-                        >
-                          Review in app after a visit
-                        </button>
-                        <span className='text-[10px] font-bold text-[color:var(--brand-primary)] leading-snug'>
-                          {method.points} pts per eligible visit (one review per
-                          booking)
-                        </span>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {hasNavigateAction ? (
-                      <button
-                        type='button'
-                        onClick={() => handleAction(method)}
-                        className='mt-auto w-full rounded-lg bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-xs font-bold py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
-                      >
-                        {method.action}
-                      </button>
-                    ) : (
-                      <span className='mt-auto inline-flex rounded-lg bg-gray-100 px-2 py-2 text-[10px] font-bold uppercase tracking-wide text-gray-600'>
-                        Automatic when eligible
+                {/* Glow effect on hover */}
+                <div className='absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[color:var(--brand-primary)]/[0.04] blur-2xl transition-all duration-500 group-hover:bg-[color:var(--brand-primary)]/[0.08] group-hover:scale-150' />
+                
+                <div className='relative flex flex-col gap-3'>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center justify-center rounded-[0.85rem] bg-gradient-to-br from-[color:var(--brand-primary)]/10 to-[color:var(--brand-primary)]/5 w-11 h-11 shadow-sm border border-[color:var(--brand-primary)]/10 group-hover:scale-110 transition-transform duration-300'>
+                      <IconComponent className='w-5 h-5 text-[color:var(--brand-primary)]' />
+                    </div>
+                    {!isReview && (
+                      <span className='inline-flex items-center gap-1 rounded-full bg-[color:var(--brand-primary)]/10 px-2.5 py-1 text-[11px] font-black text-[color:var(--brand-primary)]'>
+                        <Zap className='w-3 h-3' />
+                        {method.points} pts
                       </span>
                     )}
-                    <span className='text-xs font-black text-[color:var(--brand-primary)]'>
-                      {method.points} pts
-                    </span>
-                  </>
-                )}
+                  </div>
+                  <div>
+                    <p className='text-[15px] font-bold text-gray-900 leading-tight mb-1'>
+                      {method.title}
+                    </p>
+                    <p className='text-[13px] text-gray-500 font-medium leading-relaxed'>
+                      {method.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className='relative mt-auto flex flex-col gap-2 w-full pt-2'>
+                  {isReview ? (
+                    <>
+                      {isGoogleReviewDestination ? (
+                        <>
+                          <button
+                            type='button'
+                            onClick={handleInAppReview}
+                            className='w-full min-h-[2.75rem] rounded-xl bg-[color:var(--brand-primary)]/10 text-[color:var(--brand-primary)] text-[13px] font-bold py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 transition-all hover:bg-[color:var(--brand-primary)]/15 active:scale-[0.98]'
+                          >
+                            In-app review after a visit
+                          </button>
+                          <span className='text-[11px] font-bold text-[color:var(--brand-primary)]/80 leading-snug text-center'>
+                            Extra points when you rate a completed booking in the app
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type='button'
+                            onClick={handleInAppReview}
+                            className='w-full min-h-[2.75rem] rounded-xl bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white text-[13px] font-bold py-2 shadow-md shadow-[color:var(--brand-primary)]/20 transition-all hover:shadow-lg hover:shadow-[color:var(--brand-primary)]/30 hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+                          >
+                            Review in app after a visit
+                          </button>
+                          <span className='text-[11px] font-bold text-[color:var(--brand-primary)]/80 leading-snug text-center'>
+                            {method.points} pts per eligible visit (one review per booking)
+                          </span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {hasNavigateAction ? (
+                        <button
+                          type='button'
+                          onClick={() => handleAction(method)}
+                          className='w-full min-h-[2.75rem] rounded-xl bg-gray-50 text-gray-700 text-[13px] font-bold py-2 transition-all border border-gray-200/60 hover:border-[color:var(--brand-primary)]/30 hover:bg-[color:var(--brand-primary)]/5 hover:text-[color:var(--brand-primary)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+                        >
+                          {method.action}
+                        </button>
+                      ) : (
+                        <span className='flex min-h-[2.75rem] w-full items-center justify-center rounded-xl bg-gray-50 border border-gray-100 text-[11px] font-bold uppercase tracking-wider text-gray-500'>
+                          Automatic when eligible
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             )
           })}
