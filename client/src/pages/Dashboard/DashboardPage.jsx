@@ -375,10 +375,10 @@ const DashboardCard = ({
   isLoading = false,
 }) => {
   const gradients = {
-    default: 'bg-white border border-gray-200/70 shadow-sm',
-    pink: 'bg-white border border-pink-50/70 shadow-sm',
-    purple: 'bg-white border border-purple-50/70 shadow-sm',
-    indigo: 'bg-white border border-indigo-50/70 shadow-sm',
+    default: 'bg-white border border-gray-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]',
+    pink: 'bg-gradient-to-b from-white to-[color:var(--brand-primary)]/[0.02] border border-[color:var(--brand-primary)]/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_14px_40px_-10px_var(--brand-primary)]/10',
+    purple: 'bg-gradient-to-b from-white to-purple-50/40 border border-purple-100/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]',
+    indigo: 'bg-gradient-to-b from-white to-indigo-50/40 border border-indigo-100/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]',
   }
 
   if (isLoading) {
@@ -653,7 +653,7 @@ const SpaRewardsSection = () => {
       <DashboardCard>
         <div className='flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6'>
           <div className='flex items-center mb-2 sm:mb-0'>
-            <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl mr-3 sm:mr-4'>
+            <div className='bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2.5 sm:p-3.5 rounded-[1rem] sm:rounded-[1.25rem] mr-3 sm:mr-4 shadow-lg shadow-[color:var(--brand-primary)]/30'>
               <Award className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
             </div>
             <div>
@@ -688,7 +688,7 @@ const SpaRewardsSection = () => {
             <button
               type='button'
               onClick={() => navigate(withSpaParam('/rewards'))}
-              className='text-[color:var(--brand-primary)] hover:text-[color:var(--brand-primary)] flex items-center gap-1 text-sm font-semibold hover:bg-[color:var(--brand-primary)/0.06] px-3 py-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+              className='text-[color:var(--brand-primary)] flex items-center gap-1 text-sm font-bold hover:bg-[color:var(--brand-primary)]/10 px-3 py-2 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 active:scale-95'
             >
               View All
               <ChevronRight className='w-4 h-4' />
@@ -725,7 +725,7 @@ const AutomatedGiftsSection = ({ gifts = [] }) => {
     <div className='mb-4 sm:mb-6 lg:mb-8'>
       <DashboardCard>
         <div className='flex items-center gap-3 mb-6'>
-          <div className='bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2 sm:p-3 rounded-xl sm:rounded-2xl'>
+          <div className='bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] p-2.5 sm:p-3.5 rounded-[1rem] sm:rounded-[1.25rem] shadow-lg shadow-[color:var(--brand-primary)]/30'>
             <Gift className='w-5 h-5 sm:w-6 sm:h-6 text-white' />
           </div>
           <div>
@@ -1247,7 +1247,7 @@ const NextRewardProgressSection = () => {
       >
         <div className='flex items-center justify-between gap-2 mb-4'>
           <div className='flex items-center gap-2 min-w-0'>
-            <div className='flex-shrink-0 rounded-lg sm:rounded-xl bg-white p-1.5 sm:p-2 shadow-sm'>
+            <div className='flex-shrink-0 rounded-[0.85rem] sm:rounded-xl bg-white p-2 sm:p-2.5 shadow-sm border border-[color:var(--brand-primary)]/10'>
               <Star className='w-4 h-4 sm:w-5 sm:h-5 text-[color:var(--brand-primary)]' />
             </div>
             <div className='min-w-0'>
@@ -1482,7 +1482,7 @@ const DashboardPage = () => {
                     <DashboardCard gradient='pink'>
                       <div className='flex items-center justify-between mb-3'>
                         <div className='flex items-center gap-2'>
-                          <div className='rounded-full bg-white p-2 shadow-sm'>
+                          <div className='rounded-xl bg-white/90 p-2.5 shadow-sm border border-[color:var(--brand-primary)]/10'>
                             <Calendar className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
@@ -1497,7 +1497,7 @@ const DashboardPage = () => {
                         <button
                           type='button'
                           onClick={() => navigate(withSpaParam('/services'))}
-                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 rounded'
+                          className='text-xs font-bold text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/10 px-3 py-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 active:scale-95'
                         >
                           Book More
                         </button>
@@ -1548,7 +1548,7 @@ const DashboardPage = () => {
                     <DashboardCard gradient='indigo'>
                       <div className='flex items-center justify-between mb-4'>
                         <div className='flex items-center gap-2'>
-                          <div className='rounded-lg bg-white p-2 shadow-sm'>
+                          <div className='rounded-xl bg-white/90 p-2.5 shadow-sm border border-[color:var(--brand-primary)]/10'>
                             <Users className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
@@ -1563,7 +1563,7 @@ const DashboardPage = () => {
                         <button
                           type='button'
                           onClick={() => navigate(withSpaParam('/referrals'))}
-                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 rounded'
+                          className='text-xs font-bold text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/10 px-3 py-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 active:scale-95'
                         >
                           Share Now
                         </button>
@@ -1621,7 +1621,7 @@ const DashboardPage = () => {
                     <DashboardCard gradient='purple'>
                       <div className='flex items-center justify-between mb-4'>
                         <div className='flex items-center gap-2'>
-                          <div className='rounded-lg bg-white p-2 shadow-sm'>
+                          <div className='rounded-xl bg-white/90 p-2.5 shadow-sm border border-[color:var(--brand-primary)]/10'>
                             <Gift className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
@@ -1678,7 +1678,7 @@ const DashboardPage = () => {
                       <button
                         type='button'
                         onClick={() => navigate(withSpaParam('/rewards'))}
-                        className='w-full rounded-lg bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white py-2.5 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
+                        className='w-full rounded-[0.85rem] bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white py-2.5 text-sm font-semibold shadow-md shadow-[color:var(--brand-primary)]/20 transition-all hover:shadow-lg hover:shadow-[color:var(--brand-primary)]/30 hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2'
                       >
                         Redeem Credits
                       </button>
@@ -1690,7 +1690,7 @@ const DashboardPage = () => {
                     <DashboardCard gradient='pink'>
                       <div className='flex items-center justify-between mb-4'>
                         <div className='flex items-center gap-2'>
-                          <div className='rounded-lg bg-white p-2 shadow-sm'>
+                          <div className='rounded-xl bg-white/90 p-2.5 shadow-sm border border-[color:var(--brand-primary)]/10'>
                             <Heart className='w-5 h-5 text-[color:var(--brand-primary)]' />
                           </div>
                           <div>
@@ -1705,7 +1705,7 @@ const DashboardPage = () => {
                         <button
                           type='button'
                           onClick={() => navigate(withSpaParam('/Booking'))}
-                          className='text-xs font-semibold text-[color:var(--brand-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 rounded'
+                          className='text-xs font-bold text-[color:var(--brand-primary)] hover:bg-[color:var(--brand-primary)]/10 px-3 py-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] focus-visible:ring-offset-2 active:scale-95'
                         >
                           See History
                         </button>
