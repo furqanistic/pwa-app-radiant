@@ -1,0 +1,44 @@
+// File: server/routes/bookings.js
+import express from 'express'
+import {
+    getAvailability,
+    updateAvailability,
+} from '../controller/availability.js'
+import {
+    cancelBooking,
+    createBooking,
+    getAdminBookings,
+    getBookedTimes,
+    getTreatmentCycles,
+    getUserBookingStats,
+    getUserPastVisits,
+    getUserUpcomingAppointments,
+    rateVisit,
+    rescheduleBooking,
+} from '../controller/bookings.js'
+import { verifyToken } from '../middleware/authMiddleware.js'
+
+const router = express.Router()
+
+// All routes require authentication
+router.use(verifyToken)
+
+// Availability routes
+router.get('/availability', getAvailability)
+router.put('/availability', updateAvailability)
+
+// User routes
+router.get('/upcoming', getUserUpcomingAppointments)
+router.get('/past', getUserPastVisits)
+router.get('/stats', getUserBookingStats)
+router.get('/my-cycles', getTreatmentCycles)
+router.post('/create', createBooking)
+router.post('/rate/:bookingId', rateVisit)
+router.get('/booked-times', getBookedTimes)
+router.put('/:bookingId/reschedule', rescheduleBooking)
+router.delete('/:bookingId/cancel', cancelBooking)
+
+// Admin routes
+router.get('/admin/all', getAdminBookings)
+
+export default router

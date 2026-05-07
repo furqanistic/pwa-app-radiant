@@ -1,0 +1,1240 @@
+// File: client/src/components/Management/LocationForm.jsx
+// client/src/components/Management/LocationForm.jsx
+import { brandingService } from '@/services/brandingService'
+import { useBranding } from '@/context/BrandingContext'
+import { locationService } from '@/services/locationService'
+import { uploadService } from '@/services/uploadService'
+import { buildSubdomainUrl, validateSubdomainFormat } from '@/utils/subdomain'
+import { resolveBrandingFaviconUrl, resolveBrandingLogoUrl } from '@/lib/imageHelpers'
+import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import L from "leaflet"
+import "leaflet/dist/leaflet.css"
+import { AlertCircle, Clock, ExternalLink, Globe, Image as ImageIcon, Loader2, LocateFixed, MapPin, Palette, Plus, Search, Trash2, Upload, X } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import Cropper from 'react-easy-crop'
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet"
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+
+const DAYS_OF_WEEK = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+]
+
+const THEME_COLORS = [
+  { name: 'Royal Blue', value: '#1d4ed8' },
+  { name: 'Emerald', value: '#15803d' },
+  { name: 'Orange', value: '#ea580c' },
+  { name: 'Red', value: '#b91c1c' },
+  { name: 'Yellow', value: '#ca8a04' },
+  { name: 'Pink', value: '#be185d' },
+  { name: 'Ocean Blue', value: '#1e3a8a' },
+  { name: 'Brown', value: '#7c3f00' },
+  { name: 'Black', value: '#0b0b0b' },
+]
+
+const clampChannel = (value) => Math.max(0, Math.min(255, value))
+
+const hexToRgb = (hex) => {
+  if (!hex) return { r: 12, g: 16, b: 32 }
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) return { r: 12, g: 16, b: 32 }
+  const num = parseInt(cleaned, 16)
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  }
+}
+
+const adjustHex = (hex, amount) => {
+  const { r, g, b } = hexToRgb(hex)
+  const rr = clampChannel(r + amount)
+  const gg = clampChannel(g + amount)
+  const bb = clampChannel(b + amount)
+  return `#${rr.toString(16).padStart(2, '0')}${gg
+    .toString(16)
+    .padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`
+}
+
+const getDialogSheetClasses =
+  'p-0 overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-[90vh] !w-screen max-w-none sm:!w-full sm:max-w-4xl rounded-t-[2.5rem] sm:rounded-[2rem] fixed !left-0 !right-0 !bottom-0 !top-auto !translate-x-0 !translate-y-0 sm:!top-1/2 sm:!left-1/2 sm:!right-auto sm:!bottom-auto sm:!-translate-x-1/2 sm:!-translate-y-1/2 border-0 shadow-2xl bg-white'
+
+// Fix Leaflet icon issue
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+});
+
+const MapPicker = ({ position, setPosition }) => {
+  useMapEvents({
+    click(e) {
+      setPosition(e.latlng);
+    },
+  });
+
+  return position ? (
+    <Marker
+      position={position}
+      draggable={true}
+      eventHandlers={{
+        dragend: (e) => {
+          setPosition(e.target.getLatLng());
+        },
+      }}
+    />
+  ) : null;
+};
+
+const MapUpdater = ({ position }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (position) {
+      map.setView(position, 13);
+    }
+  }, [position, map]);
+  return null;
+};
+
+const createImage = (url) =>
+  new Promise((resolve, reject) => {
+    const image = new Image()
+    image.addEventListener('load', () => resolve(image))
+    image.addEventListener('error', (error) => reject(error))
+    image.src = url
+  })
+
+const getCroppedImage = async (imageSrc, pixelCrop) => {
+  const image = await createImage(imageSrc)
+  const canvas = document.createElement('canvas')
+  canvas.width = pixelCrop.width
+  canvas.height = pixelCrop.height
+  const ctx = canvas.getContext('2d')
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  )
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/png')
+  })
+}
+
+const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
+  const { branding } = useBranding()
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = adjustHex(brandColor, -24)
+  const [formData, setFormData] = useState({
+    locationId: '',
+    name: '',
+    subtitle: '',
+    description: '',
+    address: '',
+    phone: '',
+    reviewLink: '',
+    ghlApiKey: '',
+    coordinates: {
+      latitude: null,
+      longitude: null,
+    },
+    hours: DAYS_OF_WEEK.map((day) => ({
+      day,
+      open: '09:00',
+      close: '17:00',
+      isClosed: false,
+    })),
+    logo: '',
+    logoPublicId: '',
+    subdomain: '',
+    favicon: '',
+    faviconPublicId: '',
+    themeColor: '#ec4899',
+  })
+
+  const [isUploading, setIsUploading] = useState(false)
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false)
+  const [subdomainValidation, setSubdomainValidation] = useState({ isValidating: false, error: null, available: null })
+
+  const [position, setPosition] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+
+  const [cropperState, setCropperState] = useState({
+    isOpen: false,
+    src: '',
+    type: null,
+    fileName: '',
+  })
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+
+  const queryClient = useQueryClient()
+
+  const extractLocationFromResponse = (payload) => {
+    if (!payload || typeof payload !== 'object') return null
+    return (
+      payload.location ||
+      payload.data?.location ||
+      payload.data ||
+      null
+    )
+  }
+
+  const syncLocationsCache = (payload, mode = 'update') => {
+    const location = extractLocationFromResponse(payload)
+    if (!location?._id && !location?.locationId) return
+
+    queryClient.setQueryData(['locations'], (previous) => {
+      const existing = previous?.data?.locations || []
+      const matchIndex = existing.findIndex(
+        (item) =>
+          item?._id === location._id ||
+          item?.locationId === location.locationId
+      )
+
+      let nextLocations = existing
+      if (matchIndex >= 0) {
+        nextLocations = [...existing]
+        nextLocations[matchIndex] = { ...nextLocations[matchIndex], ...location }
+      } else if (mode === 'create') {
+        nextLocations = [location, ...existing]
+      }
+
+      return {
+        ...(previous || {}),
+        data: {
+          ...(previous?.data || {}),
+          locations: nextLocations,
+        },
+      }
+    })
+  }
+
+  // Initialize form with initialData if editing
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        locationId: initialData.locationId || '',
+        name: initialData.name || '',
+        subtitle: initialData.subtitle || '',
+        description: initialData.description || '',
+        address: initialData.address || '',
+        phone: initialData.phone || '',
+        reviewLink: initialData.reviewLink || '',
+        ghlApiKey: initialData.ghlApiKey || '',
+        hours: initialData.hours?.length
+          ? initialData.hours
+          : DAYS_OF_WEEK.map((day) => ({
+              day,
+              open: '09:00',
+              close: '17:00',
+              isClosed: false,
+            })),
+        coordinates: initialData.coordinates || { latitude: null, longitude: null },
+        logo: initialData.logo || '',
+        logoPublicId: initialData.logoPublicId || '',
+        subdomain: initialData.subdomain || '',
+        favicon: initialData.favicon || '',
+        faviconPublicId: initialData.faviconPublicId || '',
+        themeColor: initialData.themeColor || '#ec4899',
+      })
+      if (initialData.coordinates?.latitude && initialData.coordinates?.longitude) {
+        setPosition({ lat: initialData.coordinates.latitude, lng: initialData.coordinates.longitude });
+      } else {
+        setPosition(null);
+      }
+    } else {
+      resetForm()
+    }
+  }, [initialData, isOpen])
+
+  const createLocationMutation = useMutation({
+    mutationFn: locationService.createLocation,
+    onMutate: () => {
+      const toastId = toast.loading('Creating location...')
+      return { toastId }
+    },
+    onSuccess: (data) => {
+      syncLocationsCache(data, 'create')
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+      queryClient.refetchQueries({ queryKey: ['locations'], type: 'active' })
+      onClose()
+      onSuccess?.(data)
+      resetForm()
+    },
+    onError: (error, _variables, context) => {
+      console.error('Create location error:', error)
+      toast.error(error.response?.data?.message || 'Failed to create location', {
+        id: context?.toastId,
+      })
+    },
+    onSettled: (_data, error, _variables, context) => {
+      if (!error && context?.toastId) toast.dismiss(context.toastId)
+    },
+  })
+
+  const updateLocationMutation = useMutation({
+    mutationFn: ({ id, data }) => locationService.updateLocation(id, data),
+    onMutate: () => {
+      const toastId = toast.loading('Updating location...')
+      return { toastId }
+    },
+    onSuccess: (data) => {
+      syncLocationsCache(data, 'update')
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+      queryClient.refetchQueries({ queryKey: ['locations'], type: 'active' })
+      onClose()
+      onSuccess?.(data)
+      resetForm()
+    },
+    onError: (error, _variables, context) => {
+      console.error('Update location error:', error)
+      toast.error(error.response?.data?.message || 'Failed to update location', {
+        id: context?.toastId,
+      })
+    },
+    onSettled: (_data, error, _variables, context) => {
+      if (!error && context?.toastId) toast.dismiss(context.toastId)
+    },
+  })
+
+  const resetForm = () => {
+    setFormData({
+      locationId: '',
+      name: '',
+      subtitle: '',
+      description: '',
+      address: '',
+      phone: '',
+      reviewLink: '',
+      ghlApiKey: '',
+      hours: DAYS_OF_WEEK.map((day) => ({
+        day,
+        open: '09:00',
+        close: '17:00',
+        isClosed: false,
+      })),
+      coordinates: { latitude: null, longitude: null },
+      logo: '',
+      logoPublicId: '',
+      subdomain: '',
+      favicon: '',
+      faviconPublicId: '',
+      themeColor: '#ec4899',
+    })
+    setPosition(null);
+    setSearchTerm("");
+  }
+
+  const setUploadingForType = (type, value) => {
+    if (type === 'logo') {
+      setIsUploading(value)
+    } else {
+      setIsUploadingFavicon(value)
+    }
+  }
+
+  const getImageFields = (type) => {
+    if (type === 'logo') {
+      return {
+        url: formData.logo,
+        publicId: formData.logoPublicId,
+        update: (url, publicId) =>
+          setFormData((prev) => ({ ...prev, logo: url, logoPublicId: publicId || '' })),
+      }
+    }
+    return {
+      url: formData.favicon,
+      publicId: formData.faviconPublicId,
+      update: (url, publicId) =>
+        setFormData((prev) => ({ ...prev, favicon: url, faviconPublicId: publicId || '' })),
+    }
+  }
+
+  const openCropper = (file, type) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCrop({ x: 0, y: 0 })
+      setZoom(1)
+      setCroppedAreaPixels(null)
+      setCropperState({
+        isOpen: true,
+        src: reader.result,
+        type,
+        fileName: file.name || `${type}.png`,
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const uploadImageForType = async (fileOrBlob, type) => {
+    setUploadingForType(type, true)
+    try {
+      if (fileOrBlob.size > IMAGE_SIZE_LIMIT_BYTES) {
+        toast.info('Image is large, compressing...')
+      }
+      const compressed = await compressImage(fileOrBlob)
+      if (!isUnderSizeLimit(compressed)) {
+        toast.error(`${type === 'logo' ? 'Logo' : 'Favicon'} image must be less than 1MB`)
+        return
+      }
+      const { url, publicId, update } = getImageFields(type)
+      if (publicId || url) {
+        await uploadService
+          .deleteImage({
+            url,
+            publicId,
+          })
+          .catch(console.error)
+      }
+      const resp = await uploadService.uploadImage(compressed)
+      if (resp.success) {
+        update(resp.url, resp.publicId)
+        toast.success(`${type === 'logo' ? 'Logo' : 'Favicon'} uploaded successfully`)
+      }
+    } catch (err) {
+      console.error(`${type} upload error:`, err)
+      toast.error(`Failed to upload ${type === 'logo' ? 'logo' : 'favicon'}`)
+    } finally {
+      setUploadingForType(type, false)
+    }
+  }
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleHourChange = (index, field, value) => {
+    const newHours = [...formData.hours]
+    newHours[index] = { ...newHours[index], [field]: value }
+    setFormData((prev) => ({ ...prev, hours: newHours }))
+  }
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    openCropper(file, 'logo')
+  }
+
+  const handleRemoveLogo = async () => {
+    if (!formData.logo) return
+    if (formData.logoPublicId || formData.logo) {
+      await uploadService.deleteImage({
+        url: formData.logo,
+        publicId: formData.logoPublicId,
+      }).catch(console.error)
+    }
+    setFormData((prev) => ({ ...prev, logo: '', logoPublicId: '' }))
+  }
+
+  const handleFaviconUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    openCropper(file, 'favicon')
+  }
+
+  const handleRemoveFavicon = async () => {
+    if (!formData.favicon) return
+    if (formData.faviconPublicId || formData.favicon) {
+      await uploadService.deleteImage({
+        url: formData.favicon,
+        publicId: formData.faviconPublicId,
+      }).catch(console.error)
+    }
+    setFormData((prev) => ({ ...prev, favicon: '', faviconPublicId: '' }))
+  }
+
+  const handleCropConfirm = async () => {
+    if (!cropperState.src || !croppedAreaPixels || !cropperState.type) return
+    const croppedBlob = await getCroppedImage(cropperState.src, croppedAreaPixels)
+    if (!croppedBlob) {
+      toast.error('Failed to crop image')
+      return
+    }
+    const file = new File([croppedBlob], cropperState.fileName || `${cropperState.type}.png`, {
+      type: croppedBlob.type || 'image/png',
+    })
+    setCropperState({ isOpen: false, src: '', type: null, fileName: '' })
+    await uploadImageForType(file, cropperState.type)
+  }
+
+  const handleSubdomainChange = async (e) => {
+    const value = e.target.value.toLowerCase()
+    setFormData((prev) => ({ ...prev, subdomain: value }))
+
+    // Clear previous validation
+    setSubdomainValidation({ isValidating: false, error: null, available: null })
+
+    if (!value) return
+
+    // Client-side validation
+    const formatValidation = validateSubdomainFormat(value)
+    if (!formatValidation.valid) {
+      setSubdomainValidation({ isValidating: false, error: formatValidation.error, available: false })
+      return
+    }
+
+    // Server-side validation (debounced)
+    setSubdomainValidation({ isValidating: true, error: null, available: null })
+    
+    try {
+      const result = await brandingService.validateSubdomain(value, initialData?.locationId)
+      setSubdomainValidation({ 
+        isValidating: false, 
+        error: null, 
+        available: result.success 
+      })
+    } catch (err) {
+      setSubdomainValidation({ 
+        isValidating: false, 
+        error: err.response?.data?.message || 'Validation failed', 
+        available: false 
+      })
+    }
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+
+    if (!formData.locationId) {
+      toast.error('Location ID is required')
+      return
+    }
+
+    if (!formData.name.trim()) {
+      toast.error('Please enter a location name')
+      return
+    }
+
+    // Prepare data for API
+    const locationData = {
+      locationId: formData.locationId,
+      name: formData.name.trim(),
+      subtitle: formData.subtitle.trim(),
+      description: formData.description.trim(),
+      address: formData.address.trim(),
+      phone: formData.phone.trim(),
+      reviewLink: formData.reviewLink.trim(),
+      ghlApiKey: formData.ghlApiKey.trim(),
+      hours: formData.hours,
+      coordinates: position ? { latitude: position.lat, longitude: position.lng } : formData.coordinates,
+      logo: formData.logo,
+      logoPublicId: formData.logoPublicId,
+      subdomain: formData.subdomain || null,
+      favicon: formData.favicon || null,
+      faviconPublicId: formData.faviconPublicId || null,
+      themeColor: formData.themeColor || '#ec4899',
+    }
+
+    if (initialData?._id) {
+      updateLocationMutation.mutate({ id: initialData._id, data: locationData })
+    } else {
+      createLocationMutation.mutate(locationData)
+    }
+  }
+
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) return;
+    setIsSearching(true);
+    try {
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}`);
+      const data = await resp.json();
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        setPosition({ lat: parseFloat(lat), lng: parseFloat(lon) });
+        toast.success(`Found: ${data[0].display_name}`);
+      } else {
+        toast.error("Location not found.");
+      }
+    } catch (error) {
+      console.error("Search failed:", error)
+      toast.error("Search failed");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) return toast.error("GPS not supported");
+    setIsSearching(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setSearchTerm("");
+        toast.success("GPS Location found!");
+        setIsSearching(false);
+      },
+      () => {
+        toast.error("Could not get GPS location");
+        setIsSearching(false);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
+  const isPending =
+    createLocationMutation.isPending || updateLocationMutation.isPending
+
+  return (
+    <>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent showCloseButton={false} className={getDialogSheetClasses}>
+        <div className='w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 sm:hidden shrink-0' />
+        <div
+          className='px-6 py-5 sm:px-8 sm:py-6 text-white flex items-center justify-between shrink-0'
+          style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+        >
+          <div className='flex items-center gap-2'>
+            <MapPin className='w-6 h-6 text-white' />
+            <DialogTitle className='text-lg sm:text-2xl font-bold'>
+              {initialData ? 'Edit Location' : 'Create New Location'}
+            </DialogTitle>
+          </div>
+          <button
+            onClick={onClose}
+            className='p-2 rounded-lg hover:bg-white/15 transition-colors'
+            type='button'
+          >
+            <X className='w-5 h-5 text-white' />
+          </button>
+        </div>
+
+        <div className='px-6 sm:px-8 py-3 text-sm text-gray-600 border-b border-gray-100 shrink-0'>
+          {initialData
+            ? 'Update details for this spa location'
+            : 'Add a new spa location to the system using the account detail URL'}
+        </div>
+
+        <form onSubmit={handleSubmit} className='flex flex-1 min-h-0 flex-col'>
+          {isPending && (
+            <div className='mx-6 mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 sm:mx-8'>
+              <div className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                {initialData ? 'Updating location details...' : 'Creating location...'}
+              </div>
+              <div className='mt-3 h-1.5 overflow-hidden rounded-full bg-blue-100'>
+                <div className='h-full w-1/2 animate-pulse rounded-full bg-blue-500' />
+              </div>
+            </div>
+          )}
+          <div className='space-y-8 px-6 sm:px-8 pt-6 overflow-y-auto overflow-x-hidden flex-1 min-h-0'>
+          <div className='bg-gray-50 p-4 rounded-2xl space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='locationId' className='text-sm font-semibold text-gray-700'>
+                Location ID *
+              </Label>
+              <Input
+                id='locationId'
+                name='locationId'
+                value={formData.locationId}
+                onChange={handleInputChange}
+                placeholder='e.g., j3BAQnPNZywbuAE3QCCh'
+                required
+                className='bg-white rounded-xl'
+              />
+              <p className='text-xs text-gray-400 font-medium'>
+                Enter the internal unique identifier for this clinic.
+              </p>
+            </div>
+            
+            {/* Logo Upload */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <ImageIcon className='w-4 h-4 text-pink-500' />
+                Location Logo
+              </Label>
+              <div className='flex items-center gap-4'>
+                <div className='relative w-24 h-24 bg-white border border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center shadow-sm group'>
+                  {formData.logo ? (
+                    <>
+                      <img
+                        src={resolveBrandingLogoUrl(
+                          { logo: formData.logo, logoPublicId: formData.logoPublicId },
+                          { width: 192, height: 192 },
+                        )}
+                        alt='Logo'
+                        className='w-full h-full object-cover'
+                        loading='lazy'
+                        decoding='async'
+                      />
+                      <button
+                        type='button'
+                        onClick={handleRemoveLogo}
+                        className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white'
+                      >
+                        <Trash2 className='w-6 h-6' />
+                      </button>
+                    </>
+                  ) : (
+                    <ImageIcon className='w-8 h-8 text-gray-300' />
+                  )}
+                  {isUploading && (
+                    <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
+                      <Loader2 className='w-6 h-6 animate-spin text-pink-500' />
+                    </div>
+                  )}
+                </div>
+                <div className='flex-1'>
+                  <p className='text-xs text-gray-500 mb-2'>
+                    Upload a high-quality logo for this spa. You will crop it to a square. Keep it under 1MB for faster loading.
+                  </p>
+                  <div className='flex gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={() => document.getElementById('logo-upload').click()}
+                      disabled={isUploading}
+                      className='rounded-xl border-pink-100 text-pink-600 hover:bg-pink-50'
+                    >
+                      <Upload className='w-4 h-4 mr-2' />
+                      {formData.logo ? 'Change' : 'Upload'}
+                    </Button>
+                    <input
+                      id='logo-upload'
+                      type='file'
+                      accept='image/*'
+                      className='hidden'
+                      onChange={handleLogoUpload}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Subdomain Field */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <Globe className='w-4 h-4 text-pink-500' />
+                Custom Subdomain (Optional)
+              </Label>
+              <div className='space-y-2'>
+                <div className='relative'>
+                  <Input
+                    id='subdomain'
+                    name='subdomain'
+                    value={formData.subdomain}
+                    onChange={handleSubdomainChange}
+                    placeholder='e.g., spark'
+                    className={`bg-white rounded-xl pr-10 ${
+                      subdomainValidation.error
+                        ? 'border-red-300'
+                        : subdomainValidation.available
+                        ? 'border-green-300'
+                        : ''
+                    }`}
+                  />
+                  {subdomainValidation.isValidating && (
+                    <Loader2 className='absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400' />
+                  )}
+                  {subdomainValidation.available && (
+                    <span className='absolute right-3 top-1/2 -translate-y-1/2 text-green-500 text-xl'>✓</span>
+                  )}
+                </div>
+                {subdomainValidation.error && (
+                  <p className='text-xs text-red-500 flex items-center gap-1'>
+                    <AlertCircle className='w-3 h-3' />
+                    {subdomainValidation.error}
+                  </p>
+                )}
+                {formData.subdomain && !subdomainValidation.error && (
+                  <p className='text-xs text-blue-600 flex items-center gap-1'>
+                    <ExternalLink className='w-3 h-3' />
+                    Preview: {buildSubdomainUrl(formData.subdomain)}
+                  </p>
+                )}
+                <p className='text-xs text-gray-400 font-medium'>
+                  Create a custom subdomain for this spa (e.g., spark.cxrsystems.com). Leave blank to skip.
+                </p>
+              </div>
+            </div>
+
+            {/* Favicon Upload */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <ImageIcon className='w-4 h-4 text-pink-500' />
+                Custom Favicon (Optional)
+              </Label>
+              <div className='flex items-center gap-4'>
+                <div className='relative w-16 h-16 bg-white border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shadow-sm group'>
+                  {formData.favicon ? (
+                    <>
+                      <img
+                        src={resolveBrandingFaviconUrl(
+                          {
+                            favicon: formData.favicon,
+                            faviconPublicId: formData.faviconPublicId,
+                            logo: formData.logo,
+                            logoPublicId: formData.logoPublicId,
+                          },
+                          { width: 128, height: 128 },
+                        )}
+                        alt='Favicon'
+                        className='w-full h-full object-cover'
+                        loading='lazy'
+                        decoding='async'
+                      />
+                      <button
+                        type='button'
+                        onClick={handleRemoveFavicon}
+                        className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white'
+                      >
+                        <Trash2 className='w-4 h-4' />
+                      </button>
+                    </>
+                  ) : (
+                    <ImageIcon className='w-6 h-6 text-gray-300' />
+                  )}
+                  {isUploadingFavicon && (
+                    <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
+                      <Loader2 className='w-4 h-4 animate-spin text-pink-500' />
+                    </div>
+                  )}
+                </div>
+                <div className='flex-1'>
+                  <p className='text-xs text-gray-500 mb-2'>
+                    Upload a favicon. You will crop it to a square (192x192px recommended). Keep it under 1MB for faster loading. Falls back to logo if not provided.
+                  </p>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => document.getElementById('favicon-upload').click()}
+                    disabled={isUploadingFavicon}
+                    className='rounded-xl border-pink-100 text-pink-600 hover:bg-pink-50'
+                  >
+                    <Upload className='w-4 h-4 mr-2' />
+                    {formData.favicon ? 'Change' : 'Upload'}
+                  </Button>
+                  <input
+                    id='favicon-upload'
+                    type='file'
+                    accept='image/*'
+                    className='hidden'
+                    onChange={handleFaviconUpload}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Theme Color */}
+            <div className='space-y-4 pt-2 border-t border-gray-100'>
+              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+                <Palette className='w-4 h-4 text-pink-500' />
+                Theme Color
+              </Label>
+              <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
+                {THEME_COLORS.map((color) => {
+                  const isSelected = formData.themeColor === color.value
+                  const gradientEnd = adjustHex(color.value, -22)
+                  return (
+                    <button
+                      key={color.value}
+                      type='button'
+                      onClick={() =>
+                        setFormData((prev) => ({ ...prev, themeColor: color.value }))
+                      }
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                        isSelected
+                          ? 'border-gray-900 bg-gray-50 text-gray-900'
+                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span
+                        className='w-7 h-5 rounded-full border border-gray-200'
+                        style={{
+                          background: `linear-gradient(135deg, ${color.value}, ${gradientEnd})`,
+                        }}
+                      />
+                      {color.name}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className='rounded-2xl border border-gray-200 overflow-hidden'>
+                <div
+                  className='px-4 py-3 text-white font-semibold text-sm'
+                  style={{
+                    background: `linear-gradient(135deg, ${formData.themeColor}, ${adjustHex(formData.themeColor, -22)})`,
+                  }}
+                >
+                  Preview: App header style
+                </div>
+                <div className='p-4 bg-white'>
+                  <div className='flex items-center gap-3'>
+                    <div
+                      className='w-10 h-10 rounded-xl'
+                      style={{
+                        background: `linear-gradient(135deg, ${formData.themeColor}, ${adjustHex(formData.themeColor, -22)})`,
+                      }}
+                    />
+                    <div>
+                      <div className='text-sm font-semibold text-gray-900'>Your Brand</div>
+                      <div className='text-xs text-gray-500'>Dark gradient preview</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className='text-xs text-gray-400 font-medium'>
+                Choose a dark theme color. The gradient preview shows how it will look in the app.
+              </p>
+            </div>
+          </div>
+
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+            {/* Location Name */}
+            <div className='space-y-2'>
+              <Label htmlFor='name' className='text-sm font-semibold text-gray-700'>
+                Location Name *
+              </Label>
+              <Input
+                id='name'
+                name='name'
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder='e.g., Avous Med Spa & Wellness'
+                required
+                className='rounded-xl'
+              />
+            </div>
+
+            {/* Sidebar Subtitle */}
+            <div className='space-y-2'>
+              <Label htmlFor='subtitle' className='text-sm font-semibold text-gray-700'>
+                Location Tagline / Subtitle (Optional)
+              </Label>
+              <Input
+                id='subtitle'
+                name='subtitle'
+                value={formData.subtitle}
+                onChange={handleInputChange}
+                placeholder='e.g., HU GO PEMF Therapy'
+                className='rounded-xl'
+              />
+            </div>
+
+            {/* Phone */}
+            <div className='space-y-2'>
+              <Label
+                htmlFor='phone'
+                className='text-sm font-semibold text-gray-700'
+              >
+                Phone Number
+              </Label>
+              <Input
+                id='phone'
+                name='phone'
+                type='tel'
+                value={formData.phone}
+                onChange={handleInputChange}
+                placeholder='e.g., (555) 123-4567'
+                className='rounded-xl'
+              />
+            </div>
+          </div>
+
+          {/* Address */}
+          <div className='space-y-2'>
+            <Label htmlFor='address' className='text-sm font-semibold text-gray-700'>
+              Street Address
+            </Label>
+            <Input
+              id='address'
+              name='address'
+              value={formData.address}
+              onChange={handleInputChange}
+              placeholder='e.g., 10501 6 Mile Cypress Parkway Suite 110'
+              className='rounded-xl'
+            />
+          </div>
+
+          {/* Review Link */}
+          <div className='space-y-2'>
+            <Label htmlFor='reviewLink' className='text-sm font-semibold text-gray-700'>
+              Review Link (Google, Yelp, etc.)
+            </Label>
+            <Input
+              id='reviewLink'
+              name='reviewLink'
+              type='url'
+              value={formData.reviewLink}
+              onChange={handleInputChange}
+              placeholder='https://g.page/your-spa/review'
+              className='rounded-xl'
+            />
+            <p className='text-xs text-gray-400 font-medium'>
+              This URL is opened from the member dashboard. Point amount and rules are configured under the
+              location&apos;s Points settings (review method).
+            </p>
+          </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='ghlApiKey' className='text-sm font-semibold text-gray-700'>
+              GHL API Key (Per Location)
+            </Label>
+            <Input
+              id='ghlApiKey'
+              name='ghlApiKey'
+              type='password'
+              value={formData.ghlApiKey}
+              onChange={handleInputChange}
+              placeholder='Paste this location sub-account API key'
+              className='rounded-xl'
+              autoComplete='new-password'
+            />
+            <p className='text-xs text-gray-400 font-medium'>
+              Save each sub-account key here so this location can use its own GHL data.
+            </p>
+          </div>
+
+          {/* Map Section */}
+          <div className='space-y-4 pt-2'>
+            <div className='flex items-center gap-2 border-b pb-2'>
+              <MapPin className='w-5 h-5 text-pink-500' />
+              <h3 className='text-lg font-bold text-gray-900'>Map Location</h3>
+            </div>
+
+            <div className='flex gap-2'>
+                <div className='relative flex-1'>
+                    <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                    <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearch())}
+                        placeholder='Search address for map...'
+                        className='pl-10 rounded-xl'
+                    />
+                </div>
+                <Button 
+                    type='button' 
+                    variant='outline'
+                    onClick={handleGetLocation}
+                    disabled={isSearching}
+                    className='rounded-xl px-3 border-pink-100 text-pink-500 hover:bg-pink-50'
+                >
+                    <LocateFixed className={`w-4 h-4 ${isSearching ? 'animate-pulse' : ''}`} />
+                </Button>
+                <Button 
+                    type='button' 
+                    onClick={handleSearch}
+                    disabled={isSearching}
+                    className='bg-gray-900 text-white rounded-xl'
+                >
+                    {isSearching ? '...' : 'Find'}
+                </Button>
+            </div>
+
+            <div className='h-64 rounded-2xl overflow-hidden border-2 border-gray-100 shadow-inner relative z-0'>
+                <MapContainer
+                    center={[51.505, -0.09]}
+                    zoom={13}
+                    style={{ height: "100%", width: "100%" }}
+                >
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <MapPicker position={position} setPosition={setPosition} />
+                    <MapUpdater position={position} />
+                </MapContainer>
+            </div>
+            <p className='text-[10px] text-center text-gray-400 font-medium'>
+                Click on the map or drag the pin to set precise location
+            </p>
+          </div>
+
+          {/* Business Hours Section */}
+          <div className='space-y-4'>
+            <div className='flex items-center gap-2 border-b pb-2'>
+              <Clock className='w-5 h-5 text-pink-500' />
+              <h3 className='text-lg font-bold text-gray-900'>Business Hours</h3>
+            </div>
+
+            <div className='space-y-3'>
+              {formData.hours.map((hour, index) => (
+                <div
+                  key={hour.day}
+                  className='grid grid-cols-12 gap-3 items-center bg-gray-50/50 p-2 rounded-xl transition-all hover:bg-gray-50'
+                >
+                  <div className='col-span-3'>
+                    <span className='text-sm font-bold text-gray-700'>
+                      {hour.day}
+                    </span>
+                  </div>
+                  <div className='col-span-4'>
+                    <Input
+                      type='time'
+                      value={hour.open}
+                      disabled={hour.isClosed}
+                      onChange={(e) =>
+                        handleHourChange(index, 'open', e.target.value)
+                      }
+                      className='bg-white rounded-lg h-9 text-xs'
+                    />
+                  </div>
+                  <div className='col-span-4'>
+                    <Input
+                      type='time'
+                      value={hour.close}
+                      disabled={hour.isClosed}
+                      onChange={(e) =>
+                        handleHourChange(index, 'close', e.target.value)
+                      }
+                      className='bg-white rounded-lg h-9 text-xs'
+                    />
+                  </div>
+                  <div className='col-span-1 flex justify-end'>
+                    <input
+                      type='checkbox'
+                      id={`closed-${hour.day}`}
+                      checked={hour.isClosed}
+                      onChange={(e) =>
+                        handleHourChange(index, 'isClosed', e.target.checked)
+                      }
+                      className='w-4 h-4 rounded text-pink-500 focus:ring-pink-500 cursor-pointer'
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className='space-y-2'>
+            <Label
+              htmlFor='description'
+              className='text-sm font-semibold text-gray-700'
+            >
+              Notes / Description
+            </Label>
+            <Textarea
+              id='description'
+              name='description'
+              value={formData.description}
+              onChange={handleInputChange}
+              placeholder='Optional description or additional info...'
+              rows={3}
+              className='rounded-2xl resize-none'
+            />
+          </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className='flex gap-4 px-6 sm:px-8 py-5 border-t border-gray-100 bg-white shrink-0'>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={onClose}
+              className='flex-1 rounded-xl h-12 font-bold'
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type='submit'
+              className='flex-1 text-white rounded-xl h-12 font-bold'
+              style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+              disabled={isPending || !formData.locationId || !formData.name.trim()}
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className='w-5 h-5 mr-2 animate-spin' />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  {initialData ? 'Update Location' : 'Create Location'}
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+    <Dialog
+      open={cropperState.isOpen}
+      onOpenChange={(open) =>
+        !open && setCropperState({ isOpen: false, src: '', type: null, fileName: '' })
+      }
+    >
+      <DialogContent showCloseButton={false} className='max-w-lg w-[95vw] p-0 overflow-hidden rounded-2xl'>
+        <div className='px-5 py-4 border-b border-gray-100 flex items-center justify-between'>
+          <DialogTitle className='text-lg font-bold text-gray-900'>
+            Crop {cropperState.type === 'favicon' ? 'Favicon' : 'Logo'}
+          </DialogTitle>
+          <button
+            type='button'
+            className='p-2 rounded-lg hover:bg-gray-100'
+            onClick={() => setCropperState({ isOpen: false, src: '', type: null, fileName: '' })}
+          >
+            <X className='w-4 h-4 text-gray-500' />
+          </button>
+        </div>
+        <div className='relative w-full h-72 bg-gray-100'>
+          {cropperState.src && (
+            <Cropper
+              image={cropperState.src}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
+            />
+          )}
+        </div>
+        <div className='px-5 py-4 space-y-3'>
+          <Label className='text-xs font-semibold text-gray-600'>Zoom</Label>
+          <input
+            type='range'
+            min={1}
+            max={3}
+            step={0.01}
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className='w-full accent-pink-500'
+          />
+          <div className='flex justify-end gap-2 pt-2'>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setCropperState({ isOpen: false, src: '', type: null, fileName: '' })}
+            >
+              Cancel
+            </Button>
+            <Button type='button' onClick={handleCropConfirm} className='bg-gray-900 text-white'>
+              Use Crop
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
+  )
+}
+
+export default LocationForm

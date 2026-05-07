@@ -1,0 +1,967 @@
+<!-- File: client/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover"
+    />
+
+    <!-- Basic Meta Tags -->
+    <meta
+      name="description"
+      content="CxR Systems - AI-powered beauty and wellness management platform"
+    />
+    <meta name="author" content="CxR Systems" />
+    <meta
+      name="keywords"
+      content="beauty, wellness, AI, management, spa, clinic"
+    />
+
+    <!-- PWA Essential Meta Tags -->
+    <meta name="theme-color" content="#ec4899" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="CxR Systems" />
+    <meta name="apple-mobile-web-app-title" content="CxR Systems" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="msapplication-navbutton-color" content="#ec4899" />
+    <meta name="msapplication-starturl" content="/" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- iOS Specific -->
+    <meta name="apple-touch-fullscreen" content="yes" />
+    <meta name="apple-mobile-web-app-orientations" content="portrait-any" />
+
+    <!-- Android Specific -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="full-screen" content="yes" />
+    <meta name="screen-orientation" content="portrait" />
+
+    <!-- Favicon -->
+
+    <link rel="icon" type="image/x-icon" href="/favicon_io/favicon.ico" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="/favicon_io/favicon-16x16.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/favicon_io/favicon-32x32.png"
+    />
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/favicon_io/apple-touch-icon.png" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/favicon_io/apple-touch-icon.png"
+    />
+
+    <!-- Android Icons -->
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/favicon_io/android-chrome-192x192.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="512x512"
+      href="/favicon_io/android-chrome-512x512.png"
+    />
+
+    <!-- Manifest - IMPORTANT FOR PWA -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Preconnect for Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CxR Systems - Beauty & Wellness AI" />
+    <meta
+      property="og:description"
+      content="AI-powered beauty and wellness management platform"
+    />
+    <meta
+      property="og:image"
+      content="/favicon_io/android-chrome-512x512.png"
+    />
+    <meta property="og:url" content="https://CxR Systems.com" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="CxR Systems" />
+    <meta
+      name="twitter:description"
+      content="AI-powered beauty and wellness management platform"
+    />
+    <meta
+      name="twitter:image"
+      content="/favicon_io/android-chrome-512x512.png"
+    />
+
+    <title>CxR systems</title>
+    <script>
+      (() => {
+        const DEFAULT_APP_NAME = 'CxR systems';
+        const RESERVED_SUBDOMAINS = new Set([
+          'www',
+          'app',
+          'api',
+          'localhost',
+          '127',
+        ]);
+
+        const setMetaContent = (selector, content) => {
+          const node = document.querySelector(selector);
+          if (node && content) {
+            node.setAttribute('content', content);
+          }
+        };
+
+        const humanizeSubdomain = (value) =>
+          value
+            .split('-')
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+
+        const applyAppName = (name) => {
+          const normalizedName = (name || '').trim();
+          if (!normalizedName) return;
+          document.title = `${normalizedName} | ${DEFAULT_APP_NAME}`;
+          setMetaContent("meta[name='apple-mobile-web-app-title']", normalizedName);
+          setMetaContent("meta[name='application-name']", normalizedName);
+          setMetaContent("meta[property='og:title']", normalizedName);
+          setMetaContent("meta[name='twitter:title']", normalizedName);
+        };
+
+        const updateManifestName = async (name) => {
+          const normalizedName = (name || '').trim();
+          if (!normalizedName) return;
+
+          const manifestLink = document.querySelector("link[rel='manifest']");
+          if (!manifestLink) return;
+
+          try {
+            const response = await fetch('/manifest.json', { cache: 'no-store' });
+            if (!response.ok) return;
+
+            const manifest = await response.json();
+            manifest.name = normalizedName;
+            manifest.short_name = normalizedName;
+
+            const blob = new Blob([JSON.stringify(manifest)], {
+              type: 'application/manifest+json',
+            });
+            const manifestUrl = URL.createObjectURL(blob);
+
+            if (window.__cxrManifestObjectUrl) {
+              URL.revokeObjectURL(window.__cxrManifestObjectUrl);
+            }
+            window.__cxrManifestObjectUrl = manifestUrl;
+            manifestLink.setAttribute('href', manifestUrl);
+          } catch {
+            // Keep default manifest.
+          }
+        };
+
+        const hostname = window.location.hostname.toLowerCase();
+        const hostnameParts = hostname.split('.');
+        const isIpv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+        const subdomain =
+          !isIpv4 && hostnameParts.length > 2
+            ? hostnameParts[0]
+            : null;
+
+        if (!subdomain || RESERVED_SUBDOMAINS.has(subdomain)) {
+          return;
+        }
+
+        const brandingCacheKey = `cxr-branding-name:${subdomain}`;
+        let cachedBrandName = null;
+        try {
+          cachedBrandName = localStorage.getItem(brandingCacheKey);
+        } catch {
+          cachedBrandName = null;
+        }
+
+        // Apply immediately so iOS "Add to Home Screen" gets tenant-specific text.
+        // Prefer exact cached management name, fallback to humanized subdomain.
+        const immediateName = cachedBrandName || humanizeSubdomain(subdomain);
+        applyAppName(immediateName);
+        updateManifestName(immediateName);
+
+        // Resolve exact location name (if available) and overwrite fallback.
+        const apiBase = '%VITE_API_URL%';
+        if (!apiBase || apiBase.includes('%VITE_API_URL%')) return;
+
+        const normalizedApiBase = apiBase.replace(/\/+$/, '');
+        fetch(`${normalizedApiBase}/branding/${encodeURIComponent(subdomain)}`, {
+          credentials: 'include',
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((payload) => {
+            const locationName = payload?.success ? payload?.data?.name : null;
+            if (locationName) {
+              try {
+                localStorage.setItem(brandingCacheKey, locationName);
+              } catch {
+                // Ignore storage failures.
+              }
+              applyAppName(locationName);
+              updateManifestName(locationName);
+            }
+          })
+          .catch(() => {
+            // Keep fallback subdomain name.
+          });
+      })();
+    </script>
+
+    <style>
+      :root {
+        --splash-primary: #ec4899;
+        --splash-primary-rgb: 236, 72, 153;
+        --splash-bg: #ffffff;
+      }
+
+      body {
+        font-family: 'Roboto', sans-serif;
+        margin: 0;
+        padding: 0;
+        overscroll-behavior-y: contain;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      /* ===== PREMIUM SPLASH SCREEN ===== */
+      .splash-screen {
+        position: fixed;
+        inset: 0;
+        background: var(--splash-bg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        opacity: 1;
+        overflow: hidden;
+        transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.8s;
+      }
+
+      .splash-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+        transform: scale(1.05);
+        pointer-events: none;
+      }
+
+      /* Dynamic Background Elements */
+      .splash-aura {
+        position: absolute;
+        inset: -10%;
+        background: radial-gradient(
+          circle at 50% 50%,
+          rgba(var(--splash-primary-rgb), 0.15) 0%,
+          rgba(var(--splash-primary-rgb), 0.05) 30%,
+          transparent 70%
+        );
+        filter: blur(80px);
+        animation: auraPulse 6s ease-in-out infinite alternate;
+        z-index: 0;
+      }
+
+      .splash-blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(60px);
+        opacity: 0.12;
+        z-index: 0;
+        animation: blobFloat 12s ease-in-out infinite;
+      }
+
+      .splash-blob-1 {
+        top: -10%;
+        left: -10%;
+        width: 60vw;
+        height: 60vw;
+        background: var(--splash-primary);
+        animation-delay: 0s;
+      }
+
+      .splash-blob-2 {
+        bottom: -5%;
+        right: -5%;
+        width: 50vw;
+        height: 50vw;
+        background: var(--splash-primary);
+        animation-delay: -6s;
+        animation-direction: reverse;
+      }
+
+      @keyframes auraPulse {
+        0% { transform: scale(1) translate(0, 0); opacity: 0.1; }
+        100% { transform: scale(1.2) translate(5%, 5%); opacity: 0.2; }
+      }
+
+      @keyframes blobFloat {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(5%, 10%) scale(1.1); }
+        66% { transform: translate(-5%, -5%) scale(0.9); }
+      }
+
+      /* Content Layout */
+      .splash-content {
+        position: relative;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 40px;
+        will-change: transform, opacity;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+      }
+
+      .splash-content.revealed {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* Glass Logo Container */
+      .splash-logo-container {
+        position: relative;
+        margin-bottom: 40px;
+        animation: logoEntrance 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      .splash-logo {
+        width: 120px;
+        height: 120px;
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 
+          0 20px 40px -12px rgba(var(--splash-primary-rgb), 0.25),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+          inset 0 2px 4px rgba(255, 255, 255, 0.3);
+        transform: rotate(-5deg);
+        animation: floatLogo 4s ease-in-out infinite;
+      }
+
+      .splash-mark {
+        font-size: 42px;
+        font-weight: 900;
+        background: linear-gradient(135deg, var(--splash-primary) 0%, #000000 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -1px;
+        line-height: 1;
+      }
+
+      .splash-logo-img {
+        display: none;
+        width: 72%;
+        height: 72%;
+        max-width: 96px;
+        max-height: 96px;
+        object-fit: contain;
+      }
+
+      .splash-logo.has-image .splash-logo-img {
+        display: block;
+      }
+
+      .splash-logo.has-image .splash-mark {
+        display: none;
+      }
+
+      .logo-ring {
+        position: absolute;
+        inset: -10px;
+        border: 2px solid rgba(var(--splash-primary-rgb), 0.1);
+        border-radius: 40px;
+        animation: ringRotate 10s linear infinite;
+      }
+
+      @keyframes floatLogo {
+        0%, 100% { transform: translateY(0) rotate(-5deg); }
+        50% { transform: translateY(-15px) rotate(2deg); }
+      }
+
+      @keyframes ringRotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      @keyframes logoEntrance {
+        from { opacity: 0; transform: scale(0.8) translateY(20px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+
+      /* Typography Styles */
+      .splash-title {
+        font-size: 34px;
+        font-weight: 800;
+        color: #111827;
+        margin: 0 0 8px;
+        letter-spacing: -1px;
+      }
+
+      .splash-subtitle {
+        font-size: 15px;
+        font-weight: 500;
+        color: #6b7280;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 48px;
+      }
+
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(15px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Minimal Loading Indicator */
+      .loader-wrapper {
+        width: 180px;
+        position: relative;
+        opacity: 0;
+        animation: fadeIn 0.5s ease-out forwards 1s;
+      }
+
+      .loader-track {
+        height: 3px;
+        width: 100%;
+        background: #f3f4f6;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      .loader-bar {
+        height: 100%;
+        width: 50%;
+        background: var(--splash-primary);
+        border-radius: 10px;
+        animation: loaderAnim 2s infinite ease-in-out;
+        box-shadow: 0 0 10px rgba(var(--splash-primary-rgb), 0.3);
+      }
+
+      @keyframes loaderAnim {
+        0% { transform: translateX(-110%); }
+        50% { transform: translateX(50%); width: 30%; }
+        100% { transform: translateX(210%); }
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      /* Footer Info */
+      .splash-footer {
+        position: absolute;
+        bottom: 40px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        opacity: 0;
+        animation: fadeIn 1s ease-out forwards 1.2s;
+      }
+
+      .splash-footer p {
+        font-size: 11px;
+        font-weight: 600;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      /* Mobile Adjustments */
+      @media (max-width: 480px) {
+        .splash-logo { width: 100px; height: 100px; border-radius: 28px; }
+        .splash-mark { font-size: 34px; }
+        .splash-logo-img {
+          max-width: 76px;
+          max-height: 76px;
+        }
+        .splash-title { font-size: 28px; }
+        .splash-subtitle { font-size: 13px; }
+      }
+
+      /* Dark Mode Support (Optional, based on branding) */
+      @media (prefers-color-scheme: dark) {
+        :root { --splash-bg: #030712; }
+        .splash-title { color: #f9fafb; }
+        .splash-subtitle { color: #9ca3af; }
+        .splash-logo { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .loader-track { background: #1f2937; }
+        .splash-mark { background: linear-gradient(135deg, var(--splash-primary) 0%, #ffffff 100%); -webkit-background-clip: text; background-clip: text; }
+      }
+    </style>
+
+    <!-- SIMPLIFIED: Minimal Service Worker Registration -->
+    <script>
+      const API_ORIGIN =
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:8800'
+          : 'https://api.cxrsystems.com'
+
+      const API_BASE = `${API_ORIGIN}/api`
+
+      let CLOUDINARY_CLOUD_NAME = '%VITE_CLOUDINARY_CLOUD_NAME%'
+      if (CLOUDINARY_CLOUD_NAME.includes('%VITE_')) CLOUDINARY_CLOUD_NAME = ''
+
+      const isCloudinaryUrl = (url) =>
+        typeof url === 'string' && url.includes('res.cloudinary.com/')
+
+      const CLOUDINARY_VERSION_SEGMENT = /^v\d+$/
+
+      const isSingleSegmentCloudinaryTransform = (seg) => {
+        if (/^fl_[a-z0-9_]+$/i.test(seg)) return true
+        if (/^f_(auto|png|jpg|jpeg|webp|heif|avif|gif|bmp|ico|pdf|svg)$/i.test(seg)) return true
+        if (/^q_(auto|auto:best|auto:good|auto:eco|auto:low|\d{1,3})$/i.test(seg)) return true
+        if (/^w_\d{1,4}$/.test(seg)) return true
+        if (/^h_\d{1,4}$/.test(seg)) return true
+        if (/^dpr_(auto|[\d.]+)$/i.test(seg)) return true
+        if (/^ar_[\d.]+:[\d.]+$/.test(seg)) return true
+        if (/^c_(fill|fit|pad|limit|scale|thumb|crop|imag|if|ip)$/.test(seg)) return true
+        if (/^b_(auto|white|black|transparent|rgb:[0-9a-f]{3,8})$/i.test(seg)) return true
+        if (/^g_(north|south|east|west|center|face|custom)$/i.test(seg)) return true
+        if (/^x_\d+$/i.test(seg)) return true
+        if (/^y_\d+$/i.test(seg)) return true
+        if (/^z_\d+$/i.test(seg)) return true
+        if (/^u_[a-z]/i.test(seg)) return true
+        return false
+      }
+
+      /** Strip baked-in /image/upload/ transforms (keep in sync with client/src/lib/imageHelpers.js). */
+      const stripCloudinaryUploadPathSuffix = (rest) => {
+        if (!rest || typeof rest !== 'string') return ''
+        const segments = rest.split('/').filter(Boolean)
+        let i = 0
+        while (i < segments.length) {
+          const seg = segments[i]
+          if (CLOUDINARY_VERSION_SEGMENT.test(seg)) return segments.slice(i).join('/')
+          if (seg.includes(',')) {
+            i += 1
+            continue
+          }
+          if (isSingleSegmentCloudinaryTransform(seg)) {
+            i += 1
+            continue
+          }
+          return segments.slice(i).join('/')
+        }
+        return ''
+      }
+
+      const buildCloudinaryUrl = (publicId, options = {}) => {
+        if (!CLOUDINARY_CLOUD_NAME || !publicId) return publicId
+        const parts = []
+        if (options.preserveTransparency) {
+          parts.push('f_png', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_limit')
+        } else {
+          parts.push('f_auto', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_fill')
+        }
+        const transform = parts.join(',')
+        return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${transform}/${publicId}`
+      }
+
+      const buildCloudinaryUrlFromFull = (url, options = {}) => {
+        if (!isCloudinaryUrl(url)) return url
+        const splitMarker = '/image/upload/'
+        const idx = url.indexOf(splitMarker)
+        if (idx === -1) return url
+        const base = url.slice(0, idx)
+        const rawRest = url.slice(idx + splitMarker.length)
+        const rest = stripCloudinaryUploadPathSuffix(rawRest) || rawRest
+        const parts = []
+        if (options.preserveTransparency) {
+          parts.push('f_png', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_limit')
+        } else {
+          parts.push('f_auto', 'q_auto')
+          if (options.width) parts.push(`w_${options.width}`)
+          if (options.height) parts.push(`h_${options.height}`)
+          if (options.width || options.height) parts.push('c_fill')
+        }
+        const transform = parts.join(',')
+        return `${base}${splitMarker}${transform}/${rest}`
+      }
+
+      /** Matches client/src/lib/imageHelpers.js (branding logo + transparency). */
+      const resolveSplashLogoUrl = (value, fallback, options = {}) => {
+        if (!value || typeof value !== 'string') return fallback
+        if (isCloudinaryUrl(value)) return buildCloudinaryUrlFromFull(value, options)
+        if (value.startsWith('http')) return value
+        return buildCloudinaryUrl(value, options) || fallback
+      }
+
+      const getCurrentSubdomain = () => {
+        const host = window.location.hostname.toLowerCase()
+        const parts = host.split('.')
+        if (parts.length <= 2) return null
+        const sub = parts[0]
+        if (['www', 'app', 'api'].includes(sub)) return null
+        return sub
+      }
+
+      const hexToRgb = (hex) => {
+        if (!hex) return '236, 72, 153'
+        const cleaned = hex.replace('#', '')
+        if (cleaned.length !== 6) return '236, 72, 153'
+        const num = parseInt(cleaned, 16)
+        return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`
+      }
+
+      const SPLASH_GENERIC_TITLE = 'Loading'
+      const SPLASH_GENERIC_SUBTITLE = ''
+
+      const applySplashBranding = (branding) => {
+        const primary = branding?.themeColor || '#ec4899'
+        const rgb = hexToRgb(primary)
+        
+        document.documentElement.style.setProperty('--splash-primary', primary)
+        document.documentElement.style.setProperty('--splash-primary-rgb', rgb)
+
+        const titleEl = document.querySelector('.splash-title')
+        const subtitleEl = document.querySelector('.splash-subtitle')
+        const markEl = document.querySelector('.splash-mark')
+        const logoImgEl = document.querySelector('.splash-logo-img')
+        const logoBoxEl = document.querySelector('.splash-logo')
+        const contentEl = document.querySelector('.splash-content')
+
+        const name = (branding?.name || '').trim()
+        const tag = (branding?.subtitle || branding?.tagline || '').trim()
+
+        if (titleEl) titleEl.textContent = name || SPLASH_GENERIC_TITLE
+        if (subtitleEl) {
+          subtitleEl.textContent = tag || SPLASH_GENERIC_SUBTITLE
+          subtitleEl.style.display = tag ? '' : 'none'
+        }
+
+        let initialsText = ''
+        if (name && markEl) {
+          initialsText = name
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0])
+            .join('')
+            .toUpperCase()
+        }
+        if (markEl) markEl.textContent = initialsText
+
+        const pid = `${branding?.logoPublicId || ''}`.trim()
+        const logo = `${branding?.logo || ''}`.trim()
+        const logoKey =
+          pid && !/^https?:\/\//i.test(pid) ? pid : logo || pid
+        const resolvedLogo =
+          logoKey && typeof logoKey === 'string'
+            ? resolveSplashLogoUrl(logoKey, logo || pid, {
+                width: 128,
+                height: 128,
+                preserveTransparency: true,
+              })
+            : ''
+
+        if (logoBoxEl && logoImgEl) {
+          if (resolvedLogo) {
+            logoBoxEl.classList.add('has-image')
+            logoImgEl.alt = name || 'Brand logo'
+            logoImgEl.onerror = () => {
+              logoBoxEl.classList.remove('has-image')
+              logoImgEl.removeAttribute('src')
+              logoImgEl.alt = ''
+              logoImgEl.onerror = null
+            }
+            logoImgEl.src = resolvedLogo
+          } else {
+            logoBoxEl.classList.remove('has-image')
+            logoImgEl.removeAttribute('src')
+            logoImgEl.alt = ''
+            logoImgEl.onerror = null
+          }
+        }
+
+        if (contentEl) contentEl.classList.add('revealed')
+      }
+
+      const getStoredBrandingLocationId = () => {
+        try {
+          return localStorage.getItem('brandingLocationId')?.trim() || null
+        } catch {
+          return null
+        }
+      }
+
+      const getSplashBrandingCacheKey = () => {
+        const params = new URLSearchParams(window.location.search)
+        const spaLocationId = params.get('spa')?.trim()
+        const subdomain = getCurrentSubdomain()
+        const storedLocationId = getStoredBrandingLocationId()
+        if (spaLocationId) return `splash-branding:spa:${spaLocationId}`
+        if (subdomain) return `splash-branding:subdomain:${subdomain}`
+        if (storedLocationId) return `splash-branding:location:${storedLocationId}`
+        return 'splash-branding:default'
+      }
+
+      // Initialize from cache immediately (Synchronous)
+      const cacheKey = getSplashBrandingCacheKey()
+      let cachedData = null
+      try {
+        const cachedValue = localStorage.getItem(cacheKey)
+        if (cachedValue) {
+          cachedData = JSON.parse(cachedValue)
+          // We can't apply to DOM yet if body isn't parsed, 
+          // but we can set CSS variables immediately
+          if (cachedData?.themeColor) {
+            const rgb = hexToRgb(cachedData.themeColor)
+            document.documentElement.style.setProperty('--splash-primary', cachedData.themeColor)
+            document.documentElement.style.setProperty('--splash-primary-rgb', rgb)
+          }
+        }
+      } catch (e) {
+        console.warn('Splash cache error', e)
+      }
+
+      const loadSplashBranding = async () => {
+        try {
+          const params = new URLSearchParams(window.location.search)
+          const spaLocationId = params.get('spa')?.trim()
+          const subdomain = getCurrentSubdomain()
+          const storedLocationId = getStoredBrandingLocationId()
+          
+          let response
+          if (spaLocationId) {
+            response = await fetch(`${API_BASE}/branding/location/${encodeURIComponent(spaLocationId)}`)
+          } else if (subdomain) {
+            response = await fetch(`${API_BASE}/branding/${encodeURIComponent(subdomain)}`)
+          } else if (storedLocationId) {
+            response = await fetch(`${API_BASE}/branding/location/${encodeURIComponent(storedLocationId)}`)
+          }
+
+          if (response?.ok) {
+            const payload = await response.json()
+            const branding = payload?.data || null
+            if (branding) {
+              applySplashBranding(branding)
+              localStorage.setItem(cacheKey, JSON.stringify(branding))
+              return
+            }
+          }
+          
+          // Fallback to cache if request fails, or default
+          applySplashBranding(cachedData)
+        } catch {
+          applySplashBranding(cachedData)
+        }
+      }
+
+      // Start the fetch, but also reveal the splash content quickly 
+      // if it's already in cache
+      window.addEventListener('DOMContentLoaded', () => {
+        if (cachedData) {
+          applySplashBranding(cachedData)
+        }
+        loadSplashBranding()
+      })
+
+      // Service worker registration with aggressive update checks for PWA users
+      if ('serviceWorker' in navigator) {
+        let isRefreshing = false
+
+        const triggerPageReload = () => {
+          if (isRefreshing) return
+          isRefreshing = true
+          window.location.reload()
+        }
+
+        const setupRegistration = async () => {
+          try {
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+              scope: '/',
+              updateViaCache: 'none',
+            })
+
+            // Detect a newly downloaded worker and activate it immediately.
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing
+              if (!newWorker) return
+
+              newWorker.addEventListener('statechange', () => {
+                const hasController = Boolean(navigator.serviceWorker.controller)
+                if (newWorker.state === 'installed' && hasController) {
+                  newWorker.postMessage({ type: 'SKIP_WAITING' })
+                }
+              })
+            })
+
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              triggerPageReload()
+            })
+
+            // Check for new versions when app starts and whenever user returns.
+            await registration.update()
+
+            const updateOnReturn = () => registration.update()
+            window.addEventListener('focus', updateOnReturn)
+            window.addEventListener('pageshow', updateOnReturn)
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') {
+                registration.update()
+              }
+            })
+
+            // Periodic check while app stays open.
+            setInterval(() => {
+              registration.update()
+            }, 60 * 1000)
+
+            console.log('ServiceWorker registered and update checks enabled')
+          } catch (err) {
+            console.error('ServiceWorker registration failed:', err)
+          }
+        }
+
+        window.addEventListener('load', setupRegistration)
+      }
+
+      // iOS PWA Detection (optional)
+      if (window.navigator.standalone === false) {
+        console.log('iOS Safari - can be installed as PWA')
+      }
+
+      // Hide splash screen when app is ready
+      function hideSplashScreen() {
+        const splash = document.getElementById('splash-screen')
+        if (splash) {
+          splash.classList.add('hidden')
+        }
+      }
+
+      // Make function globally available for React
+      window.hideSplashScreen = hideSplashScreen
+
+      // Second load in the same tab session (e.g. service worker activated → reload):
+      // show splash only briefly so first-open does not feel like a "double splash".
+      const SPLASH_QUICK_HIDE_MS = 120
+      const splashSessionKey = 'cxr-splash-session-dismissed'
+      let splashHideDelayMs = 400
+      try {
+        if (sessionStorage.getItem(splashSessionKey)) {
+          splashHideDelayMs = SPLASH_QUICK_HIDE_MS
+        }
+        sessionStorage.setItem(splashSessionKey, '1')
+      } catch {
+        // Ignore private mode / storage errors.
+      }
+
+      // Auto-hide splash screen after 5 seconds (failsafe)
+      setTimeout(() => {
+        hideSplashScreen()
+      }, 5000)
+
+      // Hide splash on page load
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          hideSplashScreen()
+        }, splashHideDelayMs)
+      })
+    </script>
+  </head>
+  <body>
+    <!-- MODERN SPLASH SCREEN - Shows until React app is ready -->
+    <div id="splash-screen" class="splash-screen">
+      <!-- Decorative Background Elements -->
+      <div class="splash-aura"></div>
+      <div class="splash-blob splash-blob-1"></div>
+      <div class="splash-blob splash-blob-2"></div>
+      
+      <div class="splash-content">
+        <div class="splash-logo-container">
+          <div class="logo-ring"></div>
+          <div class="splash-logo">
+            <img class="splash-logo-img" alt="" width="128" height="128" decoding="async" />
+            <span class="splash-mark"></span>
+          </div>
+        </div>
+        
+        <h1 class="splash-title"></h1>
+        <p class="splash-subtitle"></p>
+        
+        <div class="loader-wrapper">
+          <div class="loader-track">
+            <div class="loader-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="splash-footer" style="display: none"></div>
+    </div>
+
+    <!-- React App Root -->
+    <div id="root">
+      <!-- The app will render here immediately -->
+    </div>
+
+    <!-- No Script Fallback -->
+    <noscript>
+      <div
+        style="
+          padding: 20px;
+          text-align: center;
+          font-family: sans-serif;
+          background: #f8f8f8;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        <div>
+          <h2 style="color: #ec4899">JavaScript Required</h2>
+          <p style="color: #666; margin-top: 10px">
+            Please enable JavaScript to use CxR Systems.
+          </p>
+        </div>
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

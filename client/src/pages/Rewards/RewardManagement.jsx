@@ -1,0 +1,1372 @@
+// File: client/src/pages/Rewards/RewardManagement.jsx
+import {
+    useCreateReward,
+    useDeleteReward,
+    useEnhancedRewardsCatalog,
+    useUpdateReward,
+} from '@/hooks/useRewards'
+import { useServices } from '@/hooks/useServices'
+import { useBranding } from '@/context/BrandingContext'
+import { locationService } from '@/services/locationService'
+import { rewardsService } from '@/services/rewardsService'
+import { useQuery } from '@tanstack/react-query'
+import { uploadService } from '@/services/uploadService'
+import { resolveImageUrl } from '@/lib/imageHelpers'
+import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+    ArrowLeft,
+    Award,
+    ChevronDown,
+    DollarSign,
+    Edit3,
+    Gift,
+    Mic,
+    Percent,
+    Plus,
+    Save,
+    Search,
+    Star,
+    Target,
+    Trash2,
+    Users,
+    X,
+    Zap,
+} from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
+import { toast } from 'sonner'
+import VoiceRecorder from '../../components/Common/VoiceRecorder'
+import Layout from '../Layout/Layout'
+
+const rewardTypes = [
+  { id: 'add_on', name: 'Add-On', icon: Plus },
+  { id: 'upgrade', name: 'Upgrade', icon: ArrowLeft },
+  { id: 'experience', name: 'Experience', icon: Target },
+  { id: 'free_service', name: 'Free Service', icon: Gift },
+  { id: 'discount', name: 'Discount', icon: Percent },
+  { id: 'credit', name: 'Service Credit', icon: DollarSign },
+  { id: 'service', name: 'Free Service', icon: Gift },
+  { id: 'combo', name: 'Combo Deal', icon: Star },
+  { id: 'referral', name: 'Referral Reward', icon: Users },
+]
+
+const memberTypeOptions = [
+  { id: 'all_users', label: 'All Users' },
+  { id: 'members_only', label: 'Members Only' },
+]
+
+const normalizeMembershipPlans = (membership) => {
+  if (!membership) return []
+  if (Array.isArray(membership.plans) && membership.plans.length > 0) return membership.plans
+  if (membership.name || membership.description || membership.price !== undefined) return [membership]
+  return []
+}
+
+const isPercentValueType = (type) => ['discount', 'experience', 'combo', 'service_discount'].includes(type)
+const isFreeValueType = (type) => ['service', 'free_service'].includes(type)
+const isTestEmail = (email = '') => String(email).trim().toLowerCase().includes('@test')
+
+const getRewardValueFieldLabel = (type) => {
+  if (isPercentValueType(type)) return 'Value Amount (%) *'
+  if (isFreeValueType(type)) return 'Value Amount (set 0 for free) *'
+  return 'Value Amount ($) *'
+}
+
+const getRewardValueDisplay = (reward) => {
+  if (reward?.displayValue) return reward.displayValue
+
+  const numericValue = Number(reward?.value)
+  const safeValue = Number.isFinite(numericValue) ? numericValue : 0
+
+  if (isFreeValueType(reward?.type)) return 'Free'
+  if (isPercentValueType(reward?.type)) return `${safeValue}%`
+  return `$${safeValue}`
+}
+
+const RewardValueIcon = ({ type, className }) => {
+  if (isFreeValueType(type)) return <Gift className={className} />
+  if (isPercentValueType(type)) return <Percent className={className} />
+  return <DollarSign className={className} />
+}
+const MotionDiv = motion.div
+
+// Reward Header Component
+const RewardHeader = ({
+  view,
+  setView,
+  searchTerm,
+  setSearchTerm,
+  onAddReward,
+  stats,
+  userRole,
+}) => (
+  <div className='bg-white/70 backdrop-blur-xl border border-[#ececef] rounded-[1.35rem] p-3.5 md:p-4 shadow-[0_8px_28px_-22px_rgba(0,0,0,0.24)] mb-8 transition-all'>
+    <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4'>
+      <div className='flex items-center gap-3 min-w-0'>
+        <div
+          className='w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0'
+          style={{
+            background:
+              'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+          }}
+        >
+          <Gift className='w-5 h-5' />
+        </div>
+        <div className='min-w-0'>
+          <h1 className='text-xl md:text-2xl font-bold text-gray-900 truncate'>
+            Reward Management
+          </h1>
+          <p className='text-[0.82rem] text-gray-600'>
+            {userRole === 'admin' || userRole === 'spa'
+              ? 'Create and manage reward redemptions'
+              : 'View available rewards'}
+          </p>
+        </div>
+      </div>
+
+      <div className='flex items-center gap-2.5 flex-wrap'>
+        <span className='inline-flex items-center gap-1.5 bg-[#f4fbf7] border border-[#dcf4e6] text-emerald-700 px-3 py-1.5 rounded-full text-xs font-semibold'>
+          {stats.active || 0} Active
+        </span>
+        <span className='inline-flex items-center gap-1.5 bg-[#fafafb] border border-[#f1f1f3] text-gray-700 px-3 py-1.5 rounded-full text-xs font-semibold'>
+          {stats.total || 0} Total
+        </span>
+        {(userRole === 'admin' || userRole === 'spa') && (
+          <button
+            onClick={onAddReward}
+            className='text-white px-4 py-2.5 rounded-[0.9rem] font-semibold transition-all flex items-center justify-center gap-2 shadow-sm hover:brightness-105 text-[0.82rem]'
+            style={{
+              background:
+                'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+            }}
+          >
+            <Plus className='w-4 h-4' />
+            Add Reward
+          </button>
+        )}
+      </div>
+    </div>
+
+    <div className='flex flex-col lg:flex-row gap-3'>
+      <div className='relative flex-1 group'>
+        <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
+          <Search className='h-4 w-4 text-gray-400 group-focus-within:text-[color:var(--brand-primary)] transition-colors duration-200' />
+        </div>
+        <input
+          type='text'
+          placeholder='Search rewards...'
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className='block w-full h-10 pl-10 pr-10 bg-white border border-[#ececef] rounded-[0.9rem] text-[0.84rem] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)/0.2] focus:border-[color:var(--brand-primary)/0.25] transition-all duration-200'
+        />
+        {searchTerm && (
+          <div className='absolute inset-y-0 right-0 pr-3 flex items-center'>
+            <button
+              type='button'
+              onClick={() => setSearchTerm('')}
+              className='p-1 bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all'
+            >
+              <X className='h-3.5 w-3.5' />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className='bg-[#fafafb] border border-[#f1f1f3] rounded-[0.9rem] p-1 inline-flex'>
+        <button
+          type='button'
+          onClick={() => setView('grid')}
+          className={`px-4 h-8 rounded-[0.7rem] text-xs font-semibold transition-all ${
+            view === 'grid'
+              ? 'text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+          style={
+            view === 'grid'
+              ? {
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                }
+              : undefined
+          }
+        >
+          Grid
+        </button>
+        <button
+          type='button'
+          onClick={() => setView('list')}
+          className={`px-4 h-8 rounded-[0.7rem] text-xs font-semibold transition-all ${
+            view === 'list'
+              ? 'text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+          style={
+            view === 'list'
+              ? {
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                }
+              : undefined
+          }
+        >
+          List
+        </button>
+      </div>
+    </div>
+  </div>
+)
+
+// Reward Card Component
+const RewardCard = ({
+  reward,
+  onEdit,
+  onDelete,
+  onViewRedeemers,
+  canOpenRedeemers = false,
+  userRole,
+}) => {
+  const rewardType = rewardTypes.find((t) => t.id === reward.type)
+  const IconComponent = rewardType?.icon || Award
+  const canEdit = ['super-admin', 'admin', 'spa'].includes(userRole)
+  const fallbackImage =
+    'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop'
+
+  return (
+    <div className='relative h-full bg-white rounded-[1.35rem] overflow-hidden transition-all border flex flex-col shadow-[0_12px_34px_-28px_rgba(15,23,42,0.28)] hover:border-[#f1f1f3] border-[#f9f9fa] group'>
+      <div className='relative h-32 sm:h-36 md:h-40 overflow-hidden'>
+        <img
+          src={resolveImageUrl(reward.image, fallbackImage, { width: 500, height: 300 })}
+          alt={reward.name}
+          className='w-full h-full object-cover transition-transform duration-300 group-hover:scale-105'
+          loading='lazy'
+          decoding='async'
+        />
+
+        <div className='absolute top-2.5 left-2.5 flex flex-col gap-1.5'>
+          <span
+            className={`px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 ${
+              reward.status === 'active'
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-500 text-white'
+            }`}
+          >
+            {reward.status}
+          </span>
+          <span
+            className='text-white px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1 border border-white/25 shadow-sm'
+            style={{
+              background:
+                'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+            }}
+          >
+            <IconComponent className='w-3 h-3' />
+            {rewardType?.name || reward.type}
+          </span>
+        </div>
+
+        <div className='absolute top-2.5 right-2.5'>
+          <span className='bg-black/70 text-white px-2 py-1 rounded-full text-[10px] font-semibold flex items-center gap-1'>
+             <Zap className='w-3 h-3' />
+            {reward.pointCost} pts
+          </span>
+        </div>
+
+        {reward.voiceNoteUrl && (
+          <div className='absolute bottom-2.5 left-2.5'>
+            <div
+              className='backdrop-blur-sm text-white p-1.5 rounded-lg shadow-sm flex items-center gap-1.5'
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--brand-primary) 80%, transparent)',
+              }}
+            >
+              <Mic className='w-3.5 h-3.5' />
+              <span className='text-[10px] font-black uppercase tracking-widest'>Voice Note</span>
+            </div>
+          </div>
+        )}
+
+        {canEdit && (
+          <div className='absolute bottom-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity'>
+            <button
+              onClick={() => onEdit(reward)}
+              className='bg-white/90 backdrop-blur-sm p-2 rounded-lg hover:bg-white transition-all'
+            >
+              <Edit3 className='w-4 h-4 text-blue-600' />
+            </button>
+            <button
+              onClick={() => onDelete(reward)}
+              className='bg-white/90 backdrop-blur-sm p-2 rounded-lg hover:bg-white transition-all'
+            >
+              <Trash2 className='w-4 h-4 text-red-500' />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className='p-3.5 md:p-4 flex-1 flex flex-col'>
+        <h3 className='text-[0.95rem] md:text-[1rem] font-semibold mb-1.5 text-gray-900 line-clamp-1 tracking-[-0.015em]'>
+          {reward.name}
+        </h3>
+        <p className='text-[0.78rem] md:text-[0.82rem] mb-2.5 line-clamp-2 text-gray-600 leading-[1.4]'>
+          {reward.description}
+        </p>
+        <div className='text-[0.7rem] text-gray-500 mb-2.5 space-y-1'>
+          <div className='bg-[#fafafb] border border-[#f1f1f3] rounded-[0.8rem] px-2.5 py-2'>
+            Claims: {reward.limitCount || reward.limit || 1} per {reward.limitDays || 30} days
+          </div>
+          <div className='bg-[#fafafb] border border-[#f1f1f3] rounded-[0.8rem] px-2.5 py-2'>
+            Eligible:{' '}
+            {reward.claimAudience === 'members_only' ||
+            (Array.isArray(reward.eligibleMembershipIds) && reward.eligibleMembershipIds.length > 0)
+              ? 'Members Only'
+              : 'All Users'}
+          </div>
+        </div>
+        <div className='mt-auto'>
+          <div className='grid grid-cols-2 gap-2 mb-3'>
+            <div className='bg-[color:var(--brand-primary)/0.08] p-2.5 rounded-[0.8rem] border border-[color:var(--brand-primary)/0.14]'>
+              <div className='flex items-center gap-2 mb-1'>
+                <Zap className='w-4 h-4 text-[color:var(--brand-primary)]' />
+                <span className='text-[0.68rem] font-semibold text-[color:var(--brand-primary)]'>
+                  Points
+                </span>
+              </div>
+              <span className='text-[0.95rem] font-bold text-[color:var(--brand-primary)]'>
+                {reward.pointCost}
+              </span>
+            </div>
+            <div className='bg-green-50 p-2.5 rounded-[0.8rem] border border-green-100'>
+              <div className='flex items-center gap-2 mb-1'>
+                <RewardValueIcon type={reward.type} className='w-4 h-4 text-green-600' />
+                <span className='text-[0.68rem] font-semibold text-green-700'>
+                  Value
+                </span>
+              </div>
+              <span className='text-[0.95rem] font-bold text-green-700'>
+                {getRewardValueDisplay(reward)}
+              </span>
+            </div>
+          </div>
+          <div className='flex items-center justify-between pt-3 border-t border-[#f1f1f3]'>
+            <button
+              type='button'
+              onClick={() => onViewRedeemers?.(reward)}
+              disabled={!canOpenRedeemers || !reward.redeemCount}
+              className='text-[0.75rem] text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:text-[color:var(--brand-primary)] transition-colors'
+            >
+              <span className='font-semibold'>{reward.redeemCount || 0}</span>{' '}
+              redeemed
+            </button>
+            <div className='text-[0.72rem] text-gray-500'>
+              ID: {reward._id?.slice(-6) || reward.id}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Reward Form Modal Component
+const RewardForm = ({
+  isOpen,
+  onClose,
+  reward,
+  onSave,
+  membershipPlanOptions = [],
+  serviceOptions = [],
+  locationId = '',
+}) => {
+  const isEditing = !!reward
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    type: 'credit',
+    value: '',
+    pointCost: '',
+    validDays: 30,
+    limitCount: 1,
+    limitDays: 30,
+    status: 'active',
+    claimAudience: 'all_users',
+    eligibleMembershipIds: [],
+    eligibleMemberTypes: ['all_clients'],
+    strategicNotes: '',
+    image: '',
+    imagePublicId: '',
+    voiceNoteUrl: '',
+    serviceId: '',
+  })
+
+  useEffect(() => {
+    if (reward) {
+      setFormData({
+        name: reward.name || '',
+        description: reward.description || '',
+        type: reward.type || 'credit',
+        value: reward.value || '',
+        pointCost: reward.pointCost || '',
+        validDays: reward.validDays || 30,
+        limitCount: reward.limitCount || reward.limit || 1,
+        limitDays: reward.limitDays || 30,
+        status: reward.status || 'active',
+        claimAudience:
+          reward.claimAudience ||
+          (Array.isArray(reward.eligibleMembershipIds) && reward.eligibleMembershipIds.length > 0
+            ? 'members_only'
+            : 'all_users'),
+        eligibleMembershipIds: Array.isArray(reward.eligibleMembershipIds)
+          ? reward.eligibleMembershipIds
+          : [],
+        eligibleMemberTypes: Array.isArray(reward.eligibleMemberTypes) && reward.eligibleMemberTypes.length > 0
+          ? reward.eligibleMemberTypes
+          : ['all_clients'],
+        strategicNotes: reward.strategicNotes || '',
+        image: reward.image || '',
+        imagePublicId: reward.imagePublicId || '',
+        voiceNoteUrl: reward.voiceNoteUrl || '',
+        serviceId:
+          reward.serviceId?._id ||
+          reward.serviceId ||
+          reward.linkedServiceId?._id ||
+          reward.linkedServiceId ||
+          '',
+      })
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        type: 'credit',
+        value: '',
+        pointCost: '',
+        validDays: 30,
+        limitCount: 1,
+        limitDays: 30,
+        status: 'active',
+        claimAudience: 'all_users',
+        eligibleMembershipIds: [],
+        eligibleMemberTypes: ['all_clients'],
+        strategicNotes: '',
+        image: '',
+        imagePublicId: '',
+        voiceNoteUrl: '',
+        serviceId: '',
+      })
+    }
+  }, [reward, isOpen])
+
+  const createRewardMutation = useCreateReward({
+    onSuccess: (data) => {
+      onSave(data)
+      onClose()
+    },
+  })
+
+  const updateRewardMutation = useUpdateReward({
+    onSuccess: (data) => {
+      onSave(data)
+      onClose()
+    },
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!formData.name || !formData.description || formData.value === '' || formData.pointCost === '') {
+      toast.error('Please fill in all required fields')
+      return
+    }
+    if (Number(formData.limitCount) < 1 || Number(formData.limitDays) < 1) {
+      toast.error('Claim limit must be at least 1 per at least 1 day')
+      return
+    }
+    if (formData.claimAudience === 'members_only' && formData.eligibleMembershipIds.length < 1) {
+      toast.error('Select at least one membership plan for Members Only rewards')
+      return
+    }
+
+    const payload = {
+      ...formData,
+      value: Number(formData.value),
+      pointCost: Number(formData.pointCost),
+      validDays: Number(formData.validDays),
+      limitCount: Number(formData.limitCount),
+      limitDays: Number(formData.limitDays),
+      limit: Number(formData.limitCount),
+      eligibleMemberTypes:
+        formData.claimAudience === 'members_only' ? ['members'] : ['all_clients'],
+      locationId: locationId || undefined,
+      serviceId: formData.serviceId || undefined,
+    }
+
+    if (isEditing) {
+      updateRewardMutation.mutate({ id: reward._id || reward.id, ...payload })
+    } else {
+      createRewardMutation.mutate(payload)
+    }
+  }
+
+  const isLoading = createRewardMutation.isPending || updateRewardMutation.isPending
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className='fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-[2px] p-0 sm:p-4'>
+          <MotionDiv
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className='bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-[color:var(--brand-primary)/0.12] max-w-4xl w-full max-h-[92vh] flex flex-col relative'
+          >
+            {/* Mobile Drag Handle */}
+            <div className='flex justify-center pt-3 pb-1 sm:hidden'>
+              <div className='w-12 h-1.5 bg-gray-200 rounded-full'></div>
+            </div>
+
+            {/* Modal Header - Ultra Compact */}
+            <div className='px-5 py-3 md:py-4 border-b border-gray-50 flex items-center justify-between shrink-0'>
+              <div className='flex items-center gap-3'>
+                <div className='bg-[color:var(--brand-primary)/0.08] p-2 rounded-lg'>
+                  <Gift className='w-4 h-4 text-[color:var(--brand-primary)]' />
+                </div>
+                <h2 className='text-base md:text-lg font-bold text-gray-900'>
+                  {isEditing ? 'Edit Reward' : 'New Reward'}
+                </h2>
+              </div>
+              <button
+                onClick={onClose}
+                className='p-1.5 hover:bg-gray-100 rounded-lg transition-all text-gray-400 hover:text-gray-600'
+              >
+                <X className='w-5 h-5' />
+              </button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className='flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar'>
+              <form id='reward-form' onSubmit={handleSubmit} className='space-y-6'>
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+                  {/* Name */}
+                  <div className='space-y-1.5 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Reward Name *
+                    </label>
+                    <input
+                      type='text'
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder='e.g., $50 Service Credit'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:bg-white outline-none transition-all text-sm font-medium'
+                      required
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div className='space-y-1.5 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Description *
+                    </label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder='What does the user get?'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:bg-white outline-none transition-all text-sm font-medium'
+                      rows='2'
+                      required
+                    />
+                  </div>
+
+                  {/* Type */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Service Type *
+                    </label>
+                    <div className='relative'>
+                      <select
+                        value={formData.type}
+                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none outline-none text-sm font-medium'
+                      >
+                        {rewardTypes.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className='absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
+                    </div>
+                  </div>
+
+                  {/* Value */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      {getRewardValueFieldLabel(formData.type)}
+                    </label>
+                    <input
+                      type='number'
+                      value={formData.value === 0 ? "" : formData.value}
+                      onChange={(e) => setFormData({ ...formData, value: e.target.value === "" ? 0 : parseFloat(e.target.value) })}
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
+                      required
+                    />
+                  </div>
+
+                  {/* Point Cost */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Point Cost *
+                    </label>
+                    <input
+                      type='number'
+                      value={formData.pointCost === 0 ? "" : formData.pointCost}
+                      onChange={(e) => setFormData({ ...formData, pointCost: e.target.value === "" ? 0 : parseInt(e.target.value) })}
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
+                      required
+                    />
+                  </div>
+
+                  {/* Linked Service (Optional) */}
+                  <div className='space-y-1.5 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Linked Service (Optional)
+                    </label>
+                    <div className='relative'>
+                      <select
+                        value={formData.serviceId}
+                        onChange={(e) => setFormData({ ...formData, serviceId: e.target.value })}
+                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none outline-none text-sm font-medium'
+                      >
+                        <option value=''>No linked service</option>
+                        {serviceOptions.map((service) => (
+                          <option key={service.id} value={service.id}>
+                            {service.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className='absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
+                    </div>
+                    <p className='text-[11px] text-gray-400'>
+                      If selected, user will be redirected to this service right after claiming this reward.
+                    </p>
+                  </div>
+
+                  {/* Valid Days */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Valid Days
+                    </label>
+                    <input
+                      type='number'
+                      value={formData.validDays === 0 ? "" : formData.validDays}
+                      onChange={(e) => setFormData({ ...formData, validDays: e.target.value === "" ? 0 : parseInt(e.target.value) })}
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
+                    />
+                  </div>
+
+                  {/* Status */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Reward Visibility
+                    </label>
+                    <div className='relative'>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] appearance-none outline-none text-sm font-medium'
+                      >
+                        <option value='active'>Enabled (Visible to users)</option>
+                        <option value='inactive'>Disabled (Hidden from users)</option>
+                      </select>
+                      <ChevronDown className='absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none' />
+                    </div>
+                  </div>
+
+                  {/* Claim Limit Count */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Claim Limit
+                    </label>
+                    <input
+                      type='number'
+                      min='1'
+                      value={formData.limitCount === 0 ? '' : formData.limitCount}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          limitCount: e.target.value === '' ? 0 : parseInt(e.target.value, 10),
+                        })
+                      }
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
+                    />
+                  </div>
+
+                  {/* Claim Limit Days */}
+                  <div className='space-y-1.5'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Per Days
+                    </label>
+                    <input
+                      type='number'
+                      min='1'
+                      value={formData.limitDays === 0 ? '' : formData.limitDays}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          limitDays: e.target.value === '' ? 0 : parseInt(e.target.value, 10),
+                        })
+                      }
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] outline-none text-sm font-medium'
+                    />
+                  </div>
+
+                  {/* Who Can Claim */}
+                  <div className='space-y-2 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Who Can Claim
+                    </label>
+                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                      {memberTypeOptions.map((option) => {
+                        const isChecked = formData.claimAudience === option.id
+                        return (
+                          <label
+                            key={option.id}
+                            className='flex items-center gap-2 px-3 py-2.5 bg-gray-50/60 border border-gray-100 rounded-xl text-sm text-gray-700'
+                          >
+                            <input
+                              type='radio'
+                              name='claimAudience'
+                              checked={isChecked}
+                              onChange={() => {
+                                setFormData({
+                                  ...formData,
+                                  claimAudience: option.id,
+                                  eligibleMembershipIds:
+                                    option.id === 'members_only'
+                                      ? formData.eligibleMembershipIds
+                                      : [],
+                                })
+                              }}
+                              className='rounded border-gray-300 text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]'
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {formData.claimAudience === 'members_only' && (
+                    <div className='space-y-2 md:col-span-2'>
+                      <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                        Select Membership Plans
+                      </label>
+                      {membershipPlanOptions.length > 0 ? (
+                        <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                          {membershipPlanOptions.map((plan) => {
+                            const checked = formData.eligibleMembershipIds.includes(plan.id)
+                            return (
+                              <label
+                                key={plan.id}
+                                className='flex items-center gap-2 px-3 py-2.5 bg-gray-50/60 border border-gray-100 rounded-xl text-sm text-gray-700'
+                              >
+                                <input
+                                  type='checkbox'
+                                  checked={checked}
+                                  onChange={() => {
+                                    const next = checked
+                                      ? formData.eligibleMembershipIds.filter((id) => id !== plan.id)
+                                      : [...formData.eligibleMembershipIds, plan.id]
+                                    setFormData({ ...formData, eligibleMembershipIds: next })
+                                  }}
+                                  className='rounded border-gray-300 text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]'
+                                />
+                                <span>{plan.name}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className='text-sm text-amber-700 bg-amber-50 border border-amber-100 px-3 py-2 rounded-xl'>
+                          No membership plans found. Please create memberships first.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Strategic Notes */}
+                  <div className='space-y-1.5 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Strategic Notes
+                    </label>
+                    <textarea
+                      value={formData.strategicNotes}
+                      onChange={(e) => setFormData({ ...formData, strategicNotes: e.target.value })}
+                      placeholder='Internal notes about reward strategy and intent'
+                      className='w-full px-4 py-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-[color:var(--brand-primary)] focus:bg-white outline-none transition-all text-sm font-medium'
+                      rows='3'
+                    />
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className='space-y-2 md:col-span-2'>
+                    <label className='text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] ml-1'>
+                      Image
+                    </label>
+                    <div className='flex flex-col sm:flex-row items-start sm:items-center gap-3'>
+                      <label className='inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold cursor-pointer transition-all'>
+                        <input
+                          type='file'
+                          accept='image/*'
+                          className='hidden'
+                          disabled={isUploadingImage}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            setIsUploadingImage(true)
+                            try {
+                              if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
+                                toast.info('Image is large, compressing...')
+                              }
+                              const compressed = await compressImage(file)
+                              if (!isUnderSizeLimit(compressed)) {
+                                toast.error('Image too large. Please use an image under 1MB.')
+                                return
+                              }
+                              if (formData.imagePublicId || formData.image) {
+                                await uploadService.deleteImage({
+                                  url: formData.image,
+                                  publicId: formData.imagePublicId,
+                                }).catch(console.error)
+                              }
+                              const res = await uploadService.uploadImage(compressed)
+                              setFormData((prev) => ({
+                                ...prev,
+                                image: res.url,
+                                imagePublicId: res.publicId || '',
+                              }))
+                              toast.success('Image uploaded!')
+                            } catch {
+                              toast.error('Failed to upload image')
+                            } finally {
+                              setIsUploadingImage(false)
+                              e.target.value = ''
+                            }
+                          }}
+                        />
+                        {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+                      </label>
+
+                      {formData.image && (
+                        <button
+                          type='button'
+                          onClick={async () => {
+                            if (formData.imagePublicId || formData.image) {
+                              await uploadService.deleteImage({
+                                url: formData.image,
+                                publicId: formData.imagePublicId,
+                              }).catch(console.error)
+                            }
+                            setFormData((prev) => ({
+                              ...prev,
+                              image: '',
+                              imagePublicId: '',
+                            }))
+                          }}
+                          className='text-sm font-semibold text-red-500 hover:text-red-600'
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    {formData.image && (
+                      <div className='mt-2'>
+                        <img
+                          src={resolveImageUrl(
+                            formData.image,
+                            'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop',
+                            { width: 192, height: 192 }
+                          )}
+                          alt='Reward'
+                          className='h-24 w-24 rounded-2xl object-cover border border-gray-100 shadow-sm'
+                          loading='lazy'
+                          decoding='async'
+                        />
+                      </div>
+                    )}
+                    <p className='text-[11px] text-gray-400'>
+                      Tip: Upload low-size images (max 1MB) for faster loading.
+                    </p>
+                  </div>
+
+                  {/* Voice Note Section */}
+                  <div className="md:col-span-2">
+                    <VoiceRecorder 
+                      initialUrl={formData.voiceNoteUrl}
+                      onUploadSuccess={async (blob) => {
+                        try {
+                          const oldUrl = formData.voiceNoteUrl;
+                          const res = await uploadService.uploadAudio(blob);
+                          if (oldUrl) {
+                            await uploadService.deleteAudio(oldUrl).catch(console.error);
+                          }
+                          setFormData(prev => ({ ...prev, voiceNoteUrl: res.url }));
+                          toast.success("Voice note uploaded!");
+                        } catch {
+                          toast.error("Failed to upload voice note");
+                        }
+                      }}
+                      onReset={async () => {
+                        if (formData.voiceNoteUrl) {
+                          await uploadService.deleteAudio(formData.voiceNoteUrl).catch(console.error);
+                        }
+                        setFormData(prev => ({ ...prev, voiceNoteUrl: "" }));
+                      }}
+                    />
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Modal Footer - Compact */}
+            <div className='p-4 md:p-6 bg-white border-t border-gray-50 shrink-0'>
+              <div className='flex items-center gap-3'>
+                <button
+                  type='button'
+                  onClick={onClose}
+                  className='flex-1 py-3.5 text-gray-600 font-bold text-sm bg-gray-50 hover:bg-gray-100 rounded-2xl transition-all'
+                >
+                  Cancel
+                </button>
+                <button
+                  form='reward-form'
+                  type='submit'
+                  disabled={isLoading}
+                  className='flex-[2] py-3.5 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg active:scale-95'
+                  style={{
+                    background:
+                      'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                    boxShadow:
+                      '0 10px 25px -10px color-mix(in srgb, var(--brand-primary) 45%, transparent)',
+                  }}
+                >
+                  {isLoading ? (
+                    <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                  ) : (
+                    <Save className='w-4.5 h-4.5' />
+                  )}
+                  <span className='text-sm'>{isEditing ? 'Save Changes' : 'Create Reward'}</span>
+                </button>
+              </div>
+            </div>
+          </MotionDiv>
+        </div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+const RedeemedUsersModal = ({
+  isOpen,
+  onClose,
+  reward,
+  redemptions = [],
+  isLoading = false,
+  error = null,
+}) => {
+  if (!isOpen) return null
+
+  const groupedRedeemers = Object.values(
+    redemptions.reduce((acc, redemption) => {
+      const user = redemption?.userId
+      const fallbackId = redemption?._id || redemption?.id
+      const key = user?._id || user?.email || fallbackId
+      if (!key) return acc
+
+      if (!acc[key]) {
+        acc[key] = {
+          id: key,
+          name: user?.name || 'Unknown user',
+          email: user?.email || 'No email',
+          avatar: user?.avatar || '',
+          claimCount: 0,
+          latestClaimAt: null,
+          status: redemption?.status || 'active',
+        }
+      }
+
+      acc[key].claimCount += 1
+
+      const claimedAt = redemption?.claimedAt ? new Date(redemption.claimedAt) : null
+      if (
+        claimedAt &&
+        (!acc[key].latestClaimAt || claimedAt > new Date(acc[key].latestClaimAt))
+      ) {
+        acc[key].latestClaimAt = claimedAt.toISOString()
+        acc[key].status = redemption?.status || acc[key].status
+      }
+
+      return acc
+    }, {})
+  ).sort((a, b) => {
+    const dateA = a.latestClaimAt ? new Date(a.latestClaimAt).getTime() : 0
+    const dateB = b.latestClaimAt ? new Date(b.latestClaimAt).getTime() : 0
+    return dateB - dateA
+  })
+
+  return (
+    <AnimatePresence>
+      <div className='fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-[2px] p-0 sm:p-4'>
+        <MotionDiv
+          initial={{ opacity: 0, y: '100%' }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: '100%' }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          className='bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl overflow-hidden border border-[color:var(--brand-primary)/0.12] max-w-2xl w-full max-h-[88vh] flex flex-col'
+        >
+          <div className='px-5 py-4 border-b border-gray-100 flex items-center justify-between'>
+            <div>
+              <h3 className='text-lg font-bold text-gray-900'>{reward?.name || 'Reward'}</h3>
+              <p className='text-sm text-gray-500'>
+                People who redeemed this reward
+              </p>
+            </div>
+            <button
+              type='button'
+              onClick={onClose}
+              className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
+            >
+              <X className='w-5 h-5 text-gray-500' />
+            </button>
+          </div>
+
+          <div className='p-4 overflow-y-auto flex-1'>
+            {isLoading ? (
+              <div className='flex items-center justify-center py-12'>
+                <div className='w-8 h-8 border-4 border-gray-200 border-t-[color:var(--brand-primary)] rounded-full animate-spin' />
+              </div>
+            ) : error ? (
+              <p className='text-sm text-red-600 bg-red-50 border border-red-100 px-4 py-3 rounded-xl'>
+                Failed to load redeemed users. Please try again.
+              </p>
+            ) : groupedRedeemers.length === 0 ? (
+              <p className='text-sm text-gray-500 bg-gray-50 border border-gray-100 px-4 py-3 rounded-xl'>
+                No redemptions found for this reward yet.
+              </p>
+            ) : (
+              <div className='space-y-3'>
+                {groupedRedeemers.map((redeemer) => (
+                  <div
+                    key={redeemer.id}
+                    className='flex items-center justify-between gap-3 p-3 border border-gray-100 rounded-xl'
+                  >
+                    <div className='flex items-center gap-3 min-w-0'>
+                      {redeemer.avatar ? (
+                        <img
+                          src={redeemer.avatar}
+                          alt={redeemer.name}
+                          className='w-10 h-10 rounded-full object-cover'
+                        />
+                      ) : (
+                        <div className='w-10 h-10 rounded-full bg-[color:var(--brand-primary)/0.12] flex items-center justify-center text-[color:var(--brand-primary)] font-bold text-sm'>
+                          {(redeemer.name || '?').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className='min-w-0'>
+                        <p className='text-sm font-semibold text-gray-900 truncate'>
+                          {redeemer.name}
+                        </p>
+                        <p className='text-xs text-gray-500 truncate'>{redeemer.email}</p>
+                      </div>
+                    </div>
+                    <div className='text-right shrink-0'>
+                      <p className='text-xs font-semibold text-[color:var(--brand-primary)]'>
+                        {redeemer.claimCount} redemption{redeemer.claimCount > 1 ? 's' : ''}
+                      </p>
+                      <p className='text-[11px] text-gray-500 mt-1'>
+                        {redeemer.latestClaimAt
+                          ? `Last: ${new Date(redeemer.latestClaimAt).toLocaleString()}`
+                          : 'No date'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </MotionDiv>
+      </div>
+    </AnimatePresence>
+  )
+}
+
+// Main Reward Management Component
+const RewardManagement = () => {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [view, setView] = useState('grid')
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [selectedReward, setSelectedReward] = useState(null)
+  const [isRedeemedUsersOpen, setIsRedeemedUsersOpen] = useState(false)
+  const [selectedRedeemedReward, setSelectedRedeemedReward] = useState(null)
+
+  const { currentUser } = useSelector((state) => state.user)
+  const { branding, locationId } = useBranding()
+  const userRole = currentUser?.role || 'user'
+  const canManageRewards = userRole === 'admin' || userRole === 'spa'
+
+  const { data: locationData } = useQuery({
+    queryKey: ['my-location', 'reward-management'],
+    queryFn: () => locationService.getMyLocation(),
+    enabled: canManageRewards,
+  })
+
+  const locationMembership = branding?.membership || locationData?.data?.location?.membership
+  const membershipPlans = normalizeMembershipPlans(locationMembership)
+  const membershipPlanOptions = membershipPlans.map((plan, index) => ({
+    id: plan._id || plan.id || `membership-plan-${index}`,
+    name: plan.name || `Plan ${index + 1}`,
+  }))
+
+  const {
+    rewards = [],
+    isLoading,
+    refetch,
+  } = useEnhancedRewardsCatalog({
+    search: searchTerm,
+    status: canManageRewards ? 'all' : 'active',
+    locationId,
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
+  })
+  const { data: servicesData } = useServices({
+    status: 'active',
+    locationId,
+    limit: 300,
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
+  })
+  const serviceOptions = (servicesData?.services || []).map((service) => ({
+    id: service._id || service.id,
+    name: service.name || 'Unnamed Service',
+  }))
+
+  const {
+    data: redeemedUsersResponse,
+    isLoading: isRedeemedUsersLoading,
+    error: redeemedUsersError,
+  } = useQuery({
+    queryKey: [
+      'reward-redeemers',
+      selectedRedeemedReward?._id || selectedRedeemedReward?.id,
+      locationId,
+    ],
+    queryFn: () =>
+      rewardsService.getSpaUserRewards({
+        rewardId: selectedRedeemedReward?._id || selectedRedeemedReward?.id,
+        status: 'all',
+        locationId,
+        limit: 100,
+      }),
+    enabled:
+      isRedeemedUsersOpen &&
+      Boolean(selectedRedeemedReward?._id || selectedRedeemedReward?.id) &&
+      canManageRewards,
+    staleTime: 60 * 1000,
+  })
+
+  const redeemedUsers = (redeemedUsersResponse?.data?.rewards || []).filter(
+    (rewardEntry) => !isTestEmail(rewardEntry?.userId?.email)
+  )
+
+  const deleteRewardMutation = useDeleteReward({
+    onSuccess: () => toast.success('Reward deleted successfully!'),
+    onError: (error) => toast.error(error.response?.data?.message || 'Failed to delete reward'),
+  })
+  const stats = {
+    total: rewards.length,
+    active: rewards.filter((r) => r.status === 'active').length,
+  }
+
+  const filteredRewards = rewards.filter((reward) => {
+    const isVisibleToCurrentRole = canManageRewards || reward.status === 'active'
+    if (!isVisibleToCurrentRole) return false
+
+    return (
+      reward.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reward.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      reward.type.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
+
+  const handleAddReward = () => {
+    if (!canManageRewards) return toast.error('Access denied')
+    setSelectedReward(null)
+    setIsFormOpen(true)
+  }
+
+  const handleEditReward = (reward) => {
+    if (!canManageRewards) return toast.error('Access denied')
+    setSelectedReward(reward)
+    setIsFormOpen(true)
+  }
+
+  const handleDeleteReward = (reward) => {
+    if (!canManageRewards) return toast.error('Access denied')
+    if (window.confirm(`Delete "${reward.name}"?`)) {
+      deleteRewardMutation.mutate(reward._id)
+    }
+  }
+
+  const handleFormSave = () => {
+    setIsFormOpen(false)
+    setSelectedReward(null)
+    refetch()
+  }
+
+  const handleOpenRedeemedUsers = (reward) => {
+    if (!canManageRewards) return
+    setSelectedRedeemedReward(reward)
+    setIsRedeemedUsersOpen(true)
+  }
+
+  const handleCloseRedeemedUsers = () => {
+    setIsRedeemedUsersOpen(false)
+    setSelectedRedeemedReward(null)
+  }
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className='flex flex-col items-center justify-center min-h-[50vh]'>
+          <div className='animate-spin rounded-full h-12 w-12 border-4 border-[color:var(--brand-primary)/0.2] border-t-[color:var(--brand-primary)] mb-4'></div>
+          <span className='text-lg text-gray-500'>Loading...</span>
+        </div>
+      </Layout>
+    )
+  }
+
+  return (
+    <Layout>
+      <div className='px-4 py-4 mx-auto max-w-7xl md:px-6 lg:px-8 relative z-0'>
+        <RewardHeader
+          view={view}
+          setView={setView}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onAddReward={handleAddReward}
+          stats={stats}
+          userRole={userRole}
+        />
+
+        {view === 'grid' ? (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 md:gap-4.5 mb-8'>
+            {filteredRewards.map((reward) => (
+              <RewardCard
+                key={reward._id}
+                reward={reward}
+                onEdit={handleEditReward}
+                onDelete={handleDeleteReward}
+                onViewRedeemers={handleOpenRedeemedUsers}
+                canOpenRedeemers={canManageRewards}
+                userRole={userRole}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className='bg-white rounded-[1.35rem] p-3.5 md:p-4 shadow-[0_8px_28px_-22px_rgba(0,0,0,0.24)] border border-[#ececef] mb-8'>
+            <div className='space-y-4'>
+              {filteredRewards.map((reward) => (
+                <div
+                  key={reward._id}
+                  className='flex items-center gap-3 p-3 border border-[#f1f1f3] rounded-[0.95rem] hover:border-[color:var(--brand-primary)/0.35] hover:shadow-sm transition-all group bg-white'
+                >
+                  <img
+                    src={resolveImageUrl(
+                      reward.image,
+                      'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500&h=300&fit=crop',
+                      { width: 160, height: 160 }
+                    )}
+                    alt={reward.name}
+                    className='w-14 h-14 rounded-[0.8rem] object-cover'
+                    loading='lazy'
+                    decoding='async'
+                  />
+                  <div className='flex-1 min-w-0'>
+                    <h3 className='font-semibold text-[0.9rem] text-gray-900 truncate'>{reward.name}</h3>
+                    <p className='text-[0.77rem] text-gray-600 line-clamp-1'>{reward.description}</p>
+                    <div className='flex gap-3 mt-1.5 flex-wrap'>
+                      <span className='text-[0.7rem] font-semibold text-[color:var(--brand-primary)] bg-[color:var(--brand-primary)/0.08] border border-[color:var(--brand-primary)/0.14] px-2 py-0.5 rounded-full'>{reward.pointCost} pts</span>
+                      <span className='text-[0.7rem] font-semibold text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full'>{getRewardValueDisplay(reward)}</span>
+                      <span className={`text-[0.68rem] font-semibold px-2 py-0.5 rounded-full border ${
+                        reward.status === 'active'
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                          : 'text-gray-600 bg-gray-50 border-gray-200'
+                      }`}>
+                        {reward.status}
+                      </span>
+                      <button
+                        type='button'
+                        onClick={() => handleOpenRedeemedUsers(reward)}
+                        disabled={!canManageRewards || !reward.redeemCount}
+                        className='text-[0.72rem] font-semibold text-gray-600 hover:text-[color:var(--brand-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                      >
+                        {reward.redeemCount || 0} redeemed
+                      </button>
+                    </div>
+                  </div>
+                  {canManageRewards && (
+                    <div className='flex gap-2 items-center'>
+                      <button onClick={() => handleEditReward(reward)} className='p-2 text-blue-600 hover:bg-blue-50 rounded-lg'><Edit3 className='w-4 h-4' /></button>
+                      <button onClick={() => handleDeleteReward(reward)} className='p-2 text-red-600 hover:bg-red-50 rounded-lg'><Trash2 className='w-4 h-4' /></button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {filteredRewards.length === 0 && (
+          <div className='text-center py-12 md:py-16 bg-white rounded-2xl border border-[#f1f1f3] mb-8'>
+            <div className='text-4xl md:text-6xl mb-4'>💝</div>
+            <h3 className='text-xl md:text-2xl font-bold text-gray-800 mb-3'>No rewards found</h3>
+            <p className='text-gray-600 mb-6 px-4'>Try a different search or create a new reward.</p>
+            {canManageRewards && (
+              <button
+                onClick={handleAddReward}
+                className='text-white px-6 py-3 rounded-xl font-semibold hover:brightness-110'
+                style={{
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                }}
+              >
+                Create Reward
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <RewardForm
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        reward={selectedReward}
+        onSave={handleFormSave}
+        membershipPlanOptions={membershipPlanOptions}
+        serviceOptions={serviceOptions}
+        locationId={locationId}
+      />
+      <RedeemedUsersModal
+        isOpen={isRedeemedUsersOpen}
+        onClose={handleCloseRedeemedUsers}
+        reward={selectedRedeemedReward}
+        redemptions={redeemedUsers}
+        isLoading={isRedeemedUsersLoading}
+        error={redeemedUsersError}
+      />
+    </Layout>
+  )
+}
+
+export default RewardManagement

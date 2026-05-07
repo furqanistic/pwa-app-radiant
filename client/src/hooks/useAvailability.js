@@ -1,0 +1,39 @@
+import { axiosInstance } from '@/config';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+export const useAvailability = (locationId, date, serviceId, options = {}) => {
+  const isEnabled = options.enabled !== false;
+
+  return useQuery({
+    queryKey: ['availability', locationId, date, serviceId],
+    queryFn: async () => {
+      if (!locationId || !date || !serviceId) return { slots: [] };
+      const response = await axiosInstance.get('/bookings/availability', {
+        params: { locationId, date, serviceId },
+      });
+      return response.data.data;
+    },
+    enabled: isEnabled && !!locationId && !!date && !!serviceId,
+    staleTime: 0,
+    gcTime: 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchInterval:
+      isEnabled && locationId && date && serviceId ? 30 * 1000 : false,
+  });
+};
+
+export const useUpdateAvailability = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data) => {
+      const response = await axiosInstance.put('/bookings/availability', data);
+      return response.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['availability']);
+      queryClient.invalidateQueries(['currentUser']); // Update user state if cached
+    },
+  });
+};

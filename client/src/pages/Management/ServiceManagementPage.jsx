@@ -1,0 +1,3189 @@
+// File: client/src/pages/Management/ServiceManagementPage.jsx
+// Complete ServiceManagementPage with all fixes
+import {
+    useCategories,
+    useCreateCategory,
+    useCreateService,
+    useDeleteCategory,
+    useDeleteService,
+    useService,
+    useServices,
+    useUpdateCategory,
+    useUpdateService,
+} from '@/hooks/useServices'
+import ghlService from '@/services/ghlService'
+import { useQuery } from '@tanstack/react-query'
+import { uploadService } from '@/services/uploadService'
+import {
+    ArrowLeft,
+    CheckCircle,
+    ChevronRight,
+    Clock,
+    DollarSign,
+    Edit3,
+    Layers,
+    LayoutGrid,
+    List,
+    Percent,
+    Plus,
+    Save,
+    Search,
+    Settings,
+    Star,
+    Trash2,
+    X,
+    Zap,
+} from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useSelector } from 'react-redux'
+import { useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
+import Layout from '../Layout/Layout'
+import { resolveImageUrl, hasServiceImage } from '@/lib/imageHelpers'
+import ServiceImagePlaceholder from '@/components/ServiceImagePlaceholder'
+import { compressImage, IMAGE_SIZE_LIMIT_BYTES, isUnderSizeLimit } from '@/lib/imageCompression'
+import { useBranding } from '@/context/BrandingContext'
+
+const fallbackServiceImage =
+  'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=500&h=300&fit=crop'
+
+const getLinkedServiceImageSource = (linkedService) =>
+  linkedService?.image ||
+  linkedService?.imageUrl ||
+  linkedService?.serviceImage ||
+  linkedService?.service?.image ||
+  linkedService?.serviceId?.image ||
+  ''
+
+const normalizeForSearch = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const resolveLocationId = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string') return value.trim()
+  return `${value.locationId || value._id || value.id || ''}`.trim()
+}
+
+const resolveManagementLocationId = (currentUser, brandingLocationId, serviceLocationId = '') =>
+  resolveLocationId(currentUser?.selectedLocation?.locationId) ||
+  resolveLocationId(brandingLocationId) ||
+  resolveLocationId(serviceLocationId) ||
+  resolveLocationId(currentUser?.spaLocation?.locationId)
+
+// Helper to compute price display for management list (mirrors catalog logic)
+const getManagementPriceDisplay = (service) => {
+  if (!service?.showPriceRange) {
+    return `$${service?.basePrice ?? 0}`
+  }
+
+  // When showPriceRange is on, compute range from linked add-ons
+  const linkedServices = service?.linkedServices || []
+  const activeAddOns = linkedServices.filter((link) => link?.isActive !== false)
+
+  if (activeAddOns.length === 0) {
+    // No add-ons: show base price if offering discount list price, otherwise show $0
+    return service?.offerDiscountListPrice
+      ? `$${service?.basePrice ?? 0}`
+      : '$0'
+  }
+
+  // Get prices from linked add-ons
+  const prices = activeAddOns
+    .map((link) => {
+      const price =
+        link?.finalPrice ?? link?.customPrice ?? link?.basePrice ?? 0
+      return Number(price)
+    })
+    .filter((p) => Number.isFinite(p) && p >= 0)
+
+  if (prices.length === 0) {
+    return service?.offerDiscountListPrice
+      ? `$${service?.basePrice ?? 0}`
+      : '$0'
+  }
+
+  const minPrice = Math.min(...prices)
+  const maxPrice = Math.max(...prices)
+
+  if (minPrice === maxPrice) {
+    return `$${minPrice}`
+  }
+
+  return `$${minPrice} - $${maxPrice}`
+}
+
+const getManagementLocationDebugContext = (
+  currentUser,
+  brandingLocationId,
+  serviceLocationId = ''
+) => ({
+  selectedLocationId: resolveLocationId(currentUser?.selectedLocation?.locationId),
+  spaLocationId: resolveLocationId(currentUser?.spaLocation?.locationId),
+  serviceLocationId: resolveLocationId(serviceLocationId),
+  brandingLocationId: resolveLocationId(brandingLocationId),
+})
+
+const normalizeMembershipPlans = (membership) => {
+  if (!membership) return []
+  if (Array.isArray(membership.plans) && membership.plans.length > 0)
+    return membership.plans
+  if (
+    membership.name ||
+    membership.description ||
+    membership.price !== undefined
+  )
+    return [membership]
+  return []
+}
+
+const resolveGhlCalendarId = (value = {}) =>
+  `${value?.calendarId || value?.calendarID || value?.calendar_id || value?.calendar?.id || value?.calendar?._id || ''}`.trim()
+
+const resolveValidGhlCalendarId = (value = {}) => {
+  const calendarId = resolveGhlCalendarId(value)
+  return calendarId
+}
+
+const resolveGhlCalendarName = (value = {}) =>
+  `${value?.calendarName || value?.calendar?.name || value?.calendar?.title || value?.title || ''}`.trim()
+
+const resolveGhlServiceId = (value = {}) =>
+  `${value?.serviceId || value?.id || value?._id || value?.calendarId || ''}`.trim()
+
+const resolveGhlServiceName = (value = {}) =>
+  `${value?.name || value?.title || value?.serviceName || ''}`.trim()
+
+const resolveGhlServiceDurationMinutes = (value = {}) => {
+  const numericDuration = Number(
+    value?.durationMinutes ?? value?.durationInMinutes ?? value?.duration
+  )
+  return Number.isFinite(numericDuration) && numericDuration > 0
+    ? numericDuration
+    : null
+}
+
+const resolveGhlCalendarTimeZone = (value = {}) =>
+  `${value?.timeZone || value?.timezone || value?.calendarTimeZone || value?.calendar?.timeZone || value?.calendar?.timezone || ''}`.trim()
+
+const resolveGhlCalendarUserId = (value = {}) =>
+  `${value?.userId || value?.assignedUserId || value?.calendar?.userId || ''}`.trim()
+
+const resolveGhlCalendarTeamId = (value = {}) =>
+  `${value?.teamId || value?.calendar?.teamId || ''}`.trim()
+
+// Enhanced Service Selection Modal for Add-ons with custom pricing
+const ServiceSelectionModal = ({
+  isOpen,
+  onClose,
+  onSelectServices,
+  currentService,
+  excludeServiceId,
+  locationId,
+  brandColor = '#ec4899',
+}) => {
+  const [selectedServices, setSelectedServices] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [customPricing, setCustomPricing] = useState({}) // Store custom prices/durations
+
+  // Use regular services instead of available add-ons for now
+  const { data: servicesData, isLoading } = useServices({
+    search: searchTerm,
+    status: 'active',
+    locationId,
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
+  })
+
+  const services = useMemo(
+    () => servicesData?.services || [],
+    [servicesData?.services]
+  )
+
+  // Filter out the current service being edited and already linked services
+  const filteredServices = services.filter((service) => {
+    if (service._id === excludeServiceId) return false
+    const isAlreadyLinked = currentService?.linkedServices?.some(
+      (linked) => (linked._id || linked.id || linked.serviceId) === service._id
+    )
+    return !isAlreadyLinked
+  })
+
+  const handleToggleService = (service) => {
+    setSelectedServices((prev) => {
+      const isSelected = prev.some((s) => s._id === service._id)
+      if (isSelected) {
+        // Remove from selected and clear custom pricing
+        const newSelected = prev.filter((s) => s._id !== service._id)
+        const newPricing = { ...customPricing }
+        delete newPricing[service._id]
+        setCustomPricing(newPricing)
+        return newSelected
+      } else {
+        // Add to selected and initialize custom pricing
+        setCustomPricing((prev) => ({
+          ...prev,
+          [service._id]: {
+            customPrice: service.basePrice, // Default to original price
+            customDuration: service.duration, // Default to original duration
+          },
+        }))
+        return [...prev, service]
+      }
+    })
+  }
+
+  const handleConfirm = () => {
+    // Combine selected services with their custom pricing
+    const servicesWithCustomPricing = selectedServices.map((service) => ({
+      ...service,
+      customPrice:
+        parseFloat(customPricing[service._id]?.customPrice) ||
+        service.basePrice,
+      customDuration:
+        parseInt(customPricing[service._id]?.customDuration) ||
+        service.duration,
+      order: 0,
+      isActive: true,
+      addedAt: new Date().toISOString(),
+    }))
+
+    onSelectServices(servicesWithCustomPricing)
+    setSelectedServices([])
+    setCustomPricing({})
+    onClose()
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+      <div className='bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden'>
+        <div className='p-6 border-b border-gray-200'>
+          <div className='flex items-center justify-between mb-4'>
+            <h2 className='text-xl font-bold text-gray-900'>
+              Select Add-on Services
+            </h2>
+            <button
+              onClick={onClose}
+              className='p-2 hover:bg-gray-100 rounded-lg'
+            >
+              <X className='w-5 h-5' />
+            </button>
+          </div>
+          <p className='text-sm text-gray-600 mb-4'>
+            Link other services that clients can add to their booking for an enhanced experience and increased booking value.
+          </p>
+
+          {/* Search */}
+          <div className='relative'>
+            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+            <input
+              type='text'
+              placeholder='Search services...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='w-full pl-10 pr-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+            />
+          </div>
+        </div>
+
+        <div className='p-6 overflow-y-auto max-h-[60vh]'>
+          {isLoading ? (
+            <div className='text-center py-8'>Loading services...</div>
+          ) : filteredServices.length === 0 ? (
+            <div className='text-center py-8'>
+              <div className='text-gray-400 mb-2'>📝</div>
+              <p className='text-gray-600'>
+                {searchTerm
+                  ? 'No services found matching your search'
+                  : 'No available services to link'}
+              </p>
+            </div>
+          ) : (
+            <div className='space-y-4'>
+              {filteredServices.map((service) => {
+                const isSelected = selectedServices.some(
+                  (s) => s._id === service._id
+                )
+
+                return (
+                  <div
+                    key={service._id}
+                    className={`border rounded-lg transition-all ${
+                      isSelected
+                        ? 'border-pink-500 bg-pink-50'
+                        : 'border-gray-200 hover:border-pink-300 hover:bg-pink-50'
+                    }`}
+                  >
+                    {/* Service Selection Header */}
+                    <div
+                      onClick={() => handleToggleService(service)}
+                      className='p-4 cursor-pointer'
+                    >
+                      <div className='flex items-center gap-4'>
+                        <div
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                            isSelected
+                              ? 'border-pink-500 bg-pink-500'
+                              : 'border-gray-300'
+                          }`}
+                        >
+                          {isSelected && (
+                            <div className='w-2 h-2 bg-white rounded-full' />
+                          )}
+                        </div>
+
+                        <div className='flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden'>
+                          {hasServiceImage(service) ? (
+                            <img
+                              src={resolveImageUrl(service.image, fallbackServiceImage, { width: 60, height: 60 })}
+                              alt={service.name}
+                              className='w-12 h-12 rounded-lg object-cover'
+                              loading='lazy'
+                              decoding='async'
+                            />
+                          ) : (
+                            <ServiceImagePlaceholder
+                              serviceName={service.name}
+                              brandColor={brandColor}
+                              style={{ width: '100%', height: '100%' }}
+                            />
+                          )}
+                        </div>
+
+                        <div className='flex-1'>
+                          <h3 className='font-semibold text-gray-900'>
+                            {service.name}
+                          </h3>
+                          <p className='text-sm text-gray-600 line-clamp-1'>
+                            {service.description}
+                          </p>
+                          <div className='flex items-center gap-4 mt-1'>
+                            <span className='text-sm text-green-600 font-semibold'>
+                              ${service.basePrice}
+                            </span>
+                            <span className='text-sm text-blue-600'>
+                              {service.duration}min
+                            </span>
+                            {service.categoryId && (
+                              <span className='text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full'>
+                                {service.categoryId.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Add-on pricing summary (only show if selected) */}
+                    {isSelected && (
+                      <div className='px-4 pb-4 border-t border-pink-200 bg-pink-25'>
+                        <div className='pt-4'>
+                          <h4 className='text-sm font-semibold text-gray-700 mb-3'>
+                            Add-on Pricing & Duration
+                          </h4>
+                          <div className='grid grid-cols-2 gap-4'>
+                            <div>
+                              <label className='block text-xs font-medium text-gray-600 mb-1'>
+                                Add-on Price ($)
+                              </label>
+                              <div className='flex h-8 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-700'>
+                                $
+                                {customPricing[service._id]?.customPrice ||
+                                  service.basePrice}
+                              </div>
+                              <p className='text-xs text-gray-500 mt-1'>
+                                Original: ${service.basePrice}
+                              </p>
+                            </div>
+                            <div>
+                              <label className='block text-xs font-medium text-gray-600 mb-1'>
+                                Add-on Duration (min)
+                              </label>
+                              <div className='flex h-8 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-700'>
+                                {customPricing[service._id]?.customDuration ||
+                                  service.duration}{' '}
+                                min
+                              </div>
+                              <p className='text-xs text-gray-500 mt-1'>
+                                Original: {service.duration} min
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className='p-6 border-t border-gray-200'>
+          <div className='flex gap-4'>
+            <button
+              onClick={handleConfirm}
+              disabled={selectedServices.length === 0}
+              className='flex-1 text-white h-10 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
+            >
+              Link {selectedServices.length} Service
+              {selectedServices.length !== 1 ? 's' : ''}
+              {selectedServices.length > 0 && (
+                <span className='ml-2 text-pink-100'>
+                  (Total: $
+                  {selectedServices
+                    .reduce(
+                      (sum, service) =>
+                        sum +
+                        (parseFloat(customPricing[service._id]?.customPrice) ||
+                          service.basePrice),
+                      0
+                    )
+                    .toFixed(2)}
+                  )
+                </span>
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              className='px-6 h-10 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 flex items-center justify-center'
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Category Modal (unchanged)
+const CategoryModal = ({ isOpen, onClose, locationId = '' }) => {
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [editingCategoryId, setEditingCategoryId] = useState('')
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+
+  // API hooks
+  const { data: categories = [], isLoading: categoriesLoading } =
+    useCategories(true, locationId ? { locationId } : {})
+  const createCategoryMutation = useCreateCategory({
+    onSuccess: () => {
+      toast.success('Category created successfully!')
+      setNewCategoryName('')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to create category')
+    },
+  })
+  const deleteCategoryMutation = useDeleteCategory({
+    onSuccess: () => {
+      toast.success('Category deleted successfully!')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to delete category')
+    },
+  })
+  const updateCategoryMutation = useUpdateCategory({
+    onSuccess: () => {
+      toast.success('Category updated successfully!')
+      setEditingCategoryId('')
+      setEditingCategoryName('')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update category')
+    },
+  })
+
+  const handleAdd = () => {
+    if (newCategoryName.trim()) {
+      createCategoryMutation.mutate({
+        name: newCategoryName.trim(),
+        description: '',
+      })
+    }
+  }
+
+  const handleDelete = (categoryId, categoryCount) => {
+    if (categoryCount > 0) {
+      toast.error('Cannot delete category with existing services')
+      return
+    }
+
+    if (window.confirm('Are you sure you want to delete this category?')) {
+      deleteCategoryMutation.mutate(categoryId)
+    }
+  }
+
+  const handleStartEdit = (category) => {
+    setEditingCategoryId(category._id)
+    setEditingCategoryName(category.name || '')
+  }
+
+  const handleCancelEdit = () => {
+    setEditingCategoryId('')
+    setEditingCategoryName('')
+  }
+
+  const handleSaveEdit = () => {
+    const trimmedName = editingCategoryName.trim()
+    if (!editingCategoryId) return
+    if (!trimmedName) {
+      toast.error('Category name is required')
+      return
+    }
+    updateCategoryMutation.mutate({
+      id: editingCategoryId,
+      name: trimmedName,
+    })
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+      <div className='bg-white rounded-lg w-full max-w-md'>
+        <div className='p-6'>
+          <div className='flex items-center justify-between mb-6'>
+            <h2 className='text-xl font-bold text-gray-900'>
+              Manage Categories
+            </h2>
+            <button
+              onClick={onClose}
+              className='p-2 hover:bg-gray-100 rounded-lg'
+            >
+              <X className='w-5 h-5' />
+            </button>
+          </div>
+
+          {/* Add New Category */}
+          <div className='mb-6'>
+            <h3 className='text-lg font-semibold mb-4 text-gray-900'>
+              Add New Category
+            </h3>
+            <div className='space-y-4'>
+              <input
+                type='text'
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder='Enter category name'
+                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
+                disabled={createCategoryMutation.isPending}
+              />
+
+              <button
+                onClick={handleAdd}
+                disabled={
+                  !newCategoryName.trim() || createCategoryMutation.isPending
+                }
+                className='w-full text-white h-8 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center'
+                style={{
+                  background:
+                    'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+                }}
+              >
+                {createCategoryMutation.isPending
+                  ? 'Creating...'
+                  : 'Add Category'}
+              </button>
+            </div>
+          </div>
+
+          {/* Existing Categories */}
+          <div>
+            <h3 className='text-lg font-semibold mb-4 text-gray-900'>
+              Existing Categories
+            </h3>
+
+            {categoriesLoading ? (
+              <div className='text-center py-4'>Loading categories...</div>
+            ) : (
+              <div className='space-y-2'>
+                {categories.map((category) => (
+                  <div
+                    key={category._id}
+                    className='flex items-center justify-between p-3 border border-gray-200 rounded-lg'
+                  >
+                    <div className='flex items-center gap-3'>
+                      {editingCategoryId === category._id ? (
+                        <input
+                          type='text'
+                          value={editingCategoryName}
+                          onChange={(e) => setEditingCategoryName(e.target.value)}
+                          className='h-8 px-2 border border-gray-300 rounded-md text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                          onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
+                          disabled={updateCategoryMutation.isPending}
+                        />
+                      ) : (
+                        <span className='font-medium text-gray-900'>
+                          {category.name}
+                        </span>
+                      )}
+                      <span className='text-sm text-gray-500'>
+                        ({category.count || 0})
+                      </span>
+                    </div>
+                    <div className='flex items-center gap-1'>
+                      {editingCategoryId === category._id ? (
+                        <>
+                          <button
+                            onClick={handleSaveEdit}
+                            className='px-2 h-7 text-xs text-white rounded bg-[color:var(--brand-primary)]'
+                            disabled={updateCategoryMutation.isPending}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className='px-2 h-7 text-xs text-gray-600 rounded border border-gray-300 hover:bg-gray-50'
+                            disabled={updateCategoryMutation.isPending}
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleStartEdit(category)}
+                          className='p-1 text-gray-500 hover:bg-gray-100 rounded'
+                          disabled={
+                            deleteCategoryMutation.isPending ||
+                            updateCategoryMutation.isPending
+                          }
+                          title='Edit category'
+                        >
+                          <Edit3 className='w-4 h-4' />
+                        </button>
+                      )}
+                      <button
+                        onClick={() =>
+                          handleDelete(category._id, category.count || 0)
+                        }
+                        className='p-1 text-red-500 hover:bg-red-50 rounded'
+                        disabled={
+                          (category.count || 0) > 0 ||
+                          deleteCategoryMutation.isPending ||
+                          updateCategoryMutation.isPending
+                        }
+                        title={
+                          (category.count || 0) > 0
+                            ? 'Cannot delete category with services'
+                            : 'Delete category'
+                        }
+                      >
+                        <Trash2 className='w-4 h-4' />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Premium Service Header matching catalog style
+const ServiceHeader = ({
+  view,
+  setView,
+  searchTerm,
+  setSearchTerm,
+  onAddService,
+  totalServices,
+  activeServices,
+}) => (
+  <div className='relative overflow-hidden rounded-[1.25rem] sm:rounded-[1.5rem] md:rounded-2xl bg-gradient-to-br from-[color:var(--brand-primary)] via-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-4 sm:p-5 md:p-6 mb-6 md:mb-8'>
+    {/* Background Pattern */}
+    <div className='absolute inset-0 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")] opacity-10 mix-blend-overlay' />
+
+    <div className='relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4'>
+      {/* Left: Title & Stats */}
+      <div>
+        <h1 className='text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight'>
+          Service Management
+        </h1>
+        <div className='flex items-center gap-2 mt-1'>
+          <span className='text-xs sm:text-sm text-white/80'>
+            {activeServices} active
+          </span>
+          <span className='text-white/40'>·</span>
+          <span className='text-xs sm:text-sm text-white/60'>
+            {totalServices} total
+          </span>
+        </div>
+      </div>
+
+      {/* Right: Search & Add Button */}
+      <div className='w-full md:w-auto flex flex-row items-center gap-2 md:gap-3'>
+        <div className='relative group flex-1 md:flex-none md:w-[220px] lg:w-[260px]'>
+          <div className='relative bg-white/15 backdrop-blur-sm border border-white/25 rounded-xl flex items-center p-1.5 transition-all focus-within:bg-white/20 focus-within:border-white/40'>
+            <div className='p-1.5 rounded-lg ml-0.5'>
+              <Search className='text-white/70 w-4 h-4' />
+            </div>
+            <input
+              type='text'
+              placeholder='Search...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='bg-transparent border-none text-white placeholder-white/60 focus:outline-none w-full font-medium py-1.5 px-2 text-sm min-w-0'
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={onAddService}
+          className='group relative bg-white text-[color:var(--brand-primary)] px-3 md:px-4 py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden shrink-0'
+        >
+          <Plus className='w-4 h-4 md:w-5 md:h-5' />
+          <span className='hidden sm:inline text-sm md:text-base'>Add</span>
+        </button>
+      </div>
+    </div>
+
+    {/* View Toggle - Centered below header */}
+    <div className='relative z-10 mt-3 md:mt-4 flex justify-center'>
+      <div className='flex bg-white/15 backdrop-blur-sm p-1 rounded-lg border border-white/20'>
+        <button
+          onClick={() => setView('grid')}
+          className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 ${
+            view === 'grid'
+              ? 'bg-white text-[color:var(--brand-primary)] shadow-sm'
+              : 'text-white hover:bg-white/10'
+          }`}
+        >
+          <LayoutGrid className='w-3.5 h-3.5' />
+          <span className='hidden sm:inline'>Grid</span>
+        </button>
+        <button
+          onClick={() => setView('list')}
+          className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200 ${
+            view === 'list'
+              ? 'bg-white text-[color:var(--brand-primary)] shadow-sm'
+              : 'text-white hover:bg-white/10'
+          }`}
+        >
+          <List className='w-3.5 h-3.5' />
+          <span className='hidden sm:inline'>List</span>
+        </button>
+      </div>
+    </div>
+  </div>
+)
+
+// Enhanced Service Card with premium catalog-style design
+const ServiceCard = ({ service, category, onEdit, onDelete }) => {
+  const isDiscountActive =
+    service.discount?.active &&
+    new Date() >= new Date(service.discount.startDate) &&
+    new Date() <= new Date(service.discount.endDate)
+
+  // Premium card styling matching catalog
+  const cardStyle = {
+    background:
+      'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 4%, #ffffff) 0%, #ffffff 35%)',
+    borderColor: 'color-mix(in srgb, var(--brand-primary) 14%, #e5e7eb)',
+  }
+
+  const regularPriceStyle = {
+    borderColor: 'rgba(15, 23, 42, 0.08)',
+    boxShadow: '0 10px 22px -24px rgba(15, 23, 42, 0.42)',
+  }
+
+  const brandBadgeStyle = {
+    background:
+      'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+  }
+
+  return (
+    <div
+      onClick={() => onEdit(service)}
+      className='group relative flex h-full flex-col overflow-hidden rounded-[1.35rem] border p-2.5 shadow-[0_14px_34px_-28px_rgba(15,23,42,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_42px_-32px_rgba(15,23,42,0.24)] sm:rounded-[1.55rem] sm:p-3 cursor-pointer'
+      style={cardStyle}
+    >
+      {/* Image Container */}
+      <div className='relative mb-3 overflow-hidden rounded-[1.05rem] bg-slate-100 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.22)] sm:mb-3.5 sm:rounded-[1.15rem]'>
+        {hasServiceImage(service) ? (
+          <>
+            <img
+              src={resolveImageUrl(service.image, fallbackServiceImage, { width: 500, height: 300 })}
+              alt={service.name}
+              className='aspect-[16/9] w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]'
+              loading='lazy'
+              decoding='async'
+            />
+            <div className='absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-950/18 via-slate-950/4 to-transparent opacity-70' />
+          </>
+        ) : (
+          <ServiceImagePlaceholder
+            serviceName={service.name}
+            brandColor={'#ec4899'}
+            className='aspect-[16/9]'
+          />
+        )}
+
+        {/* Status Badge */}
+        <div className='absolute left-3 top-3'>
+          <div
+            className={`rounded-full border border-white/70 px-2 py-1 shadow-sm backdrop-blur-md ${
+              service.status === 'active'
+                ? 'bg-emerald-500/92 text-white'
+                : 'bg-gray-500/92 text-white'
+            }`}
+          >
+            <span className='flex items-center gap-1 text-[8px] font-semibold uppercase tracking-[0.16em]'>
+              <CheckCircle className='w-3 h-3' />
+              {service.status}
+            </span>
+          </div>
+        </div>
+
+        {/* Category Badge */}
+        {category && (
+          <div className='absolute top-3 right-3'>
+            <div
+              className='rounded-full border border-white/70 px-2 py-1 shadow-sm backdrop-blur-md'
+              style={{ background: 'rgba(255,255,255,0.92)' }}
+            >
+              <span
+                className='text-[8px] font-semibold uppercase tracking-[0.16em]'
+                style={{ color: 'var(--brand-primary)' }}
+              >
+                {category.name}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Discount Badge */}
+        {isDiscountActive && (
+          <div className='absolute bottom-3 right-3'>
+            <span className='bg-red-500 text-white px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-lg'>
+              <Percent className='w-3 h-3' />
+              {service.discount.percentage}% OFF
+            </span>
+          </div>
+        )}
+
+        {/* Edit/Delete Actions - Always Visible */}
+        <div
+          className='absolute bottom-3 left-3 flex gap-2'
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => onEdit(service)}
+            className='bg-white/95 p-2 rounded-full hover:bg-white shadow-lg hover:scale-105 transition-all active:scale-95'
+          >
+            <Edit3 className='w-4 h-4' style={{ color: 'var(--brand-primary)' }} />
+          </button>
+          <button
+            onClick={() => onDelete(service)}
+            className='bg-white/95 p-2 rounded-full hover:bg-white shadow-lg hover:scale-105 transition-all active:scale-95'
+          >
+            <Trash2 className='w-4 h-4 text-red-500' />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className='flex flex-1 flex-col px-1'>
+        {/* Title & Rating */}
+        <div className='mb-2 sm:mb-2.5'>
+          <div className='flex items-start justify-between gap-2'>
+            <h3 className='text-[1.08rem] font-semibold leading-[1.1] tracking-[-0.035em] text-slate-950 transition-colors group-hover:text-[color:var(--brand-primary)] sm:text-[1.18rem]'>
+              {service.name}
+            </h3>
+            <div className='flex items-center gap-0.5 shrink-0 bg-yellow-50 px-1.5 py-0.5 rounded-lg'>
+              <Star className='w-3 h-3 text-yellow-500 fill-current' />
+              <span className='text-xs font-semibold text-yellow-700'>
+                {service.rating?.toFixed(1) || '5.0'}
+              </span>
+            </div>
+          </div>
+          <p className='mt-1.5 line-clamp-2 text-[0.74rem] font-normal leading-[1.42] text-slate-500 sm:text-[0.78rem]'>
+            {service.description || 'No description provided.'}
+          </p>
+        </div>
+
+        {/* Price Panel */}
+        <div
+          className='mb-2 mt-auto rounded-[1.05rem] border bg-white px-3 py-2.5 sm:mb-2.5 sm:rounded-[1.15rem] sm:px-3.5 sm:py-3'
+          style={regularPriceStyle}
+        >
+          <p className='text-[0.7rem] font-medium tracking-[-0.01em] text-slate-500 sm:text-[0.74rem]'>
+            Price
+          </p>
+          <p className='mt-1 text-[1.6rem] font-semibold leading-none tracking-[-0.05em] text-slate-950 sm:text-[1.8rem]'>
+            {getManagementPriceDisplay(service)}
+          </p>
+        </div>
+
+        {/* Duration Panel */}
+        <div
+          className='mb-2.5 rounded-[1.05rem] border px-3 py-2.5 sm:rounded-[1.15rem] sm:px-3.5 sm:py-3'
+          style={{
+            background: 'linear-gradient(135deg, color-mix(in srgb, #3b82f6 8%, #ffffff) 0%, #ffffff 65%)',
+            borderColor: 'color-mix(in srgb, #3b82f6 16%, #d1d5db)',
+          }}
+        >
+          <div className='flex items-center gap-1.5 mb-1'>
+            <Clock className='w-3.5 h-3.5 text-blue-600' />
+            <span className='text-[0.7rem] font-medium tracking-[-0.01em] text-blue-600 sm:text-[0.74rem]'>
+              Duration
+            </span>
+          </div>
+          <p className='text-[1.3rem] font-semibold leading-none tracking-[-0.05em] text-blue-700 sm:text-[1.5rem]'>
+            {service.duration}m
+          </p>
+        </div>
+
+        {/* Footer Stats */}
+        <div className='flex items-center justify-between pt-2 border-t border-slate-100/80'>
+          <div className='flex items-center gap-1.5'>
+            <Layers className='w-3.5 h-3.5 text-slate-400' />
+            <span className='text-[0.68rem] font-semibold text-slate-600 sm:text-[0.72rem]'>
+              {service.subTreatments?.length || 0} options
+            </span>
+          </div>
+          <div className='flex items-center gap-1.5'>
+            <Zap className='w-3.5 h-3.5' style={{ color: 'var(--brand-primary)' }} />
+            <span
+              className='text-[0.68rem] font-semibold sm:text-[0.72rem]'
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              {service.linkedServicesCount || service.linkedServices?.length || 0} add-ons
+            </span>
+          </div>
+        </div>
+
+        {/* Linked Services Preview */}
+        {service.linkedServices && service.linkedServices.length > 0 && (
+          <div className='mt-3 pt-3 border-t border-slate-100/80'>
+            <h4 className='text-[0.65rem] font-semibold text-slate-500 mb-2 flex items-center gap-1 uppercase tracking-wider'>
+              <Zap className='w-3 h-3' />
+              Linked Add-ons
+            </h4>
+            <div className='space-y-1.5'>
+              {service.linkedServices.slice(0, 2).map((addon, index) => (
+                <div
+                  key={index}
+                  className='text-[0.7rem] text-slate-600 flex items-center justify-between bg-slate-50/80 rounded-lg px-2 py-1'
+                >
+                  <span className='truncate font-medium'>{addon.name}</span>
+                  <span className='text-emerald-600 font-semibold ml-2'>
+                    +${addon.finalPrice || addon.customPrice || addon.basePrice}
+                  </span>
+                </div>
+              ))}
+              {service.linkedServices.length > 2 && (
+                <div className='text-[0.65rem] text-slate-400 text-center py-1'>
+                  +{service.linkedServices.length - 2} more add-ons
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const initialServiceBasePrice = (svc) => {
+  if (!svc) return ''
+  if (!svc.showPriceRange) return svc.basePrice ?? ''
+  if (svc.offerDiscountListPrice) return svc.basePrice || ''
+  return 0
+}
+
+// Complete Service Form with fixed linked services handling
+const ServiceForm = ({ service, onSave, onCancel }) => {
+  const { branding, locationId: brandedLocationId } = useBranding()
+  const { currentUser } = useSelector((state) => state.user)
+  const brandColor = branding?.themeColor || '#ec4899'
+  const brandColorDark = (() => {
+    const cleaned = brandColor.replace('#', '')
+    if (cleaned.length !== 6) return '#b0164e'
+    const num = parseInt(cleaned, 16)
+    const r = Math.max(0, ((num >> 16) & 255) - 24)
+    const g = Math.max(0, ((num >> 8) & 255) - 24)
+    const b = Math.max(0, (num & 255) - 24)
+    return `#${r.toString(16).padStart(2, '0')}${g
+      .toString(16)
+      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  })()
+  const [formData, setFormData] = useState({
+    name: service?.name || '',
+    description: service?.description || '',
+    categoryId: service?.categoryId?._id || service?.categoryId || '',
+    basePrice: initialServiceBasePrice(service),
+    duration: service?.duration || '',
+    discount: service?.discount || {
+      percentage: 0,
+      startDate: '',
+      endDate: '',
+      active: false,
+    },
+    limit: service?.limit || 1,
+    image: service?.image || '',
+    imagePublicId: service?.imagePublicId || '',
+    status: service?.status || 'active',
+    subTreatments: service?.subTreatments || [],
+    linkedServices: service?.linkedServices || [],
+    showPriceRange: service?.showPriceRange === true,
+    offerDiscountListPrice: service?.offerDiscountListPrice === true,
+    membershipPricing: service?.membershipPricing || [],
+    creditValue: Number.isFinite(Number(service?.creditValue))
+      ? Number(service.creditValue)
+      : 0,
+    ghlCalendar: service?.ghlCalendar || {
+      calendarId: '',
+      name: '',
+      timeZone: '',
+      userId: '',
+      teamId: '',
+    },
+    ghlService: service?.ghlService || {
+      serviceId: '',
+      name: '',
+    },
+    ghlBooking: service?.ghlBooking || {
+      schedulingLink: '',
+      permanentLink: '',
+      embedCode: '',
+    },
+  })
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [showServiceModal, setShowServiceModal] = useState(false)
+
+  // API hooks
+  const effectiveLocationId = resolveManagementLocationId(
+    currentUser,
+    brandedLocationId,
+    service?.locationId
+  )
+
+  useEffect(() => {
+    const debugContext = getManagementLocationDebugContext(
+      currentUser,
+      brandedLocationId,
+      service?.locationId
+    )
+    console.log('[ServiceManagement][GHL dropdown] resolved location', {
+      ...debugContext,
+      effectiveLocationId,
+      serviceId: service?._id || '',
+      serviceName: service?.name || '',
+    })
+  }, [
+    currentUser?.selectedLocation?.locationId,
+    currentUser?.spaLocation?.locationId,
+    brandedLocationId,
+    service?.locationId,
+    service?._id,
+    service?.name,
+    effectiveLocationId,
+  ])
+
+  const { data: categories = [], isLoading: categoriesLoading } =
+    useCategories(
+      true,
+      effectiveLocationId ? { locationId: effectiveLocationId } : {}
+    )
+  const { data: ghlCalendarServicesData, isLoading: ghlCalendarServicesLoading } = useQuery({
+    queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
+    queryFn: () => {
+      console.log('[ServiceManagement][GHL dropdown] fetching calendar services', {
+        locationId: effectiveLocationId,
+        queryKey: ['ghl-calendar-services', 'service-management-form', effectiveLocationId],
+      })
+      return ghlService.getCalendarServices(effectiveLocationId)
+    },
+    enabled: Boolean(effectiveLocationId),
+    retry: false,
+  })
+  const ghlCalendarServices = useMemo(
+    () => ghlCalendarServicesData?.data?.services || [],
+    [ghlCalendarServicesData]
+  )
+  const selectedGhlServiceId = useMemo(() => {
+    const explicitServiceId = `${formData.ghlService?.serviceId || ''}`.trim()
+    if (explicitServiceId) return explicitServiceId
+    const linkedCalendarId = `${formData.ghlCalendar?.calendarId || ''}`.trim()
+    if (!linkedCalendarId) return ''
+    const matchedService = ghlCalendarServices.find(
+      (entry) => `${resolveGhlCalendarId(entry)}` === linkedCalendarId
+    )
+    return matchedService ? resolveGhlServiceId(matchedService) : ''
+  }, [
+    formData.ghlService?.serviceId,
+    formData.ghlCalendar?.calendarId,
+    ghlCalendarServices,
+  ])
+
+  const locationMembership = branding?.membership
+  const membershipPlans = normalizeMembershipPlans(locationMembership)
+  const membershipPlanOptions = membershipPlans.map((plan, index) => ({
+    id: plan._id || plan.id || `membership-plan-${index}`,
+    name: plan.name || `Plan ${index + 1}`,
+  }))
+
+  const createServiceMutation = useCreateService({
+    onSuccess: () => {
+      toast.success('Service created successfully!')
+      onSave()
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to create service')
+    },
+  })
+
+  const updateServiceMutation = useUpdateService({
+    onSuccess: () => {
+      toast.success('Service updated successfully!')
+      onSave()
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update service')
+    },
+  })
+
+  // Initialize form data when service changes
+  useEffect(() => {
+    if (service) {
+      // Format linked services properly for the form
+      const formattedLinkedServices = service.linkedServices
+        ? service.linkedServices.map((link) => ({
+            // Service details for display
+            _id: link.serviceId || link._id,
+            name: link.name,
+            description: link.description,
+            basePrice: link.basePrice,
+            duration: link.duration,
+            image: getLinkedServiceImageSource(link),
+            categoryId: link.categoryId,
+            status: link.status,
+
+            // Linking metadata
+            serviceId: link.serviceId || link._id,
+            customPrice: link.customPrice,
+            customDuration: link.customDuration,
+            order: link.order || 0,
+            isActive: link.isActive !== undefined ? link.isActive : true,
+            addedAt: link.addedAt || new Date().toISOString(),
+
+            // Computed values
+            finalPrice: link.finalPrice || link.customPrice || link.basePrice,
+            finalDuration:
+              link.finalDuration || link.customDuration || link.duration,
+          }))
+        : []
+
+      setFormData({
+        name: service.name || '',
+        description: service.description || '',
+        categoryId: service.categoryId?._id || service.categoryId || '',
+        basePrice: initialServiceBasePrice(service),
+        duration: service.duration || '',
+        discount: service.discount || {
+          percentage: 0,
+          startDate: '',
+          endDate: '',
+          active: false,
+        },
+        limit: service.limit || 1,
+        image: service.image || '',
+        imagePublicId: service.imagePublicId || '',
+        status: service.status || 'active',
+        subTreatments: service.subTreatments || [],
+        linkedServices: formattedLinkedServices,
+        showPriceRange: service.showPriceRange === true,
+        offerDiscountListPrice: service.offerDiscountListPrice === true,
+        membershipPricing: Array.isArray(service.membershipPricing)
+          ? service.membershipPricing.map((entry) => ({
+              membershipPlanId: entry.membershipPlanId || null,
+              membershipPlanName: entry.membershipPlanName || '',
+              price: Number.isFinite(Number(entry.price))
+                ? Number(entry.price)
+                : '',
+              appliesTo: entry.appliesTo || 'single_session',
+              minimumPurchase: entry.minimumPurchase || 'none',
+              usageLimit: entry.usageLimit || 'None',
+              notes: entry.notes || '',
+              isActive: entry.isActive !== false,
+            }))
+          : [],
+        creditValue: Number.isFinite(Number(service.creditValue))
+          ? Number(service.creditValue)
+          : 0,
+        ghlCalendar: {
+          calendarId: service.ghlCalendar?.calendarId || '',
+          name: service.ghlCalendar?.name || '',
+          timeZone: service.ghlCalendar?.timeZone || '',
+          userId: service.ghlCalendar?.userId || '',
+          teamId: service.ghlCalendar?.teamId || '',
+        },
+        ghlService: {
+          serviceId: service.ghlService?.serviceId || '',
+          name: service.ghlService?.name || '',
+        },
+        ghlBooking: {
+          schedulingLink: service.ghlBooking?.schedulingLink || '',
+          permanentLink: service.ghlBooking?.permanentLink || '',
+          embedCode: service.ghlBooking?.embedCode || '',
+        },
+      })
+
+      console.log(
+        '✅ Form initialized with linkedServices:',
+        formattedLinkedServices
+      )
+    }
+  }, [service])
+
+  const validateForm = () => {
+    const newErrors = {}
+    if (!formData.name.trim()) newErrors.name = 'Service name is required'
+    if (!formData.description.trim())
+      newErrors.description = 'Description is required'
+    if (!formData.categoryId) newErrors.categoryId = 'Category is required'
+    if (!formData.showPriceRange && (!formData.basePrice || formData.basePrice <= 0))
+      newErrors.basePrice = 'Valid price required'
+    if (
+      formData.showPriceRange &&
+      formData.offerDiscountListPrice &&
+      (!formData.basePrice || formData.basePrice <= 0)
+    ) {
+      newErrors.basePrice =
+        'Enter a list price to show in the catalog (e.g. before discount)'
+    }
+    if (!formData.duration || formData.duration <= 0)
+      newErrors.duration = 'Valid duration required'
+    if (!formData.limit || formData.limit <= 0)
+      newErrors.limit = 'Valid limit required'
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleGhlServiceChange = (ghlServiceId) => {
+    const selectedGhlService =
+      ghlCalendarServices.find(
+        (ghlServiceItem) =>
+          `${resolveGhlServiceId(ghlServiceItem)}` === `${ghlServiceId}`
+      ) || null
+
+    if (!selectedGhlService) {
+      setFormData((prev) => ({
+        ...prev,
+        ghlCalendar: {
+          calendarId: '',
+          name: '',
+          timeZone: '',
+          userId: '',
+          teamId: '',
+        },
+        ghlService: {
+          serviceId: '',
+          name: '',
+        },
+        ghlBooking: {
+          schedulingLink: '',
+          permanentLink: '',
+          embedCode: '',
+        },
+      }))
+      return
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      ghlCalendar: {
+        calendarId: resolveValidGhlCalendarId(selectedGhlService),
+        name:
+          resolveGhlCalendarName(selectedGhlService) ||
+          resolveGhlServiceName(selectedGhlService),
+        timeZone: resolveGhlCalendarTimeZone(selectedGhlService),
+        userId: resolveGhlCalendarUserId(selectedGhlService),
+        teamId: resolveGhlCalendarTeamId(selectedGhlService),
+      },
+      ghlService: {
+        serviceId: resolveGhlServiceId(selectedGhlService),
+        name: resolveGhlServiceName(selectedGhlService),
+      },
+      ghlBooking: {
+        schedulingLink: `${selectedGhlService?.schedulingLink || ''}`.trim(),
+        permanentLink: `${selectedGhlService?.permanentLink || ''}`.trim(),
+        embedCode: `${selectedGhlService?.embedCode || selectedGhlService?.mCode || ''}`.trim(),
+      },
+    }))
+  }
+
+  // Fixed handleSelectServices function
+  const handleSelectServices = (services) => {
+    console.log('🔗 Adding linked services:', services)
+
+    // Add services with their custom pricing already set
+    const newLinkedServices = services.map((service) => ({
+      // Keep the full service object for display
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      duration: service.duration,
+      image: service.image,
+      categoryId: service.categoryId,
+
+      // Add the linking metadata
+      serviceId: service._id,
+      customPrice: service.customPrice || service.basePrice,
+      customDuration: service.customDuration || service.duration,
+      order: service.order || 0,
+      isActive: service.isActive !== undefined ? service.isActive : true,
+      addedAt: service.addedAt || new Date().toISOString(),
+    }))
+
+    setFormData({
+      ...formData,
+      linkedServices: [...formData.linkedServices, ...newLinkedServices],
+    })
+  }
+
+  // Fixed handleSubmit function
+  const handleSubmit = () => {
+    if (validateForm()) {
+      // Prepare the data for submission
+      const submissionData = { ...formData }
+
+      // Clean up linkedServices data for backend - only send the linking data
+      if (
+        submissionData.linkedServices &&
+        submissionData.linkedServices.length > 0
+      ) {
+        submissionData.linkedServices = submissionData.linkedServices.map(
+          (service) => ({
+            serviceId: service.serviceId || service._id,
+            customPrice: parseFloat(service.customPrice) || null,
+            customDuration: parseInt(service.customDuration) || null,
+            order: parseInt(service.order) || 0,
+            isActive: service.isActive !== undefined ? service.isActive : true,
+            addedAt: service.addedAt || new Date().toISOString(),
+          })
+        )
+
+        console.log(
+          '🔄 Submitting linkedServices:',
+          submissionData.linkedServices
+        )
+      }
+
+      // Ensure numeric fields are properly formatted
+      submissionData.showPriceRange = Boolean(submissionData.showPriceRange)
+      submissionData.offerDiscountListPrice = Boolean(
+        submissionData.offerDiscountListPrice
+      )
+
+      if (!submissionData.showPriceRange) {
+        submissionData.offerDiscountListPrice = false
+      }
+
+      if (submissionData.showPriceRange && !submissionData.offerDiscountListPrice) {
+        submissionData.basePrice = 0
+      } else {
+        submissionData.basePrice = parseFloat(submissionData.basePrice)
+      }
+      if (submissionData.duration) {
+        submissionData.duration = parseInt(submissionData.duration)
+      }
+      if (submissionData.limit) {
+        submissionData.limit = parseInt(submissionData.limit)
+      }
+
+      // Clean up discount data
+      if (submissionData.discount) {
+        submissionData.discount = {
+          percentage: parseFloat(submissionData.discount.percentage) || 0,
+          startDate: submissionData.discount.startDate || null,
+          endDate: submissionData.discount.endDate || null,
+          active: Boolean(submissionData.discount.active),
+        }
+      }
+
+      // Clean up subTreatments
+      if (submissionData.subTreatments) {
+        submissionData.subTreatments = submissionData.subTreatments
+          .map((treatment) => ({
+            name: treatment.name?.trim() || '',
+            price: parseFloat(treatment.price) || 0,
+            duration: parseInt(treatment.duration) || 0,
+            description: treatment.description?.trim() || '',
+            hasRewards: Boolean(treatment.hasRewards),
+          }))
+          .filter(
+            (treatment) =>
+              treatment.name && treatment.price > 0 && treatment.duration > 0
+          )
+      }
+
+      if (submissionData.membershipPricing) {
+        submissionData.membershipPricing = submissionData.membershipPricing
+          .map((entry) => ({
+            membershipPlanId: entry.membershipPlanId || null,
+            membershipPlanName: entry.membershipPlanName?.trim() || '',
+            price: Number(entry.price),
+            appliesTo: entry.appliesTo || 'single_session',
+            minimumPurchase: entry.minimumPurchase || 'none',
+            usageLimit: entry.usageLimit || 'None',
+            notes: entry.notes || '',
+            isActive: entry.isActive !== false,
+          }))
+          .filter(
+            (entry) =>
+              entry.membershipPlanName &&
+              Number.isFinite(entry.price) &&
+              entry.price >= 0
+          )
+      }
+
+      submissionData.creditValue = Math.max(
+        0,
+        Number.isFinite(Number(submissionData.creditValue))
+          ? Number(submissionData.creditValue)
+          : 0
+      )
+
+      submissionData.ghlCalendar = {
+        calendarId: submissionData.ghlCalendar?.calendarId || '',
+        name: submissionData.ghlCalendar?.name || '',
+        timeZone: submissionData.ghlCalendar?.timeZone || '',
+        userId: submissionData.ghlCalendar?.userId || '',
+        teamId: submissionData.ghlCalendar?.teamId || '',
+      }
+      submissionData.ghlService = {
+        serviceId: submissionData.ghlService?.serviceId || '',
+        name: submissionData.ghlService?.name || '',
+      }
+      submissionData.ghlBooking = {
+        schedulingLink: submissionData.ghlBooking?.schedulingLink || '',
+        permanentLink: submissionData.ghlBooking?.permanentLink || '',
+        embedCode: submissionData.ghlBooking?.embedCode || '',
+      }
+
+      submissionData.locationId = effectiveLocationId || undefined
+
+      console.log('🔄 Submitting service data:', submissionData)
+
+      if (service) {
+        // Update existing service
+        updateServiceMutation.mutate({
+          id: service._id,
+          ...submissionData,
+        })
+      } else {
+        // Create new service
+        createServiceMutation.mutate(submissionData)
+      }
+    }
+  }
+
+  const addSubTreatment = () => {
+    setFormData({
+      ...formData,
+      subTreatments: [
+        ...formData.subTreatments,
+        { id: Date.now(), name: '', price: '', duration: '', description: '' },
+      ],
+    })
+  }
+
+  const updateSubTreatment = (index, field, value) => {
+    const updated = formData.subTreatments.map((treatment, i) =>
+      i === index ? { ...treatment, [field]: value } : treatment
+    )
+    setFormData({ ...formData, subTreatments: updated })
+  }
+
+  const removeSubTreatment = (index) => {
+    setFormData({
+      ...formData,
+      subTreatments: formData.subTreatments.filter((_, i) => i !== index),
+    })
+  }
+
+  const removeLinkedService = (serviceId) => {
+    setFormData({
+      ...formData,
+      linkedServices: formData.linkedServices.filter(
+        (service) => (service.serviceId || service._id) !== serviceId
+      ),
+    })
+  }
+
+  const findMembershipEntry = (plan) =>
+    formData.membershipPricing.find(
+      (entry) =>
+        (entry.membershipPlanId &&
+          String(entry.membershipPlanId) === String(plan.id)) ||
+        (entry.membershipPlanName &&
+          entry.membershipPlanName.toLowerCase() === plan.name.toLowerCase())
+    )
+
+  const toggleMembershipPricing = (plan, enabled) => {
+    if (enabled) {
+      if (findMembershipEntry(plan)) return
+      setFormData((prev) => ({
+        ...prev,
+        membershipPricing: [
+          ...prev.membershipPricing,
+          {
+            membershipPlanId: plan.id,
+            membershipPlanName: plan.name,
+            price: prev.basePrice || '',
+            appliesTo: 'single_session',
+            minimumPurchase: 'none',
+            usageLimit: 'None',
+            notes: '',
+            isActive: true,
+          },
+        ],
+      }))
+      return
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      membershipPricing: prev.membershipPricing.filter(
+        (entry) =>
+          !(
+            (entry.membershipPlanId &&
+              String(entry.membershipPlanId) === String(plan.id)) ||
+            (entry.membershipPlanName &&
+              entry.membershipPlanName.toLowerCase() === plan.name.toLowerCase())
+          )
+      ),
+    }))
+  }
+
+  const updateMembershipPricingField = (plan, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      membershipPricing: prev.membershipPricing.map((entry) => {
+        const matches =
+          (entry.membershipPlanId &&
+            String(entry.membershipPlanId) === String(plan.id)) ||
+          (entry.membershipPlanName &&
+            entry.membershipPlanName.toLowerCase() === plan.name.toLowerCase())
+
+        return matches ? { ...entry, [field]: value } : entry
+      }),
+    }))
+  }
+
+  const isSubmitting =
+    createServiceMutation.isPending || updateServiceMutation.isPending
+
+  return (
+    <Layout>
+      <div
+        className='px-4 py-6 space-y-6 max-w-6xl mx-auto'
+        style={{
+          ['--brand-primary']: brandColor,
+          ['--brand-primary-dark']: brandColorDark,
+        }}
+      >
+        {/* Header */}
+        <div className='bg-white rounded-lg p-6'>
+          <div className='flex items-center mb-4'>
+            <button
+              onClick={onCancel}
+              className='mr-4 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg'
+              disabled={isSubmitting}
+            >
+              <ArrowLeft className='w-6 h-6' />
+            </button>
+            <div>
+              <h1 className='text-2xl font-bold text-gray-900'>
+                {service ? 'Edit Service' : 'Create New Service'}
+              </h1>
+              <p className='text-gray-600 text-sm'>
+                {service
+                  ? 'Update your service details, pricing, and add-on options to keep your offerings up to date.'
+                  : 'Add a new service to your menu. Provide clear details to help clients understand what is included.'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Error Display */}
+        {(createServiceMutation.error || updateServiceMutation.error) && (
+          <div className='bg-red-50 border border-red-200 rounded-lg p-4 mb-4'>
+            <h3 className='text-red-800 font-semibold mb-2'>Error Details:</h3>
+            <pre className='text-red-700 text-sm whitespace-pre-wrap'>
+              {JSON.stringify(
+                createServiceMutation.error?.response?.data ||
+                  updateServiceMutation.error?.response?.data ||
+                  createServiceMutation.error?.message ||
+                  updateServiceMutation.error?.message,
+                null,
+                2
+              )}
+            </pre>
+          </div>
+        )}
+
+        {/* Basic Information */}
+        <div className='bg-white rounded-lg p-6'>
+          <h2 className='text-lg font-bold text-gray-900 mb-6'>
+            Basic Information
+          </h2>
+
+          <div className='grid md:grid-cols-2 gap-6'>
+            <div>
+              <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                Service Name *
+              </label>
+              <input
+                type='text'
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
+                  errors.name ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder='e.g., Dermal Filler Treatment'
+                disabled={isSubmitting}
+              />
+              <p className='text-[10px] text-gray-500 mt-1'>This is how the service will appear to your clients in the booking menu.</p>
+              {errors.name && (
+                <p className='text-red-500 text-xs mt-1'>{errors.name}</p>
+              )}
+            </div>
+
+            <div>
+              <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                Category *
+              </label>
+              <div className='flex gap-2'>
+                <select
+                  value={formData.categoryId}
+                  onChange={(e) =>
+                    setFormData({ ...formData, categoryId: e.target.value })
+                  }
+                  className={`flex-1 px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
+                    errors.categoryId ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  disabled={categoriesLoading || isSubmitting}
+                >
+                  <option value=''>
+                    {categoriesLoading ? 'Loading...' : 'Select category'}
+                  </option>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type='button'
+                  onClick={() => setShowCategoryModal(true)}
+                  className='px-4 h-8 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 flex items-center justify-center'
+                  disabled={isSubmitting}
+                >
+                  <Settings className='w-5 h-5' />
+                </button>
+              </div>
+              <p className='text-[10px] text-gray-500 mt-1'>Select a category or add a new one by clicking the settings icon.</p>
+              {errors.categoryId && (
+                <p className='text-red-500 text-xs mt-1'>{errors.categoryId}</p>
+              )}
+            </div>
+
+            <div
+              className={`rounded-xl border p-4 transition-colors ${
+                formData.showPriceRange
+                  ? 'border-slate-200 bg-slate-50/90'
+                  : 'border-transparent p-0'
+              }`}
+            >
+              <label
+                className={`mb-2 block text-sm font-semibold ${
+                  formData.showPriceRange && !formData.offerDiscountListPrice
+                    ? 'text-slate-500'
+                    : 'text-gray-700'
+                }`}
+              >
+                {!formData.showPriceRange
+                  ? 'Base price ($) *'
+                  : formData.offerDiscountListPrice
+                    ? 'List price ($) * — shown in catalog'
+                    : 'Base price ($)'}
+                {formData.showPriceRange && !formData.offerDiscountListPrice && (
+                  <span className='ml-2 text-xs font-normal normal-case text-slate-500'>
+                    (locked — add-on prices drive the catalog range)
+                  </span>
+                )}
+              </label>
+
+              {formData.showPriceRange && (
+                <label className='mb-3 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-white/90 px-3 py-3'>
+                  <input
+                    type='checkbox'
+                    checked={formData.offerDiscountListPrice}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setFormData((prev) => ({
+                        ...prev,
+                        offerDiscountListPrice: on,
+                        basePrice: on ? prev.basePrice || '' : 0,
+                      }))
+                    }}
+                    className='mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]'
+                    disabled={isSubmitting}
+                  />
+                  <span className='text-xs leading-snug text-slate-700'>
+                    <span className='block font-semibold text-slate-900'>
+                      I want to offer a list price (e.g. before discount)
+                    </span>
+                    <span className='mt-1 block text-slate-600'>
+                      Enable this to set a price clients see as the main amount
+                      on the catalog. Optional add-ons still appear as a second
+                      line from the lowest add-on price to the highest.
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              <input
+                type='number'
+                value={formData.basePrice}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    basePrice: parseFloat(e.target.value) || '',
+                  })
+                }
+                className={`w-full rounded-lg border px-4 h-8 focus:outline-none ${
+                  formData.showPriceRange && !formData.offerDiscountListPrice
+                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500 placeholder:text-slate-400 shadow-inner'
+                    : `focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
+                        errors.basePrice ? 'border-red-300' : 'border-gray-300'
+                      }`
+                }`}
+                placeholder='450'
+                min='0'
+                step='0.01'
+                disabled={
+                  isSubmitting ||
+                  (formData.showPriceRange && !formData.offerDiscountListPrice)
+                }
+                aria-disabled={
+                  formData.showPriceRange && !formData.offerDiscountListPrice
+                }
+              />
+              {formData.showPriceRange && !formData.offerDiscountListPrice ? (
+                <div className='mt-3 space-y-2 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2.5 text-[11px] leading-relaxed text-slate-600'>
+                  <p className='font-semibold text-slate-700'>
+                    Why base price is zero
+                  </p>
+                  <p>
+                    The catalog builds the visible range from your{' '}
+                    <span className='font-medium'>linked add-ons</span> only:
+                    the <span className='font-medium'>cheapest add-on</span> is
+                    the low end and the{' '}
+                    <span className='font-medium'>most expensive add-on</span> is
+                    the high end. Turn on{' '}
+                    <span className='font-medium'>list price</span> above if you
+                    want a single headline price (for example a pre-discount
+                    amount) shown instead.
+                  </p>
+                </div>
+              ) : null}
+              {formData.showPriceRange && formData.offerDiscountListPrice ? (
+                <p className='mt-2 text-[10px] text-slate-600'>
+                  Clients see this amount as the main catalog price. Add-on
+                  prices still define the optional range line underneath when you
+                  have linked add-ons.
+                </p>
+              ) : null}
+              {!formData.showPriceRange ? (
+                <p className='text-[10px] text-gray-500 mt-1'>
+                  The starting price for this service. Variations can be added
+                  below.
+                </p>
+              ) : null}
+              {errors.basePrice && (
+                <p className='text-red-500 text-xs mt-1'>{errors.basePrice}</p>
+              )}
+            </div>
+
+            <div>
+              <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                Duration (minutes) *
+              </label>
+              <input
+                type='number'
+                value={formData.duration}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    duration: parseInt(e.target.value) || '',
+                  })
+                }
+                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
+                  errors.duration ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder='60'
+                min='1'
+                disabled={isSubmitting}
+              />
+              <p className='text-[10px] text-gray-500 mt-1'>Default time slot reserved for this service.</p>
+              {errors.duration && (
+                <p className='text-red-500 text-xs mt-1'>{errors.duration}</p>
+              )}
+            </div>
+
+            <div>
+              <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                GHL Service
+              </label>
+              <select
+                value={selectedGhlServiceId}
+                onChange={(e) => handleGhlServiceChange(e.target.value)}
+                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                disabled={isSubmitting || !effectiveLocationId || ghlCalendarServicesLoading}
+              >
+                <option value=''>
+                  {ghlCalendarServicesLoading
+                    ? 'Loading GHL services...'
+                    : 'No GHL service linked'}
+                </option>
+                {ghlCalendarServices.map((ghlServiceItem) => {
+                  const serviceName =
+                    resolveGhlServiceName(ghlServiceItem) || 'Untitled Service'
+                  const hasDurationInName = /\(\s*\d+\s*min\s*\)/i.test(
+                    serviceName
+                  )
+                  const duration = resolveGhlServiceDurationMinutes(ghlServiceItem)
+                  const durationLabel =
+                    duration && !hasDurationInName ? ` (${duration} min)` : ''
+                  return (
+                  <option
+                    key={resolveGhlServiceId(ghlServiceItem)}
+                    value={resolveGhlServiceId(ghlServiceItem)}
+                  >
+                    {serviceName + durationLabel}
+                  </option>
+                  )
+                })}
+              </select>
+              <p className='text-[10px] text-gray-500 mt-1'>
+                Link this service to a GoHighLevel service. Its linked calendar,
+                availability, and booking sync will be used automatically.
+              </p>
+              {formData.ghlService?.serviceId && (
+                <p className='text-[10px] text-gray-500 mt-1'>
+                  Linked GHL service: {formData.ghlService?.name || 'Unnamed Service'}
+                  {formData.ghlCalendar?.name
+                    ? ` | Calendar: ${formData.ghlCalendar.name}`
+                    : ''}
+                  {formData.ghlCalendar?.timeZone ? ` (${formData.ghlCalendar.timeZone})` : ''}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                Daily Limit *
+              </label>
+              <input
+                type='number'
+                value={formData.limit}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    limit: parseInt(e.target.value) || '',
+                  })
+                }
+                className={`w-full px-4 h-8 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
+                  errors.limit ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder='5'
+                min='1'
+                disabled={isSubmitting}
+              />
+              {errors.limit && (
+                <p className='text-red-500 text-xs mt-1'>{errors.limit}</p>
+              )}
+            </div>
+
+            <div>
+              <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                Status
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value })
+                }
+                className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                disabled={isSubmitting}
+              >
+                <option value='active'>Active</option>
+                <option value='inactive'>Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          <div className='mt-6'>
+            <label className='block text-sm font-semibold text-gray-700 mb-2'>
+              Brief Description *
+            </label>
+            <p className='text-xs text-gray-500 mb-2'>Provide a clear summary of what this service involves and what clients can expect.</p>
+            <textarea
+              value={formData.description}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)] ${
+                errors.description ? 'border-red-300' : 'border-gray-300'
+              }`}
+              rows='4'
+              placeholder='Detailed description of your service...'
+              disabled={isSubmitting}
+            />
+            {errors.description && (
+              <p className='text-red-500 text-xs mt-1'>{errors.description}</p>
+            )}
+          </div>
+
+          <div className='mt-6'>
+            <label className='block text-sm font-semibold text-gray-700 mb-2'>
+              Image
+            </label>
+            <div className='flex flex-col sm:flex-row items-start sm:items-center gap-3'>
+              <label className='inline-flex items-center gap-2 px-4 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold cursor-pointer transition-all'>
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='hidden'
+                  disabled={isSubmitting || isUploadingImage}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setIsUploadingImage(true)
+                    try {
+                      if (file.size > IMAGE_SIZE_LIMIT_BYTES) {
+                        toast.info('Image is large, compressing...')
+                      }
+                      const compressed = await compressImage(file)
+                      if (!isUnderSizeLimit(compressed)) {
+                        toast.error('Image too large. Please use an image under 1MB.')
+                        return
+                      }
+                      if (formData.imagePublicId || formData.image) {
+                        await uploadService.deleteImage({
+                          url: formData.image,
+                          publicId: formData.imagePublicId,
+                        }).catch(console.error)
+                      }
+                      const res = await uploadService.uploadImage(compressed)
+                      setFormData((prev) => ({
+                        ...prev,
+                        image: res.url,
+                        imagePublicId: res.publicId || '',
+                      }))
+                      toast.success('Image uploaded!')
+                    } catch {
+                      toast.error('Failed to upload image')
+                    } finally {
+                      setIsUploadingImage(false)
+                      e.target.value = ''
+                    }
+                  }}
+                />
+                {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+              </label>
+
+              {formData.image && (
+                <button
+                  type='button'
+                  onClick={async () => {
+                    if (formData.imagePublicId || formData.image) {
+                      await uploadService.deleteImage({
+                        url: formData.image,
+                        publicId: formData.imagePublicId,
+                      }).catch(console.error)
+                    }
+                    setFormData((prev) => ({
+                      ...prev,
+                      image: '',
+                      imagePublicId: '',
+                    }))
+                  }}
+                  className='text-sm font-semibold text-red-500 hover:text-red-600'
+                  disabled={isSubmitting}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+
+            {formData.image && (
+              <div className='mt-3'>
+                <img
+                  src={resolveImageUrl(formData.image, formData.image, { width: 192, height: 192 })}
+                  alt='Service'
+                  className='h-24 w-24 rounded-lg object-cover border border-gray-100 shadow-sm'
+                  loading='lazy'
+                  decoding='async'
+                />
+              </div>
+            )}
+            <p className='text-[11px] text-gray-400'>
+              Tip: Upload low-size images (max 1MB) for faster loading.
+            </p>
+          </div>
+        </div>
+
+        <div className='bg-white rounded-lg p-6'>
+          <h2 className='text-lg font-bold text-gray-900 mb-2'>
+            Credit Settings
+          </h2>
+          <p className='text-sm text-gray-600 mb-5'>
+            Set how many credits this service uses when a location has the credit system enabled.
+          </p>
+
+          <div className='max-w-sm'>
+            <label className='block text-sm font-semibold text-gray-700 mb-2'>
+              Credit Value
+            </label>
+            <input
+              type='number'
+              min='0'
+              step='1'
+              value={formData.creditValue}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  creditValue: Math.max(0, Number(e.target.value) || 0),
+                })
+              }
+              className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+              disabled={isSubmitting}
+            />
+            <p className='text-[10px] text-gray-500 mt-1'>
+              Use `0` if this service should not consume credits.
+            </p>
+          </div>
+        </div>
+
+        {/* Membership Pricing */}
+        <div className='bg-white rounded-lg p-6'>
+          <h2 className='text-lg font-bold text-gray-900 mb-2'>
+            Membership Pricing
+          </h2>
+          <p className='text-sm text-gray-600 mb-5'>
+            Enable plans where members should get a different price. These prices power the Member Deal block in the service catalog.
+          </p>
+
+          {membershipPlanOptions.length === 0 ? (
+            <div className='text-sm text-gray-500 bg-gray-50 border border-gray-100 rounded-lg p-3'>
+              No membership plans found. Create membership plans first in Management.
+            </div>
+          ) : (
+            <div className='space-y-3'>
+              {membershipPlanOptions.map((plan) => {
+                const entry = findMembershipEntry(plan)
+                const isEnabled = Boolean(entry)
+                const basePrice = Number(formData.basePrice)
+                const memberPrice = Number(entry?.price)
+                const hasValidSavings =
+                  Number.isFinite(basePrice) &&
+                  basePrice > 0 &&
+                  Number.isFinite(memberPrice) &&
+                  memberPrice >= 0 &&
+                  memberPrice < basePrice
+                const savePercent = hasValidSavings
+                  ? Math.round(((basePrice - memberPrice) / basePrice) * 100)
+                  : 0
+
+                return (
+                  <div
+                    key={plan.id}
+                    className='border border-gray-200 rounded-lg p-4'
+                  >
+                    <div className='flex flex-col md:flex-row md:items-center gap-3 md:gap-5'>
+                      <label className='inline-flex items-center gap-2 min-w-0 md:min-w-[260px]'>
+                        <input
+                          type='checkbox'
+                          checked={isEnabled}
+                          onChange={(e) =>
+                            toggleMembershipPricing(plan, e.target.checked)
+                          }
+                          disabled={isSubmitting}
+                          className='w-4 h-4'
+                        />
+                        <span className='text-sm font-semibold text-gray-800'>
+                          {plan.name}
+                        </span>
+                      </label>
+
+                      <div className='flex items-center gap-2'>
+                        <span className='text-sm text-gray-500'>Price ($)</span>
+                        <input
+                          type='number'
+                          min='0'
+                          step='0.01'
+                          value={entry?.price ?? ''}
+                          onChange={(e) =>
+                            updateMembershipPricingField(
+                              plan,
+                              'price',
+                              parseFloat(e.target.value) || ''
+                            )
+                          }
+                          disabled={!isEnabled || isSubmitting}
+                          className='w-32 px-3 h-8 border border-gray-300 rounded-lg disabled:bg-gray-50 disabled:text-gray-400'
+                        />
+                        {isEnabled ? (
+                          <span
+                            className={`text-xs font-semibold ${
+                              hasValidSavings ? 'text-emerald-600' : 'text-gray-400'
+                            }`}
+                          >
+                            {hasValidSavings ? `Save ${savePercent}%` : 'No savings'}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Discount Settings */}
+        <div className='bg-white rounded-lg p-6'>
+          <h2 className='text-lg font-bold text-gray-900 mb-6'>
+            Discount Settings
+          </h2>
+
+          <div className='space-y-4'>
+            <div className='flex items-center gap-3'>
+              <input
+                type='checkbox'
+                id='discountActive'
+                checked={formData.discount.active}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    discount: {
+                      ...formData.discount,
+                      active: e.target.checked,
+                    },
+                  })
+                }
+                className='w-5 h-5 text-pink-600 rounded focus:ring-[color:var(--brand-primary)]'
+                disabled={isSubmitting}
+              />
+              <label
+                htmlFor='discountActive'
+                className='text-sm font-semibold text-gray-700'
+              >
+                Enable promotional discount
+              </label>
+              <p className='text-xs text-gray-500 mt-1 ml-8'>Offer a limited-time price reduction to attract more bookings for this service.</p>
+            </div>
+
+            {formData.discount.active && (
+              <div className='grid md:grid-cols-3 gap-4 pt-4 border-t border-gray-100'>
+                <div>
+                  <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                    Percentage
+                  </label>
+                  <input
+                    type='number'
+                    value={formData.discount.percentage}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discount: {
+                          ...formData.discount,
+                          percentage: parseInt(e.target.value) || 0,
+                        },
+                      })
+                    }
+                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                    placeholder='15'
+                    min='0'
+                    max='100'
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                    Start Date
+                  </label>
+                  <input
+                    type='date'
+                    value={formData.discount.startDate}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discount: {
+                          ...formData.discount,
+                          startDate: e.target.value,
+                        },
+                      })
+                    }
+                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                    End Date
+                  </label>
+                  <input
+                    type='date'
+                    value={formData.discount.endDate}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discount: {
+                          ...formData.discount,
+                          endDate: e.target.value,
+                        },
+                      })
+                    }
+                    className='w-full px-4 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Treatment Options */}
+        <div className='bg-white rounded-lg p-6'>
+          <div className='flex items-center justify-between mb-6'>
+            <h2 className='text-lg font-bold text-gray-900'>
+              Treatment Options
+            </h2>
+            <button
+              onClick={addSubTreatment}
+              className='text-white px-4 h-8 rounded-lg font-semibold flex items-center justify-center gap-2'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
+              disabled={isSubmitting}
+            >
+              <Plus className='w-4 h-4' />
+              <span className='hidden sm:inline'>Add Option</span>
+              <span className='sm:hidden'>Add</span>
+            </button>
+          </div>
+          <p className='text-sm text-gray-600 mb-6'>
+            Define different variations or levels of this service (e.g., Standard vs Luxury, or different product volumes).
+          </p>
+
+          <div className='space-y-4'>
+            {formData.subTreatments.length === 0 ? (
+              <div className='text-center py-8 border-2 border-dashed border-gray-200 rounded-lg'>
+                <Layers className='w-8 h-8 text-gray-400 mx-auto mb-2' />
+                <p className='text-gray-600 font-semibold'>
+                  No treatment options
+                </p>
+                <p className='text-gray-500 text-sm'>Add specific variations</p>
+              </div>
+            ) : (
+              formData.subTreatments.map((treatment, index) => (
+                <div
+                  key={treatment.id || index}
+                  className='border border-gray-200 rounded-lg p-4'
+                >
+                  <div className='flex items-center justify-between mb-4'>
+                    <h3 className='font-semibold text-gray-900 flex items-center gap-2'>
+                      <span className='bg-pink-100 text-pink-700 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold'>
+                        {index + 1}
+                      </span>
+                      Treatment {index + 1}
+                    </h3>
+                    <button
+                      onClick={() => removeSubTreatment(index)}
+                      className='text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded'
+                      disabled={isSubmitting}
+                    >
+                      <Trash2 className='w-4 h-4' />
+                    </button>
+                  </div>
+
+                  <div className='grid md:grid-cols-2 gap-4'>
+                    <div>
+                      <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                        Name
+                      </label>
+                      <input
+                        type='text'
+                        placeholder='e.g., Lip Filler'
+                        value={treatment.name}
+                        onChange={(e) =>
+                          updateSubTreatment(index, 'name', e.target.value)
+                        }
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                        Price ($)
+                      </label>
+                      <input
+                        type='number'
+                        placeholder='350'
+                        value={treatment.price}
+                        onChange={(e) =>
+                          updateSubTreatment(
+                            index,
+                            'price',
+                            parseFloat(e.target.value) || ''
+                          )
+                        }
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                        min='0'
+                        step='0.01'
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                        Duration (min)
+                      </label>
+                      <input
+                        type='number'
+                        placeholder='45'
+                        value={treatment.duration}
+                        onChange={(e) =>
+                          updateSubTreatment(
+                            index,
+                            'duration',
+                            parseInt(e.target.value) || ''
+                          )
+                        }
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                        min='1'
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label className='block text-sm font-semibold text-gray-700 mb-2'>
+                        Description
+                      </label>
+                      <input
+                        type='text'
+                        placeholder='Enhanced lip volume...'
+                        value={treatment.description}
+                        onChange={(e) =>
+                          updateSubTreatment(
+                            index,
+                            'description',
+                            e.target.value
+                          )
+                        }
+                        className='w-full px-3 h-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-primary)]'
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Service Add-ons with enhanced display */}
+        <div className='bg-white rounded-lg p-6'>
+          <div className='flex items-center justify-between mb-6'>
+            <div>
+              <h2 className='text-lg font-bold text-gray-900 flex items-center gap-2'>
+                <Zap className='w-5 h-5 text-pink-500' />
+                Service Add-ons
+              </h2>
+              <p className='text-sm text-gray-600'>
+                Link other services as upsell opportunities
+              </p>
+              <p className='text-xs text-gray-500 mt-1'>These will be suggested to clients during booking. Note: You must create individual services before linking them here.</p>
+            </div>
+            <button
+              onClick={() => setShowServiceModal(true)}
+              className='text-white px-4 h-8 rounded-lg font-semibold flex items-center justify-center gap-2'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
+              disabled={isSubmitting}
+            >
+              <Plus className='w-4 h-4' />
+              <span className='hidden sm:inline'>Link Services</span>
+              <span className='sm:hidden'>Link</span>
+            </button>
+          </div>
+
+          <div className='space-y-4'>
+            <div className='flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between'>
+              <div>
+                <p className='text-sm font-semibold text-gray-900'>
+                  Catalog Price Display
+                </p>
+                <p className='text-xs text-gray-500'>
+                  When on, the catalog can show prices from your add-ons only
+                  (lowest to highest add-on), or you can optionally set a list
+                  price below. Base price stays at zero unless you enable list
+                  price.
+                </p>
+              </div>
+              <label className='inline-flex cursor-pointer items-center gap-3'>
+                <span className='text-sm font-semibold text-gray-700'>
+                  Show Price Range
+                </span>
+                <input
+                  type='checkbox'
+                  checked={formData.showPriceRange}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setFormData((prev) => ({
+                      ...prev,
+                      showPriceRange: checked,
+                      offerDiscountListPrice: false,
+                      basePrice: checked
+                        ? 0
+                        : service
+                          ? service.basePrice ?? ''
+                          : '',
+                    }))
+                  }}
+                  className='sr-only'
+                  disabled={isSubmitting}
+                />
+                <span
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.showPriceRange ? 'bg-green-600' : 'bg-gray-300'
+                  } ${isSubmitting ? 'opacity-60' : ''}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      formData.showPriceRange ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </span>
+              </label>
+            </div>
+
+            {formData.linkedServices.length === 0 ? (
+              <div className='text-center py-8 border-2 border-dashed border-pink-200 rounded-lg bg-pink-50'>
+                <Zap className='w-8 h-8 text-pink-400 mx-auto mb-2' />
+                <p className='text-pink-600 font-semibold'>
+                  No add-on services linked
+                </p>
+                <p className='text-pink-500 text-sm'>
+                  Link existing services as add-ons for upselling
+                </p>
+              </div>
+            ) : (
+              <div className='grid md:grid-cols-2 gap-4'>
+                {formData.linkedServices.map((linkedService, index) => {
+                  const finalPrice =
+                    linkedService.customPrice || linkedService.basePrice
+                  const finalDuration =
+                    linkedService.customDuration || linkedService.duration
+                  const originalPrice = linkedService.basePrice
+                  const originalDuration = linkedService.duration
+                  const priceChanged = finalPrice !== originalPrice
+                  const durationChanged = finalDuration !== originalDuration
+
+                  return (
+                    <div
+                      key={linkedService.serviceId || linkedService._id}
+                      className='border border-pink-200 rounded-lg p-4 bg-pink-50'
+                    >
+                      <div className='flex items-center justify-between mb-3'>
+                        <div className='flex items-center gap-3'>
+                          <div className='w-12 h-12 rounded-lg overflow-hidden'>
+                            {getLinkedServiceImageSource(linkedService) ? (
+                              <img
+                                src={resolveImageUrl(
+                                  getLinkedServiceImageSource(linkedService),
+                                  fallbackServiceImage,
+                                  { width: 100, height: 100 }
+                                )}
+                                alt={linkedService.name}
+                                className='w-12 h-12 rounded-lg object-cover'
+                                loading='lazy'
+                                decoding='async'
+                              />
+                            ) : (
+                              <ServiceImagePlaceholder
+                                serviceName={linkedService.name}
+                                brandColor={'#ec4899'}
+                                style={{ width: '100%', height: '100%' }}
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <h3 className='font-semibold text-gray-900 text-sm'>
+                              {linkedService.name}
+                            </h3>
+                            <div className='flex items-center gap-3 text-xs'>
+                              <span
+                                className={`font-semibold ${
+                                  priceChanged
+                                    ? 'text-green-600'
+                                    : 'text-gray-600'
+                                }`}
+                              >
+                                ${finalPrice}
+                                {priceChanged && (
+                                  <span className='text-gray-400 line-through ml-1'>
+                                    ${originalPrice}
+                                  </span>
+                                )}
+                              </span>
+                              <span
+                                className={`${
+                                  durationChanged
+                                    ? 'text-blue-600'
+                                    : 'text-gray-600'
+                                }`}
+                              >
+                                {finalDuration}min
+                                {durationChanged && (
+                                  <span className='text-gray-400 line-through ml-1'>
+                                    {originalDuration}min
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() =>
+                            removeLinkedService(
+                              linkedService.serviceId || linkedService._id
+                            )
+                          }
+                          className='text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded'
+                          disabled={isSubmitting}
+                        >
+                          <Trash2 className='w-4 h-4' />
+                        </button>
+                      </div>
+
+                      {/* Inline editing for custom pricing */}
+                      <div className='grid grid-cols-2 gap-3 pt-2 border-t border-pink-200'>
+                        <div>
+                          <label className='block text-xs font-medium text-gray-600 mb-1'>
+                            Add-on Price ($)
+                          </label>
+                          <input
+                            type='number'
+                            min='0'
+                            step='0.01'
+                            value={
+                              linkedService.customPrice ||
+                              linkedService.basePrice
+                            }
+                            onChange={(e) => {
+                              const updatedServices =
+                                formData.linkedServices.map((svc, i) =>
+                                  i === index
+                                    ? {
+                                        ...svc,
+                                        customPrice:
+                                          parseFloat(e.target.value) ||
+                                          svc.basePrice,
+                                      }
+                                    : svc
+                                )
+                              setFormData({
+                                ...formData,
+                                linkedServices: updatedServices,
+                              })
+                            }}
+                            className='w-full px-2 h-7 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]'
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                        <div>
+                          <label className='block text-xs font-medium text-gray-600 mb-1'>
+                            Duration (min)
+                          </label>
+                          <input
+                            type='number'
+                            min='1'
+                            value={
+                              linkedService.customDuration ||
+                              linkedService.duration
+                            }
+                            onChange={(e) => {
+                              const updatedServices =
+                                formData.linkedServices.map((svc, i) =>
+                                  i === index
+                                    ? {
+                                        ...svc,
+                                        customDuration:
+                                          parseInt(e.target.value) ||
+                                          svc.duration,
+                                      }
+                                    : svc
+                                )
+                              setFormData({
+                                ...formData,
+                                linkedServices: updatedServices,
+                              })
+                            }}
+                            className='w-full px-2 h-7 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[color:var(--brand-primary)]'
+                            disabled={isSubmitting}
+                          />
+                        </div>
+                      </div>
+
+                      <div className='text-xs text-gray-500 mt-2'>
+                        {linkedService.description}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Save/Cancel */}
+        <div className='bg-white rounded-lg p-6'>
+          <div className='flex flex-col sm:flex-row gap-4'>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className='flex-1 text-white h-10 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
+            >
+              <Save className='w-5 h-5' />
+              {isSubmitting
+                ? service
+                  ? 'Updating...'
+                  : 'Creating...'
+                : service
+                ? 'Update Service'
+                : 'Create Service'}
+            </button>
+            <button
+              onClick={onCancel}
+              disabled={isSubmitting}
+              className='sm:w-32 px-8 h-10 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 flex items-center justify-center'
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <CategoryModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        locationId={effectiveLocationId}
+      />
+
+      <ServiceSelectionModal
+        isOpen={showServiceModal}
+        onClose={() => setShowServiceModal(false)}
+        onSelectServices={handleSelectServices}
+        currentService={formData}
+        excludeServiceId={service?._id}
+        locationId={effectiveLocationId}
+        brandColor={brandColor}
+      />
+    </Layout>
+  )
+}
+
+// Main Component with API integration
+const ServiceManagementPage = () => {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [view, setView] = useState('grid')
+  const [currentView, setCurrentView] = useState('list')
+  const [selectedService, setSelectedService] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const editServiceId = searchParams.get('editService')
+  const formMode = searchParams.get('mode')
+
+  const { locationId: brandedLocationId } = useBranding()
+  const { currentUser } = useSelector((state) => state.user)
+  const effectiveLocationId = resolveManagementLocationId(
+    currentUser,
+    brandedLocationId
+  )
+
+  useEffect(() => {
+    const debugContext = getManagementLocationDebugContext(
+      currentUser,
+      brandedLocationId
+    )
+    console.log('[ServiceManagement][page] resolved location', {
+      ...debugContext,
+      effectiveLocationId,
+      role: currentUser?.role || '',
+    })
+  }, [
+    currentUser?.selectedLocation?.locationId,
+    currentUser?.spaLocation?.locationId,
+    brandedLocationId,
+    currentUser?.role,
+    effectiveLocationId,
+  ])
+
+  // API hooks
+  const {
+    data: servicesData,
+    isLoading: servicesLoading,
+    error: servicesError,
+  } = useServices({
+    search: searchTerm,
+    locationId: effectiveLocationId,
+    excludeTestUsers: true,
+    excludeEmailDomain: 'test.com',
+  })
+
+  const { data: categories = [] } = useCategories(true)
+  const { data: serviceFromUrl } = useService(editServiceId, {
+    enabled: Boolean(editServiceId),
+  })
+
+  const deleteServiceMutation = useDeleteService({
+    onSuccess: () => {
+      toast.success('Service deleted successfully!')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to delete service')
+    },
+  })
+
+  const services = useMemo(
+    () => servicesData?.services || [],
+    [servicesData?.services]
+  )
+  const stats = servicesData?.stats || { total: 0, active: 0 }
+
+  const getCategoryById = (id) => categories.find((cat) => cat._id === id)
+
+  const filteredServices = useMemo(() => {
+    const q = normalizeForSearch(searchTerm)
+    if (!q) return services
+
+    return services.filter((service) => {
+      return normalizeForSearch(service.name).includes(q)
+    })
+  }, [services, searchTerm])
+
+  useEffect(() => {
+    if (formMode === 'create') {
+      setSelectedService(null)
+      setCurrentView('form')
+      return
+    }
+
+    if (!editServiceId) {
+      if (currentView === 'form') {
+        setSelectedService(null)
+        setCurrentView('list')
+      }
+      return
+    }
+
+    const serviceToEdit =
+      serviceFromUrl ||
+      services.find((service) => String(service._id) === String(editServiceId))
+
+    if (!serviceToEdit) return
+
+    setSelectedService(serviceToEdit)
+    setCurrentView('form')
+  }, [currentView, editServiceId, formMode, serviceFromUrl, services])
+
+  const handleAddService = () => {
+    setSelectedService(null)
+    setCurrentView('form')
+    setSearchParams({ mode: 'create' })
+  }
+
+  const handleEditService = (service) => {
+    setSelectedService(service)
+    setCurrentView('form')
+    setSearchParams({ editService: service._id })
+  }
+
+  const handleDeleteService = (service) => {
+    if (window.confirm(`Delete "${service.name}"?`)) {
+      deleteServiceMutation.mutate(service._id)
+    }
+  }
+
+  const handleFormSave = () => {
+    setCurrentView('list')
+    setSelectedService(null)
+    setSearchParams({})
+  }
+
+  const handleFormCancel = () => {
+    setCurrentView('list')
+    setSelectedService(null)
+    setSearchParams({})
+  }
+
+  // Loading state
+  if (servicesLoading && services.length === 0) {
+    return (
+      <Layout>
+        <div className='flex items-center justify-center min-h-[50vh]'>
+          <div className='animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-[color:var(--brand-primary)]'></div>
+          <span className='ml-3 text-lg'>Loading services...</span>
+        </div>
+      </Layout>
+    )
+  }
+
+  // Error state
+  if (servicesError) {
+    return (
+      <Layout>
+        <div className='flex items-center justify-center min-h-[50vh]'>
+          <div className='text-center'>
+            <div className='text-red-500 text-xl mb-2'>⚠️</div>
+            <h3 className='text-lg font-semibold text-gray-900 mb-2'>
+              Error loading services
+            </h3>
+            <p className='text-gray-600'>
+              {servicesError?.message || 'Please try again later'}
+            </p>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
+  if (currentView === 'form') {
+    return (
+      <ServiceForm
+        service={selectedService}
+        onSave={handleFormSave}
+        onCancel={handleFormCancel}
+      />
+    )
+  }
+
+  return (
+    <Layout>
+      <div className='min-h-screen bg-[#FAFAFA] pb-20'>
+        <div className='max-w-7xl mx-auto px-3 py-4 md:px-6 md:py-8'>
+          <ServiceHeader
+          view={view}
+          setView={setView}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          onAddService={handleAddService}
+          totalServices={stats.total}
+          activeServices={stats.active}
+        />
+
+        {view === 'grid' ? (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
+            {filteredServices.map((service) => (
+              <ServiceCard
+                key={service._id}
+                service={service}
+                category={getCategoryById(service.categoryId)}
+                onEdit={handleEditService}
+                onDelete={handleDeleteService}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className='bg-white/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-sm overflow-hidden'>
+            {/* PC Table View - Premium Styling */}
+            <div className='hidden md:block overflow-x-auto rounded-[1.5rem] border border-slate-200/60 bg-white/80 backdrop-blur-sm shadow-[0_14px_34px_-28px_rgba(15,23,42,0.15)]'>
+              <table className='w-full border-collapse min-w-[1000px]'>
+                <thead>
+                  <tr className='bg-gradient-to-r from-slate-50/90 to-slate-100/80 border-b border-slate-200/80'>
+                    <th className='px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Service</th>
+                    <th className='px-6 py-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Category</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Price</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Duration</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Options</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Add-ons</th>
+                    <th className='px-6 py-4 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em]'>Status</th>
+                    <th className='px-6 py-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-[0.12em] whitespace-nowrap'>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className='divide-y divide-slate-100/80'>
+                  {filteredServices.map((service) => (
+                    <tr
+                      key={service._id}
+                      className='group hover:bg-gradient-to-r hover:from-[color:var(--brand-primary)]/5 hover:to-transparent transition-all duration-300'
+                    >
+                      <td className='px-6 py-4'>
+                        <div className='flex items-center gap-3'>
+                          <div className='w-11 h-11 rounded-xl overflow-hidden border border-slate-100 shadow-sm shrink-0 ring-2 ring-transparent group-hover:ring-[color:var(--brand-primary)]/20 transition-all'>
+                            {hasServiceImage(service) ? (
+                              <img
+                                src={resolveImageUrl(service.image, fallbackServiceImage, { width: 100, height: 100 })}
+                                alt={service.name}
+                                className='w-11 h-11 object-cover group-hover:scale-110 transition-transform duration-500'
+                                loading='lazy'
+                                decoding='async'
+                              />
+                            ) : (
+                              <ServiceImagePlaceholder
+                                serviceName={service.name}
+                                brandColor={'#ec4899'}
+                                style={{ width: '100%', height: '100%' }}
+                              />
+                            )}
+                          </div>
+                          <div className='min-w-0'>
+                            <div className='font-semibold text-slate-900 truncate text-[0.9rem] tracking-[-0.02em]' title={service.name}>
+                              {service.name}
+                            </div>
+                            <div className='text-[10px] text-gray-400 line-clamp-1 italic'>
+                              {service.description || 'No description provided.'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className='px-6 py-4'>
+                        <div className='text-[0.82rem] font-medium text-slate-600 whitespace-nowrap tracking-[-0.01em]'>
+                          {typeof service.categoryId === 'object'
+                            ? service.categoryId.name
+                            : getCategoryById(service.categoryId)?.name || 'Uncategorized'}
+                        </div>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <div className='inline-flex items-center px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-100'>
+                          <span className='font-bold text-emerald-700 text-[0.95rem] tracking-[-0.02em]'>{getManagementPriceDisplay(service)}</span>
+                        </div>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <div className='inline-flex items-center px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-blue-100/50 border border-blue-100'>
+                          <Clock className='w-3.5 h-3.5 text-blue-500 mr-1.5' />
+                          <span className='font-semibold text-blue-700 text-[0.85rem]'>{service.duration}m</span>
+                        </div>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <span className='inline-flex items-center px-2.5 py-1 bg-violet-50 text-violet-600 rounded-lg text-[11px] font-bold border border-violet-100 shadow-sm'>
+                          <Layers className='w-3 h-3 mr-1' />
+                          {service.subTreatments?.length || 0}
+                        </span>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <span className='inline-flex items-center px-2.5 py-1 bg-gradient-to-r from-[color:var(--brand-primary)]/10 to-[color:var(--brand-primary)]/5 text-[color:var(--brand-primary)] rounded-lg text-[11px] font-bold border border-[color:var(--brand-primary)]/20 shadow-sm'>
+                          <Zap className='w-3 h-3 mr-1' />
+                          {service.linkedServicesCount || service.linkedServices?.length || 0}
+                        </span>
+                      </td>
+
+                      <td className='px-6 py-4 text-center'>
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider border shadow-sm transition-all ${
+                          service.status === 'active'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 group-hover:bg-emerald-100'
+                            : 'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${service.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                          {service.status}
+                        </span>
+                      </td>
+
+                      <td className='px-6 py-4 text-right'>
+                        <div className='flex justify-end gap-1.5'>
+                          <button
+                            onClick={() => handleEditService(service)}
+                            className='p-2.5 text-slate-400 hover:text-[color:var(--brand-primary)] hover:bg-white rounded-xl transition-all shadow-sm border border-slate-200/50 hover:border-[color:var(--brand-primary)]/30 hover:shadow-md hover:-translate-y-0.5'
+                          >
+                            <Edit3 className='w-4 h-4' />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteService(service)}
+                            className='p-2.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-xl transition-all shadow-sm border border-slate-200/50 hover:border-red-200 hover:shadow-md hover:-translate-y-0.5'
+                            disabled={deleteServiceMutation.isPending}
+                          >
+                            <Trash2 className='w-4 h-4' />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View (Premium Cards) */}
+            <div className='md:hidden space-y-4'>
+              {filteredServices.map((service) => (
+                <div
+                  key={service._id}
+                  className='rounded-[1.35rem] border border-slate-200/70 p-4 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.15)] transition-all duration-300 active:scale-[0.99]'
+                  style={{
+                    background: 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 3%, #ffffff) 0%, #ffffff 40%)',
+                  }}
+                >
+                  {/* Header with image and title */}
+                  <div className='flex items-center gap-3 mb-4'>
+                    <div className='w-14 h-14 rounded-2xl overflow-hidden border border-slate-100 shadow-md shrink-0 ring-2 ring-[color:var(--brand-primary)]/10'>
+                      {hasServiceImage(service) ? (
+                        <img
+                          src={resolveImageUrl(service.image, fallbackServiceImage, { width: 200, height: 200 })}
+                          alt={service.name}
+                          className='w-14 h-14 object-cover'
+                          loading='lazy'
+                          decoding='async'
+                        />
+                      ) : (
+                        <ServiceImagePlaceholder
+                          serviceName={service.name}
+                          brandColor={'#ec4899'}
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      )}
+                    </div>
+                    <div className='min-w-0 flex-1'>
+                      <h3 className='font-semibold text-slate-900 text-[0.95rem] leading-tight tracking-[-0.02em] truncate'>{service.name}</h3>
+                      <span className='text-[0.7rem] text-slate-500 mt-0.5 block'>
+                        {typeof service.categoryId === 'object'
+                          ? service.categoryId.name
+                          : getCategoryById(service.categoryId)?.name || 'Uncategorized'}
+                      </span>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                      service.status === 'active'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}>
+                      <span className={`w-1 h-1 rounded-full ${service.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                      {service.status}
+                    </span>
+                  </div>
+
+                  {/* Stats Grid */}
+                  <div className='grid grid-cols-2 gap-3 mb-4'>
+                    <div className='rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/30 border border-emerald-100 p-3'>
+                      <span className='text-[10px] font-semibold text-emerald-600 uppercase tracking-wider flex items-center gap-1'>
+                        <DollarSign className='w-3 h-3' /> Price
+                      </span>
+                      <span className='text-[1.1rem] font-bold text-emerald-700 mt-0.5 block tracking-[-0.02em]'>{getManagementPriceDisplay(service)}</span>
+                    </div>
+                    <div className='rounded-xl bg-gradient-to-r from-blue-50 to-blue-100/30 border border-blue-100 p-3'>
+                      <span className='text-[10px] font-semibold text-blue-600 uppercase tracking-wider flex items-center gap-1'>
+                        <Clock className='w-3 h-3' /> Duration
+                      </span>
+                      <span className='text-[1.1rem] font-bold text-blue-700 mt-0.5 block tracking-[-0.02em]'>{service.duration}m</span>
+                    </div>
+                    <div className='rounded-xl bg-gradient-to-r from-violet-50 to-violet-100/30 border border-violet-100 p-3'>
+                      <span className='text-[10px] font-semibold text-violet-600 uppercase tracking-wider flex items-center gap-1'>
+                        <Layers className='w-3 h-3' /> Options
+                      </span>
+                      <span className='text-[1.1rem] font-bold text-violet-700 mt-0.5 block'>{service.subTreatments?.length || 0}</span>
+                    </div>
+                    <div className='rounded-xl bg-gradient-to-r from-[color:var(--brand-primary)]/10 to-[color:var(--brand-primary)]/5 border border-[color:var(--brand-primary)]/20 p-3'>
+                      <span className='text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1' style={{ color: 'var(--brand-primary)' }}>
+                        <Zap className='w-3 h-3' /> Add-ons
+                      </span>
+                      <span className='text-[1.1rem] font-bold mt-0.5 block' style={{ color: 'var(--brand-primary)' }}>
+                        {service.linkedServicesCount || service.linkedServices?.length || 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className='flex gap-3 pt-2 border-t border-slate-100'>
+                    <button
+                      onClick={() => handleEditService(service)}
+                      className='flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs border transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md'
+                      style={{
+                        background: 'color-mix(in srgb, var(--brand-primary) 8%, #ffffff)',
+                        borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)',
+                        color: 'var(--brand-primary)',
+                      }}
+                    >
+                      <Edit3 className='w-4 h-4' />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteService(service)}
+                      className='flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs border border-red-200 bg-red-50 text-red-600 transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md hover:bg-red-100'
+                      disabled={deleteServiceMutation.isPending}
+                    >
+                      <Trash2 className='w-4 h-4' />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {filteredServices.length === 0 && (
+          <div className='text-center py-16 bg-white/90 backdrop-blur-sm border border-slate-200/60 rounded-[2rem] shadow-[0_14px_34px_-28px_rgba(15,23,42,0.15)]'>
+            <div className='text-6xl mb-4'>🎯</div>
+            <h3 className='text-2xl font-bold text-slate-900 tracking-[-0.03em] mb-3'>
+              {searchTerm ? 'No services found' : 'No services yet'}
+            </h3>
+            <p className='text-slate-500 mb-8 max-w-md mx-auto'>
+              {searchTerm
+                ? 'Try different search terms'
+                : 'Create your first service to get started'}
+            </p>
+            <button
+              onClick={handleAddService}
+              className='text-white px-8 h-10 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300'
+              style={{
+                background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-dark))',
+              }}
+            >
+              <Plus className='w-5 h-5' />
+              Create Service
+            </button>
+          </div>
+        )}
+        </div>
+      </div>
+    </Layout>
+  )
+}
+
+export default ServiceManagementPage

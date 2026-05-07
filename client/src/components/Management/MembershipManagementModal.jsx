@@ -1,0 +1,842 @@
+import { useBranding } from '@/context/BrandingContext';
+import MembershipPlansGrid from '@/components/Membership/MembershipPlansGrid';
+import { locationService } from '@/services/locationService';
+import stripeService from '@/services/stripeService';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AnimatePresence } from 'framer-motion';
+import { Crown, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { toast } from 'sonner';
+import { Button } from '../ui/button';
+
+const DEFAULT_PLAN = {
+  name: 'Gold Glow Membership',
+  description: 'Unlock exclusive perks and premium benefits',
+  price: 99,
+  creditsIncluded: 0,
+  benefits: ['Priority Booking', 'Free Premium Facial', '15% Product Discount'],
+};
+
+const adjustHex = (hex, amount) => {
+  const cleaned = (hex || '').replace('#', '');
+  if (cleaned.length !== 6) return '#be185d';
+  const num = parseInt(cleaned, 16);
+  const clamp = (value) => Math.max(0, Math.min(255, value));
+  const r = clamp((num >> 16) + amount);
+  const g = clamp(((num >> 8) & 0xff) + amount);
+  const b = clamp((num & 0xff) + amount);
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+};
+
+const normalizePlan = (plan = {}) => {
+  const benefits = Array.isArray(plan.benefits)
+    ? plan.benefits
+        .filter((item) => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
+  return {
+    name: plan.name?.trim() || DEFAULT_PLAN.name,
+    description:
+      typeof plan.description === 'string'
+        ? plan.description.trim()
+        : DEFAULT_PLAN.description,
+    price: Number.isFinite(Number(plan.price))
+      ? Math.max(0, Number(plan.price))
+      : DEFAULT_PLAN.price,
+    creditsIncluded: Number.isFinite(Number(plan.creditsIncluded))
+      ? Math.max(0, Math.floor(Number(plan.creditsIncluded)))
+      : DEFAULT_PLAN.creditsIncluded,
+    benefits: benefits.length > 0 ? benefits : [...DEFAULT_PLAN.benefits],
+  };
+};
+
+const normalizeMembership = (membership) => {
+  const normalizedCreditSystem = {
+    isEnabled: Boolean(membership?.creditSystem?.isEnabled),
+    pricePerCredit: Number.isFinite(Number(membership?.creditSystem?.pricePerCredit))
+      ? Math.max(0, Number(membership.creditSystem.pricePerCredit))
+      : 1,
+  };
+
+  if (Array.isArray(membership?.plans) && membership.plans.length > 0) {
+    return {
+      isActive: Boolean(membership.isActive),
+      creditSystem: normalizedCreditSystem,
+      plans: membership.plans.map((plan) => normalizePlan(plan)),
+    };
+  }
+
+  if (membership && (membership.name || membership.description || membership.price !== undefined)) {
+    return {
+      isActive: Boolean(membership.isActive),
+      creditSystem: normalizedCreditSystem,
+      plans: [normalizePlan(membership)],
+    };
+  }
+
+  return {
+    isActive: false,
+    creditSystem: normalizedCreditSystem,
+    plans: [normalizePlan(DEFAULT_PLAN)],
+  };
+};
+
+const getPlanSyncStatus = (plan = {}) => {
+  if (plan?.stripePriceId || plan?.stripeProductId) {
+    return { label: 'Synced to Stripe', className: 'bg-indigo-100 text-indigo-700' };
+  }
+  if (plan?.squareSubscriptionPlanId || plan?.squareSubscriptionPlanVariationId) {
+    return { label: 'Synced to Square', className: 'bg-emerald-100 text-emerald-700' };
+  }
+  return { label: 'Draft', className: 'bg-amber-100 text-amber-700' };
+};
+
+const MembershipManagementModal = ({
+  isOpen = false,
+  onClose = () => {},
+  renderMode = 'modal',
+}) => {
+  const isPageMode = renderMode === 'page';
+  const isVisible = isPageMode || isOpen;
+  const queryClient = useQueryClient();
+  const { currentUser } = useSelector((state) => state.user);
+  const isSuperAdmin = currentUser?.role === 'super-admin';
+  const isReadOnly = !isSuperAdmin;
+  const isSpaViewer = currentUser?.role === 'spa';
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+  const brandColorDark = adjustHex(brandColor, -24);
+
+  const { data: locationData, isLoading: isLoadingMyLocation } = useQuery({
+    queryKey: ['my-location'],
+    queryFn: () => locationService.getMyLocation(),
+    enabled: isVisible && !isSuperAdmin,
+  });
+
+  const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
+    queryKey: ['locations', 'membership-modal'],
+    queryFn: () => locationService.getAllLocations(),
+    enabled: isVisible && (isSuperAdmin || isSpaViewer),
+  });
+  const { data: spaStripeStatusData } = useQuery({
+    queryKey: ['stripe-account-status', 'membership-modal'],
+    queryFn: () => stripeService.getAccountStatus(),
+    enabled: isVisible && isSpaViewer,
+  });
+
+  const locations = useMemo(
+    () => locationsData?.data?.locations || [],
+    [locationsData]
+  );
+  const [selectedLocationId, setSelectedLocationId] = useState('');
+  const spaViewerLocation = useMemo(() => {
+    if (!isSpaViewer || locations.length === 0) return null;
+    const spaLocationId =
+      currentUser?.spaLocation?.locationId || currentUser?.selectedLocation?.locationId;
+    if (!spaLocationId) return locations[0] || null;
+    return (
+      locations.find((item) => item?.locationId === spaLocationId) ||
+      locations[0] ||
+      null
+    );
+  }, [currentUser?.selectedLocation?.locationId, currentUser?.spaLocation?.locationId, isSpaViewer, locations]);
+
+  useEffect(() => {
+    if (isSuperAdmin && isVisible && locations.length > 0 && !selectedLocationId) {
+      setSelectedLocationId(locations[0]._id);
+    }
+  }, [isSuperAdmin, isVisible, locations, selectedLocationId]);
+
+  const location = isSuperAdmin
+    ? locations.find((item) => item._id === selectedLocationId) || null
+    : locationData?.data?.location;
+
+  const isSelectedLocationStripeConnected = isSuperAdmin
+    ? Boolean(location?.membershipStripeConnected)
+    : true;
+  const isSelectedLocationSquareConnected = isSuperAdmin
+    ? Boolean(location?.membershipSquareConnected)
+    : true;
+  const isSelectedLocationPaymentConnected =
+    isSelectedLocationStripeConnected || isSelectedLocationSquareConnected;
+  const stripeNotConnectedMessage = location?.membershipStripeMessage || 'Spa user has not connected Stripe.';
+  const squareNotConnectedMessage = location?.membershipSquareMessage || 'Spa user has not connected Square.';
+
+  const [formData, setFormData] = useState({
+    isActive: false,
+    creditSystem: {
+      isEnabled: false,
+      pricePerCredit: 1,
+    },
+    plans: [normalizePlan(DEFAULT_PLAN)],
+  });
+
+  useEffect(() => {
+    if (location?.membership) {
+      setFormData(normalizeMembership(location.membership));
+    }
+  }, [location]);
+
+  const updateMembership = useMutation({
+    mutationFn: async (membershipData) => {
+      if (!location?._id) {
+        throw new Error('Please select a location first.');
+      }
+      return locationService.updateLocation(location._id, {
+        membership: membershipData,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-location'] });
+      queryClient.invalidateQueries({ queryKey: ['locations'] });
+      queryClient.invalidateQueries({ queryKey: ['locations', 'membership-modal'] });
+      onClose();
+      toast.success('Membership updated successfully!');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update membership');
+    },
+  });
+
+  const handlePlanChange = (planIndex, key, value) => {
+    setFormData((prev) => {
+      const nextPlans = [...prev.plans];
+      nextPlans[planIndex] = {
+        ...nextPlans[planIndex],
+        [key]:
+          key === 'price'
+            ? value === ''
+              ? ''
+              : Number(value)
+            : key === 'creditsIncluded'
+              ? value
+              : value,
+      };
+      return {
+        ...prev,
+        plans: nextPlans,
+      };
+    });
+  };
+
+  const handleBenefitChange = (planIndex, benefitIndex, value) => {
+    setFormData((prev) => {
+      const nextPlans = [...prev.plans];
+      const nextBenefits = [...nextPlans[planIndex].benefits];
+      nextBenefits[benefitIndex] = value;
+      nextPlans[planIndex] = {
+        ...nextPlans[planIndex],
+        benefits: nextBenefits,
+      };
+      return {
+        ...prev,
+        plans: nextPlans,
+      };
+    });
+  };
+
+  const addPlan = () => {
+    setFormData((prev) => ({
+      ...prev,
+      plans: [
+        ...prev.plans,
+        {
+          ...normalizePlan(DEFAULT_PLAN),
+          name: `Plan ${prev.plans.length + 1}`,
+        },
+      ],
+    }));
+  };
+
+  const removePlan = (index) => {
+    if (formData.plans.length <= 1) {
+      toast.error('At least one membership plan is required.');
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      plans: prev.plans.filter((_, i) => i !== index),
+    }));
+  };
+
+  const addFeaturePoint = (planIndex) => {
+    setFormData((prev) => {
+      const nextPlans = [...prev.plans];
+      nextPlans[planIndex] = {
+        ...nextPlans[planIndex],
+        benefits: [...nextPlans[planIndex].benefits, ''],
+      };
+      return {
+        ...prev,
+        plans: nextPlans,
+      };
+    });
+  };
+
+  const removeFeaturePoint = (planIndex, benefitIndex) => {
+    setFormData((prev) => {
+      const nextPlans = [...prev.plans];
+      const currentBenefits = nextPlans[planIndex].benefits;
+      if (currentBenefits.length <= 1) return prev;
+      nextPlans[planIndex] = {
+        ...nextPlans[planIndex],
+        benefits: currentBenefits.filter((_, i) => i !== benefitIndex),
+      };
+      return {
+        ...prev,
+        plans: nextPlans,
+      };
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const submitIntent = e.nativeEvent?.submitter?.dataset?.intent || 'save';
+
+    if (isReadOnly) {
+      toast.message('Only super-admin can create or update membership plans.');
+      return;
+    }
+
+    if (!location?._id) {
+      toast.error('Please select a location first.');
+      return;
+    }
+
+    if (formData.plans.length < 1) {
+      toast.error('At least one membership plan is required.');
+      return;
+    }
+
+    const creditPriceValue = Number(formData.creditSystem?.pricePerCredit)
+    if (
+      formData.creditSystem?.isEnabled &&
+      (!Number.isFinite(creditPriceValue) || creditPriceValue <= 0)
+    ) {
+      toast.error('Set a valid price per credit before enabling the credit system.');
+      return;
+    }
+
+    for (const [index, plan] of formData.plans.entries()) {
+      if (!plan.name?.trim()) {
+        toast.error(`Plan ${index + 1}: name is required.`);
+        return;
+      }
+
+      if (!Number.isFinite(plan.price) || plan.price < 0) {
+        toast.error(`Plan ${index + 1}: price must be 0 or more.`);
+        return;
+      }
+
+      if (formData.creditSystem?.isEnabled) {
+        const planCreditsIncluded = Number(plan.creditsIncluded)
+        if (!Number.isFinite(planCreditsIncluded) || planCreditsIncluded < 0) {
+          toast.error(`Plan ${index + 1}: included credits must be 0 or more.`);
+          return;
+        }
+      }
+
+      if (!Array.isArray(plan.benefits) || plan.benefits.length < 1) {
+        toast.error(`Plan ${index + 1}: add at least one feature point.`);
+        return;
+      }
+
+      if (plan.benefits.some((benefit) => !benefit?.trim())) {
+        toast.error(`Plan ${index + 1}: all feature points must be filled.`);
+        return;
+      }
+    }
+
+    const payload = {
+      isActive: submitIntent === 'activate' ? true : formData.isActive,
+      creditSystem: {
+        isEnabled: Boolean(formData.creditSystem?.isEnabled),
+        pricePerCredit: Number(formData.creditSystem?.pricePerCredit || 0),
+      },
+      pendingStripeActivation:
+        submitIntent === 'save' &&
+        !formData.isActive &&
+        isSuperAdmin &&
+        !isSelectedLocationStripeConnected,
+      pendingSquareActivation:
+        submitIntent === 'save' &&
+        !formData.isActive &&
+        isSuperAdmin &&
+        !isSelectedLocationSquareConnected,
+      plans: formData.plans.map((plan) => ({
+        ...plan,
+        name: plan.name.trim(),
+        description: plan.description.trim(),
+        price: Number(plan.price),
+        creditsIncluded: formData.creditSystem?.isEnabled
+          ? Math.max(0, Math.floor(Number(plan.creditsIncluded || 0)))
+          : 0,
+        benefits: plan.benefits.map((benefit) => benefit.trim()),
+      })),
+    };
+
+    updateMembership.mutate(payload);
+  };
+
+  const isLoading = isSuperAdmin
+    ? isLoadingLocations
+    : isLoadingMyLocation || (isSpaViewer && isLoadingLocations);
+  const hasNoLocations = isSuperAdmin && !isLoading && locations.length === 0;
+  const locationLevelSpaStripeConnected = Boolean(
+    spaViewerLocation?.membershipStripeConnected
+  );
+  const personalSpaStripeConnected = Boolean(
+    spaStripeStatusData?.connected && spaStripeStatusData?.account?.chargesEnabled
+  );
+  const spaStripeConnected = locationLevelSpaStripeConnected || personalSpaStripeConnected;
+  const spaStripeMessage =
+    spaViewerLocation?.membershipStripeMessage ||
+    'Stripe is not connected for this location yet.';
+  const spaMembershipPlans = Array.isArray(formData?.plans) ? formData.plans : [];
+  const spaHasMembershipPlans = spaMembershipPlans.length > 0;
+  const spaHasActiveMembership = Boolean(formData?.isActive && spaMembershipPlans.length > 0);
+
+  if (!isVisible) return null;
+
+  const panel = (
+    <div
+      className={
+        isPageMode
+          ? 'w-full bg-white/95 backdrop-blur rounded-[2rem] shadow-[0_20px_60px_rgba(15,23,42,0.08)] border border-slate-200/80 overflow-hidden flex flex-col min-h-[80vh]'
+          : 'fixed inset-x-0 bottom-0 md:inset-x-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:bottom-auto w-full md:max-w-3xl bg-white md:rounded-[2.5rem] rounded-t-[2.5rem] shadow-2xl z-[101] overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh]'
+      }
+    >
+      {!isPageMode && (
+        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 md:hidden shrink-0" />
+      )}
+
+      <div className={`px-6 md:px-8 border-b border-gray-100 flex items-center justify-between shrink-0 ${isPageMode ? 'py-6 md:py-7 bg-gradient-to-r from-slate-50 via-white to-pink-50/40' : 'py-4 md:py-6'}`}>
+        <div>
+          <h2 className={`font-black text-gray-900 tracking-tight flex items-center gap-2 ${isPageMode ? 'text-2xl md:text-3xl' : 'text-xl md:text-2xl'}`}>
+            <Crown className="w-5 h-5 text-[color:var(--brand-primary)]" />
+            Manage Membership
+          </h2>
+          <p className={`font-bold uppercase tracking-widest mt-1 ${isPageMode ? 'text-[11px] md:text-xs text-slate-600' : 'text-xs md:text-sm text-pink-500'}`}>
+            Plans, Activation, And Payment Provider Sync
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          className={`transition-all group ${isPageMode ? 'px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-slate-300 hover:bg-slate-50 font-semibold text-sm' : 'p-2.5 bg-gray-100 text-gray-500 rounded-2xl hover:bg-pink-50 hover:text-pink-500'}`}
+          type="button"
+        >
+          {isPageMode ? 'Back' : <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />}
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12 flex-1">
+          <div className="w-8 h-8 border-4 border-gray-200 border-t-gray-500 rounded-full animate-spin"></div>
+        </div>
+      ) : isReadOnly ? (
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-4">
+          {!spaHasMembershipPlans && (
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-medium text-gray-800">
+              No membership yet.
+            </div>
+          )}
+
+          {spaHasMembershipPlans && !spaStripeConnected && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
+              Membership is not activated because Stripe is not connected. {spaStripeMessage}
+            </div>
+          )}
+
+          {spaHasMembershipPlans && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                  Your Membership Plans
+                </p>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                    spaHasActiveMembership && spaStripeConnected
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  {spaHasActiveMembership && spaStripeConnected ? 'Active' : 'Not Activated'}
+                </span>
+              </div>
+              <MembershipPlansGrid
+                plans={spaMembershipPlans}
+                includeServiceMemberships={false}
+                className="grid grid-cols-1 gap-5"
+              />
+            </div>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className={`flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-8 space-y-5 ${isPageMode ? 'md:space-y-6' : ''}`}>
+            {isReadOnly && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl text-sm font-medium text-blue-800">
+                View only: only super-admin can create or update membership plans.
+              </div>
+            )}
+
+            {isSuperAdmin && (
+              <div className={`space-y-2 ${isPageMode ? 'bg-slate-50 border border-slate-200 rounded-2xl p-4' : ''}`}>
+                <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                  Location
+                </label>
+                <select
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                >
+                  {locations.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.name || item.locationId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {hasNoLocations && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
+                No locations found. Create a location first, then assign membership plans.
+              </div>
+            )}
+
+            {isSuperAdmin && location && !isSelectedLocationPaymentConnected && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
+                Payment note: {stripeNotConnectedMessage} {squareNotConnectedMessage} You can still save membership as inactive draft.
+              </div>
+            )}
+
+            <div className={`flex items-center justify-between p-4 rounded-3xl border ${isPageMode ? 'bg-gradient-to-r from-slate-50 to-pink-50/40 border-slate-200' : 'bg-pink-50/50 border-pink-100/50'}`}>
+              <div>
+                <label className="text-sm font-black text-gray-900">
+                  Membership Active
+                </label>
+                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-1">
+                  Enable all plans for this location
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                disabled={isReadOnly}
+                className={`w-12 h-6 rounded-full transition-colors relative ${
+                  formData.isActive ? 'bg-pink-500' : 'bg-gray-300'
+                }`}
+              >
+                <div
+                  className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                    formData.isActive ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className={`p-4 rounded-3xl border space-y-3 ${isPageMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50/70 border-slate-200'}`}>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <label className="text-sm font-black text-gray-900">
+                    Credit System
+                  </label>
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-1">
+                    Turn credits on or off for this location
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      creditSystem: {
+                        ...prev.creditSystem,
+                        isEnabled: !prev.creditSystem?.isEnabled,
+                      },
+                    }))
+                  }
+                  disabled={isReadOnly}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${
+                    formData.creditSystem?.isEnabled ? 'bg-emerald-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <div
+                    className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                      formData.creditSystem?.isEnabled ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="text-sm text-slate-600">
+                {formData.creditSystem?.isEnabled
+                  ? 'Subscribed users at this location can see their available credits in the top bar, and services can use their custom credit values.'
+                  : 'Credits stay hidden for this location, and the credit system is effectively off for subscribers here.'}
+              </div>
+              {formData.creditSystem?.isEnabled ? (
+                <div className="space-y-2 pt-1">
+                  <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                    Price Per Credit ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.creditSystem?.pricePerCredit ?? 1}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        creditSystem: {
+                          ...prev.creditSystem,
+                          pricePerCredit: e.target.value,
+                        },
+                      }))
+                    }
+                    disabled={isReadOnly}
+                    className="w-full max-w-xs px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
+                    min="0"
+                    step="0.01"
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Customers will be charged this amount for each credit they buy.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            <div className={`flex items-center justify-between ${isPageMode ? 'pt-2' : ''}`}>
+              <p className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                Plans ({formData.plans.length})
+              </p>
+              {isPageMode && (
+                <span className="text-xs font-semibold text-slate-500">Minimum 1</span>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addPlan}
+                disabled={isReadOnly || hasNoLocations}
+                className="rounded-2xl h-10"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Plan
+              </Button>
+            </div>
+
+            <div className={isPageMode ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-4'}>
+              {formData.plans.map((plan, planIndex) => (
+                <div key={planIndex} className={`p-4 md:p-5 bg-white rounded-3xl space-y-4 ${isPageMode ? 'border border-slate-200 shadow-sm' : 'border-2 border-pink-50'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <p className="font-black text-gray-900 tracking-tight">Plan {planIndex + 1}</p>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${getPlanSyncStatus(plan).className}`}
+                      >
+                        {getPlanSyncStatus(plan).label}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => removePlan(planIndex)}
+                      disabled={isReadOnly || formData.plans.length <= 1 || hasNoLocations}
+                      className="text-red-600 hover:text-red-700 rounded-xl border border-red-100 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Remove
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Plan Name</label>
+                    <input
+                      type="text"
+                      value={plan.name}
+                      onChange={(e) => handlePlanChange(planIndex, 'name', e.target.value)}
+                      disabled={isReadOnly}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                      placeholder="e.g. Gold Glow Membership"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Description</label>
+                    <textarea
+                      value={plan.description}
+                      onChange={(e) => handlePlanChange(planIndex, 'description', e.target.value)}
+                      disabled={isReadOnly}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none resize-none"
+                      placeholder="Describe this plan"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Monthly Price ($)</label>
+                    <input
+                      type="number"
+                      value={plan.price ?? ''}
+                      onChange={(e) => handlePlanChange(planIndex, 'price', e.target.value)}
+                      disabled={isReadOnly}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                      placeholder="99"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+
+                  {formData.creditSystem?.isEnabled ? (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">Credits Included Per Renewal</label>
+                      <input
+                        type="number"
+                        value={plan.creditsIncluded ?? ''}
+                        onChange={(e) => handlePlanChange(planIndex, 'creditsIncluded', e.target.value)}
+                        disabled={isReadOnly}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                        placeholder="0"
+                        min="0"
+                        step="1"
+                      />
+                      <p className="text-xs text-slate-500">
+                        These credits are automatically added when this plan invoice is paid.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+                        Feature Points
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => addFeaturePoint(planIndex)}
+                        disabled={isReadOnly || hasNoLocations}
+                        className="rounded-xl h-8 px-3"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {plan.benefits.map((benefit, benefitIndex) => (
+                        <div key={benefitIndex} className="flex gap-2">
+                          <input
+                            type="text"
+                            value={benefit}
+                            onChange={(e) =>
+                              handleBenefitChange(planIndex, benefitIndex, e.target.value)
+                            }
+                            disabled={isReadOnly}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                            placeholder={`Feature point ${benefitIndex + 1}`}
+                            required
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => removeFeaturePoint(planIndex, benefitIndex)}
+                            disabled={isReadOnly || plan.benefits.length <= 1 || hasNoLocations}
+                            className="px-3 rounded-2xl"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={`shrink-0 px-6 md:px-8 py-4 border-t border-gray-100 bg-white ${isPageMode ? 'sticky bottom-0 shadow-[0_-8px_20px_rgba(15,23,42,0.05)]' : ''}`}>
+            <div className="flex flex-col md:flex-row gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs border-2"
+              >
+                {isPageMode ? 'Back To Management' : 'Cancel'}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  updateMembership.isPending ||
+                  hasNoLocations
+                }
+                data-intent="save"
+                className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
+                style={{
+                  background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                }}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {updateMembership.isPending
+                  ? 'Saving...'
+                  : 'Save Draft / Changes'}
+              </Button>
+              {!formData.isActive && (
+                <Button
+                  type="submit"
+                  disabled={
+                    updateMembership.isPending ||
+                    hasNoLocations ||
+                    (isSuperAdmin && !isSelectedLocationPaymentConnected)
+                  }
+                  data-intent="activate"
+                  className="flex-1 rounded-2xl h-12 font-black uppercase tracking-widest text-xs text-white"
+                  style={{
+                    background: `linear-gradient(90deg, ${brandColorDark}, ${brandColor})`,
+                  }}
+                >
+                  {updateMembership.isPending
+                    ? 'Activating...'
+                    : isSuperAdmin && !isSelectedLocationStripeConnected
+                    ? 'Activate (Stripe or Square Required)'
+                    : 'Activate Membership'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+
+  if (isPageMode) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_rgba(236,72,153,0.08),_transparent_40%),radial-gradient(circle_at_bottom_left,_rgba(14,165,233,0.08),_transparent_45%),linear-gradient(to_bottom,#f8fafc,#ffffff,#f8fafc)] py-8 md:py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {panel}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <div
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+          />
+          {panel}
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export default MembershipManagementModal;
