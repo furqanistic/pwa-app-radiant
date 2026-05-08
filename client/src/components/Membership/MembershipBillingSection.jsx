@@ -59,6 +59,7 @@ const MembershipBillingSection = ({
   const paymentMethods = Array.isArray(summary?.paymentMethods)
     ? summary.paymentMethods
     : []
+  const isSquareBilling = summary?.checkoutProvider === 'square'
   const cardsCount = paymentMethods.length
   const membership = summary?.membership || {}
   const subscription = summary?.subscription || {}
@@ -86,6 +87,12 @@ const MembershipBillingSection = ({
   const hasActiveSubscription = Boolean(
     subscription?.id && activeSubscriptionStatuses.includes(subscriptionStatus)
   )
+  const membershipLooksActive =
+    Boolean(membership?.isActive) ||
+    ['active', 'trialing'].includes(`${membership?.status || ''}`.trim().toLowerCase())
+  const showActiveMembershipBanner =
+    (!isSquareBilling && hasActiveSubscription) ||
+    (isSquareBilling && membershipLooksActive)
   const isCancelledAtPeriodEnd = Boolean(subscription?.cancelAtPeriodEnd)
   const membershipAvailableUntil = subscription?.currentPeriodEnd || membership?.expiresAt || null
   const hasUsableMembershipEndDate =
@@ -137,6 +144,12 @@ const MembershipBillingSection = ({
     }
   }
 
+  // For Square locations with no active membership, skip the billing card entirely;
+  // the plan grid below is the only relevant UI.
+  if (isSquareBilling && !membershipLooksActive && !loading) {
+    return null
+  }
+
   return (
     <>
       <section className="w-full max-w-6xl mb-6 rounded-[1.35rem] border border-[color:var(--brand-primary)]/14 bg-white overflow-hidden shadow-[0_14px_32px_rgba(15,23,42,0.05)] sm:mb-8 sm:rounded-[1.75rem] sm:shadow-[0_20px_50px_rgba(15,23,42,0.05)]">
@@ -155,43 +168,51 @@ const MembershipBillingSection = ({
               </div>
 
               <h2 className="mt-2 text-[1.15rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl md:text-[2rem]">
-                {membership?.planName || 'Choose a calendar-monthly membership'}
+                {membership?.planName || (isSquareBilling ? 'Square membership' : 'Choose a calendar-monthly membership')}
               </h2>
 
               <p className="mt-1 text-[13px] sm:text-sm text-slate-600">
-                {isCancelledAtPeriodEnd
-                  ? hasUsableMembershipEndDate
-                    ? `Membership available until ${formatDate(membershipAvailableUntil)}`
-                    : 'Membership cancellation scheduled'
-                  : membership?.price
-                    ? `${formatMoney(membership.price, membership.currency)} / calendar month`
-                    : 'Add a card, then pick a plan below.'}
+                {isSquareBilling
+                  ? membership?.price
+                    ? `${formatMoney(membership.price, membership.currency)} / billing cycle - paid via Square`
+                    : 'Choose a plan below and complete checkout on Square.'
+                  : isCancelledAtPeriodEnd
+                    ? hasUsableMembershipEndDate
+                      ? `Membership available until ${formatDate(membershipAvailableUntil)}`
+                      : 'Membership cancellation scheduled'
+                    : membership?.price
+                      ? `${formatMoney(membership.price, membership.currency)} / calendar month`
+                      : 'Add a card, then pick a plan below.'}
               </p>
             </div>
 
             <div className="grid w-full grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:w-auto sm:flex-wrap">
-              <Button
-                onClick={() => {
-                  setCardDialogOpen(true)
-                }}
-                disabled={!locationId}
-                className={`h-10 ${
-                  hasPaymentMethod
-                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    : 'bg-[color:var(--brand-primary)] text-white hover:bg-[color:var(--brand-primary-dark)]'
-                }`}
-              >
-                {hasPaymentMethod ? <CheckCircle2 className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
-                {hasPaymentMethod ? 'Add another card' : 'Add card'}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-10 border-slate-200"
-                onClick={onOpenInvoicePortal}
-              >
-                <FileText className="h-4 w-4" />
-                Invoices
-              </Button>
+              {!isSquareBilling ? (
+                <>
+                  <Button
+                    onClick={() => {
+                      setCardDialogOpen(true)
+                    }}
+                    disabled={!locationId}
+                    className={`h-10 ${
+                      hasPaymentMethod
+                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                        : 'bg-[color:var(--brand-primary)] text-white hover:bg-[color:var(--brand-primary-dark)]'
+                    }`}
+                  >
+                    {hasPaymentMethod ? <CheckCircle2 className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+                    {hasPaymentMethod ? 'Add another card' : 'Add card'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-10 border-slate-200"
+                    onClick={onOpenInvoicePortal}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Invoices
+                  </Button>
+                </>
+              ) : null}
               <Button variant="ghost" className="h-10 px-3 text-slate-500 sm:px-4" onClick={onRefresh} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Refresh</span>
@@ -199,10 +220,10 @@ const MembershipBillingSection = ({
             </div>
           </div>
 
-          {hasActiveSubscription ? (
+          {showActiveMembershipBanner ? (
             <div
               className={`mt-4 rounded-xl border px-3 py-3 sm:rounded-2xl sm:px-4 ${
-                isCancelledAtPeriodEnd
+                !isSquareBilling && isCancelledAtPeriodEnd
                   ? 'border-amber-200 bg-amber-50 text-amber-800'
                   : 'border-slate-200 bg-slate-50 text-slate-700'
               }`}
@@ -210,21 +231,27 @@ const MembershipBillingSection = ({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-[13px] font-semibold sm:text-sm">
-                    {isCancelledAtPeriodEnd
-                      ? 'Membership cancellation scheduled'
-                      : 'Active membership subscription'}
+                    {isSquareBilling
+                      ? 'Active membership'
+                      : isCancelledAtPeriodEnd
+                        ? 'Membership cancellation scheduled'
+                        : 'Active membership subscription'}
                   </p>
                   <p className="mt-0.5 text-[12px] leading-5 sm:text-[13px]">
-                    {isCancelledAtPeriodEnd
+                    {isSquareBilling
                       ? hasUsableMembershipEndDate
-                        ? `You can keep using your membership until ${formatDate(membershipAvailableUntil)}.`
-                        : 'Your membership cancellation is scheduled. Refresh billing if the access date is still updating.'
-                      : hasUsableMembershipEndDate
-                        ? `Cancel auto-renewal and keep membership access until ${formatDate(membershipAvailableUntil)}.`
-                        : 'Cancel auto-renewal. Your access end date will update from billing.'}
+                        ? `Access through ${formatDate(membershipAvailableUntil)}. Square stores your card and handles monthly renewals.`
+                        : 'Your membership is active through Square. Square stores your card and handles monthly renewals.'
+                      : isCancelledAtPeriodEnd
+                        ? hasUsableMembershipEndDate
+                          ? `You can keep using your membership until ${formatDate(membershipAvailableUntil)}.`
+                          : 'Your membership cancellation is scheduled. Refresh billing if the access date is still updating.'
+                        : hasUsableMembershipEndDate
+                          ? `Cancel auto-renewal and keep membership access until ${formatDate(membershipAvailableUntil)}.`
+                          : 'Cancel auto-renewal. Your access end date will update from billing.'}
                   </p>
                 </div>
-                {!isCancelledAtPeriodEnd ? (
+                {!isSquareBilling && !isCancelledAtPeriodEnd ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -245,37 +272,56 @@ const MembershipBillingSection = ({
           ) : null}
 
           <div className="mt-4 border-t border-slate-100 pt-3">
-            <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 sm:px-4 sm:py-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Card Status
+            {isSquareBilling ? (
+              membershipLooksActive ? (
+                <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 sm:px-4 sm:py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Payments
+                  </p>
+                  <p className="mt-1 text-[13px] font-medium text-slate-800">
+                    Membership checkout runs on Square for this location. Square stores your card for monthly renewals, so Stripe saved cards and invoices are not used here.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[13px] text-slate-500">
+                  Pick a plan below and you'll be taken to Square's secure checkout. Square stores your card and charges the membership monthly.
                 </p>
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                    hasPaymentMethod
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}
-                >
-                  {hasPaymentMethod
-                    ? `${cardsCount} saved card${cardsCount === 1 ? '' : 's'}`
-                    : 'Card needed'}
-                </span>
-              </div>
-              <p className="mt-1 text-[13px] font-medium text-slate-800">{defaultCardLabel}</p>
-            </div>
+              )
+            ) : (
+              <>
+                <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 sm:px-4 sm:py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      Card Status
+                    </p>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        hasPaymentMethod
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {hasPaymentMethod
+                        ? `${cardsCount} saved card${cardsCount === 1 ? '' : 's'}`
+                        : 'Card needed'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[13px] font-medium text-slate-800">{defaultCardLabel}</p>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => setShowDetails((prev) => !prev)}
-              className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--brand-primary)]"
-            >
-              {showDetails ? 'Hide card details' : 'Manage cards'}
-              <ChevronDown className={`h-4 w-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDetails((prev) => !prev)}
+                  className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[color:var(--brand-primary)]"
+                >
+                  {showDetails ? 'Hide card details' : 'Manage cards'}
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+                </button>
+              </>
+            )}
           </div>
 
-          {showDetails && (
+          {!isSquareBilling && showDetails ? (
             <>
               <div className="mt-4 grid gap-2 md:grid-cols-3 md:gap-3">
                 <div className="rounded-xl bg-slate-50 px-3 py-2.5">
@@ -395,19 +441,21 @@ const MembershipBillingSection = ({
                 </div>
               </div>
             </>
-          )}
+          ) : null}
         </div>
       </section>
 
-      <MembershipAddCardDialog
-        open={cardDialogOpen}
-        onOpenChange={setCardDialogOpen}
-        locationId={locationId}
-        onSuccess={async () => {
-          await onRefresh?.()
-          await onCardAdded?.()
-        }}
-      />
+      {!isSquareBilling ? (
+        <MembershipAddCardDialog
+          open={cardDialogOpen}
+          onOpenChange={setCardDialogOpen}
+          locationId={locationId}
+          onSuccess={async () => {
+            await onRefresh?.()
+            await onCardAdded?.()
+          }}
+        />
+      ) : null}
 
       <MembershipInvoicesDialog
         open={invoiceDialogOpen}

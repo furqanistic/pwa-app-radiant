@@ -8,7 +8,8 @@ import {
   RefreshCw,
   XCircle,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -18,10 +19,12 @@ import { Button } from '../ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 
 const SquareConnect = ({
+  locationId = '',
   sharedLocationSquareLinked = false,
   sharedLocationStripeLinked = false,
 }) => {
   const { currentUser } = useSelector((state) => state.user)
+  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
@@ -31,6 +34,27 @@ const SquareConnect = ({
     sharedLocationStripeLinked && !accountStatus?.connected
   const isSharedLinkedWithoutOwnAccount =
     !isBlockedByStripe && sharedLocationSquareLinked && !accountStatus?.connected
+  const missingMembershipScopes = Array.isArray(accountStatus?.account?.missingMembershipScopes)
+    ? accountStatus.account.missingMembershipScopes
+    : []
+  const requiresReconnect = Boolean(
+    accountStatus?.requiresReconnect || missingMembershipScopes.length > 0
+  )
+
+  const fetchAccountStatus = useCallback(async () => {
+    try {
+      setChecking(true)
+      const data = await squareService.getAccountStatus(locationId)
+      setAccountStatus(data)
+      return data
+    } catch (error) {
+      console.error('Error fetching Square account status:', error)
+      toast.error('Failed to load Square account status')
+      return null
+    } finally {
+      setChecking(false)
+    }
+  }, [locationId])
 
   const steps = useMemo(
     () => [
@@ -47,19 +71,21 @@ const SquareConnect = ({
           Boolean(accountStatus?.account?.merchantId),
       },
       {
-        title: 'Accept payments',
-        description: 'You can now route payments to your Square merchant account.',
+        title: requiresReconnect ? 'Update permissions' : 'Accept payments',
+        description: requiresReconnect
+          ? 'Reconnect Square to approve membership catalog and subscription permissions.'
+          : 'You can now route payments to your Square merchant account.',
         done:
           isSharedLinkedWithoutOwnAccount ||
-          Boolean(accountStatus?.connected && accountStatus?.account?.merchantId),
+          Boolean(accountStatus?.connected && accountStatus?.account?.merchantId && !requiresReconnect),
       },
     ],
-    [accountStatus, isSharedLinkedWithoutOwnAccount]
+    [accountStatus, isSharedLinkedWithoutOwnAccount, requiresReconnect]
   )
 
   useEffect(() => {
     fetchAccountStatus()
-  }, [])
+  }, [fetchAccountStatus])
 
   useEffect(() => {
     if (handledSquareParams) return
@@ -82,6 +108,8 @@ const SquareConnect = ({
       }
 
       await fetchAccountStatus()
+      await queryClient.invalidateQueries({ queryKey: ['locations'] })
+      await queryClient.invalidateQueries({ queryKey: ['locations', 'membership-modal'] })
 
       const nextParams = new URLSearchParams(searchParams)
       nextParams.delete('square')
@@ -90,27 +118,12 @@ const SquareConnect = ({
     }
 
     handleSquareReturn()
-  }, [handledSquareParams, searchParams, setSearchParams])
-
-  const fetchAccountStatus = async () => {
-    try {
-      setChecking(true)
-      const data = await squareService.getAccountStatus()
-      setAccountStatus(data)
-      return data
-    } catch (error) {
-      console.error('Error fetching Square account status:', error)
-      toast.error('Failed to load Square account status')
-      return null
-    } finally {
-      setChecking(false)
-    }
-  }
+  }, [fetchAccountStatus, handledSquareParams, queryClient, searchParams, setSearchParams])
 
   const handleStartConnect = async () => {
     try {
       setLoading(true)
-      const data = await squareService.getAuthorizationUrl()
+      const data = await squareService.getAuthorizationUrl(locationId)
       if (!data?.url) {
         toast.error('Could not start Square onboarding')
         return
@@ -137,9 +150,11 @@ const SquareConnect = ({
 
     try {
       setLoading(true)
-      await squareService.disconnectAccount()
+      await squareService.disconnectAccount(locationId)
       toast.success('Square account disconnected')
       await fetchAccountStatus()
+      await queryClient.invalidateQueries({ queryKey: ['locations'] })
+      await queryClient.invalidateQueries({ queryKey: ['locations', 'membership-modal'] })
     } catch (error) {
       console.error('Error disconnecting Square account:', error)
       toast.error(error.response?.data?.message || 'Failed to disconnect account')
@@ -151,7 +166,7 @@ const SquareConnect = ({
   const handleOpenDashboard = async () => {
     try {
       setLoading(true)
-      const data = await squareService.getAccountDashboard()
+      const data = await squareService.getAccountDashboard(locationId)
       window.open(data.url, '_blank', 'noopener,noreferrer')
     } catch (error) {
       console.error('Error opening Square dashboard:', error)
@@ -192,6 +207,15 @@ const SquareConnect = ({
         <Badge variant="default" className="bg-green-500 hover:bg-green-600">
           <CheckCircle2 className="mr-1 h-3 w-3" />
           Active
+        </Badge>
+      )
+    }
+
+    if (accountStatus?.connected && requiresReconnect) {
+      return (
+        <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200">
+          <AlertCircle className="mr-1 h-3 w-3" />
+          Permissions
         </Badge>
       )
     }
@@ -246,7 +270,9 @@ const SquareConnect = ({
             ? 'Stripe is currently active for this location. Disconnect Stripe first if you want to connect Square.'
             : isSharedLinkedWithoutOwnAccount
             ? 'Square is already linked for this location by another assigned teammate.'
-            : 'Square handles merchant verification and secure payment credentials.'}
+            : requiresReconnect
+            ? 'Square is connected, but membership subscriptions need updated OAuth permissions.'
+            : 'Square handles merchant verification, hosted card storage, and monthly membership charges.'}
         </div>
 
         <div className="space-y-2">
@@ -287,6 +313,17 @@ const SquareConnect = ({
 
           {(accountStatus?.connected || isSharedLinkedWithoutOwnAccount) && (
             <div className="flex flex-wrap gap-2">
+              {accountStatus?.connected && requiresReconnect && !isSharedLinkedWithoutOwnAccount ? (
+                <Button
+                  onClick={handleStartConnect}
+                  disabled={loading}
+                  size="sm"
+                  className="flex-1 min-w-[180px]"
+                >
+                  {loading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                  Reconnect Square permissions
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 onClick={handleOpenDashboard}
@@ -324,6 +361,12 @@ const SquareConnect = ({
               Connected merchant: {accountStatus.account.businessName}
             </div>
           )}
+          {accountStatus?.connected && requiresReconnect ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Missing Square permissions: {missingMembershipScopes.join(', ') || 'membership catalog scopes'}.
+              Reconnect Square permissions, then save the membership plan again.
+            </div>
+          ) : null}
           {isSharedLinkedWithoutOwnAccount && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
               Payments are enabled for this location through a teammate&apos;s Square connection.
@@ -336,7 +379,7 @@ const SquareConnect = ({
           )}
         </div>
         <div className="text-[0.65rem] text-gray-500">
-          Square connection controls whether payouts can route to your Square merchant profile.
+          Square checkout stores customer cards in Square and charges monthly subscriptions for this location.
         </div>
       </CardContent>
     </Card>

@@ -59,6 +59,8 @@ const getRoleFromAuthPayload = (payload) =>
 const shouldSyncSelectedLocationForRole = (role) => {
   // Admin/super-admin/spa users are location-scoped differently.
   if (['admin', 'super-admin', 'spa'].includes(role)) return false
+  // Customers: persisting selectedLocation (+ optional ?spa= on routes) keys downstream
+  // flows — membership billing shows Stripe or Square per that location, not globally.
   return true
 }
 

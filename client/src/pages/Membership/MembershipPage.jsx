@@ -45,13 +45,15 @@ const MembershipPage = () => {
             .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
     })()
 
+    // Scope by contextual location first — not legacy subscription fields —
+    // so multi-location users see Stripe vs Square for the spa they're viewing.
     const activeLocationId =
         scopedLocationId ||
         locationId ||
-        currentUser?.membershipBilling?.locationId ||
-        currentUser?.membership?.locationId ||
         currentUser?.selectedLocation?.locationId ||
         currentUser?.spaLocation?.locationId ||
+        currentUser?.membershipBilling?.locationId ||
+        currentUser?.membership?.locationId ||
         null
 
     const { services, isLoading } = useActiveServices({ locationId: activeLocationId })
@@ -153,6 +155,12 @@ const MembershipPage = () => {
         membershipSummary?.subscription?.id &&
             ['active', 'trialing', 'past_due', 'incomplete', 'unpaid'].includes(membershipStatus)
     )
+    const membershipRecordActive = Boolean(
+        membershipSummary?.membership?.isActive ||
+            ['active', 'trialing'].includes(membershipStatus)
+    )
+    const checkoutProvider = membershipSummary?.checkoutProvider || null
+    const isSquareCheckout = checkoutProvider === 'square'
     const creditSystemConfig = membershipSummary?.creditSystem || locationMembership?.creditSystem || {}
     const creditSystemEnabled = Boolean(creditSystemConfig?.isEnabled)
     const availableCredits = Math.max(
@@ -173,6 +181,45 @@ const MembershipPage = () => {
             membershipSummary?.subscription?.pendingPlan?.planId === planId ||
             normalizePlanValue(membershipSummary?.subscription?.pendingPlan?.planName) ===
                 planName
+
+        if (isSquareCheckout) {
+            if (isCurrentPlan && membershipRecordActive) {
+                return {
+                    ctaLabel: 'Current Plan',
+                    disabled: true,
+                    statusBadge: 'Active plan',
+                    helperText: 'This is your active membership plan.',
+                }
+            }
+            if (membershipRecordActive && !isCurrentPlan) {
+                const switchingHigher =
+                    Number.isFinite(planPrice) &&
+                    Number.isFinite(currentPlanPrice) &&
+                    planPrice > currentPlanPrice
+                const switchingLower =
+                    Number.isFinite(planPrice) &&
+                    Number.isFinite(currentPlanPrice) &&
+                    planPrice < currentPlanPrice &&
+                    currentPlanPrice > 0
+                return {
+                    disabled: false,
+                    ctaLabel: switchingHigher
+                        ? 'Upgrade with Square'
+                        : switchingLower
+                          ? 'Switch plan with Square'
+                          : 'Manage with Square',
+                    statusBadge: 'Square subscription',
+                    helperText:
+                        'Complete Square-hosted checkout. Square stores the card and handles monthly renewals.',
+                }
+            }
+            return {
+                disabled: false,
+                ctaLabel: 'Subscribe with Square',
+                statusBadge: 'Square subscription',
+                helperText: 'Square stores your card during hosted checkout and charges monthly.',
+            }
+        }
 
         if (isCurrentPlan && hasExistingSubscription && !isPendingPlan) {
             return {
@@ -243,7 +290,7 @@ const MembershipPage = () => {
             return
         }
 
-        if (!service?._id) {
+        if (!isSquareCheckout && !service?._id) {
             toast.error('This plan is not linked to online checkout yet.')
             return
         }
@@ -252,6 +299,52 @@ const MembershipPage = () => {
 
         if (!checkoutLocationId) {
             toast.error('Please select a location first.')
+            return
+        }
+
+        const planIdSel = `${plan?._id || plan?.planId || plan?.id || ''}`.trim()
+        const planNameSel = normalizePlanValue(plan?.name)
+        const isCurrentPlanSelection =
+            (currentPlanId && planIdSel && String(currentPlanId) === String(planIdSel)) ||
+            (normalizePlanValue(currentPlanName) &&
+                planNameSel &&
+                normalizePlanValue(currentPlanName) === planNameSel)
+
+        if (isSquareCheckout) {
+            if (membershipRecordActive && isCurrentPlanSelection) {
+                return
+            }
+            try {
+                setIsCheckoutProcessing(true)
+                setProcessingSelectionKey(
+                    getSelectionKey(
+                        service?._id,
+                        plan?._id || plan?.planId || plan?.id,
+                        plan?.name
+                    )
+                )
+                const response = await stripeService.createMembershipCheckoutSession({
+                    serviceId: service?._id || undefined,
+                    locationId: checkoutLocationId,
+                    planId: plan?._id || plan?.planId || plan?.id || null,
+                    planName: plan?.name || null,
+                    planPrice: Number(plan?.price),
+                })
+                if (response?.success && response?.sessionUrl) {
+                    window.location.href = response.sessionUrl
+                    return
+                }
+                toast.error(response?.message || 'Failed to start Square membership checkout.')
+            } catch (error) {
+                console.error('Square membership checkout error:', error)
+                toast.error(
+                    error?.response?.data?.message ||
+                        'Failed to start membership checkout.'
+                )
+            } finally {
+                setIsCheckoutProcessing(false)
+                setProcessingSelectionKey(null)
+            }
             return
         }
 
@@ -481,7 +574,16 @@ const MembershipPage = () => {
                     />
 
                     <div className="w-full relative z-10 animate-fadeIn">
-                        {creditSystemEnabled ? (
+                        {isSquareCheckout ? (
+                            <div className="mb-4 rounded-[1.35rem] border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900 shadow-[0_10px_25px_rgba(15,23,42,0.04)] sm:mb-5">
+                                <p className="font-semibold">Square subscription checkout</p>
+                                <p className="mt-1 text-[13px] leading-5 text-emerald-800">
+                                    Pick a plan below to subscribe through Square. Square securely stores your card during checkout and charges the membership monthly for this location.
+                                </p>
+                            </div>
+                        ) : null}
+
+                        {creditSystemEnabled && checkoutProvider !== 'square' ? (
                             <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-white/90 px-4 py-3 shadow-[0_10px_25px_rgba(15,23,42,0.04)] backdrop-blur sm:mb-5">
                                 <div className="min-w-0">
                                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -519,6 +621,7 @@ const MembershipPage = () => {
                                 getPlanActionProps={getPlanActionProps}
                                 isProcessing={isCheckoutProcessing}
                                 processingSelectionKey={processingSelectionKey}
+                                enableSquareUnlinkedPlanCheckout={isSquareCheckout}
                                 className="grid grid-cols-1 gap-4 w-full"
                             />
                         )}

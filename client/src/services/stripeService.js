@@ -7,18 +7,21 @@ const stripeService = {
   /**
    * Create a Stripe Connect account
    */
-  createConnectAccount: async () => {
-    const response = await axiosInstance.post('stripe/connect/create')
+  createConnectAccount: async (locationId = null) => {
+    const response = await axiosInstance.post('stripe/connect/create', {
+      ...(locationId ? { locationId } : {}),
+    })
     return response.data
   },
 
   /**
    * Create account link for onboarding
    */
-  createAccountLink: async (returnUrl, refreshUrl) => {
+  createAccountLink: async (returnUrl, refreshUrl, locationId = null) => {
     const response = await axiosInstance.post('stripe/connect/account-link', {
       returnUrl,
       refreshUrl,
+      ...(locationId ? { locationId } : {}),
     })
     return response.data
   },
@@ -26,24 +29,30 @@ const stripeService = {
   /**
    * Get Stripe Connect account status
    */
-  getAccountStatus: async () => {
-    const response = await axiosInstance.get('stripe/connect/status')
+  getAccountStatus: async (locationId = null) => {
+    const response = await axiosInstance.get('stripe/connect/status', {
+      params: locationId ? { locationId } : {},
+    })
     return response.data
   },
 
   /**
    * Disconnect Stripe account
    */
-  disconnectAccount: async () => {
-    const response = await axiosInstance.delete('stripe/connect/disconnect')
+  disconnectAccount: async (locationId = null) => {
+    const response = await axiosInstance.delete('stripe/connect/disconnect', {
+      params: locationId ? { locationId } : {},
+    })
     return response.data
   },
 
   /**
    * Get Stripe dashboard link
    */
-  getAccountDashboard: async () => {
-    const response = await axiosInstance.get('stripe/connect/dashboard')
+  getAccountDashboard: async (locationId = null) => {
+    const response = await axiosInstance.get('stripe/connect/dashboard', {
+      params: locationId ? { locationId } : {},
+    })
     return response.data
   },
 

@@ -12,6 +12,7 @@ const MembershipCard = ({
     isProcessing = false,
     statusBadge = null,
     helperText = null,
+    planOnlyCheckout = false,
 }) => {
     // Use membership data if provided, otherwise fall back to service data
     const price = membership?.price ?? service.basePrice ?? 99;
@@ -25,7 +26,12 @@ const MembershipCard = ({
         : 0;
     const membershipName = membership?.name ?? service.name ?? 'Gold Glow Membership';
     const description = membership?.description ?? service.description ?? 'Unlock exclusive perks and premium benefits';
-    const isSelectable = !disabled && !isProcessing && typeof onSelect === 'function' && !!service?._id && !service._id.startsWith('location-membership');
+    const isSelectable =
+        !disabled &&
+        !isProcessing &&
+        typeof onSelect === 'function' &&
+        (planOnlyCheckout ||
+            (!!service?._id && !`${service._id}`.startsWith('location-membership')));
     const resolvedCtaLabel = ctaLabel || (isSelectable
         ? membership
             ? 'Buy This Plan'
@@ -125,7 +131,17 @@ const MembershipCard = ({
                         type="button"
                         disabled={!isSelectable}
                         aria-disabled={!isSelectable}
-                        title={!isSelectable ? (isProcessing ? 'Processing membership update...' : (disabled ? 'Add a card before changing membership plans.' : 'This plan is not currently linked to online checkout.')) : undefined}
+                        title={
+                            !isSelectable
+                                ? isProcessing
+                                    ? 'Processing…'
+                                    : disabled
+                                      ? 'Add a card before changing membership plans.'
+                                      : planOnlyCheckout
+                                        ? undefined
+                                        : 'This plan is not currently linked to online checkout.'
+                                : undefined
+                        }
                         className={`w-full font-black py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 tracking-wide uppercase text-xs md:text-sm whitespace-nowrap ${
                             isSelectable
                                 ? 'bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 text-amber-950 shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 active:scale-95'
@@ -135,7 +151,7 @@ const MembershipCard = ({
                         {isProcessing ? (
                             <>
                                 <Loader2 size={14} className="animate-spin" />
-                                Processing...
+                                Processing…
                             </>
                         ) : resolvedCtaLabel}
                     </button>

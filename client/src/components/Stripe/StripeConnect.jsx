@@ -1,6 +1,6 @@
 // File: client/src/components/Stripe/StripeConnect.jsx - Stripe Connect Integration
 import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
 const StripeConnect = ({
+  locationId = '',
   sharedLocationStripeLinked = false,
   sharedLocationSquareLinked = false,
 }) => {
@@ -28,6 +29,21 @@ const StripeConnect = ({
     sharedLocationSquareLinked && !accountStatus?.connected;
   const isSharedLinkedWithoutOwnAccount =
     !isBlockedBySquare && sharedLocationStripeLinked && !accountStatus?.connected;
+
+  const fetchAccountStatus = useCallback(async () => {
+    try {
+      setChecking(true);
+      const data = await stripeService.getAccountStatus(locationId);
+      setAccountStatus(data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching account status:', error);
+      toast.error('Failed to load Stripe account status');
+      return null;
+    } finally {
+      setChecking(false);
+    }
+  }, [locationId]);
 
   const steps = useMemo(
     () => [
@@ -57,7 +73,7 @@ const StripeConnect = ({
 
   useEffect(() => {
     fetchAccountStatus();
-  }, []);
+  }, [fetchAccountStatus]);
 
   useEffect(() => {
     if (handledStripeParams) return;
@@ -89,27 +105,12 @@ const StripeConnect = ({
     };
 
     handleStripeReturn();
-  }, [handledStripeParams, searchParams, setSearchParams]);
-
-  const fetchAccountStatus = async () => {
-    try {
-      setChecking(true);
-      const data = await stripeService.getAccountStatus();
-      setAccountStatus(data);
-      return data;
-    } catch (error) {
-      console.error('Error fetching account status:', error);
-      toast.error('Failed to load Stripe account status');
-      return null;
-    } finally {
-      setChecking(false);
-    }
-  };
+  }, [fetchAccountStatus, handledStripeParams, searchParams, setSearchParams]);
 
   const handleCreateAccount = async () => {
     try {
       setLoading(true);
-      await stripeService.createConnectAccount();
+      await stripeService.createConnectAccount(locationId);
       toast.success('Stripe account created successfully!');
 
       setIsOnboardingDialogOpen(true);
@@ -125,9 +126,15 @@ const StripeConnect = ({
   const prepareOnboardingLink = async () => {
     try {
       setPreparingOnboarding(true);
-      const returnUrl = `${window.location.origin}/management?stripe=success`;
-      const refreshUrl = `${window.location.origin}/management?stripe=refresh`;
-      const data = await stripeService.createAccountLink(returnUrl, refreshUrl);
+      const buildReturnUrl = (status) => {
+        const params = new URLSearchParams();
+        params.set('stripe', status);
+        if (locationId) params.set('spa', locationId);
+        return `${window.location.origin}/management?${params.toString()}`;
+      };
+      const returnUrl = buildReturnUrl('success');
+      const refreshUrl = buildReturnUrl('refresh');
+      const data = await stripeService.createAccountLink(returnUrl, refreshUrl, locationId);
       setOnboardingUrl(data.url);
       return data.url;
     } catch (error) {
@@ -173,7 +180,7 @@ const StripeConnect = ({
 
     try {
       setLoading(true);
-      await stripeService.disconnectAccount();
+      await stripeService.disconnectAccount(locationId);
       toast.success('Stripe account disconnected');
       await fetchAccountStatus();
     } catch (error) {
@@ -187,7 +194,7 @@ const StripeConnect = ({
   const handleOpenDashboard = async () => {
     try {
       setLoading(true);
-      const data = await stripeService.getAccountDashboard();
+      const data = await stripeService.getAccountDashboard(locationId);
       window.open(data.url, '_blank');
     } catch (error) {
       console.error('Error opening dashboard:', error);

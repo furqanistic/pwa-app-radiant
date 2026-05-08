@@ -289,6 +289,10 @@ const UserSchema = new mongoose.Schema(
 
     // Stripe Connect Integration (for spa role - spa owners)
     stripe: {
+      locationId: {
+        type: String,
+        default: null,
+      },
       accountId: {
         type: String,
         default: null,
@@ -327,6 +331,10 @@ const UserSchema = new mongoose.Schema(
 
     // Square Connect Integration (for spa role - spa owners)
     square: {
+      locationId: {
+        type: String,
+        default: null,
+      },
       merchantId: {
         type: String,
         default: null,
@@ -493,11 +501,32 @@ const UserSchema = new mongoose.Schema(
       },
     },
     membershipBilling: {
+      provider: {
+        type: String,
+        enum: ['stripe', 'square', null],
+        default: null,
+      },
       stripeCustomerId: {
         type: String,
         default: null,
       },
       stripeAccountId: {
+        type: String,
+        default: null,
+      },
+      squareCustomerId: {
+        type: String,
+        default: null,
+      },
+      squareCardId: {
+        type: String,
+        default: null,
+      },
+      squareMerchantId: {
+        type: String,
+        default: null,
+      },
+      squarePlanVariationId: {
         type: String,
         default: null,
       },
@@ -683,6 +712,9 @@ const UserSchema = new mongoose.Schema(
 UserSchema.index({ 'selectedLocation.locationId': 1 })
 UserSchema.index({ 'spaLocation.locationId': 1 })
 UserSchema.index({ 'assignedLocations.locationId': 1 })
+UserSchema.index({ 'stripe.locationId': 1 })
+UserSchema.index({ 'square.locationId': 1 })
+UserSchema.index({ 'membershipBilling.provider': 1, 'membershipBilling.locationId': 1 })
 UserSchema.index({ role: 1 })
 UserSchema.index({ profileCompleted: 1 })
 UserSchema.index({ email: 1, role: 1 })

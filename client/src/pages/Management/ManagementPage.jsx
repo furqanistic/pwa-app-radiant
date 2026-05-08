@@ -578,10 +578,12 @@ const ManagementPage = () => {
               </p>
               <div className="grid gap-4 lg:grid-cols-2">
                 <StripeConnect
+                  locationId={activeSpaLocationId}
                   sharedLocationStripeLinked={sharedLocationStripeLinked}
                   sharedLocationSquareLinked={sharedLocationSquareLinked}
                 />
                 <SquareConnect
+                  locationId={activeSpaLocationId}
                   sharedLocationSquareLinked={sharedLocationSquareLinked}
                   sharedLocationStripeLinked={sharedLocationStripeLinked}
                 />

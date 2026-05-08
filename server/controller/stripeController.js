@@ -224,9 +224,17 @@ const findStripeReadySpaOwnerByLocation = async (locationId) => {
 
   return User.findOne({
     role: 'spa',
-    'spaLocation.locationId': locationId,
     'stripe.accountId': { $nin: [null, ''] },
     'stripe.chargesEnabled': true,
+    $or: [
+      { 'stripe.locationId': locationId },
+      {
+        $and: [
+          { 'stripe.locationId': { $in: [null, ''] } },
+          { 'spaLocation.locationId': locationId },
+        ],
+      },
+    ],
   }).sort({ 'stripe.lastUpdated': -1, updatedAt: -1, createdAt: -1 })
 }
 
@@ -235,9 +243,17 @@ const findSquareReadySpaOwnerByLocation = async (locationId) => {
 
   return User.findOne({
     role: 'spa',
-    'spaLocation.locationId': locationId,
     'square.merchantId': { $nin: [null, ''] },
     'square.mainLocationId': { $nin: [null, ''] },
+    $or: [
+      { 'square.locationId': locationId },
+      {
+        $and: [
+          { 'square.locationId': { $in: [null, ''] } },
+          { 'spaLocation.locationId': locationId },
+        ],
+      },
+    ],
   })
     .select('+square.accessToken +square.refreshToken')
     .sort({ 'square.lastUpdated': -1, updatedAt: -1, createdAt: -1 })
@@ -248,11 +264,63 @@ const hasAnySquareLinkedForLocation = async (locationId) => {
   return Boolean(
     await User.exists({
       role: 'spa',
-      'spaLocation.locationId': locationId,
       'square.merchantId': { $nin: [null, ''] },
       'square.mainLocationId': { $nin: [null, ''] },
+      $or: [
+        { 'square.locationId': locationId },
+        {
+          $and: [
+            { 'square.locationId': { $in: [null, ''] } },
+            { 'spaLocation.locationId': locationId },
+          ],
+        },
+      ],
     })
   )
+}
+
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids].map((id) => `${id}`.trim()).filter(Boolean)
+}
+
+const getRequestedConnectLocationId = (req, user, provider = 'stripe') => {
+  const requested =
+    `${req.body?.locationId || req.query?.locationId || ''}`.trim()
+  if (requested) return requested
+  const providerLocationId =
+    provider === 'square'
+      ? `${user?.square?.locationId || ''}`.trim()
+      : `${user?.stripe?.locationId || ''}`.trim()
+  return (
+    providerLocationId ||
+    `${user?.selectedLocation?.locationId || ''}`.trim() ||
+    `${user?.spaLocation?.locationId || ''}`.trim()
+  )
+}
+
+const assertCanManagePaymentLocation = async (user, locationId) => {
+  if (!locationId) {
+    throw createError(400, 'Please select a spa location first')
+  }
+  if (user?.role !== 'spa') {
+    throw createError(403, 'Only spa owners (spa role) can connect payment accounts')
+  }
+  if (!getUserAccessibleLocationIds(user).includes(`${locationId}`.trim())) {
+    throw createError(403, 'You cannot manage payments for this location')
+  }
+  const location = await Location.findOne({ locationId })
+  if (!location) {
+    throw createError(404, 'Location not found')
+  }
+  return location
 }
 
 export const resolveConnectedPaymentDestinationByLocation = async (locationId) => {
@@ -400,6 +468,7 @@ const createSquarePaymentLink = async ({
   description = '',
   paymentNote = '',
   redirectUrl,
+  subscriptionPlanVariationId = null,
 }) => {
   if (!accessToken) {
     throw createError(400, 'Square access token missing for this merchant')
@@ -427,6 +496,9 @@ const createSquarePaymentLink = async ({
           currency: normalizedCurrency,
         },
         location_id: locationId,
+        ...(subscriptionPlanVariationId
+          ? { subscription_plan_id: subscriptionPlanVariationId }
+          : {}),
       },
       description: `${description || ''}`.trim() || undefined,
       payment_note: `${paymentNote || ''}`.trim() || undefined,
@@ -493,6 +565,98 @@ const getSquarePaymentById = async ({ accessToken, paymentId }) => {
     }
   )
   return response?.data?.payment || null
+}
+
+const searchSquareSubscriptionForCustomer = async ({
+  accessToken,
+  customerId,
+  locationId,
+  planVariationId,
+}) => {
+  if (!accessToken || !customerId) return null
+  try {
+    const response = await axios.post(
+      `${squareApiBaseUrl}/v2/subscriptions/search`,
+      {
+        query: {
+          filter: {
+            customer_ids: [customerId],
+            ...(locationId ? { location_ids: [locationId] } : {}),
+            ...(planVariationId ? { plan_variation_ids: [planVariationId] } : {}),
+          },
+        },
+      },
+      { headers: getSquareHeaders(accessToken) }
+    )
+    const subscriptions = response?.data?.subscriptions || []
+    return subscriptions[0] || null
+  } catch (error) {
+    console.error('Failed to search Square subscription:', error?.response?.data || error?.message)
+    return null
+  }
+}
+
+const applySquareMembershipBillingState = async ({
+  customer,
+  locationId,
+  serviceId,
+  plan,
+  spaOwner,
+  payment = null,
+  subscription = null,
+  squarePlanVariationId = null,
+}) => {
+  if (!customer) return
+  ensureMembershipBillingShape(customer)
+  const now = new Date()
+  const periodEnd = new Date(now)
+  periodEnd.setMonth(periodEnd.getMonth() + 1)
+  const subscriptionStatus = `${subscription?.status || 'active'}`.trim().toLowerCase()
+
+  customer.set('membershipBilling.provider', 'square')
+  customer.set('membershipBilling.locationId', locationId)
+  customer.set('membershipBilling.serviceId', serviceId || null)
+  customer.set('membershipBilling.subscriptionId', subscription?.id || customer.membershipBilling?.subscriptionId || null)
+  customer.set('membershipBilling.subscriptionStatus', subscriptionStatus)
+  customer.set('membershipBilling.currentPeriodStart', now)
+  customer.set('membershipBilling.currentPeriodEnd', periodEnd)
+  customer.set('membershipBilling.lastPaymentAt', now)
+  customer.set('membershipBilling.squareCustomerId', subscription?.customer_id || payment?.customer_id || customer.membershipBilling?.squareCustomerId || null)
+  customer.set('membershipBilling.squareCardId', subscription?.card_id || payment?.card_details?.card?.id || customer.membershipBilling?.squareCardId || null)
+  customer.set('membershipBilling.squareMerchantId', spaOwner?.square?.merchantId || customer.membershipBilling?.squareMerchantId || null)
+  customer.set('membershipBilling.squarePlanVariationId', squarePlanVariationId || subscription?.plan_variation_id || customer.membershipBilling?.squarePlanVariationId || null)
+  customer.set('membershipBilling.stripeAccountId', null)
+  customer.set('membershipBilling.stripeCustomerId', null)
+  customer.set('membershipBilling.pendingPlan', getEmptyMembershipPendingPlan())
+
+  customer.membership = {
+    ...(customer.membership || {}),
+    isActive: true,
+    status: subscriptionStatus === 'canceled' ? 'canceled' : 'active',
+    planName: plan?.planName || plan?.name || customer.membership?.planName || null,
+    planId: plan?.planId || plan?.resolvedPlanId || customer.membership?.planId || null,
+    price: Number.isFinite(Number(plan?.planPrice ?? plan?.price))
+      ? Number(plan?.planPrice ?? plan?.price)
+      : customer.membership?.price ?? null,
+    currency: plan?.currency || customer.membership?.currency || 'usd',
+    serviceId: serviceId || customer.membership?.serviceId || null,
+    locationId,
+    startedAt: customer.membership?.startedAt || now,
+    expiresAt: periodEnd,
+    lastPaymentAt: now,
+  }
+  customer.membershipStatus = customer.membership.status
+  customer.activeMembership = {
+    ...(customer.activeMembership || {}),
+    isActive: customer.membership.isActive,
+    status: customer.membership.status,
+    planName: customer.membership.planName,
+    planId: customer.membership.planId,
+    startedAt: customer.membership.startedAt,
+    expiresAt: customer.membership.expiresAt,
+    locationId,
+  }
+  await customer.save()
 }
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -669,14 +833,37 @@ const resolveMemberPriceForUserAndService = ({ user, service }) => {
   return numericPrice
 }
 
-const activateMembershipForCustomer = async ({ customerId, booking, service }) => {
+const activateMembershipForCustomer = async ({
+  customerId,
+  booking,
+  service,
+  purchasedPlanOverride = null,
+}) => {
   if (!customerId || !booking || !service) return false
   if (!isMembershipServicePurchase(service)) return false
 
   const customer = await User.findById(customerId)
   if (!customer) return false
 
-  const purchasedPlan = resolvePurchasedMembershipPlan(service, booking.finalPrice)
+  const hasOverride =
+    purchasedPlanOverride &&
+    (purchasedPlanOverride.planId ||
+      purchasedPlanOverride.planName ||
+      Number.isFinite(Number(purchasedPlanOverride.planPrice)))
+
+  const purchasedPlan = hasOverride
+    ? {
+        planName:
+          purchasedPlanOverride.planName ||
+          service?.name ||
+          'Membership',
+        planId: purchasedPlanOverride.planId || null,
+        planPrice: Number.isFinite(Number(purchasedPlanOverride.planPrice))
+          ? Number(purchasedPlanOverride.planPrice)
+          : Number(booking.finalPrice),
+        currency: purchasedPlanOverride.currency || 'usd',
+      }
+    : resolvePurchasedMembershipPlan(service, booking.finalPrice)
   const startedAt = new Date()
   const expiresAt = new Date(startedAt)
   expiresAt.setMonth(expiresAt.getMonth() + 1)
@@ -807,6 +994,9 @@ const getEmptyMembershipPendingPlan = () => ({
 })
 
 const ensureMembershipBillingShape = (user) => {
+  if (user.membershipBilling?.provider === undefined) {
+    user.set('membershipBilling.provider', null)
+  }
   if (!user.membershipBilling?.defaultPaymentMethod) {
     user.set(
       'membershipBilling.defaultPaymentMethod',
@@ -1376,6 +1566,7 @@ const syncMembershipDefaultPaymentMethodOnUser = async ({
   locationId = null,
 }) => {
   ensureMembershipBillingShape(user)
+  user.set('membershipBilling.provider', 'stripe')
   user.set(
     'membershipBilling.stripeAccountId',
     stripeAccountId || user.membershipBilling?.stripeAccountId || null
@@ -1582,6 +1773,7 @@ const applyMembershipStateToUser = async ({
     clearMembershipDelinquencyState(user)
   }
 
+  user.set('membershipBilling.provider', 'stripe')
   user.set(
     'membershipBilling.stripeAccountId',
     stripeAccountId || user.membershipBilling?.stripeAccountId || null
@@ -1687,14 +1879,48 @@ const applyMembershipStateToUser = async ({
   await user.save()
 }
 
+const resolveMembershipCheckoutProviderMeta = async (resolvedLocationId) => {
+  if (!resolvedLocationId) {
+    return { checkoutProvider: null, squareMerchantId: null }
+  }
+  try {
+    const dest = await resolveConnectedPaymentDestinationByLocation(resolvedLocationId)
+    return {
+      checkoutProvider: dest.provider || null,
+      squareMerchantId:
+        dest.provider === 'square' ? dest.squareMerchantId || null : null,
+    }
+  } catch {
+    return { checkoutProvider: null, squareMerchantId: null }
+  }
+}
+
 const buildMembershipSummaryResponse = async ({
   user,
   locationId,
   stripeAccountId = null,
   paymentMethods = [],
+  checkoutProvider = null,
+  squareMerchantId = null,
 }) => {
-  const membership = user.membership || {}
-  const billing = user.membershipBilling || {}
+  const rawMembership = user.membership || {}
+  const rawBilling = user.membershipBilling || {}
+
+  // Scope membership & billing to the requested location so data from a different
+  // spa (e.g. a Stripe location) never bleeds into this location's summary.
+  const membershipBelongsHere =
+    !locationId ||
+    !rawMembership.locationId ||
+    `${rawMembership.locationId}`.trim() === `${locationId}`.trim()
+
+  const billingBelongsHere =
+    !locationId ||
+    !rawBilling.locationId ||
+    `${rawBilling.locationId}`.trim() === `${locationId}`.trim()
+
+  const membership = membershipBelongsHere ? rawMembership : {}
+  const billing = billingBelongsHere ? rawBilling : {}
+
   const resolvedLocationId =
     locationId || billing.locationId || membership.locationId || null
   const location = resolvedLocationId
@@ -1720,6 +1946,11 @@ const buildMembershipSummaryResponse = async ({
 
   return {
     locationId: resolvedLocationId,
+    checkoutProvider: checkoutProvider || billing.provider || null,
+    squareMerchantId,
+    squareCustomerId: billing.squareCustomerId || null,
+    squareCardId: billing.squareCardId || null,
+    squarePlanVariationId: billing.squarePlanVariationId || null,
     stripeAccountId: stripeAccountId || billing.stripeAccountId || null,
     customerId: billing.stripeCustomerId || null,
     creditsBalance: Math.max(0, Number(user?.credits || 0)),
@@ -1786,20 +2017,27 @@ export const createConnectAccount = async (req, res, next) => {
       )
     }
 
-    // Check if user already has a Stripe account
+    const locationId = getRequestedConnectLocationId(req, user, 'stripe')
+    const location = await assertCanManagePaymentLocation(user, locationId)
+
+    // Check if user already has a Stripe account for another location. The current
+    // model supports one Stripe connection and one Square connection per spa login.
     if (user.stripe?.accountId) {
+      const connectedLocationId =
+        `${user.stripe.locationId || user.spaLocation?.locationId || ''}`.trim()
+      if (connectedLocationId && connectedLocationId !== locationId) {
+        return next(
+          createError(
+            409,
+            'This account already has Stripe connected for another location.'
+          )
+        )
+      }
       return next(createError(400, 'Stripe account already connected'))
     }
 
-    // Check if spa location is configured
-    if (!user.spaLocation?.locationId) {
-      return next(createError(400, 'Please configure your spa location first'))
-    }
-
     // Enforce single payout provider per location (Stripe XOR Square)
-    const locationHasSquare = await hasAnySquareLinkedForLocation(
-      user.spaLocation.locationId
-    )
+    const locationHasSquare = await hasAnySquareLinkedForLocation(locationId)
     if (locationHasSquare) {
       return next(
         createError(
@@ -1820,19 +2058,20 @@ export const createConnectAccount = async (req, res, next) => {
       },
       business_type: 'individual',
       business_profile: {
-        name: user.spaLocation.locationName,
-        support_email: user.spaLocation.locationEmail || user.email,
-        support_phone: user.spaLocation.locationPhone,
+        name: location.name || user.spaLocation?.locationName,
+        support_email: user.spaLocation?.locationEmail || user.email,
+        support_phone: user.spaLocation?.locationPhone,
       },
       metadata: {
         userId: user._id.toString(),
-        locationId: user.spaLocation.locationId,
-        locationName: user.spaLocation.locationName,
+        locationId,
+        locationName: location.name || user.spaLocation?.locationName || '',
       },
     })
 
     // Update user with Stripe account info
     user.stripe = {
+      locationId,
       accountId: account.id,
       accountStatus: 'pending',
       onboardingCompleted: false,
@@ -1869,6 +2108,16 @@ export const createAccountLink = async (req, res, next) => {
         createError(400, 'No Stripe account found. Please create one first.')
       )
     }
+    const requestedLocationId = getRequestedConnectLocationId(req, user, 'stripe')
+    const connectedLocationId =
+      `${user.stripe.locationId || user.spaLocation?.locationId || ''}`.trim()
+    if (
+      requestedLocationId &&
+      connectedLocationId &&
+      requestedLocationId !== connectedLocationId
+    ) {
+      return next(createError(400, 'No Stripe account connected for this location'))
+    }
 
     const { returnUrl, refreshUrl } = req.body
 
@@ -1903,12 +2152,26 @@ export const getAccountStatus = async (req, res, next) => {
     if (!user) {
       return next(createError(404, 'User not found'))
     }
+    const requestedLocationId = getRequestedConnectLocationId(req, user, 'stripe')
 
     if (!user.stripe?.accountId) {
       return res.status(200).json({
         success: true,
         connected: false,
         message: 'No Stripe account connected',
+      })
+    }
+    const connectedLocationId =
+      `${user.stripe.locationId || user.spaLocation?.locationId || ''}`.trim()
+    if (
+      requestedLocationId &&
+      connectedLocationId &&
+      requestedLocationId !== connectedLocationId
+    ) {
+      return res.status(200).json({
+        success: true,
+        connected: false,
+        message: 'No Stripe account connected for this location',
       })
     }
 
@@ -1938,6 +2201,7 @@ export const getAccountStatus = async (req, res, next) => {
       success: true,
       connected: true,
       account: {
+        locationId: connectedLocationId || null,
         id: account.id,
         chargesEnabled: account.charges_enabled,
         payoutsEnabled: account.payouts_enabled,
@@ -1965,12 +2229,23 @@ export const disconnectAccount = async (req, res, next) => {
     if (!user || !user.stripe?.accountId) {
       return next(createError(400, 'No Stripe account connected'))
     }
+    const requestedLocationId = getRequestedConnectLocationId(req, user, 'stripe')
+    const connectedLocationId =
+      `${user.stripe.locationId || user.spaLocation?.locationId || ''}`.trim()
+    if (
+      requestedLocationId &&
+      connectedLocationId &&
+      requestedLocationId !== connectedLocationId
+    ) {
+      return next(createError(400, 'No Stripe account connected for this location'))
+    }
 
     // Delete the account from Stripe
     await stripe.accounts.del(user.stripe.accountId)
 
     // Clear Stripe info from user
     user.stripe = {
+      locationId: null,
       accountId: null,
       accountStatus: null,
       onboardingCompleted: false,
@@ -2003,6 +2278,16 @@ export const getAccountDashboard = async (req, res, next) => {
 
     if (!user || !user.stripe?.accountId) {
       return next(createError(400, 'No Stripe account connected'))
+    }
+    const requestedLocationId = getRequestedConnectLocationId(req, user, 'stripe')
+    const connectedLocationId =
+      `${user.stripe.locationId || user.spaLocation?.locationId || ''}`.trim()
+    if (
+      requestedLocationId &&
+      connectedLocationId &&
+      requestedLocationId !== connectedLocationId
+    ) {
+      return next(createError(400, 'No Stripe account connected for this location'))
     }
 
     const account = await stripe.accounts.retrieve(user.stripe.accountId)
@@ -2046,9 +2331,16 @@ export const getMembershipBillingSummary = async (req, res, next) => {
     if (!locationId) {
       return res.status(200).json({
         success: true,
-        summary: await buildMembershipSummaryResponse({ user, locationId: null }),
+        summary: await buildMembershipSummaryResponse({
+          user,
+          locationId: null,
+          checkoutProvider: null,
+          squareMerchantId: null,
+        }),
       })
     }
+
+    const providerMeta = await resolveMembershipCheckoutProviderMeta(locationId)
 
     let paymentMethods = []
     const billingLocationMatches =
@@ -2154,6 +2446,7 @@ export const getMembershipBillingSummary = async (req, res, next) => {
         locationId,
         stripeAccountId,
         paymentMethods,
+        ...providerMeta,
       }),
     })
   } catch (error) {
@@ -2646,6 +2939,8 @@ export const purchaseCredits = async (req, res, next) => {
       },
     })
 
+    const providerMeta = await resolveMembershipCheckoutProviderMeta(locationId)
+
     res.status(201).json({
       success: true,
       message: `${requestedQuantity} credit${requestedQuantity === 1 ? '' : 's'} added successfully.`,
@@ -2661,6 +2956,7 @@ export const purchaseCredits = async (req, res, next) => {
         locationId,
         stripeAccountId,
         paymentMethods: paymentMethodState.paymentMethods,
+        ...providerMeta,
       }),
     })
   } catch (error) {
@@ -4426,6 +4722,49 @@ export const createCheckoutSession = async (req, res, next) => {
   }
 }
 
+const resolveMembershipCheckoutServiceForLocation = async ({
+  serviceId,
+  locationId,
+  provider,
+}) => {
+  const locationMatches = (svc) =>
+    svc?.locationId && `${svc.locationId}`.trim() === `${locationId}`.trim()
+
+  if (serviceId) {
+    const service = await Service.findById(serviceId)
+    if (
+      service &&
+      service.status === 'active' &&
+      !service.isDeleted &&
+      locationMatches(service) &&
+      isMembershipServicePurchase(service)
+    ) {
+      return service
+    }
+    if (provider !== 'square') {
+      return null
+    }
+  }
+
+  if (provider !== 'square') {
+    return null
+  }
+
+  // Square location-level plans do not require a matching Service document.
+  // If the client has a linked service it sends serviceId above; otherwise use
+  // the synced Square subscription plan variation directly from Location.
+  if (!serviceId) {
+    return null
+  }
+
+  const candidates = await Service.find({
+    locationId,
+    status: 'active',
+    isDeleted: { $ne: true },
+  })
+  return candidates.find((s) => isMembershipServicePurchase(s)) || null
+}
+
 /**
  * Create a Stripe Checkout session for direct membership purchase
  */
@@ -4440,21 +4779,8 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
-    if (!serviceId || !locationId) {
-      return next(createError(400, 'serviceId and locationId are required'))
-    }
-
-    const service = await Service.findById(serviceId)
-    if (!service || service.status !== 'active' || service.isDeleted) {
-      return next(createError(404, 'Membership service not found or inactive'))
-    }
-    if (!isMembershipServicePurchase(service)) {
-      return next(createError(400, 'Selected service is not a membership offering'))
-    }
-    if (!service.locationId || `${service.locationId}`.trim() !== `${locationId}`.trim()) {
-      return next(
-        createError(400, 'Selected membership service is not available for this location')
-      )
+    if (!locationId) {
+      return next(createError(400, 'locationId is required'))
     }
 
     const location = await Location.findOne({ locationId })
@@ -4476,6 +4802,20 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
     )
     const spaOwner = checkoutDestination.spaOwner
 
+    if (checkoutDestination.provider === 'stripe' && !serviceId) {
+      return next(createError(400, 'serviceId and locationId are required'))
+    }
+
+    const service = await resolveMembershipCheckoutServiceForLocation({
+      serviceId,
+      locationId,
+      provider: checkoutDestination.provider,
+    })
+
+    if (!service && checkoutDestination.provider === 'stripe') {
+      return next(createError(404, 'Membership service not found or inactive'))
+    }
+
     if (checkoutDestination.provider === 'stripe') {
       const customerStripeId = await ensureMembershipCustomer({
         user,
@@ -4492,7 +4832,7 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
       }
     }
 
-    const activeEntries = getActiveMembershipPricingEntries(service)
+    const activeEntries = service ? getActiveMembershipPricingEntries(service) : []
     let selectedEntry = null
     if (activeEntries.length > 0) {
       selectedEntry =
@@ -4510,15 +4850,12 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
         }) || activeEntries[0]
     }
 
-    const amountDollars = Number(selectedEntry?.price ?? service.basePrice ?? 0)
-    if (!Number.isFinite(amountDollars) || amountDollars <= 0) {
-      return next(createError(400, 'Invalid membership price configured'))
-    }
+    const amountDollars = Number(selectedEntry?.price ?? service?.basePrice ?? 0)
 
     const resolvedPlanName =
       selectedEntry?.membershipPlanName ||
       planName ||
-      service.name ||
+      service?.name ||
       'Membership Plan'
     const resolvedPlanId = selectedEntry?.membershipPlanId || planId || null
 
@@ -4547,6 +4884,10 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
       Number.isFinite(amountFromLocationPlan) && amountFromLocationPlan > 0
         ? amountFromLocationPlan
         : amountDollars
+
+    if (!Number.isFinite(resolvedAmountDollars) || resolvedAmountDollars <= 0) {
+      return next(createError(400, 'Invalid membership price configured'))
+    }
     const finalPlanName = matchedLocationPlan?.name || resolvedPlanName
     const finalPlanId =
       `${matchedLocationPlan?._id || matchedLocationPlan?.planId || ''}`.trim() ||
@@ -4558,15 +4899,39 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
     const cancelUrl = `${process.env.CLIENT_URL}/membership`
 
     if (checkoutDestination.provider === 'square') {
+      const squarePlanVariationId =
+        matchedLocationPlan?.squareSubscriptionPlanVariationId ||
+        selectedEntry?.squareSubscriptionPlanVariationId ||
+        null
+
+      if (!squarePlanVariationId) {
+        if (location?.membership?.pendingSquareActivation) {
+          return next(
+            createError(
+              400,
+              location.membership.squareSyncError ||
+                'This Square membership plan is saved, but still needs Square permissions to sync recurring billing. Reconnect Square permissions from Management > Payouts, then save the plan again.'
+            )
+          )
+        }
+        return next(
+          createError(
+            400,
+            'This membership plan is not synced to Square recurring billing yet. Save the membership plan again from Management.'
+          )
+        )
+      }
+
       const checkoutState = buildSquareCheckoutState({
         flowType: 'membership',
         customerId: customerId.toString(),
         spaOwnerId: spaOwner?._id?.toString() || null,
-        serviceId: service._id.toString(),
+        serviceId: service?._id?.toString?.() || '',
         locationId: `${locationId}`,
         planId: finalPlanId ? `${finalPlanId}` : '',
         planName: `${finalPlanName}`,
         planPrice: `${resolvedAmountDollars}`,
+        squarePlanVariationId,
       })
 
       const paymentLink = await createSquarePaymentLink({
@@ -4575,9 +4940,12 @@ export const createMembershipCheckoutSession = async (req, res, next) => {
         amountInCents: amount,
         currency: spaOwner?.square?.currency || 'USD',
         label: finalPlanName,
-        description: `Membership plan for location ${locationId}`,
-        paymentNote: `membership_checkout:${service._id.toString()}`,
+        description: `Monthly membership plan for location ${locationId}`,
+        paymentNote: service?._id
+          ? `membership_checkout:${service._id.toString()}`
+          : `membership_checkout:${locationId}`,
         redirectUrl: buildSquareCheckoutRedirectUrl(checkoutState),
+        subscriptionPlanVariationId: squarePlanVariationId,
       })
 
       return res.status(201).json({
@@ -4723,12 +5091,12 @@ export const handleSquareCheckoutReturn = async (req, res) => {
       const customerId = `${state?.customerId || ''}`.trim()
       const serviceId = `${state?.serviceId || ''}`.trim()
       const locationId = `${state?.locationId || ''}`.trim()
-      if (!customerId || !serviceId || !locationId) {
+      if (!customerId || !locationId) {
         return failRedirect('/membership', 'invalid_membership_state')
       }
 
-      const service = await Service.findById(serviceId)
-      if (!service) {
+      const service = serviceId ? await Service.findById(serviceId) : null
+      if (serviceId && !service) {
         return failRedirect('/membership', 'membership_service_not_found')
       }
 
@@ -4736,7 +5104,9 @@ export const handleSquareCheckoutReturn = async (req, res) => {
       const amount = Number(payment?.amount_money?.amount || 0)
       const amountDollars = amount / 100
       const pointsEarned = await resolvePurchasePoints(locationId, amountDollars)
-      const squarePaymentKey = `square_${payment.id}_membership_${serviceId}`
+      const squarePaymentKey = `square_${payment.id}_membership_${
+        serviceId || state?.squarePlanVariationId || locationId
+      }`
 
       const existingPayment = await Payment.findOne({
         stripePaymentIntentId: squarePaymentKey,
@@ -4748,7 +5118,7 @@ export const handleSquareCheckoutReturn = async (req, res) => {
           customer: customerId,
           spaOwner: spaOwner._id,
           stripeAccountId: spaOwner.square.merchantId || `square_${spaOwner._id}`,
-          service: service._id,
+          service: service?._id || null,
           booking: null,
           amount,
           currency: `${payment?.amount_money?.currency || 'USD'}`.toLowerCase(),
@@ -4779,17 +5149,50 @@ export const handleSquareCheckoutReturn = async (req, res) => {
           },
         })
 
-        await activateMembershipForCustomer({
-          customerId,
-          booking: {
-            finalPrice: amountDollars,
-            locationId,
-          },
-          service,
-        })
+        if (service) {
+          await activateMembershipForCustomer({
+            customerId,
+            booking: {
+              finalPrice: amountDollars,
+              locationId,
+            },
+            service,
+            purchasedPlanOverride: {
+              planId: state.planId || null,
+              planName: state.planName || null,
+              planPrice: Number.isFinite(Number(state.planPrice))
+                ? Number(state.planPrice)
+                : amountDollars,
+              currency: 'usd',
+            },
+          })
+        }
 
         const customer = await User.findById(customerId)
         if (customer) {
+          const squareSubscription = await searchSquareSubscriptionForCustomer({
+            accessToken: spaOwner.square.accessToken,
+            customerId: payment?.customer_id || null,
+            locationId: spaOwner.square.mainLocationId || null,
+            planVariationId: state?.squarePlanVariationId || null,
+          })
+          await applySquareMembershipBillingState({
+            customer,
+            locationId,
+            serviceId: service?._id || null,
+            plan: {
+              planId: state.planId || null,
+              planName: state.planName || null,
+              planPrice: Number.isFinite(Number(state.planPrice))
+                ? Number(state.planPrice)
+                : amountDollars,
+              currency: 'usd',
+            },
+            spaOwner,
+            payment,
+            subscription: squareSubscription,
+            squarePlanVariationId: state?.squarePlanVariationId || null,
+          })
           customer.points += pointsEarned
           await customer.save()
         }
@@ -4974,6 +5377,144 @@ export const handleSquareCheckoutReturn = async (req, res) => {
         reason: 'checkout_return_failed',
       })
     )
+  }
+}
+
+export const handleSquareWebhook = async (req, res) => {
+  try {
+    const eventType = `${req.body?.type || ''}`.trim()
+    const eventObject = req.body?.data?.object || {}
+
+    if (eventType === 'subscription.updated' || eventType === 'subscription.created') {
+      const subscription = eventObject.subscription || eventObject
+      const subscriptionId = `${subscription?.id || ''}`.trim()
+      const squareCustomerId = `${subscription?.customer_id || ''}`.trim()
+      const user = subscriptionId
+        ? await User.findOne({ 'membershipBilling.subscriptionId': subscriptionId })
+        : squareCustomerId
+          ? await User.findOne({ 'membershipBilling.squareCustomerId': squareCustomerId })
+          : null
+
+      if (user) {
+        ensureMembershipBillingShape(user)
+        const status = `${subscription?.status || user.membershipBilling?.subscriptionStatus || 'active'}`
+          .trim()
+          .toLowerCase()
+        user.set('membershipBilling.provider', 'square')
+        user.set('membershipBilling.subscriptionId', subscriptionId || user.membershipBilling?.subscriptionId || null)
+        user.set('membershipBilling.subscriptionStatus', status)
+        user.set('membershipBilling.squareCustomerId', squareCustomerId || user.membershipBilling?.squareCustomerId || null)
+        user.set('membershipBilling.squareCardId', subscription?.card_id || user.membershipBilling?.squareCardId || null)
+        user.set('membershipBilling.squarePlanVariationId', subscription?.plan_variation_id || user.membershipBilling?.squarePlanVariationId || null)
+
+        const isCanceled = ['canceled', 'deactivated', 'paused'].includes(status)
+        user.membership = {
+          ...(user.membership || {}),
+          isActive: !isCanceled,
+          status: isCanceled ? 'canceled' : 'active',
+        }
+        user.activeMembership = {
+          ...(user.activeMembership || {}),
+          isActive: !isCanceled,
+          status: isCanceled ? 'canceled' : 'active',
+        }
+        user.membershipStatus = isCanceled ? 'canceled' : 'active'
+        await user.save()
+      }
+    }
+
+    if (eventType === 'payment.updated' || eventType === 'payment.created') {
+      const payment = eventObject.payment || eventObject
+      if (`${payment?.status || ''}`.toUpperCase() === 'COMPLETED') {
+        const squareCustomerId = `${payment?.customer_id || ''}`.trim()
+        const user = squareCustomerId
+          ? await User.findOne({ 'membershipBilling.squareCustomerId': squareCustomerId })
+          : null
+        const locationId = user?.membershipBilling?.locationId || user?.membership?.locationId || null
+        const spaOwner = payment?.merchant_id
+          ? await User.findOne({ 'square.merchantId': payment.merchant_id })
+          : null
+
+        if (user && locationId && spaOwner) {
+          const amount = Number(payment?.amount_money?.amount || 0)
+          const paymentKey = `square_${payment.id}_membership_recurring`
+          const existingPayment = await Payment.findOne({
+            stripePaymentIntentId: paymentKey,
+          })
+
+          if (!existingPayment) {
+            const pointsEarned = await resolvePurchasePoints(locationId, amount / 100)
+            await Payment.create({
+              stripePaymentIntentId: paymentKey,
+              customer: user._id,
+              spaOwner: spaOwner._id,
+              stripeAccountId: spaOwner.square?.merchantId || `square_${spaOwner._id}`,
+              service: user.membershipBilling?.serviceId || user.membership?.serviceId || null,
+              booking: null,
+              amount,
+              currency: `${payment?.amount_money?.currency || 'USD'}`.toLowerCase(),
+              subtotal: amount,
+              discount: { amount: 0, type: null, code: null, description: null },
+              tax: { amount: 0, rate: 0 },
+              platformFee: { amount: 0, percentage: 0 },
+              status: 'succeeded',
+              livemode: null,
+              processedAt: new Date(),
+              pointsEarned,
+              paymentMethod: {
+                type: `${payment?.source_type || 'CARD'}`.toLowerCase(),
+                brand: payment?.card_details?.card?.card_brand || null,
+                last4: payment?.card_details?.card?.last_4 || null,
+                expMonth: payment?.card_details?.card?.exp_month || null,
+                expYear: payment?.card_details?.card?.exp_year || null,
+              },
+              paymentCategory: 'membership',
+              metadata: {
+                provider: 'square',
+                squarePaymentId: `${payment.id}`,
+                locationId: `${locationId}`,
+                squareCustomerId,
+              },
+              membershipDetails: {
+                locationId,
+                planId: user.membership?.planId || null,
+                planName: user.membership?.planName || null,
+                billingReason: 'subscription_cycle',
+                invoiceStatus: 'paid',
+              },
+            })
+
+            const periodEnd = new Date()
+            periodEnd.setMonth(periodEnd.getMonth() + 1)
+            user.points += pointsEarned
+            user.set('membershipBilling.provider', 'square')
+            user.set('membershipBilling.lastPaymentAt', new Date())
+            user.set('membershipBilling.currentPeriodStart', new Date())
+            user.set('membershipBilling.currentPeriodEnd', periodEnd)
+            user.membership = {
+              ...(user.membership || {}),
+              isActive: true,
+              status: 'active',
+              expiresAt: periodEnd,
+              lastPaymentAt: new Date(),
+            }
+            user.activeMembership = {
+              ...(user.activeMembership || {}),
+              isActive: true,
+              status: 'active',
+              expiresAt: periodEnd,
+            }
+            user.membershipStatus = 'active'
+            await user.save()
+          }
+        }
+      }
+    }
+
+    res.status(200).json({ received: true })
+  } catch (error) {
+    console.error('Error handling Square webhook:', error)
+    res.status(500).json({ error: 'Square webhook handler failed' })
   }
 }
 

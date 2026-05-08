@@ -5,32 +5,40 @@ const squareService = {
   /**
    * Get Square OAuth authorization URL
    */
-  getAuthorizationUrl: async () => {
-    const response = await axiosInstance.get('square/connect/oauth-url')
+  getAuthorizationUrl: async (locationId = null) => {
+    const response = await axiosInstance.get('square/connect/oauth-url', {
+      params: locationId ? { locationId } : {},
+    })
     return response.data
   },
 
   /**
    * Get Square account status
    */
-  getAccountStatus: async () => {
-    const response = await axiosInstance.get('square/connect/status')
+  getAccountStatus: async (locationId = null) => {
+    const response = await axiosInstance.get('square/connect/status', {
+      params: locationId ? { locationId } : {},
+    })
     return response.data
   },
 
   /**
    * Disconnect Square account
    */
-  disconnectAccount: async () => {
-    const response = await axiosInstance.delete('square/connect/disconnect')
+  disconnectAccount: async (locationId = null) => {
+    const response = await axiosInstance.delete('square/connect/disconnect', {
+      params: locationId ? { locationId } : {},
+    })
     return response.data
   },
 
   /**
    * Get Square dashboard URL
    */
-  getAccountDashboard: async () => {
-    const response = await axiosInstance.get('square/connect/dashboard')
+  getAccountDashboard: async (locationId = null) => {
+    const response = await axiosInstance.get('square/connect/dashboard', {
+      params: locationId ? { locationId } : {},
+    })
     return response.data
   },
 }

@@ -7,6 +7,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Crown, Plus, Save, Sparkles, Trash2, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 
@@ -103,16 +104,30 @@ const MembershipManagementModal = ({
   const isVisible = isPageMode || isOpen;
   const queryClient = useQueryClient();
   const { currentUser } = useSelector((state) => state.user);
+  const routerLocation = useLocation();
   const isSuperAdmin = currentUser?.role === 'super-admin';
   const isReadOnly = !isSuperAdmin;
   const isSpaViewer = currentUser?.role === 'spa';
   const { branding } = useBranding();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = adjustHex(brandColor, -24);
+  const activeManagementLocationId = useMemo(() => {
+    const spaParam = `${new URLSearchParams(routerLocation.search).get('spa') || ''}`.trim();
+    return (
+      spaParam ||
+      currentUser?.selectedLocation?.locationId ||
+      currentUser?.spaLocation?.locationId ||
+      ''
+    );
+  }, [
+    currentUser?.selectedLocation?.locationId,
+    currentUser?.spaLocation?.locationId,
+    routerLocation.search,
+  ]);
 
   const { data: locationData, isLoading: isLoadingMyLocation } = useQuery({
-    queryKey: ['my-location'],
-    queryFn: () => locationService.getMyLocation(),
+    queryKey: ['my-location', activeManagementLocationId || 'default'],
+    queryFn: () => locationService.getMyLocation(activeManagementLocationId),
     enabled: isVisible && !isSuperAdmin,
   });
 
@@ -122,8 +137,8 @@ const MembershipManagementModal = ({
     enabled: isVisible && (isSuperAdmin || isSpaViewer),
   });
   const { data: spaStripeStatusData } = useQuery({
-    queryKey: ['stripe-account-status', 'membership-modal'],
-    queryFn: () => stripeService.getAccountStatus(),
+    queryKey: ['stripe-account-status', 'membership-modal', activeManagementLocationId || 'default'],
+    queryFn: () => stripeService.getAccountStatus(activeManagementLocationId),
     enabled: isVisible && isSpaViewer,
   });
 
@@ -134,15 +149,14 @@ const MembershipManagementModal = ({
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const spaViewerLocation = useMemo(() => {
     if (!isSpaViewer || locations.length === 0) return null;
-    const spaLocationId =
-      currentUser?.spaLocation?.locationId || currentUser?.selectedLocation?.locationId;
+    const spaLocationId = activeManagementLocationId;
     if (!spaLocationId) return locations[0] || null;
     return (
       locations.find((item) => item?.locationId === spaLocationId) ||
       locations[0] ||
       null
     );
-  }, [currentUser?.selectedLocation?.locationId, currentUser?.spaLocation?.locationId, isSpaViewer, locations]);
+  }, [activeManagementLocationId, isSpaViewer, locations]);
 
   useEffect(() => {
     if (isSuperAdmin && isVisible && locations.length > 0 && !selectedLocationId) {
@@ -189,11 +203,19 @@ const MembershipManagementModal = ({
         membership: membershipData,
       });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['my-location'] });
       queryClient.invalidateQueries({ queryKey: ['locations'] });
       queryClient.invalidateQueries({ queryKey: ['locations', 'membership-modal'] });
       onClose();
+      const savedMembership = response?.data?.location?.membership;
+      if (savedMembership?.pendingSquareActivation) {
+        toast.warning(
+          savedMembership?.squareSyncError ||
+            'Membership saved, but Square permissions must be reconnected before customers can subscribe.'
+        );
+        return;
+      }
       toast.success('Membership updated successfully!');
     },
     onError: (error) => {
@@ -389,13 +411,21 @@ const MembershipManagementModal = ({
   const locationLevelSpaStripeConnected = Boolean(
     spaViewerLocation?.membershipStripeConnected
   );
+  const locationLevelSpaSquareConnected = Boolean(
+    spaViewerLocation?.membershipSquareConnected
+  );
   const personalSpaStripeConnected = Boolean(
     spaStripeStatusData?.connected && spaStripeStatusData?.account?.chargesEnabled
   );
   const spaStripeConnected = locationLevelSpaStripeConnected || personalSpaStripeConnected;
+  const spaPaymentConnected =
+    spaStripeConnected || locationLevelSpaSquareConnected;
   const spaStripeMessage =
     spaViewerLocation?.membershipStripeMessage ||
     'Stripe is not connected for this location yet.';
+  const spaSquareMessage =
+    spaViewerLocation?.membershipSquareMessage ||
+    'Square is not connected for this location yet.';
   const spaMembershipPlans = Array.isArray(formData?.plans) ? formData.plans : [];
   const spaHasMembershipPlans = spaMembershipPlans.length > 0;
   const spaHasActiveMembership = Boolean(formData?.isActive && spaMembershipPlans.length > 0);
@@ -445,9 +475,11 @@ const MembershipManagementModal = ({
             </div>
           )}
 
-          {spaHasMembershipPlans && !spaStripeConnected && (
+          {spaHasMembershipPlans && !spaPaymentConnected && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm font-medium text-amber-800">
-              Membership is not activated because Stripe is not connected. {spaStripeMessage}
+              Membership payouts need Stripe or Square. Connect one under Management &gt; Payouts.
+              {!spaStripeConnected ? <> {spaStripeMessage}</> : null}{' '}
+              {!locationLevelSpaSquareConnected ? <> {spaSquareMessage}</> : null}
             </div>
           )}
 
@@ -459,12 +491,12 @@ const MembershipManagementModal = ({
                 </p>
                 <span
                   className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                    spaHasActiveMembership && spaStripeConnected
+                    spaHasActiveMembership && spaPaymentConnected
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-amber-100 text-amber-700'
                   }`}
                 >
-                  {spaHasActiveMembership && spaStripeConnected ? 'Active' : 'Not Activated'}
+                  {spaHasActiveMembership && spaPaymentConnected ? 'Active' : 'Not Activated'}
                 </span>
               </div>
               <MembershipPlansGrid
@@ -802,7 +834,7 @@ const MembershipManagementModal = ({
                 >
                   {updateMembership.isPending
                     ? 'Activating...'
-                    : isSuperAdmin && !isSelectedLocationStripeConnected
+                    : isSuperAdmin && !isSelectedLocationPaymentConnected
                     ? 'Activate (Stripe or Square Required)'
                     : 'Activate Membership'}
                 </Button>

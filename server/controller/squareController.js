@@ -11,10 +11,18 @@ import {
   squareOAuthBaseUrl,
   squareOAuthScopes,
   squareRedirectUrl,
+  squareRequiredMembershipScopes,
 } from '../config/square.js'
 import { createError } from '../error.js'
 import Location from '../models/Location.js'
 import User from '../models/User.js'
+import {
+  isSquareUnauthorizedCatalogError,
+  merchantScopesIncludeItemsWrite,
+  normalizeOAuthScopesFromResponse,
+  refreshSquareAccessTokenIfNeeded,
+  SQUARE_ITEMS_WRITE_HINT,
+} from '../utils/squareOAuthTokens.js'
 
 const getFrontendManagementUrl = ({ status = 'success', reason = '' } = {}) => {
   const base = process.env.CLIENT_URL || 'http://localhost:5173'
@@ -26,6 +34,18 @@ const getFrontendManagementUrl = ({ status = 'success', reason = '' } = {}) => {
   return redirectUrl.toString()
 }
 
+const getFrontendManagementUrlForLocation = ({
+  status = 'success',
+  reason = '',
+  locationId = '',
+} = {}) => {
+  const url = new URL(getFrontendManagementUrl({ status, reason }))
+  if (locationId) {
+    url.searchParams.set('spa', locationId)
+  }
+  return url.toString()
+}
+
 const ensureSquareConfig = () => {
   if (!squareApplicationId || !squareApplicationSecret) {
     throw createError(
@@ -35,10 +55,11 @@ const ensureSquareConfig = () => {
   }
 }
 
-const buildOAuthStateToken = (userId) =>
+const buildOAuthStateToken = ({ userId, locationId }) =>
   jwt.sign(
     {
       userId,
+      locationId,
       nonce: randomBytes(12).toString('hex'),
       provider: 'square',
     },
@@ -89,102 +110,198 @@ const getSquareStatusFromToken = async (accessToken) => {
   }
 }
 
+const getSquareHeaders = (accessToken) => ({
+  Authorization: `Bearer ${accessToken}`,
+  'Square-Version': squareApiVersion,
+  'Content-Type': 'application/json',
+})
+
+const upsertSquareCatalogObject = async ({ accessToken, catalogObject }) => {
+  const response = await axios.post(
+    `${squareApiBaseUrl}/v2/catalog/object`,
+    {
+      idempotency_key: `sq_cat_${Date.now()}_${randomBytes(6).toString('hex')}`,
+      object: catalogObject,
+    },
+    { headers: getSquareHeaders(accessToken) }
+  )
+  return response?.data?.catalog_object || null
+}
+
+const upsertSquareCatalogObjectForOwner = async ({ squareOwner, catalogObject }) => {
+  try {
+    const refreshedOwner = await refreshSquareAccessTokenIfNeeded(squareOwner)
+    return await upsertSquareCatalogObject({
+      accessToken: refreshedOwner.square.accessToken,
+      catalogObject,
+    })
+  } catch (error) {
+    if (!isSquareUnauthorizedCatalogError(error)) {
+      throw error
+    }
+
+    try {
+      const refreshedOwner = await refreshSquareAccessTokenIfNeeded(squareOwner, {
+        forceRefresh: true,
+      })
+      return await upsertSquareCatalogObject({
+        accessToken: refreshedOwner.square.accessToken,
+        catalogObject,
+      })
+    } catch (retryError) {
+      if (isSquareUnauthorizedCatalogError(retryError)) {
+        throw createError(400, SQUARE_ITEMS_WRITE_HINT)
+      }
+      throw retryError
+    }
+  }
+}
+
 const hasAnyStripeLinkedForLocation = async (locationId) => {
   if (!locationId) return false
   return Boolean(
     await User.exists({
       role: 'spa',
-      'spaLocation.locationId': locationId,
       'stripe.accountId': { $nin: [null, ''] },
       'stripe.chargesEnabled': true,
+      $or: [
+        { 'stripe.locationId': locationId },
+        {
+          $and: [
+            { 'stripe.locationId': { $in: [null, ''] } },
+            { 'spaLocation.locationId': locationId },
+          ],
+        },
+      ],
     })
   )
 }
 
-const normalizePlanCurrency = (value) => `${value || 'usd'}`.trim().toUpperCase()
+const getUserAccessibleLocationIds = (user) => {
+  const ids = new Set()
+  if (user?.spaLocation?.locationId) ids.add(user.spaLocation.locationId)
+  if (user?.selectedLocation?.locationId) ids.add(user.selectedLocation.locationId)
+  if (Array.isArray(user?.assignedLocations)) {
+    user.assignedLocations.forEach((location) => {
+      if (location?.locationId) ids.add(location.locationId)
+    })
+  }
+  return [...ids].map((id) => `${id}`.trim()).filter(Boolean)
+}
 
-const syncPendingMembershipPlansToSquare = async (user) => {
-  if (!user?.spaLocation?.locationId || !user?.square?.accessToken) return
+const getRequestedConnectionLocationId = (req, user) => {
+  const requested =
+    `${req.query?.locationId || req.body?.locationId || ''}`.trim()
+  if (requested) return requested
+  return (
+    `${user?.square?.locationId || ''}`.trim() ||
+    `${user?.selectedLocation?.locationId || ''}`.trim() ||
+    `${user?.spaLocation?.locationId || ''}`.trim()
+  )
+}
 
-  const location = await Location.findOne({ locationId: user.spaLocation.locationId })
+const assertCanManageConnectionLocation = async (user, locationId) => {
+  if (!locationId) {
+    throw createError(400, 'Please select a spa location first')
+  }
+  if (user?.role !== 'spa') {
+    throw createError(403, 'Only spa owners (spa role) can connect Square accounts')
+  }
+  const accessibleIds = getUserAccessibleLocationIds(user)
+  if (!accessibleIds.includes(`${locationId}`.trim())) {
+    throw createError(403, 'You cannot connect Square for this location')
+  }
+  const location = await Location.findOne({ locationId })
+  if (!location) {
+    throw createError(404, 'Location not found')
+  }
+  return location
+}
+
+const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
+  const targetLocationId =
+    `${locationId || user?.square?.locationId || user?.spaLocation?.locationId || ''}`.trim()
+  if (!targetLocationId || !user?.square?.accessToken) return
+  if (merchantScopesIncludeItemsWrite(user.square.scopes) === false) {
+    throw createError(400, SQUARE_ITEMS_WRITE_HINT)
+  }
+
+  const location = await Location.findOne({ locationId: targetLocationId })
   if (!location?.membership) return
   if (!location.membership.pendingSquareActivation && !location.membership.isActive) return
 
   const plans = Array.isArray(location.membership.plans) ? location.membership.plans : []
   if (!plans.length) return
 
-  const syncedPlans = []
-  for (let index = 0; index < plans.length; index += 1) {
-    const plan = plans[index]
-    const objectId =
-      plan.squareSubscriptionPlanId || `#membership_plan_${index}_${randomBytes(8).toString('hex')}`
-    const variationId =
-      plan.squareSubscriptionPlanVariationId ||
-      `#membership_plan_variation_${index}_${randomBytes(8).toString('hex')}`
+  const plainPlans = plans.map((plan) =>
+    typeof plan?.toObject === 'function' ? plan.toObject() : plan
+  )
+  const existingParentPlanId =
+    plainPlans.find((plan) => plan?.squareSubscriptionPlanId)
+      ?.squareSubscriptionPlanId || null
 
-    const response = await axios.post(
-      `${squareApiBaseUrl}/v2/catalog/object`,
-      {
-        idempotency_key: `membership-${location.locationId}-${index}-${Date.now()}`,
-        object: {
-          id: objectId,
-          type: 'SUBSCRIPTION_PLAN',
-          subscription_plan_data: {
-            name: plan.name,
-            phases: [
-              {
-                cadence: 'MONTHLY',
-                recurring_price_money: {
-                  amount: Math.round(Number(plan.price || 0) * 100),
-                  currency: normalizePlanCurrency(plan.currency),
-                },
-              },
-            ],
-            subscription_plan_variations: [
-              {
-                id: variationId,
-                type: 'SUBSCRIPTION_PLAN_VARIATION',
-                subscription_plan_variation_data: {
-                  name: `${plan.name} - Monthly`,
-                  phases: [
-                    {
-                      cadence: 'MONTHLY',
-                      recurring_price_money: {
-                        amount: Math.round(Number(plan.price || 0) * 100),
-                        currency: normalizePlanCurrency(plan.currency),
-                      },
-                    },
-                  ],
-                },
-              },
-            ],
-          },
+  let squareSubscriptionPlanId = existingParentPlanId
+  if (!squareSubscriptionPlanId) {
+    const parentPlan = await upsertSquareCatalogObjectForOwner({
+      squareOwner: user,
+      catalogObject: {
+        type: 'SUBSCRIPTION_PLAN',
+        id: `#membership-plan-${location.locationId}`,
+        present_at_all_locations: true,
+        subscription_plan_data: {
+          name: `${location.name || location.locationId} Memberships`,
+          all_items: true,
         },
       },
-      {
-        headers: {
-          Authorization: `Bearer ${user.square.accessToken}`,
-          'Square-Version': squareApiVersion,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
+    })
+    squareSubscriptionPlanId = parentPlan?.id || null
+  }
 
-    const syncedObject = response?.data?.catalog_object || {}
-    const syncedVariationId =
-      syncedObject?.subscription_plan_data?.subscription_plan_variations?.[0]?.id ||
-      plan.squareSubscriptionPlanVariationId ||
-      null
+  const syncedPlans = []
+  for (let index = 0; index < plainPlans.length; index += 1) {
+    const plan = plainPlans[index]
+    const amount = Math.round(Number(plan?.price || 0) * 100)
+    const currency = `${plan?.currency || location.membership?.currency || 'usd'}`
+      .trim()
+      .toUpperCase()
+    const variation = plan?.squareSubscriptionPlanVariationId
+      ? null
+      : await upsertSquareCatalogObjectForOwner({
+          squareOwner: user,
+          catalogObject: {
+            type: 'SUBSCRIPTION_PLAN_VARIATION',
+            id: `#membership-plan-${location.locationId}-variation-${index}-${Date.now()}`,
+            present_at_all_locations: true,
+            subscription_plan_variation_data: {
+              name: plan?.name || `Membership ${index + 1}`,
+              subscription_plan_id: squareSubscriptionPlanId,
+              phases: [
+                {
+                  uid: `phase_${index}`,
+                  cadence: 'MONTHLY',
+                  ordinal: 0,
+                  pricing: {
+                    type: 'STATIC',
+                    price: { amount, currency },
+                  },
+                },
+              ],
+            },
+          },
+        })
 
     syncedPlans.push({
-      ...(typeof plan?.toObject === 'function' ? plan.toObject() : plan),
-      squareSubscriptionPlanId: syncedObject?.id || plan.squareSubscriptionPlanId || null,
-      squareSubscriptionPlanVariationId: syncedVariationId,
-      syncedAt: new Date(),
+      ...plan,
+      squareSubscriptionPlanId,
+      squareSubscriptionPlanVariationId:
+        plan?.squareSubscriptionPlanVariationId || variation?.id || null,
+      currency: currency.toLowerCase(),
+      syncedAt: plan?.syncedAt || new Date(),
     })
   }
 
-  const firstPlan = syncedPlans[0] || null
+  const firstPlan = syncedPlans[0] || plainPlans[0] || null
+
   location.membership = {
     ...(typeof location.membership?.toObject === 'function'
       ? location.membership.toObject()
@@ -197,7 +314,7 @@ const syncPendingMembershipPlansToSquare = async (user) => {
     price: firstPlan?.price ?? location.membership.price,
     benefits: firstPlan?.benefits || location.membership.benefits,
     currency: firstPlan?.currency || location.membership.currency || 'usd',
-    syncedAt: firstPlan?.syncedAt || location.membership.syncedAt || new Date(),
+    syncedAt: location.membership.syncedAt || new Date(),
   }
   await location.save()
 }
@@ -218,14 +335,11 @@ export const createSquareAuthorizationUrl = async (req, res, next) => {
         )
       )
     }
-    if (!user.spaLocation?.locationId) {
-      return next(createError(400, 'Please configure your spa location first'))
-    }
+    const locationId = getRequestedConnectionLocationId(req, user)
+    await assertCanManageConnectionLocation(user, locationId)
 
     // Enforce single payout provider per location (Stripe XOR Square)
-    const locationHasStripe = await hasAnyStripeLinkedForLocation(
-      user.spaLocation.locationId
-    )
+    const locationHasStripe = await hasAnyStripeLinkedForLocation(locationId)
     if (locationHasStripe) {
       return next(
         createError(
@@ -235,7 +349,10 @@ export const createSquareAuthorizationUrl = async (req, res, next) => {
       )
     }
 
-    const state = buildOAuthStateToken(user._id.toString())
+    const state = buildOAuthStateToken({
+      userId: user._id.toString(),
+      locationId,
+    })
     const params = new URLSearchParams({
       client_id: squareApplicationId,
       scope: squareOAuthScopes,
@@ -257,8 +374,15 @@ export const createSquareAuthorizationUrl = async (req, res, next) => {
 }
 
 export const handleSquareCallback = async (req, res) => {
+  let callbackLocationId = ''
   const failRedirect = ({ reason = 'unknown_error' } = {}) =>
-    res.redirect(getFrontendManagementUrl({ status: 'error', reason }))
+    res.redirect(
+      getFrontendManagementUrlForLocation({
+        status: 'error',
+        reason,
+        locationId: callbackLocationId,
+      })
+    )
 
   try {
     ensureSquareConfig()
@@ -284,6 +408,7 @@ export const handleSquareCallback = async (req, res) => {
     if (statePayload?.provider !== 'square' || !statePayload?.userId) {
       return failRedirect({ reason: 'invalid_state_payload' })
     }
+    callbackLocationId = `${statePayload?.locationId || ''}`.trim()
 
     const user = await User.findById(statePayload.userId)
     if (!user) {
@@ -292,13 +417,16 @@ export const handleSquareCallback = async (req, res) => {
     if (user.role !== 'spa') {
       return failRedirect({ reason: 'invalid_role' })
     }
-    if (!user.spaLocation?.locationId) {
+    if (!callbackLocationId) {
       return failRedirect({ reason: 'missing_spa_location' })
     }
+    try {
+      await assertCanManageConnectionLocation(user, callbackLocationId)
+    } catch (locationError) {
+      return failRedirect({ reason: locationError?.message || 'invalid_location' })
+    }
 
-    const locationHasStripe = await hasAnyStripeLinkedForLocation(
-      user.spaLocation.locationId
-    )
+    const locationHasStripe = await hasAnyStripeLinkedForLocation(callbackLocationId)
     if (locationHasStripe) {
       return failRedirect({ reason: 'stripe_connected_for_location' })
     }
@@ -335,6 +463,7 @@ export const handleSquareCallback = async (req, res) => {
       : merchantPayload || null
 
     user.square = {
+      locationId: callbackLocationId,
       merchantId: tokenData.merchant_id || merchantDetails?.id || null,
       merchantStatus: merchantDetails?.status || 'ACTIVE',
       businessName: merchantDetails?.business_name || null,
@@ -344,17 +473,34 @@ export const handleSquareCallback = async (req, res) => {
       accessToken: tokenData.access_token || null,
       refreshToken: tokenData.refresh_token || null,
       tokenExpiresAt: toIsoDateOrNull(tokenData.expires_at),
-      scopes: Array.isArray(tokenData.scopes) ? tokenData.scopes : [],
+      scopes: normalizeOAuthScopesFromResponse(tokenData),
       connectedAt: new Date(),
       lastUpdated: new Date(),
     }
 
     await user.save()
-    await syncPendingMembershipPlansToSquare(user)
-    return res.redirect(getFrontendManagementUrl({ status: 'success' }))
+    await syncPendingMembershipPlansToSquare(user, callbackLocationId)
+    return res.redirect(
+      getFrontendManagementUrlForLocation({
+        status: 'success',
+        locationId: callbackLocationId,
+      })
+    )
   } catch (error) {
-    console.error('Error handling Square callback:', readSquareErrorMessage(error))
-    return failRedirect({ reason: 'callback_failed' })
+    console.error(
+      'Error handling Square callback:',
+      error?.message || readSquareErrorMessage(error)
+    )
+    const reason =
+      error?.status === 403 ||
+      `${error?.message || ''}`.includes('ITEMS_WRITE') ||
+      `${error?.message || ''}`.includes('catalog sync is not authorized')
+        ? 'square_missing_catalog_scope'
+        : error?.status === 502 ||
+            `${error?.message || ''}`.includes('Square catalog sync failed')
+          ? 'square_catalog_sync_failed'
+          : 'callback_failed'
+    return failRedirect({ reason })
   }
 }
 
@@ -368,11 +514,25 @@ export const getSquareAccountStatus = async (req, res, next) => {
     if (!user) {
       return next(createError(404, 'User not found'))
     }
+    const requestedLocationId = getRequestedConnectionLocationId(req, user)
     if (!user.square?.merchantId || !user.square?.accessToken) {
       return res.status(200).json({
         success: true,
         connected: false,
         message: 'No Square account connected',
+      })
+    }
+    const connectedLocationId =
+      `${user.square.locationId || user.spaLocation?.locationId || ''}`.trim()
+    if (
+      requestedLocationId &&
+      connectedLocationId &&
+      requestedLocationId !== connectedLocationId
+    ) {
+      return res.status(200).json({
+        success: true,
+        connected: false,
+        message: 'No Square account connected for this location',
       })
     }
 
@@ -387,6 +547,14 @@ export const getSquareAccountStatus = async (req, res, next) => {
     }
     await user.save()
 
+    const grantedScopes = Array.isArray(user.square.scopes) ? user.square.scopes : []
+    const grantedScopeSet = new Set(
+      grantedScopes.map((scope) => `${scope}`.trim().toUpperCase()).filter(Boolean)
+    )
+    const missingMembershipScopes = squareRequiredMembershipScopes.filter(
+      (scope) => !grantedScopeSet.has(scope)
+    )
+
     const hasPayoutReadyAccount = Boolean(
       tokenStatus.isConnected && user.square?.merchantId && user.square?.mainLocationId
     )
@@ -395,6 +563,7 @@ export const getSquareAccountStatus = async (req, res, next) => {
       success: true,
       connected: hasPayoutReadyAccount,
       account: {
+        locationId: connectedLocationId || null,
         merchantId: user.square.merchantId || null,
         businessName: user.square.businessName || null,
         mainLocationId: user.square.mainLocationId || null,
@@ -402,8 +571,11 @@ export const getSquareAccountStatus = async (req, res, next) => {
         country: user.square.country || null,
         currency: user.square.currency || null,
         tokenExpiresAt: user.square.tokenExpiresAt || null,
-        scopes: Array.isArray(user.square.scopes) ? user.square.scopes : [],
+        scopes: grantedScopes,
+        missingMembershipScopes,
       },
+      requiredMembershipScopes: squareRequiredMembershipScopes,
+      requiresReconnect: missingMembershipScopes.length > 0,
       dashboardUrl: getSquareDashboardUrl(),
       environment: squareEnvironment,
     })
@@ -414,6 +586,7 @@ export const getSquareAccountStatus = async (req, res, next) => {
           req.user.id,
           {
             square: {
+              locationId: null,
               merchantId: null,
               merchantStatus: null,
               businessName: null,
@@ -456,6 +629,16 @@ export const disconnectSquareAccount = async (req, res, next) => {
     if (!user || !user.square?.merchantId) {
       return next(createError(400, 'No Square account connected'))
     }
+    const requestedLocationId = getRequestedConnectionLocationId(req, user)
+    const connectedLocationId =
+      `${user.square.locationId || user.spaLocation?.locationId || ''}`.trim()
+    if (
+      requestedLocationId &&
+      connectedLocationId &&
+      requestedLocationId !== connectedLocationId
+    ) {
+      return next(createError(400, 'No Square account connected for this location'))
+    }
 
     const accessToken = user.square.accessToken
     if (accessToken) {
@@ -483,6 +666,7 @@ export const disconnectSquareAccount = async (req, res, next) => {
     }
 
     user.square = {
+      locationId: null,
       merchantId: null,
       merchantStatus: null,
       businessName: null,
@@ -514,6 +698,16 @@ export const getSquareDashboard = async (req, res, next) => {
     const user = await User.findById(req.user.id)
     if (!user || !user.square?.merchantId) {
       return next(createError(400, 'No Square account connected'))
+    }
+    const requestedLocationId = getRequestedConnectionLocationId(req, user)
+    const connectedLocationId =
+      `${user.square.locationId || user.spaLocation?.locationId || ''}`.trim()
+    if (
+      requestedLocationId &&
+      connectedLocationId &&
+      requestedLocationId !== connectedLocationId
+    ) {
+      return next(createError(400, 'No Square account connected for this location'))
     }
 
     res.status(200).json({

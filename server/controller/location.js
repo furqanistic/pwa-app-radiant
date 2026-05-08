@@ -1,10 +1,9 @@
-import stripe from '../config/stripe.js';
 import axios from 'axios';
-import { randomUUID } from 'crypto';
+import stripe from '../config/stripe.js';
+import { squareApiBaseUrl, squareApiVersion } from '../config/square.js';
 import { createError } from '../error.js';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
-import { squareApiBaseUrl, squareApiVersion } from '../config/square.js';
 import {
     buildPointsLabel,
     DEFAULT_POINTS_METHODS,
@@ -12,6 +11,18 @@ import {
     ensureLocationPointsSettings,
     mergePointsMethodsWithDefaults,
 } from '../utils/pointsSettings.js';
+import {
+  isSquareUnauthorizedCatalogError,
+  merchantScopesIncludeItemsWrite,
+  refreshSquareAccessTokenIfNeeded,
+  SQUARE_ITEMS_WRITE_HINT,
+} from '../utils/squareOAuthTokens.js';
+
+const getSquareHeaders = (accessToken) => ({
+  Authorization: `Bearer ${accessToken}`,
+  'Square-Version': squareApiVersion,
+  'Content-Type': 'application/json',
+})
 
 // Helper to transform businessHours array from Location model to object for User model
 const transformHoursFromModel = (hoursArray) => {
@@ -222,13 +233,22 @@ const resolveSpaOwnerForLocation = async (location, currentUser) => {
 
   const spaUsers = await User.find({
     role: 'spa',
-    'spaLocation.locationId': location.locationId,
+    $or: [
+      { 'spaLocation.locationId': location.locationId },
+      { 'assignedLocations.locationId': location.locationId },
+      { 'stripe.locationId': location.locationId },
+      { 'square.locationId': location.locationId },
+    ],
   });
 
   if (!spaUsers.length) return null;
 
   const connectedSpaUser = spaUsers.find(
-    (user) => user?.stripe?.accountId && user?.stripe?.chargesEnabled
+    (user) =>
+      user?.stripe?.accountId &&
+      user?.stripe?.chargesEnabled &&
+      (`${user?.stripe?.locationId || user?.spaLocation?.locationId || ''}`.trim() ===
+        `${location.locationId}`.trim())
   );
 
   if (connectedSpaUser) return connectedSpaUser;
@@ -242,6 +262,26 @@ const resolveSpaOwnerForLocation = async (location, currentUser) => {
 
   return spaUsers[0];
 };
+
+const resolveSquareOwnerForLocation = async (locationId) => {
+  if (!locationId) return null
+  return User.findOne({
+    role: 'spa',
+    'square.merchantId': { $nin: [null, ''] },
+    'square.mainLocationId': { $nin: [null, ''] },
+    $or: [
+      { 'square.locationId': locationId },
+      {
+        $and: [
+          { 'square.locationId': { $in: [null, ''] } },
+          { 'spaLocation.locationId': locationId },
+        ],
+      },
+    ],
+  })
+    .select('+square.accessToken +square.refreshToken')
+    .sort({ 'square.lastUpdated': -1, updatedAt: -1, createdAt: -1 })
+}
 
 const isStripeMissingResourceError = (error) =>
   error?.type === 'StripeInvalidRequestError' && error?.code === 'resource_missing';
@@ -278,6 +318,188 @@ const stripePriceMatchesMonthlyPlan = ({ price, amountInCents, currency }) => {
   );
 };
 
+const upsertSquareCatalogObject = async ({ accessToken, catalogObject }) => {
+  const response = await axios.post(
+    `${squareApiBaseUrl}/v2/catalog/object`,
+    {
+      idempotency_key: `sq_cat_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      object: catalogObject,
+    },
+    { headers: getSquareHeaders(accessToken) }
+  )
+  return response?.data?.catalog_object || null
+}
+
+const upsertSquareCatalogObjectForOwner = async ({ squareOwner, catalogObject }) => {
+  try {
+    const refreshedOwner = await refreshSquareAccessTokenIfNeeded(squareOwner)
+    return await upsertSquareCatalogObject({
+      accessToken: refreshedOwner.square.accessToken,
+      catalogObject,
+    })
+  } catch (error) {
+    if (!isSquareUnauthorizedCatalogError(error)) {
+      throw error
+    }
+
+    try {
+      const refreshedOwner = await refreshSquareAccessTokenIfNeeded(squareOwner, {
+        forceRefresh: true,
+      })
+      return await upsertSquareCatalogObject({
+        accessToken: refreshedOwner.square.accessToken,
+        catalogObject,
+      })
+    } catch (retryError) {
+      if (isSquareUnauthorizedCatalogError(retryError)) {
+        throw createError(400, SQUARE_ITEMS_WRITE_HINT)
+      }
+      throw retryError
+    }
+  }
+}
+
+const markMembershipPendingSquareSync = (membership, message = SQUARE_ITEMS_WRITE_HINT) => ({
+  ...membership,
+  isActive: false,
+  pendingSquareActivation: true,
+  squareSyncError: message,
+})
+
+const syncMembershipWithSquare = async ({ membership, location }) => {
+  const normalizedMembership = normalizeMembershipInput(membership, location.membership)
+  const squareOwner = await resolveSquareOwnerForLocation(location.locationId)
+
+  if (!squareOwner?.square?.accessToken) {
+    return markMembershipPendingSquareSync(normalizedMembership, 'Square is not connected for this location.')
+  }
+
+  if (merchantScopesIncludeItemsWrite(squareOwner.square.scopes) === false) {
+    return markMembershipPendingSquareSync(normalizedMembership)
+  }
+
+  const existingPlans = Array.isArray(location.membership?.plans)
+    ? location.membership.plans.map((plan) => toPlainObject(plan))
+    : []
+  const existingParentPlanId =
+    existingPlans.find((plan) => plan?.squareSubscriptionPlanId)
+      ?.squareSubscriptionPlanId || null
+
+  let squareSubscriptionPlanId = existingParentPlanId
+  if (!squareSubscriptionPlanId) {
+    try {
+      const parentPlan = await upsertSquareCatalogObjectForOwner({
+        squareOwner,
+        catalogObject: {
+          type: 'SUBSCRIPTION_PLAN',
+          id: `#membership-plan-${location.locationId}`,
+          present_at_all_locations: true,
+          subscription_plan_data: {
+            name: `${location.name || location.locationId} Memberships`,
+            all_items: true,
+          },
+        },
+      })
+      squareSubscriptionPlanId = parentPlan?.id || null
+    } catch (error) {
+      if (error?.status === 400 && `${error?.message || ''}`.includes('ITEMS_WRITE')) {
+        return markMembershipPendingSquareSync(normalizedMembership, error.message)
+      }
+      throw error
+    }
+  }
+
+  if (!squareSubscriptionPlanId) {
+    throw createError(502, 'Square did not return a subscription plan ID.')
+  }
+
+  const syncedPlans = []
+  for (let index = 0; index < normalizedMembership.plans.length; index += 1) {
+    const plan = normalizePlan(
+      normalizedMembership.plans[index],
+      normalizedMembership.plans[index]
+    )
+    const existingPlan = normalizePlan(
+      existingPlans[index] || location.membership || DEFAULT_MEMBERSHIP_PLAN,
+      DEFAULT_MEMBERSHIP_PLAN
+    )
+    const amountInCents = Math.round(Number(plan.price || 0) * 100)
+    const currency = `${plan.currency || 'usd'}`.trim().toUpperCase()
+    const existingAmountInCents = Math.round(Number(existingPlan.price || 0) * 100)
+    const canReuseVariation =
+      existingPlan.squareSubscriptionPlanVariationId &&
+      existingAmountInCents === amountInCents &&
+      `${existingPlan.name || ''}`.trim() === `${plan.name || ''}`.trim()
+
+    let squareSubscriptionPlanVariationId = canReuseVariation
+      ? existingPlan.squareSubscriptionPlanVariationId
+      : null
+
+    if (!squareSubscriptionPlanVariationId) {
+      try {
+        const variation = await upsertSquareCatalogObjectForOwner({
+          squareOwner,
+          catalogObject: {
+            type: 'SUBSCRIPTION_PLAN_VARIATION',
+            id: `#membership-plan-${location.locationId}-variation-${index}-${Date.now()}`,
+            present_at_all_locations: true,
+            subscription_plan_variation_data: {
+              name: plan.name,
+              subscription_plan_id: squareSubscriptionPlanId,
+              phases: [
+                {
+                  uid: `phase_${index}`,
+                  cadence: 'MONTHLY',
+                  ordinal: 0,
+                  pricing: {
+                    type: 'STATIC',
+                    price: {
+                      amount: amountInCents,
+                      currency,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        })
+        squareSubscriptionPlanVariationId = variation?.id || null
+      } catch (error) {
+        if (error?.status === 400 && `${error?.message || ''}`.includes('ITEMS_WRITE')) {
+          return markMembershipPendingSquareSync(normalizedMembership, error.message)
+        }
+        throw error
+      }
+    }
+
+    if (!squareSubscriptionPlanVariationId) {
+      throw createError(502, 'Square did not return a subscription plan variation ID.')
+    }
+
+    syncedPlans.push({
+      ...plan,
+      squareSubscriptionPlanId,
+      squareSubscriptionPlanVariationId,
+      currency: currency.toLowerCase(),
+      syncedAt: new Date(),
+    })
+  }
+
+  const firstPlan = syncedPlans[0] || normalizePlan(DEFAULT_MEMBERSHIP_PLAN)
+  return {
+    ...normalizedMembership,
+    pendingSquareActivation: false,
+    squareSyncError: null,
+    plans: syncedPlans,
+    name: firstPlan.name,
+    description: firstPlan.description,
+    price: firstPlan.price,
+    benefits: firstPlan.benefits,
+    currency: firstPlan.currency || 'usd',
+    syncedAt: firstPlan.syncedAt || null,
+  }
+}
+
 const syncMembershipWithStripe = async ({ membership, location, currentUser }) => {
   if (!membership) return membership;
 
@@ -290,9 +512,17 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
   const squareConnected = Boolean(
     await User.exists({
       role: 'spa',
-      'spaLocation.locationId': location.locationId,
       'square.merchantId': { $nin: [null, ''] },
       'square.mainLocationId': { $nin: [null, ''] },
+      $or: [
+        { 'square.locationId': location.locationId },
+        {
+          $and: [
+            { 'square.locationId': { $in: [null, ''] } },
+            { 'spaLocation.locationId': location.locationId },
+          ],
+        },
+      ],
     })
   );
 
@@ -308,111 +538,7 @@ const syncMembershipWithStripe = async ({ membership, location, currentUser }) =
   if (!stripeConnected) {
     if (!squareConnected) return normalizedMembership;
 
-    const squareSpaOwner = await User.findOne({
-      role: 'spa',
-      'spaLocation.locationId': location.locationId,
-      'square.merchantId': { $nin: [null, ''] },
-      'square.mainLocationId': { $nin: [null, ''] },
-    }).select('+square.accessToken');
-
-    if (!squareSpaOwner?.square?.accessToken) {
-      return normalizedMembership;
-    }
-
-    const syncedPlans = [];
-    const existingPlans = Array.isArray(location.membership?.plans)
-      ? location.membership.plans.map((plan) => toPlainObject(plan))
-      : [];
-
-    for (let index = 0; index < normalizedMembership.plans.length; index += 1) {
-      const plan = normalizePlan(normalizedMembership.plans[index], normalizedMembership.plans[index]);
-      const existingPlan = normalizePlan(
-        existingPlans[index] || location.membership || DEFAULT_MEMBERSHIP_PLAN,
-        DEFAULT_MEMBERSHIP_PLAN
-      );
-
-      const idempotencyKey = `membership-${location.locationId}-${index}-${Date.now()}`;
-      const squareObjectId = plan.squareSubscriptionPlanId || existingPlan.squareSubscriptionPlanId || `#membership_plan_${index}_${randomUUID()}`;
-      const variationObjectId =
-        plan.squareSubscriptionPlanVariationId ||
-        existingPlan.squareSubscriptionPlanVariationId ||
-        `#membership_plan_variation_${index}_${randomUUID()}`;
-
-      const upsertResponse = await axios.post(
-        `${squareApiBaseUrl}/v2/catalog/object`,
-        {
-          idempotency_key: idempotencyKey,
-          object: {
-            id: squareObjectId,
-            type: 'SUBSCRIPTION_PLAN',
-            subscription_plan_data: {
-              name: plan.name,
-              phases: [
-                {
-                  cadence: 'MONTHLY',
-                  recurring_price_money: {
-                    amount: Math.round(Number(plan.price || 0) * 100),
-                    currency: `${plan.currency || 'usd'}`.toUpperCase(),
-                  },
-                },
-              ],
-              subscription_plan_variations: [
-                {
-                  id: variationObjectId,
-                  type: 'SUBSCRIPTION_PLAN_VARIATION',
-                  subscription_plan_variation_data: {
-                    name: `${plan.name} - Monthly`,
-                    phases: [
-                      {
-                        cadence: 'MONTHLY',
-                        recurring_price_money: {
-                          amount: Math.round(Number(plan.price || 0) * 100),
-                          currency: `${plan.currency || 'usd'}`.toUpperCase(),
-                        },
-                      },
-                    ],
-                  },
-                },
-              ],
-            },
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${squareSpaOwner.square.accessToken}`,
-            'Square-Version': squareApiVersion,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const object = upsertResponse?.data?.catalog_object || {};
-      const resolvedVariationId =
-        object?.subscription_plan_data?.subscription_plan_variations?.[0]?.id ||
-        plan.squareSubscriptionPlanVariationId ||
-        existingPlan.squareSubscriptionPlanVariationId ||
-        null;
-
-      syncedPlans.push({
-        ...plan,
-        squareSubscriptionPlanId: object?.id || plan.squareSubscriptionPlanId || existingPlan.squareSubscriptionPlanId || null,
-        squareSubscriptionPlanVariationId: resolvedVariationId,
-        syncedAt: new Date(),
-      });
-    }
-
-    const firstPlan = syncedPlans[0] || normalizePlan(DEFAULT_MEMBERSHIP_PLAN);
-    return {
-      ...normalizedMembership,
-      pendingSquareActivation: false,
-      plans: syncedPlans,
-      name: firstPlan.name,
-      description: firstPlan.description,
-      price: firstPlan.price,
-      benefits: firstPlan.benefits,
-      currency: firstPlan.currency || 'usd',
-      syncedAt: firstPlan.syncedAt || null,
-    };
+    return syncMembershipWithSquare({ membership: normalizedMembership, location });
   }
 
   const stripeAccount = spaOwner.stripe.accountId;
@@ -934,11 +1060,18 @@ export const getAllLocations = async (req, res, next) => {
 
     // RBAC: Spa users should see their assigned location context.
     if (req.user.role === 'spa') {
-      const spaLocationId =
-        req.user.spaLocation?.locationId || req.user.selectedLocation?.locationId
+      const accessibleLocationIds = [
+        req.user.spaLocation?.locationId,
+        req.user.selectedLocation?.locationId,
+        ...(Array.isArray(req.user.assignedLocations)
+          ? req.user.assignedLocations.map((location) => location?.locationId)
+          : []),
+      ]
+        .map((id) => `${id || ''}`.trim())
+        .filter(Boolean)
 
-      if (spaLocationId) {
-        query.locationId = spaLocationId
+      if (accessibleLocationIds.length > 0) {
+        query.locationId = { $in: [...new Set(accessibleLocationIds)] }
       } else {
         query._id = null
       }
@@ -958,19 +1091,34 @@ export const getAllLocations = async (req, res, next) => {
     const locationIds = locations.map((location) => location.locationId).filter(Boolean)
     const spaOwners = await User.find({
       role: 'spa',
-      'spaLocation.locationId': { $in: locationIds },
+      $or: [
+        { 'spaLocation.locationId': { $in: locationIds } },
+        { 'assignedLocations.locationId': { $in: locationIds } },
+        { 'stripe.locationId': { $in: locationIds } },
+        { 'square.locationId': { $in: locationIds } },
+      ],
     }).select(
-      'spaLocation.locationId stripe.accountId stripe.chargesEnabled stripe.detailsSubmitted square.merchantId square.mainLocationId'
+      'spaLocation.locationId assignedLocations.locationId stripe.locationId stripe.accountId stripe.chargesEnabled stripe.detailsSubmitted square.locationId square.merchantId square.mainLocationId'
     )
 
     const spaOwnersByLocationId = new Map()
     spaOwners.forEach((owner) => {
-      const locId = owner?.spaLocation?.locationId
-      if (!locId) return
+      const ownerLocationIds = new Set()
+      if (owner?.stripe?.locationId) ownerLocationIds.add(owner.stripe.locationId)
+      if (owner?.square?.locationId) ownerLocationIds.add(owner.square.locationId)
+      if (owner?.spaLocation?.locationId) ownerLocationIds.add(owner.spaLocation.locationId)
+      if (Array.isArray(owner?.assignedLocations)) {
+        owner.assignedLocations.forEach((location) => {
+          if (location?.locationId) ownerLocationIds.add(location.locationId)
+        })
+      }
 
-      const owners = spaOwnersByLocationId.get(locId) || []
-      owners.push(owner)
-      spaOwnersByLocationId.set(locId, owners)
+      ownerLocationIds.forEach((locId) => {
+        if (!locationIds.includes(locId)) return
+        const owners = spaOwnersByLocationId.get(locId) || []
+        owners.push(owner)
+        spaOwnersByLocationId.set(locId, owners)
+      })
     })
 
     const hasConnectedStripe = (owner) =>
@@ -990,15 +1138,30 @@ export const getAllLocations = async (req, res, next) => {
         : locationDoc
       const spaOwnersForLocation =
         spaOwnersByLocationId.get(location.locationId) || []
-      const stripeConnected = spaOwnersForLocation.some(hasConnectedStripe)
-      const squareConnected = spaOwnersForLocation.some(hasConnectedSquare)
+      const stripeConnected = spaOwnersForLocation.some(
+        (owner) =>
+          hasConnectedStripe(owner) &&
+          `${owner?.stripe?.locationId || owner?.spaLocation?.locationId || ''}`.trim() ===
+            `${location.locationId}`.trim()
+      )
+      const locationStripeOwners = spaOwnersForLocation.filter(
+        (owner) =>
+          `${owner?.stripe?.locationId || owner?.spaLocation?.locationId || ''}`.trim() ===
+          `${location.locationId}`.trim()
+      )
+      const squareConnected = spaOwnersForLocation.some(
+        (owner) =>
+          hasConnectedSquare(owner) &&
+          `${owner?.square?.locationId || owner?.spaLocation?.locationId || ''}`.trim() ===
+            `${location.locationId}`.trim()
+      )
 
       let membershipStripeMessage = 'Stripe connected.'
       if (spaOwnersForLocation.length === 0) {
         membershipStripeMessage = 'No spa account is linked to this location.'
-      } else if (!spaOwnersForLocation.some(hasLinkedStripeAccount)) {
+      } else if (!locationStripeOwners.some(hasLinkedStripeAccount)) {
         membershipStripeMessage = 'Spa user has not connected Stripe.'
-      } else if (spaOwnersForLocation.some(hasPendingStripeSetup)) {
+      } else if (locationStripeOwners.some(hasPendingStripeSetup)) {
         membershipStripeMessage =
           'Stripe is connected but charges are not enabled yet.'
       }

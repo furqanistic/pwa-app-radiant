@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy'
 process.env.STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_dummy'
 process.env.CLIENT_URL = process.env.CLIENT_URL || 'https://client.example.com'
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'jwt_test_dummy'
 
 const [
   {
@@ -11,6 +12,7 @@ const [
     createCreditsCheckoutSession,
     handleWebhook,
     purchaseCredits,
+    createMembershipCheckoutSession,
     createMembershipSubscription,
     changeMembershipSubscriptionPlan,
     removeMembershipPaymentMethod,
@@ -19,6 +21,7 @@ const [
     processOverdueMembershipPaymentFailures,
   },
   { default: stripe },
+  { default: axios },
   { default: Booking },
   { default: Payment },
   { default: Service },
@@ -28,6 +31,7 @@ const [
 ] = await Promise.all([
   import('../controller/stripeController.js'),
   import('../config/stripe.js'),
+  import('axios'),
   import('../models/Booking.js'),
   import('../models/Payment.js'),
   import('../models/Service.js'),
@@ -539,6 +543,115 @@ test('createCreditsCheckoutSession creates hosted checkout when no saved card ex
   assert.equal(createdSessions[0].metadata.creditsQuantity, '8')
   assert.equal(createdSessions[0].metadata.isCreditsCheckout, 'true')
   assert.equal(createdSessions[0].mode, 'payment')
+})
+
+test('createMembershipCheckoutSession starts Square subscription checkout without linked service', async () => {
+  const squarePaymentLinks = []
+  const userDoc = {
+    _id: 'user_square_membership_checkout_1',
+    email: 'square-member@example.com',
+    name: 'Square Member',
+  }
+  const location = {
+    locationId: 'loc_square_membership_checkout_1',
+    membership: {
+      isActive: true,
+      plans: [
+        {
+          _id: 'plan_square_checkout_glow',
+          name: 'Square Glow',
+          price: 88,
+          currency: 'usd',
+          squareSubscriptionPlanVariationId: 'sq_variation_checkout_glow',
+        },
+      ],
+    },
+  }
+  const squareOwner = {
+    _id: 'spa_square_membership_checkout_1',
+    square: {
+      merchantId: 'merchant_square_membership_checkout_1',
+      mainLocationId: 'sq_location_membership_checkout_1',
+      accessToken: 'sq_access_membership_checkout_1',
+      currency: 'USD',
+    },
+  }
+
+  const { res, state } = createMockRes()
+  const nextErrors = []
+
+  await withPatched(
+    [
+      [User, 'findById', async () => userDoc],
+      [
+        User,
+        'findOne',
+        (query) => {
+          const isStripeQuery = Boolean(query?.['stripe.accountId'])
+          const isSquareQuery = Boolean(query?.['square.merchantId'])
+          if (isStripeQuery) {
+            return { sort: async () => null }
+          }
+          if (isSquareQuery) {
+            return {
+              select() {
+                return {
+                  sort: async () => squareOwner,
+                }
+              },
+            }
+          }
+          return { sort: async () => null }
+        },
+      ],
+      [Location, 'findOne', async () => location],
+      [Service, 'findById', async () => null],
+      [
+        axios,
+        'post',
+        async (url, payload) => {
+          squarePaymentLinks.push({ url, payload })
+          return {
+            data: {
+              payment_link: {
+                id: 'plink_square_membership_checkout_1',
+                url: 'https://square.example/checkout/plink_square_membership_checkout_1',
+              },
+            },
+          }
+        },
+      ],
+    ],
+    async () => {
+      await createMembershipCheckoutSession(
+        {
+          user: {
+            id: 'user_square_membership_checkout_1',
+            email: 'square-member@example.com',
+          },
+          body: {
+            locationId: 'loc_square_membership_checkout_1',
+            planName: 'Square Glow',
+          },
+        },
+        res,
+        (error) => {
+          if (error) nextErrors.push(error)
+        }
+      )
+    }
+  )
+
+  assert.equal(nextErrors.length, 0)
+  assert.equal(state.statusCode, 201)
+  assert.equal(state.jsonBody?.provider, 'square')
+  assert.equal(state.jsonBody?.sessionId, 'plink_square_membership_checkout_1')
+  assert.equal(squarePaymentLinks.length, 1)
+  assert.equal(
+    squarePaymentLinks[0].payload.quick_pay.subscription_plan_id,
+    'sq_variation_checkout_glow'
+  )
+  assert.equal(squarePaymentLinks[0].payload.quick_pay.price_money.amount, 8800)
 })
 
 test('createMembershipSubscription uses monthly Stripe subscription billing', async () => {

@@ -10,6 +10,7 @@ const MembershipPlansGrid = ({
   isProcessing = false,
   processingSelectionKey = null,
   className = 'grid grid-cols-1 gap-6 md:px-8',
+  enableSquareUnlinkedPlanCheckout = false,
 }) => {
   const hasPlans = Array.isArray(plans) && plans.length > 0
   const hasMembershipServices =
@@ -82,11 +83,19 @@ const MembershipPlansGrid = ({
     <div className={className}>
       {hasPlans &&
         plans.map((plan, index) => {
-          const linkedService = resolveLinkedServiceForPlan(plan)
+          const linkedFromPricing = resolveLinkedServiceForPlan(plan)
+          const effectiveLinkedService =
+            linkedFromPricing ||
+            (enableSquareUnlinkedPlanCheckout && membershipServices.length > 0
+              ? membershipServices[0]
+              : null)
+          const squarePlanOnlyCheckout =
+            Boolean(enableSquareUnlinkedPlanCheckout) && !effectiveLinkedService
+
           const actionProps = getPlanActionProps
-            ? getPlanActionProps(plan, linkedService)
+            ? getPlanActionProps(plan, effectiveLinkedService)
             : {}
-          const selectionKey = getSelectionKey(linkedService, plan)
+          const selectionKey = getSelectionKey(effectiveLinkedService, plan)
           const isCardProcessing =
             Boolean(isProcessing) &&
             Boolean(processingSelectionKey) &&
@@ -95,7 +104,7 @@ const MembershipPlansGrid = ({
           return (
             <MembershipCard
               service={{
-                _id: linkedService?._id || `location-membership-${index}`,
+                _id: effectiveLinkedService?._id ?? null,
                 name: plan?.name,
                 description: plan?.description,
                 basePrice: plan?.price,
@@ -104,7 +113,12 @@ const MembershipPlansGrid = ({
               }}
               membership={plan}
               key={`location-membership-plan-${index}`}
-              onSelect={linkedService ? onSelectService : undefined}
+              planOnlyCheckout={squarePlanOnlyCheckout}
+              onSelect={
+                effectiveLinkedService || squarePlanOnlyCheckout
+                  ? onSelectService
+                  : undefined
+              }
               ctaLabel={actionProps?.ctaLabel}
               disabled={Boolean(actionProps?.disabled) || Boolean(isProcessing)}
               isProcessing={isCardProcessing}

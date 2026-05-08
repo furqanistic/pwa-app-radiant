@@ -390,6 +390,10 @@ const LocationSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      squareSyncError: {
+        type: String,
+        default: null,
+      },
       plans: {
         type: [
           {

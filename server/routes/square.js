@@ -7,7 +7,10 @@ import {
   getSquareDashboard,
   handleSquareCallback,
 } from '../controller/squareController.js'
-import { handleSquareCheckoutReturn } from '../controller/stripeController.js'
+import {
+  handleSquareCheckoutReturn,
+  handleSquareWebhook,
+} from '../controller/stripeController.js'
 import { checkManagementAccess, verifyToken } from '../middleware/authMiddleware.js'
 
 const router = express.Router()
@@ -15,6 +18,7 @@ const router = express.Router()
 // OAuth callback must be public (Square redirects here without user auth headers)
 router.get('/connect/callback', handleSquareCallback)
 router.get('/connect/checkout-return', handleSquareCheckoutReturn)
+router.post('/webhook', handleSquareWebhook)
 
 router.use(verifyToken)
 
