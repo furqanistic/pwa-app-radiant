@@ -266,7 +266,7 @@ const resolveSpaOwnerForLocation = async (location, currentUser) => {
 const resolveSquareOwnerForLocation = async (locationId) => {
   if (!locationId) return null
   return User.findOne({
-    role: 'spa',
+    role: { $in: ['spa', 'super-admin'] },
     'square.merchantId': { $nin: [null, ''] },
     'square.mainLocationId': { $nin: [null, ''] },
     $or: [

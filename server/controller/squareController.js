@@ -204,8 +204,8 @@ const assertCanManageConnectionLocation = async (user, locationId) => {
   if (!locationId) {
     throw createError(400, 'Please select a spa location first')
   }
-  if (user?.role !== 'spa') {
-    throw createError(403, 'Only spa owners (spa role) can connect Square accounts')
+  if (!['spa', 'super-admin'].includes(user?.role)) {
+    throw createError(403, 'Only spa owners or super-admins can connect Square accounts')
   }
   const accessibleIds = getUserAccessibleLocationIds(user)
   if (!accessibleIds.includes(`${locationId}`.trim())) {
@@ -327,12 +327,9 @@ export const createSquareAuthorizationUrl = async (req, res, next) => {
     if (!user) {
       return next(createError(404, 'User not found'))
     }
-    if (user.role !== 'spa') {
+    if (!['spa', 'super-admin'].includes(user.role)) {
       return next(
-        createError(
-          403,
-          'Only spa owners (spa role) can connect Square accounts'
-        )
+        createError(403, 'Only spa owners or super-admins can connect Square accounts')
       )
     }
     const locationId = getRequestedConnectionLocationId(req, user)
@@ -414,7 +411,7 @@ export const handleSquareCallback = async (req, res) => {
     if (!user) {
       return failRedirect({ reason: 'user_not_found' })
     }
-    if (user.role !== 'spa') {
+    if (!['spa', 'super-admin'].includes(user.role)) {
       return failRedirect({ reason: 'invalid_role' })
     }
     if (!callbackLocationId) {

@@ -569,8 +569,8 @@ const ManagementPage = () => {
             </div>
           </div>
 
-          {/* Stripe Connect - spa Role Only */}
-          {currentUser?.role === "spa" && (
+          {/* Payouts - visible to spa and to super-admin when managing a specific location */}
+          {(currentUser?.role === "spa" || (currentUser?.role === "super-admin" && activeSpaLocationId)) && (
             <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-slate-900 mb-2">Payouts</h3>
               <p className="text-sm text-slate-600 mb-4">

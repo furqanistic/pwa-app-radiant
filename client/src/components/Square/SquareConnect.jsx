@@ -60,7 +60,7 @@ const SquareConnect = ({
     () => [
       {
         title: 'Connect Square account',
-        description: 'Authorize your Square merchant account for payouts.',
+              description: 'Authorize your Square merchant account for payouts and membership catalog sync.',
         done: (accountStatus?.connected ?? false) || isSharedLinkedWithoutOwnAccount,
       },
       {
@@ -176,7 +176,7 @@ const SquareConnect = ({
     }
   }
 
-  if (currentUser?.role !== 'spa') {
+  if (!['spa', 'super-admin'].includes(currentUser?.role)) {
     return null
   }
 
@@ -269,7 +269,7 @@ const SquareConnect = ({
           {isBlockedByStripe
             ? 'Stripe is currently active for this location. Disconnect Stripe first if you want to connect Square.'
             : isSharedLinkedWithoutOwnAccount
-            ? 'Square is already linked for this location by another assigned teammate.'
+            ? 'Square payouts are handled by another teammate. For full membership catalog sync you can connect your own Square account.'
             : requiresReconnect
             ? 'Square is connected, but membership subscriptions need updated OAuth permissions.'
             : 'Square handles merchant verification, hosted card storage, and monthly membership charges.'}
@@ -299,7 +299,7 @@ const SquareConnect = ({
         </div>
 
         <div className="space-y-2">
-          {!accountStatus?.connected && !isSharedLinkedWithoutOwnAccount && !isBlockedByStripe && (
+          {!accountStatus?.connected && !isBlockedByStripe && (
             <Button
               onClick={handleStartConnect}
               disabled={loading}
@@ -307,7 +307,7 @@ const SquareConnect = ({
               className="w-full"
             >
               {loading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-              Connect Square
+              {isSharedLinkedWithoutOwnAccount ? 'Connect your own Square (for membership)' : 'Connect Square'}
             </Button>
           )}
 
@@ -368,8 +368,9 @@ const SquareConnect = ({
             </div>
           ) : null}
           {isSharedLinkedWithoutOwnAccount && (
-            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
-              Payments are enabled for this location through a teammate&apos;s Square connection.
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Payouts work via a teammate, but membership catalog sync may require additional Square permissions.
+              Connect your own Square account below to guarantee full membership support.
             </div>
           )}
           {isBlockedByStripe && (

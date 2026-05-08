@@ -215,7 +215,7 @@ const StripeConnect = ({
     }
   };
 
-  if (currentUser?.role !== 'spa') {
+  if (!['spa', 'super-admin'].includes(currentUser?.role)) {
     return null;
   }
 
