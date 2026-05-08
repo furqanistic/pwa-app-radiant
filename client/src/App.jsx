@@ -65,6 +65,8 @@ const ScrollToTop = () => {
 
 const MIN_FORCE_SYNC_GAP_MS = 10 * 1000
 const USER_SYNC_INTERVAL_MS = 2 * 60 * 1000
+const MAX_AUTH_RETRIES = 3
+const AUTH_RETRY_DELAY_MS = 2000
 const getStoredAuthToken = () =>
   localStorage.getItem('token') || sessionStorage.getItem('token')
 
@@ -284,6 +286,8 @@ const App = () => {
   const currentUserRef = useRef(currentUser)
   const syncInFlightRef = useRef(false)
   const lastSyncAtRef = useRef(0)
+  const authRetryCountRef = useRef(0)
+  const authRetryTimeoutRef = useRef(null)
 
   useEffect(() => {
     currentUserRef.current = currentUser
@@ -292,6 +296,24 @@ const App = () => {
   useEffect(() => {
     const token = getStoredAuthToken()
     if (!token) return
+
+    const isTransientError = (error) => {
+      // Network errors, timeouts, or 5xx server errors should be retried
+      if (!error.response) return true // Network error (no response)
+      const status = error.response?.status
+      // During SW updates or server restarts, 502/503/504 are common
+      return status >= 500 || status === 429 || status === 502 || status === 503 || status === 504
+    }
+
+    // Be more patient during service worker updates
+    const isSwUpdating = window.__swUpdateAvailable || window.__swUpdatePending
+    const adjustedMaxRetries = isSwUpdating ? MAX_AUTH_RETRIES + 2 : MAX_AUTH_RETRIES
+    const adjustedRetryDelay = isSwUpdating ? AUTH_RETRY_DELAY_MS * 2 : AUTH_RETRY_DELAY_MS
+
+    const isAuthError = (error) => {
+      const status = error.response?.status
+      return status === 401 || status === 403
+    }
 
     const fetchCurrentUser = async ({ forceRefresh = false } = {}) => {
       if (syncInFlightRef.current) return
@@ -306,6 +328,10 @@ const App = () => {
         syncInFlightRef.current = true
         const response = await authService.getCurrentUser()
         const user = response?.data?.user || response?.data || response?.user
+
+        // Reset retry count on success
+        authRetryCountRef.current = 0
+
         if (user) {
           const currentSignature = getUserSyncSignature(currentUserRef.current)
           const nextSignature = getUserSyncSignature(user)
@@ -317,9 +343,32 @@ const App = () => {
           dispatch(loginSuccess({ data: { user }, token }))
         }
       } catch (error) {
-        dispatch(loginFailure(error.response?.data?.message || 'Session expired'))
-        dispatch(logout())
-        localStorage.removeItem('token')
+        // Handle transient errors (network issues, server restarts, SW updates) with retries
+        if (isTransientError(error) && authRetryCountRef.current < adjustedMaxRetries) {
+          authRetryCountRef.current += 1
+          const retryDelay = adjustedRetryDelay * authRetryCountRef.current
+
+          // Clear any existing timeout
+          if (authRetryTimeoutRef.current) {
+            clearTimeout(authRetryTimeoutRef.current)
+          }
+
+          // Schedule retry
+          authRetryTimeoutRef.current = setTimeout(() => {
+            syncInFlightRef.current = false
+            fetchCurrentUser({ forceRefresh: true })
+          }, retryDelay)
+          return
+        }
+
+        // Only logout on actual auth errors (401/403) or after max retries
+        if (isAuthError(error) || authRetryCountRef.current >= adjustedMaxRetries) {
+          dispatch(loginFailure(error.response?.data?.message || 'Session expired'))
+          dispatch(logout())
+          localStorage.removeItem('token')
+          sessionStorage.removeItem('token')
+          authRetryCountRef.current = 0
+        }
       } finally {
         syncInFlightRef.current = false
         lastSyncAtRef.current = Date.now()
@@ -330,30 +379,33 @@ const App = () => {
       fetchCurrentUser()
     }
 
-    if (currentUser) {
-      // Immediate refresh for persisted sessions so stale points are corrected quickly.
-      fetchCurrentUser({ forceRefresh: true })
+      if (currentUser) {
+        // Immediate refresh for persisted sessions so stale points are corrected quickly.
+        fetchCurrentUser({ forceRefresh: true })
 
-      // Keep user profile (including points) in sync with server-side updates.
-      const syncOnFocusOrVisible = () => fetchCurrentUser({ forceRefresh: true })
-      const onVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          syncOnFocusOrVisible()
+        // Keep user profile (including points) in sync with server-side updates.
+        const syncOnFocusOrVisible = () => fetchCurrentUser({ forceRefresh: true })
+        const onVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            syncOnFocusOrVisible()
+          }
+        }
+        window.addEventListener('focus', syncOnFocusOrVisible)
+        document.addEventListener('visibilitychange', onVisibilityChange)
+        const intervalId = window.setInterval(() => {
+          fetchCurrentUser({ forceRefresh: true })
+        }, USER_SYNC_INTERVAL_MS)
+
+        return () => {
+          window.clearInterval(intervalId)
+          window.removeEventListener('focus', syncOnFocusOrVisible)
+          document.removeEventListener('visibilitychange', onVisibilityChange)
+          if (authRetryTimeoutRef.current) {
+            clearTimeout(authRetryTimeoutRef.current)
+          }
         }
       }
-      window.addEventListener('focus', syncOnFocusOrVisible)
-      document.addEventListener('visibilitychange', onVisibilityChange)
-      const intervalId = window.setInterval(() => {
-        fetchCurrentUser({ forceRefresh: true })
-      }, USER_SYNC_INTERVAL_MS)
-
-      return () => {
-        window.clearInterval(intervalId)
-        window.removeEventListener('focus', syncOnFocusOrVisible)
-        document.removeEventListener('visibilitychange', onVisibilityChange)
-      }
-    }
-  }, [currentUser?._id, dispatch])
+    }, [currentUser?._id, dispatch])
 
   // PWA setup (keep existing code)
   useEffect(() => {

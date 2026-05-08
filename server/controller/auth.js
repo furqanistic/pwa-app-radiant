@@ -32,21 +32,37 @@ const debugWarn = (...args) => {
   if (isVerboseServerLogsEnabled) console.warn(...args)
 }
 
-const signToken = (id) => {
+const signToken = (id, options = {}) => {
   const jwtSecret = process.env.JWT_SECRET
   if (!jwtSecret) {
     throw new Error('JWT_SECRET is not defined in the environment variables')
   }
 
+  // Default: use expiring sessions for security (7 days default, 30 days for rememberMe)
+  const { rememberMe = false, sessionVersion = null } = options
+
+  // Get expiry time from env with sensible defaults:
+  // - rememberMe: 30 days
+  // - normal session: 7 days
+  // - legacy/no-expiry: ~100 years (not recommended, but supported for migration)
   const useExpiringSessions =
-    String(process.env.JWT_USE_EXPIRY || '').toLowerCase() === 'true'
+    String(process.env.JWT_USE_EXPIRY || 'true').toLowerCase() !== 'false'
+
+  let expiresIn
   if (!useExpiringSessions) {
-    return jwt.sign({ id }, jwtSecret)
+    expiresIn = '36500d' // ~100 years (legacy mode)
+  } else if (rememberMe) {
+    expiresIn = process.env.JWT_REMEMBER_ME_EXPIRES_IN || '30d'
+  } else {
+    expiresIn = process.env.JWT_EXPIRES_IN || '7d'
   }
 
-  return jwt.sign({ id }, jwtSecret, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '1d',
-  })
+  const payload = { id }
+  if (sessionVersion) {
+    payload.sessionVersion = sessionVersion
+  }
+
+  return jwt.sign(payload, jwtSecret, { expiresIn })
 }
 
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = Number(
@@ -147,17 +163,26 @@ const resolvePasswordResetBranding = async ({
 
 const createSendToken = (user, statusCode, res, extraData = null) => {
   try {
-    const token = signToken(user._id)
+    const options = {
+      rememberMe: extraData?.rememberMe || false,
+      sessionVersion: user.sessionVersion || null,
+    }
+    const token = signToken(user._id, options)
+
+    // Cookie expiry matches token expiry for security
     const useExpiringSessions =
-      String(process.env.JWT_USE_EXPIRY || '').toLowerCase() === 'true'
-    const cookieExpiryDays = useExpiringSessions
-      ? parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10) || 1
-      : 36500 // ~100 years to behave like "stay logged in"
+      String(process.env.JWT_USE_EXPIRY || 'true').toLowerCase() !== 'false'
+    const cookieExpiryDays = options.rememberMe
+      ? parseInt(process.env.JWT_COOKIE_REMEMBER_ME_EXPIRES_IN, 10) || 30
+      : useExpiringSessions
+        ? parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10) || 7
+        : 36500 // ~100 years (legacy mode)
 
     const cookieOptions = {
       expires: new Date(Date.now() + cookieExpiryDays * 24 * 60 * 60 * 1000),
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     }
 
     res.cookie('jwt', token, cookieOptions)
@@ -1962,6 +1987,7 @@ export const signin = async (req, res, next) => {
       password,
       locationId: signinLocationId,
       referralCode: signinReferralCode,
+      rememberMe = false,
     } = req.body
     if (!email || !password) {
       return res.status(400).json({
@@ -2003,6 +2029,15 @@ export const signin = async (req, res, next) => {
 
     user.lastLogin = new Date()
 
+    // Update session version and started time for single-session mode
+    const singleSessionMode =
+      String(process.env.JWT_SINGLE_SESSION || '').toLowerCase() === 'true'
+    if (singleSessionMode) {
+      user.sessionVersion = Date.now().toString()
+      user.sessionStartedAt = new Date()
+    }
+    user.sessionStartedAt = user.sessionStartedAt || new Date()
+
     const normalizedSigninLocationId = `${signinLocationId || ''}`.trim()
     const normalizedReferral = `${signinReferralCode || ''}`.trim()
 
@@ -2033,7 +2068,7 @@ export const signin = async (req, res, next) => {
       await user.save({ validateBeforeSave: false })
     }
 
-    createSendToken(user, 200, res)
+    createSendToken(user, 200, res, { rememberMe })
   } catch (err) {
     console.error('Error in signin:', err)
     res.status(500).json({
@@ -2854,14 +2889,45 @@ export const resetPassword = async (req, res, next) => {
       return next(createError(400, 'Reset link is invalid or has expired'))
     }
 
+    // Invalidate all existing sessions when password is reset
     user.password = newPassword
     user.passwordResetToken = undefined
     user.passwordResetExpires = undefined
+    user.sessionVersion = Date.now().toString() // Force re-login on all devices
     await user.save()
 
     res.status(200).json({
       status: 'success',
       message: 'Your password has been reset successfully. Please sign in.',
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+// NEW: Logout from all devices by invalidating all sessions
+export const logoutAllSessions = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    // Generate new session version to invalidate all existing tokens
+    user.sessionVersion = Date.now().toString()
+    user.sessionStartedAt = new Date()
+    await user.save()
+
+    // Clear the jwt cookie
+    res.cookie('jwt', 'loggedout', {
+      expires: new Date(Date.now() + 10 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+    })
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Logged out from all devices successfully',
     })
   } catch (error) {
     next(error)

@@ -247,6 +247,7 @@ const AuthPage = () => {
     resetEmail: '',
     resetPassword: '',
     resetConfirmPassword: '',
+    rememberMe: false,
   })
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -729,6 +730,7 @@ const AuthPage = () => {
       const signinData = {
         email: formData.email,
         password: formData.password,
+        rememberMe: formData.rememberMe,
         ...(locationId ? { locationId } : {}),
       }
       signinMutation.mutate(signinData)
@@ -1505,6 +1507,26 @@ const AuthPage = () => {
                             )}
                           </button>
                         </div>
+                      </div>
+
+                      <div className='flex items-center gap-3 py-2'>
+                        <input
+                          type='checkbox'
+                          id='rememberMe'
+                          checked={formData.rememberMe}
+                          onChange={(e) =>
+                            updateFormData('rememberMe', e.target.checked)
+                          }
+                          className='w-5 h-5 rounded-lg border-gray-200 focus:ring-[color:var(--brand-primary)/0.25] transition-all cursor-pointer'
+                          style={{ color: 'var(--brand-primary)' }}
+                          disabled={isBusy}
+                        />
+                        <label
+                          htmlFor='rememberMe'
+                          className='text-sm text-gray-500 cursor-pointer select-none'
+                        >
+                          Keep me signed in for 30 days
+                        </label>
                       </div>
 
                       <button

@@ -16,6 +16,7 @@ import {
     getCurrentUser,
     getOnboardingStatus,
     getUserProfile,
+    logoutAllSessions,
     regenerateReferralCode,
     resetPassword,
     selectSpa,
@@ -63,6 +64,9 @@ router.use(verifyToken)
 
 // Get current user profile
 router.get('/me', getCurrentUser)
+
+// Logout from all devices
+router.post('/logout-all', logoutAllSessions)
 
 // Get specific user profile
 router.get('/profile/:id', getUserProfile)

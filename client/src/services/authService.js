@@ -7,10 +7,11 @@ export const authService = {
     return response.data
   },
 
-  login: async (email, password) => {
+  login: async (email, password, rememberMe = false) => {
     const response = await axiosInstance.post('/auth/signin', {
       email,
       password,
+      rememberMe,
     })
     return response.data
   },
@@ -233,6 +234,11 @@ export const authService = {
 
   getAssignableUsers: async () => {
     const response = await axiosInstance.get('/auth/assignable-users')
+    return response.data
+  },
+
+  logoutAllSessions: async () => {
+    const response = await axiosInstance.post('/auth/logout-all')
     return response.data
   },
 

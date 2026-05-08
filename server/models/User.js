@@ -704,6 +704,15 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // NEW: Session management for single-session enforcement
+    sessionVersion: {
+      type: String,
+      default: null,
+    },
+    sessionStartedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 )

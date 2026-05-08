@@ -87,6 +87,16 @@ export const verifyToken = async (req, res, next) => {
       return next(createError(401, 'User account not found or deactivated'))
     }
 
+    // Single-session enforcement: if sessionVersion in token doesn't match user's current sessionVersion,
+    // the token is from a previous session (user logged in elsewhere)
+    const singleSessionMode =
+      String(process.env.JWT_SINGLE_SESSION || '').toLowerCase() === 'true'
+    if (singleSessionMode && decoded.sessionVersion && currentUser.sessionVersion) {
+      if (decoded.sessionVersion !== currentUser.sessionVersion) {
+        return next(createError(401, 'Session expired. Please sign in again.'))
+      }
+    }
+
     req.user = currentUser
     next()
   } catch (error) {
