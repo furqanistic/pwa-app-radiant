@@ -436,12 +436,21 @@ test('updateLocation syncs active Square membership plans as monthly subscriptio
   assert.equal(catalogPayloads.length, 2)
   assert.equal(catalogPayloads[0].payload.object.type, 'SUBSCRIPTION_PLAN')
   assert.equal(catalogPayloads[1].payload.object.type, 'SUBSCRIPTION_PLAN_VARIATION')
+  const parentPhase =
+    catalogPayloads[0].payload.object.subscription_plan_data.phases[0]
+  const variationPhase =
+    catalogPayloads[1].payload.object.subscription_plan_variation_data.phases[0]
+  assert.equal(parentPhase.uid, undefined)
+  assert.equal(parentPhase.recurring_price_money, undefined)
+  assert.equal(parentPhase.pricing.price_money.amount, 8800)
   assert.equal(
     catalogPayloads[1].payload.object.subscription_plan_variation_data.subscription_plan_id,
     'sq_parent_membership_plan_1'
   )
+  assert.equal(variationPhase.uid, undefined)
+  assert.equal(variationPhase.recurring_price_money, undefined)
   assert.equal(
-    catalogPayloads[1].payload.object.subscription_plan_variation_data.phases[0].pricing.price_money.amount,
+    variationPhase.pricing.price_money.amount,
     8800
   )
   assert.equal(

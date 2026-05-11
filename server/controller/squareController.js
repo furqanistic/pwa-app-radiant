@@ -134,8 +134,7 @@ const getSquareHeaders = (accessToken) => ({
   'Content-Type': 'application/json',
 })
 
-const buildSquareMonthlyStaticPhase = ({ amountInCents, currency, uid = 'phase_0' }) => ({
-  uid,
+const buildSquareMonthlyStaticPhase = ({ amountInCents, currency }) => ({
   cadence: 'MONTHLY',
   ordinal: 0,
   pricing: {
@@ -321,7 +320,6 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
                 buildSquareMonthlyStaticPhase({
                   amountInCents: amount,
                   currency,
-                  uid: `phase_${index}`,
                 }),
               ],
             },

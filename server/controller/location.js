@@ -388,8 +388,7 @@ const markMembershipPendingSquareSync = (membership, message = SQUARE_ITEMS_WRIT
   squareSyncError: message,
 })
 
-const buildSquareMonthlyStaticPhase = ({ amountInCents, currency, uid = 'phase_0' }) => ({
-  uid,
+const buildSquareMonthlyStaticPhase = ({ amountInCents, currency }) => ({
   cadence: 'MONTHLY',
   ordinal: 0,
   pricing: {
@@ -488,7 +487,6 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
         const phase = buildSquareMonthlyStaticPhase({
           amountInCents,
           currency,
-          uid: `phase_${index}`,
         })
         const variation = await upsertSquareCatalogObjectForOwner({
           squareOwner,
