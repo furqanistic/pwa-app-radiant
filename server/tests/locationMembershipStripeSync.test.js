@@ -346,6 +346,7 @@ test('updateLocation syncs active Square membership plans as monthly subscriptio
                   mainLocationId: 'sq_location_membership_sync_1',
                   locationId: 'loc_square_membership_sync_1',
                   accessToken: 'sq_access_membership_sync_1',
+                  currency: 'CAD',
                 },
                 spaLocation: { locationId: 'loc_square_membership_sync_1' },
                 markModified() {},
@@ -372,6 +373,7 @@ test('updateLocation syncs active Square membership plans as monthly subscriptio
                   mainLocationId: 'sq_location_membership_sync_1',
                   locationId: 'loc_square_membership_sync_1',
                   accessToken: 'sq_access_membership_sync_1',
+                  currency: 'CAD',
                 },
               }),
             }
@@ -443,6 +445,7 @@ test('updateLocation syncs active Square membership plans as monthly subscriptio
   assert.equal(parentPhase.uid, undefined)
   assert.equal(parentPhase.recurring_price_money, undefined)
   assert.equal(parentPhase.pricing.price_money.amount, 8800)
+  assert.equal(parentPhase.pricing.price_money.currency, 'CAD')
   assert.equal(
     catalogPayloads[1].payload.object.subscription_plan_variation_data.subscription_plan_id,
     'sq_parent_membership_plan_1'
@@ -453,6 +456,8 @@ test('updateLocation syncs active Square membership plans as monthly subscriptio
     variationPhase.pricing.price_money.amount,
     8800
   )
+  assert.equal(variationPhase.pricing.price_money.currency, 'CAD')
+  assert.equal(updatedPayloads[0].updateData.membership.plans[0].currency, 'cad')
   assert.equal(
     updatedPayloads[0].updateData.membership.plans[0].squareSubscriptionPlanVariationId,
     'sq_variation_membership_plan_1'

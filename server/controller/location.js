@@ -412,6 +412,10 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
     return markMembershipPendingSquareSync(normalizedMembership)
   }
 
+  const squareCurrency = `${squareOwner.square.currency || normalizedMembership.currency || 'usd'}`
+    .trim()
+    .toUpperCase()
+
   const existingPlans = Array.isArray(location.membership?.plans)
     ? location.membership.plans.map((plan) => toPlainObject(plan))
     : []
@@ -425,7 +429,6 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
       const parentPlanSeed =
         normalizePlan(normalizedMembership.plans[0], DEFAULT_MEMBERSHIP_PLAN)
       const parentAmountInCents = Math.round(Number(parentPlanSeed.price || 0) * 100)
-      const parentCurrency = `${parentPlanSeed.currency || 'usd'}`.trim().toUpperCase()
       const parentPlan = await upsertSquareCatalogObjectForOwner({
         squareOwner,
         catalogObject: {
@@ -437,7 +440,7 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
             phases: [
               buildSquareMonthlyStaticPhase({
                 amountInCents: parentAmountInCents,
-                currency: parentCurrency,
+                currency: squareCurrency,
               }),
             ],
             all_items: true,
@@ -471,12 +474,13 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
       DEFAULT_MEMBERSHIP_PLAN
     )
     const amountInCents = Math.round(Number(plan.price || 0) * 100)
-    const currency = `${plan.currency || 'usd'}`.trim().toUpperCase()
     const existingAmountInCents = Math.round(Number(existingPlan.price || 0) * 100)
     const canReuseVariation =
       existingPlan.squareSubscriptionPlanVariationId &&
       existingAmountInCents === amountInCents &&
-      `${existingPlan.name || ''}`.trim() === `${plan.name || ''}`.trim()
+      `${existingPlan.name || ''}`.trim() === `${plan.name || ''}`.trim() &&
+      `${existingPlan.currency || ''}`.trim().toLowerCase() ===
+        squareCurrency.toLowerCase()
 
     let squareSubscriptionPlanVariationId = canReuseVariation
       ? existingPlan.squareSubscriptionPlanVariationId
@@ -486,7 +490,7 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
       try {
         const phase = buildSquareMonthlyStaticPhase({
           amountInCents,
-          currency,
+          currency: squareCurrency,
         })
         const variation = await upsertSquareCatalogObjectForOwner({
           squareOwner,
@@ -521,7 +525,7 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
       ...plan,
       squareSubscriptionPlanId,
       squareSubscriptionPlanVariationId,
-      currency: currency.toLowerCase(),
+      currency: squareCurrency.toLowerCase(),
       syncedAt: new Date(),
     })
   }

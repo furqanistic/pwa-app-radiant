@@ -271,12 +271,12 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
       ?.squareSubscriptionPlanId || null
 
   let squareSubscriptionPlanId = existingParentPlanId
+  const squareCurrency = `${user.square.currency || location.membership?.currency || 'usd'}`
+    .trim()
+    .toUpperCase()
   if (!squareSubscriptionPlanId) {
     const parentPlanSeed = plainPlans[0] || {}
     const parentAmount = Math.round(Number(parentPlanSeed?.price || 0) * 100)
-    const parentCurrency = `${parentPlanSeed?.currency || location.membership?.currency || 'usd'}`
-      .trim()
-      .toUpperCase()
     const parentPlan = await upsertSquareCatalogObjectForOwner({
       squareOwner: user,
       catalogObject: {
@@ -288,7 +288,7 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
           phases: [
             buildSquareMonthlyStaticPhase({
               amountInCents: parentAmount,
-              currency: parentCurrency,
+              currency: squareCurrency,
             }),
           ],
           all_items: true,
@@ -302,9 +302,6 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
   for (let index = 0; index < plainPlans.length; index += 1) {
     const plan = plainPlans[index]
     const amount = Math.round(Number(plan?.price || 0) * 100)
-    const currency = `${plan?.currency || location.membership?.currency || 'usd'}`
-      .trim()
-      .toUpperCase()
     const variation = plan?.squareSubscriptionPlanVariationId
       ? null
       : await upsertSquareCatalogObjectForOwner({
@@ -319,7 +316,7 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
               phases: [
                 buildSquareMonthlyStaticPhase({
                   amountInCents: amount,
-                  currency,
+                  currency: squareCurrency,
                 }),
               ],
             },
@@ -331,7 +328,7 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
       squareSubscriptionPlanId,
       squareSubscriptionPlanVariationId:
         plan?.squareSubscriptionPlanVariationId || variation?.id || null,
-      currency: currency.toLowerCase(),
+      currency: squareCurrency.toLowerCase(),
       syncedAt: plan?.syncedAt || new Date(),
     })
   }
