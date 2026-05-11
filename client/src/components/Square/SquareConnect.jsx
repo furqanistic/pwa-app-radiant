@@ -18,6 +18,24 @@ import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 
+const SQUARE_POST_CONNECT_WARNING_MESSAGES = {
+  square_missing_catalog_scope:
+    'Square connected, but membership catalog sync needs updated Square permissions. Reconnect permissions before activating memberships.',
+  square_catalog_sync_failed:
+    'Square connected, but membership catalog sync did not finish. Refresh status or reconnect permissions before activating memberships.',
+  callback_failed:
+    'Square connected, but the final setup check did not finish. Refresh status before activating memberships.',
+}
+
+const formatSquareReason = (reason) =>
+  `${reason || ''}`.replace(/[:_]+/g, ' ').trim()
+
+const getSquareReturnWarning = (reason) =>
+  SQUARE_POST_CONNECT_WARNING_MESSAGES[reason] ||
+  (reason
+    ? `Square connected, but setup needs attention (${formatSquareReason(reason)}).`
+    : 'Square connected, but setup needs attention.')
+
 const SquareConnect = ({
   locationId = '',
   sharedLocationSquareLinked = false,
@@ -96,20 +114,30 @@ const SquareConnect = ({
     setHandledSquareParams(true)
 
     const handleSquareReturn = async () => {
-      if (squareParam === 'success') {
-        toast.success('Square connected successfully.')
-      } else if (squareParam === 'error') {
-        const reason = searchParams.get('reason')
-        toast.error(
-          reason
-            ? `Square connection failed (${reason.replaceAll('_', ' ')})`
-            : 'Square connection failed'
-        )
-      }
-
-      await fetchAccountStatus()
+      const reason = searchParams.get('reason')
+      const latestStatus = await fetchAccountStatus()
       await queryClient.invalidateQueries({ queryKey: ['locations'] })
       await queryClient.invalidateQueries({ queryKey: ['locations', 'membership-modal'] })
+
+      if (squareParam === 'success') {
+        if (reason) {
+          toast.message(getSquareReturnWarning(reason))
+        } else if (latestStatus?.connected) {
+          toast.success('Square connected successfully.')
+        } else {
+          toast.message('Square authorization finished. Refresh status if it does not update shortly.')
+        }
+      } else if (squareParam === 'error') {
+        if (latestStatus?.connected) {
+          toast.message(getSquareReturnWarning(reason))
+        } else {
+          toast.error(
+            reason
+              ? `Square connection failed (${formatSquareReason(reason)})`
+              : 'Square connection failed'
+          )
+        }
+      }
 
       const nextParams = new URLSearchParams(searchParams)
       nextParams.delete('square')
@@ -139,6 +167,42 @@ const SquareConnect = ({
     }
   }
 
+  // Helper to clear Square's OAuth session in browser (allows connecting different account)
+  const clearSquareOAuthSession = () => {
+    // Clear any Square-related cookies or local storage
+    const cookies = document.cookie.split(';')
+    for (const cookie of cookies) {
+      const [name] = cookie.split('=')
+      const trimmedName = name.trim()
+      if (trimmedName.toLowerCase().includes('square')) {
+        document.cookie = `${trimmedName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+      }
+    }
+
+    // Remove any Square-related items from localStorage/sessionStorage
+    const storageKeys = Object.keys(localStorage).filter(k =>
+      k.toLowerCase().includes('square')
+    )
+    storageKeys.forEach(key => localStorage.removeItem(key))
+
+    const sessionKeys = Object.keys(sessionStorage).filter(k =>
+      k.toLowerCase().includes('square')
+    )
+    sessionKeys.forEach(key => sessionStorage.removeItem(key))
+  }
+
+  const clearSquareUrlParams = () => {
+    // Clear any square-related URL parameters for clean state
+    const squareParam = searchParams.get('square')
+    const reasonParam = searchParams.get('reason')
+    if (squareParam || reasonParam) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('square')
+      nextParams.delete('reason')
+      setSearchParams(nextParams, { replace: true })
+    }
+  }
+
   const handleDisconnect = async () => {
     if (
       !confirm(
@@ -151,13 +215,35 @@ const SquareConnect = ({
     try {
       setLoading(true)
       await squareService.disconnectAccount(locationId)
-      toast.success('Square account disconnected')
-      await fetchAccountStatus()
+
+      // Clear local account state immediately for clean UI reset
+      setAccountStatus(null)
+
+      // Clear Square OAuth session data from browser
+      clearSquareOAuthSession()
+
+      // Clear any Square-related URL parameters
+      clearSquareUrlParams()
+
+      toast.success('Square account disconnected. You can now connect a different account.')
+
+      // Invalidate all related queries to refresh UI state
       await queryClient.invalidateQueries({ queryKey: ['locations'] })
       await queryClient.invalidateQueries({ queryKey: ['locations', 'membership-modal'] })
+      await queryClient.invalidateQueries({ queryKey: ['square-status'] })
+
+      // Small delay then refresh status
+      setTimeout(async () => {
+        await fetchAccountStatus()
+      }, 100)
     } catch (error) {
       console.error('Error disconnecting Square account:', error)
       toast.error(error.response?.data?.message || 'Failed to disconnect account')
+      // Still reset local state on error to allow fresh connection attempt
+      setAccountStatus(null)
+      clearSquareOAuthSession()
+      clearSquareUrlParams()
+      await fetchAccountStatus()
     } finally {
       setLoading(false)
     }

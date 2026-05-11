@@ -496,14 +496,14 @@ const createSquarePaymentLink = async ({
           currency: normalizedCurrency,
         },
         location_id: locationId,
-        ...(subscriptionPlanVariationId
-          ? { subscription_plan_id: subscriptionPlanVariationId }
-          : {}),
       },
       description: `${description || ''}`.trim() || undefined,
       payment_note: `${paymentNote || ''}`.trim() || undefined,
       checkout_options: {
         redirect_url: redirectUrl,
+        ...(subscriptionPlanVariationId
+          ? { subscription_plan_id: subscriptionPlanVariationId }
+          : {}),
       },
     },
     {

@@ -648,9 +648,10 @@ test('createMembershipCheckoutSession starts Square subscription checkout withou
   assert.equal(state.jsonBody?.sessionId, 'plink_square_membership_checkout_1')
   assert.equal(squarePaymentLinks.length, 1)
   assert.equal(
-    squarePaymentLinks[0].payload.quick_pay.subscription_plan_id,
+    squarePaymentLinks[0].payload.checkout_options.subscription_plan_id,
     'sq_variation_checkout_glow'
   )
+  assert.equal(squarePaymentLinks[0].payload.quick_pay.subscription_plan_id, undefined)
   assert.equal(squarePaymentLinks[0].payload.quick_pay.price_money.amount, 8800)
 })
 

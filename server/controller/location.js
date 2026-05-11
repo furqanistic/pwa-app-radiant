@@ -24,6 +24,28 @@ const getSquareHeaders = (accessToken) => ({
   'Content-Type': 'application/json',
 })
 
+const readSquareApiErrorMessage = (error) => {
+  const details = error?.response?.data?.errors
+  if (Array.isArray(details) && details.length > 0) {
+    return details
+      .map((item) => item?.detail || item?.code)
+      .filter(Boolean)
+      .join(' ')
+  }
+  return error?.response?.data?.message || error?.message || 'Square request failed.'
+}
+
+const isSquareApiError = (error) =>
+  Boolean(error?.response?.data?.errors || error?.response?.status)
+
+const getSquareCatalogSyncErrorMessage = (error) => {
+  const detail = readSquareApiErrorMessage(error)
+  if (isSquareUnauthorizedCatalogError(error) || `${detail}`.includes('ITEMS_WRITE')) {
+    return SQUARE_ITEMS_WRITE_HINT
+  }
+  return `Square catalog sync failed: ${detail}`
+}
+
 // Helper to transform businessHours array from Location model to object for User model
 const transformHoursFromModel = (hoursArray) => {
     const hoursObj = {};
@@ -366,6 +388,23 @@ const markMembershipPendingSquareSync = (membership, message = SQUARE_ITEMS_WRIT
   squareSyncError: message,
 })
 
+const buildSquareMonthlyStaticPhase = ({ amountInCents, currency, uid = 'phase_0' }) => ({
+  uid,
+  cadence: 'MONTHLY',
+  ordinal: 0,
+  recurring_price_money: {
+    amount: amountInCents,
+    currency,
+  },
+  pricing: {
+    type: 'STATIC',
+    price_money: {
+      amount: amountInCents,
+      currency,
+    },
+  },
+})
+
 const syncMembershipWithSquare = async ({ membership, location }) => {
   const normalizedMembership = normalizeMembershipInput(membership, location.membership)
   const squareOwner = await resolveSquareOwnerForLocation(location.locationId)
@@ -388,6 +427,10 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
   let squareSubscriptionPlanId = existingParentPlanId
   if (!squareSubscriptionPlanId) {
     try {
+      const parentPlanSeed =
+        normalizePlan(normalizedMembership.plans[0], DEFAULT_MEMBERSHIP_PLAN)
+      const parentAmountInCents = Math.round(Number(parentPlanSeed.price || 0) * 100)
+      const parentCurrency = `${parentPlanSeed.currency || 'usd'}`.trim().toUpperCase()
       const parentPlan = await upsertSquareCatalogObjectForOwner({
         squareOwner,
         catalogObject: {
@@ -396,14 +439,23 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
           present_at_all_locations: true,
           subscription_plan_data: {
             name: `${location.name || location.locationId} Memberships`,
+            phases: [
+              buildSquareMonthlyStaticPhase({
+                amountInCents: parentAmountInCents,
+                currency: parentCurrency,
+              }),
+            ],
             all_items: true,
           },
         },
       })
       squareSubscriptionPlanId = parentPlan?.id || null
     } catch (error) {
-      if (error?.status === 400 && `${error?.message || ''}`.includes('ITEMS_WRITE')) {
-        return markMembershipPendingSquareSync(normalizedMembership, error.message)
+      if (isSquareApiError(error) || error?.status === 400) {
+        return markMembershipPendingSquareSync(
+          normalizedMembership,
+          getSquareCatalogSyncErrorMessage(error)
+        )
       }
       throw error
     }
@@ -437,6 +489,11 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
 
     if (!squareSubscriptionPlanVariationId) {
       try {
+        const phase = buildSquareMonthlyStaticPhase({
+          amountInCents,
+          currency,
+          uid: `phase_${index}`,
+        })
         const variation = await upsertSquareCatalogObjectForOwner({
           squareOwner,
           catalogObject: {
@@ -446,27 +503,17 @@ const syncMembershipWithSquare = async ({ membership, location }) => {
             subscription_plan_variation_data: {
               name: plan.name,
               subscription_plan_id: squareSubscriptionPlanId,
-              phases: [
-                {
-                  uid: `phase_${index}`,
-                  cadence: 'MONTHLY',
-                  ordinal: 0,
-                  pricing: {
-                    type: 'STATIC',
-                    price: {
-                      amount: amountInCents,
-                      currency,
-                    },
-                  },
-                },
-              ],
+              phases: [phase],
             },
           },
         })
         squareSubscriptionPlanVariationId = variation?.id || null
       } catch (error) {
-        if (error?.status === 400 && `${error?.message || ''}`.includes('ITEMS_WRITE')) {
-          return markMembershipPendingSquareSync(normalizedMembership, error.message)
+        if (isSquareApiError(error) || error?.status === 400) {
+          return markMembershipPendingSquareSync(
+            normalizedMembership,
+            getSquareCatalogSyncErrorMessage(error)
+          )
         }
         throw error
       }

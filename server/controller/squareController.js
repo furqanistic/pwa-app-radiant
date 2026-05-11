@@ -70,7 +70,7 @@ const buildOAuthStateToken = ({ userId, locationId }) =>
 const readSquareErrorMessage = (error) => {
   const details = error?.response?.data?.errors
   if (Array.isArray(details) && details.length > 0) {
-    return details.map((item) => item?.detail).filter(Boolean).join(' ')
+    return details.map((item) => item?.detail || item?.code).filter(Boolean).join(' ')
   }
   return error?.response?.data?.message || error?.message || 'Square request failed.'
 }
@@ -79,6 +79,24 @@ const getSquareDashboardUrl = () =>
   squareEnvironment === 'production'
     ? 'https://app.squareup.com/dashboard'
     : 'https://squareupsandbox.com/dashboard'
+
+const getSquarePostConnectWarningReason = (error) => {
+  const message = `${error?.message || readSquareErrorMessage(error) || ''}`
+  if (
+    error?.status === 403 ||
+    message.includes('ITEMS_WRITE') ||
+    message.includes('catalog sync is not authorized')
+  ) {
+    return 'square_missing_catalog_scope'
+  }
+  if (
+    error?.status === 502 ||
+    message.includes('Square catalog sync failed')
+  ) {
+    return 'square_catalog_sync_failed'
+  }
+  return 'callback_failed'
+}
 
 const toIsoDateOrNull = (value) => {
   if (!value) return null
@@ -114,6 +132,23 @@ const getSquareHeaders = (accessToken) => ({
   Authorization: `Bearer ${accessToken}`,
   'Square-Version': squareApiVersion,
   'Content-Type': 'application/json',
+})
+
+const buildSquareMonthlyStaticPhase = ({ amountInCents, currency, uid = 'phase_0' }) => ({
+  uid,
+  cadence: 'MONTHLY',
+  ordinal: 0,
+  recurring_price_money: {
+    amount: amountInCents,
+    currency,
+  },
+  pricing: {
+    type: 'STATIC',
+    price_money: {
+      amount: amountInCents,
+      currency,
+    },
+  },
 })
 
 const upsertSquareCatalogObject = async ({ accessToken, catalogObject }) => {
@@ -242,6 +277,11 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
 
   let squareSubscriptionPlanId = existingParentPlanId
   if (!squareSubscriptionPlanId) {
+    const parentPlanSeed = plainPlans[0] || {}
+    const parentAmount = Math.round(Number(parentPlanSeed?.price || 0) * 100)
+    const parentCurrency = `${parentPlanSeed?.currency || location.membership?.currency || 'usd'}`
+      .trim()
+      .toUpperCase()
     const parentPlan = await upsertSquareCatalogObjectForOwner({
       squareOwner: user,
       catalogObject: {
@@ -250,6 +290,12 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
         present_at_all_locations: true,
         subscription_plan_data: {
           name: `${location.name || location.locationId} Memberships`,
+          phases: [
+            buildSquareMonthlyStaticPhase({
+              amountInCents: parentAmount,
+              currency: parentCurrency,
+            }),
+          ],
           all_items: true,
         },
       },
@@ -276,15 +322,11 @@ const syncPendingMembershipPlansToSquare = async (user, locationId = null) => {
               name: plan?.name || `Membership ${index + 1}`,
               subscription_plan_id: squareSubscriptionPlanId,
               phases: [
-                {
+                buildSquareMonthlyStaticPhase({
+                  amountInCents: amount,
+                  currency,
                   uid: `phase_${index}`,
-                  cadence: 'MONTHLY',
-                  ordinal: 0,
-                  pricing: {
-                    type: 'STATIC',
-                    price: { amount, currency },
-                  },
-                },
+                }),
               ],
             },
           },
@@ -476,7 +518,23 @@ export const handleSquareCallback = async (req, res) => {
     }
 
     await user.save()
-    await syncPendingMembershipPlansToSquare(user, callbackLocationId)
+    try {
+      await syncPendingMembershipPlansToSquare(user, callbackLocationId)
+    } catch (syncError) {
+      const reason = getSquarePostConnectWarningReason(syncError)
+      console.error(
+        'Square connected, but pending membership sync failed:',
+        syncError?.message || readSquareErrorMessage(syncError)
+      )
+      return res.redirect(
+        getFrontendManagementUrlForLocation({
+          status: 'success',
+          reason,
+          locationId: callbackLocationId,
+        })
+      )
+    }
+
     return res.redirect(
       getFrontendManagementUrlForLocation({
         status: 'success',
@@ -638,6 +696,9 @@ export const disconnectSquareAccount = async (req, res, next) => {
     }
 
     const accessToken = user.square.accessToken
+    const refreshToken = user.square.refreshToken
+
+    // Revoke both access token and refresh token to fully disconnect
     if (accessToken) {
       try {
         await axios.post(
@@ -654,9 +715,36 @@ export const disconnectSquareAccount = async (req, res, next) => {
             },
           }
         )
+        console.log('Square access token revoked successfully')
       } catch (revokeError) {
         console.error(
-          'Square revoke failed, continuing with local disconnect:',
+          'Square access token revoke failed, continuing with local disconnect:',
+          readSquareErrorMessage(revokeError)
+        )
+      }
+    }
+
+    // Also revoke refresh token if available
+    if (refreshToken) {
+      try {
+        await axios.post(
+          `${squareOAuthBaseUrl}/revoke`,
+          {
+            client_id: squareApplicationId,
+            access_token: refreshToken,
+          },
+          {
+            headers: {
+              Authorization: `Client ${squareApplicationSecret}`,
+              'Square-Version': squareApiVersion,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+        console.log('Square refresh token revoked successfully')
+      } catch (revokeError) {
+        console.error(
+          'Square refresh token revoke failed (non-critical):',
           readSquareErrorMessage(revokeError)
         )
       }
