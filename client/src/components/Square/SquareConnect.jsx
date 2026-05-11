@@ -58,6 +58,9 @@ const SquareConnect = ({
   const requiresReconnect = Boolean(
     accountStatus?.requiresReconnect || missingMembershipScopes.length > 0
   )
+  const canDisconnectSquare = Boolean(
+    accountStatus?.connected || isSharedLinkedWithoutOwnAccount
+  )
 
   const fetchAccountStatus = useCallback(async () => {
     try {
@@ -206,7 +209,9 @@ const SquareConnect = ({
   const handleDisconnect = async () => {
     if (
       !confirm(
-        'Are you sure you want to disconnect your Square account? You will not be able to receive Square payments.'
+        isSharedLinkedWithoutOwnAccount
+          ? 'Are you sure you want to disconnect Square from this location? Membership checkout and Square payouts will stop until another payment account is connected.'
+          : 'Are you sure you want to disconnect your Square account? You will not be able to receive Square payments.'
       )
     ) {
       return
@@ -397,6 +402,19 @@ const SquareConnect = ({
             </Button>
           )}
 
+          {canDisconnectSquare && isSharedLinkedWithoutOwnAccount ? (
+            <Button
+              variant="outline"
+              onClick={handleDisconnect}
+              disabled={loading}
+              size="sm"
+              className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              {loading && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+              Disconnect Square from this location
+            </Button>
+          ) : null}
+
           {(accountStatus?.connected || isSharedLinkedWithoutOwnAccount) && (
             <div className="flex flex-wrap gap-2">
               {accountStatus?.connected && requiresReconnect && !isSharedLinkedWithoutOwnAccount ? (
@@ -431,15 +449,17 @@ const SquareConnect = ({
                 <RefreshCw className="mr-2 h-3 w-3" />
                 Refresh status
               </Button>
-              <Button
-                variant="ghost"
-                onClick={handleDisconnect}
-                disabled={loading}
-                className="flex-1 min-w-[140px] text-red-500"
-                size="sm"
-              >
-                Disconnect
-              </Button>
+              {canDisconnectSquare && !isSharedLinkedWithoutOwnAccount ? (
+                <Button
+                  variant="ghost"
+                  onClick={handleDisconnect}
+                  disabled={loading}
+                  className="flex-1 min-w-[140px] text-red-500"
+                  size="sm"
+                >
+                  Disconnect
+                </Button>
+              ) : null}
             </div>
           )}
 
