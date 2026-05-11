@@ -80,6 +80,41 @@ const getSquareDashboardUrl = () =>
     ? 'https://app.squareup.com/dashboard'
     : 'https://squareupsandbox.com/dashboard'
 
+const clearSquareMembershipDataForLocation = async (locationId) => {
+  const cleanLocationId = `${locationId || ''}`.trim()
+  if (!cleanLocationId) return
+
+  const location = await Location.findOne({ locationId: cleanLocationId })
+  if (!location?.membership) return
+
+  const membership = location.membership
+  const plans = Array.isArray(membership.plans) ? membership.plans : []
+  const hasStripeCatalogData = Boolean(
+    membership.stripeProductId ||
+      membership.stripePriceId ||
+      plans.some((plan) => plan?.stripeProductId || plan?.stripePriceId)
+  )
+
+  membership.pendingSquareActivation = false
+  membership.squareSyncError = null
+
+  if (!hasStripeCatalogData) {
+    membership.isActive = false
+    membership.syncedAt = null
+  }
+
+  plans.forEach((plan) => {
+    plan.squareSubscriptionPlanId = null
+    plan.squareSubscriptionPlanVariationId = null
+    if (!plan?.stripeProductId && !plan?.stripePriceId) {
+      plan.syncedAt = null
+    }
+  })
+
+  location.markModified('membership')
+  await location.save()
+}
+
 const getSquarePostConnectWarningReason = (error) => {
   const message = `${error?.message || readSquareErrorMessage(error) || ''}`
   if (
@@ -757,6 +792,7 @@ export const disconnectSquareAccount = async (req, res, next) => {
       lastUpdated: new Date(),
     }
 
+    await clearSquareMembershipDataForLocation(connectedLocationId)
     await user.save()
 
     res.status(200).json({

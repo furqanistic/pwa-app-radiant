@@ -70,7 +70,7 @@ const SetupCardForm = ({ onSuccess, onCancel }) => {
             />
           </div>
           <p className="mt-2 text-[11px] leading-4 text-slate-500">
-            Secure Stripe checkout. Apple Wallet appears automatically on supported devices.
+            Secure card setup. Apple Wallet appears automatically on supported devices.
           </p>
         </div>
       </div>
@@ -101,9 +101,7 @@ const MembershipAddCardDialog = ({ open, onOpenChange, locationId, onSuccess }) 
       try {
         setLoading(true)
         if (!hasStripePublishableKey) {
-          toast.error(
-            'Missing VITE_STRIPE_PUBLISHABLE_KEY in client environment settings.'
-          )
+          toast.error('Payment setup is not configured right now.')
           onOpenChange(false)
           return
         }

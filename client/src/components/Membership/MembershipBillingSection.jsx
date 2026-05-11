@@ -144,6 +144,10 @@ const MembershipBillingSection = ({
     }
   }
 
+  if (loading && !summary) {
+    return null
+  }
+
   // For Square locations with no active membership, skip the billing card entirely;
   // the plan grid below is the only relevant UI.
   if (isSquareBilling && !membershipLooksActive && !loading) {
@@ -168,14 +172,14 @@ const MembershipBillingSection = ({
               </div>
 
               <h2 className="mt-2 text-[1.15rem] font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl md:text-[2rem]">
-                {membership?.planName || (isSquareBilling ? 'Square membership' : 'Choose a calendar-monthly membership')}
+                {membership?.planName || (isSquareBilling ? 'Active membership' : 'Choose a calendar-monthly membership')}
               </h2>
 
               <p className="mt-1 text-[13px] sm:text-sm text-slate-600">
                 {isSquareBilling
                   ? membership?.price
-                    ? `${formatMoney(membership.price, membership.currency)} / billing cycle - paid via Square`
-                    : 'Choose a plan below and complete checkout on Square.'
+                    ? `${formatMoney(membership.price, membership.currency)} / billing cycle`
+                    : 'Choose a plan below and complete secure checkout.'
                   : isCancelledAtPeriodEnd
                     ? hasUsableMembershipEndDate
                       ? `Membership available until ${formatDate(membershipAvailableUntil)}`
@@ -240,8 +244,8 @@ const MembershipBillingSection = ({
                   <p className="mt-0.5 text-[12px] leading-5 sm:text-[13px]">
                     {isSquareBilling
                       ? hasUsableMembershipEndDate
-                        ? `Access through ${formatDate(membershipAvailableUntil)}. Square stores your card and handles monthly renewals.`
-                        : 'Your membership is active through Square. Square stores your card and handles monthly renewals.'
+                        ? `Access through ${formatDate(membershipAvailableUntil)}. Your card is stored safely for monthly renewals.`
+                        : 'Your membership is active. Your card is stored safely for monthly renewals.'
                       : isCancelledAtPeriodEnd
                         ? hasUsableMembershipEndDate
                           ? `You can keep using your membership until ${formatDate(membershipAvailableUntil)}.`
@@ -279,12 +283,12 @@ const MembershipBillingSection = ({
                     Payments
                   </p>
                   <p className="mt-1 text-[13px] font-medium text-slate-800">
-                    Membership checkout runs on Square for this location. Square stores your card for monthly renewals, so Stripe saved cards and invoices are not used here.
+                    Membership checkout for this location is handled through secure checkout. Your card is stored safely for monthly renewals.
                   </p>
                 </div>
               ) : (
                 <p className="text-[13px] text-slate-500">
-                  Pick a plan below and you'll be taken to Square's secure checkout. Square stores your card and charges the membership monthly.
+                  Pick a plan below and continue to secure checkout. Your card is stored safely and charged monthly.
                 </p>
               )
             ) : (

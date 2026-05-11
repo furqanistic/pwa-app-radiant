@@ -108,6 +108,9 @@ const MembershipPage = () => {
     })
 
     const membershipSummary = membershipBillingResponse?.summary || null
+    const isBillingProviderPending = Boolean(
+        activeLocationId && currentUser?._id && isLoadingBilling && !membershipSummary
+    )
     const membershipInvoices = membershipInvoicesResponse?.invoices || []
     const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false)
     const [processingSelectionKey, setProcessingSelectionKey] = useState(null)
@@ -204,20 +207,20 @@ const MembershipPage = () => {
                 return {
                     disabled: false,
                     ctaLabel: switchingHigher
-                        ? 'Upgrade with Square'
+                        ? 'Upgrade'
                         : switchingLower
-                          ? 'Switch plan with Square'
-                          : 'Manage with Square',
-                    statusBadge: 'Square subscription',
+                          ? 'Switch plan'
+                          : 'Manage plan',
+                    statusBadge: 'Secure checkout',
                     helperText:
-                        'Complete Square-hosted checkout. Square stores the card and handles monthly renewals.',
+                        'Complete secure checkout. Your card is stored safely for monthly renewals.',
                 }
             }
             return {
                 disabled: false,
-                ctaLabel: 'Subscribe with Square',
-                statusBadge: 'Square subscription',
-                helperText: 'Square stores your card during hosted checkout and charges monthly.',
+                ctaLabel: 'Subscribe',
+                statusBadge: 'Secure checkout',
+                helperText: 'Your card is stored safely during checkout and charged monthly.',
             }
         }
 
@@ -334,7 +337,7 @@ const MembershipPage = () => {
                     window.location.href = response.sessionUrl
                     return
                 }
-                toast.error(response?.message || 'Failed to start Square membership checkout.')
+                toast.error(response?.message || 'Failed to start membership checkout.')
             } catch (error) {
                 console.error('Square membership checkout error:', error)
                 toast.error(
@@ -474,95 +477,97 @@ const MembershipPage = () => {
                 }}
             >
                 <div className='max-w-6xl mx-auto px-4 py-6 min-h-[80vh]'>
-                    <MembershipBillingSection
-                        locationId={activeLocationId}
-                        summary={membershipSummary}
-                        loading={isLoadingBilling}
-                        invoices={membershipInvoices}
-                        invoicesLoading={isLoadingInvoices}
-                        onRefresh={refreshMembershipState}
-                        onOpenInvoicePortal={async () => {
-                            try {
-                                const response =
-                                    await stripeService.createMembershipBillingPortalSession({
-                                        locationId: activeLocationId,
-                                        returnUrl: `${FRONTEND_URL}${withSpaParam('/membership')}`,
-                                    })
+                    {!isBillingProviderPending ? (
+                        <MembershipBillingSection
+                            locationId={activeLocationId}
+                            summary={membershipSummary}
+                            loading={isLoadingBilling}
+                            invoices={membershipInvoices}
+                            invoicesLoading={isLoadingInvoices}
+                            onRefresh={refreshMembershipState}
+                            onOpenInvoicePortal={async () => {
+                                try {
+                                    const response =
+                                        await stripeService.createMembershipBillingPortalSession({
+                                            locationId: activeLocationId,
+                                            returnUrl: `${FRONTEND_URL}${withSpaParam('/membership')}`,
+                                        })
 
-                                if (response?.success && response?.url) {
-                                    window.location.href = response.url
-                                    return
+                                    if (response?.success && response?.url) {
+                                        window.location.href = response.url
+                                        return
+                                    }
+
+                                    toast.error('Unable to open invoices right now.')
+                                } catch (error) {
+                                    console.error('Failed to open membership billing portal:', error)
+                                    toast.error(
+                                        error?.response?.data?.message ||
+                                            'Unable to open invoices right now.'
+                                    )
                                 }
-
-                                toast.error('Unable to open Stripe invoices right now.')
-                            } catch (error) {
-                                console.error('Failed to open membership billing portal:', error)
-                                toast.error(
-                                    error?.response?.data?.message ||
-                                        'Unable to open Stripe invoices right now.'
-                                )
-                            }
-                        }}
-                        onMakeDefault={async (paymentMethodId) => {
-                            await stripeService.setMembershipDefaultPaymentMethod({
-                                locationId: activeLocationId,
-                                paymentMethodId,
-                            })
-                            toast.success('Default card updated')
-                            await refreshMembershipState()
-                        }}
-                        onRemoveCard={async (paymentMethodId) => {
-                            try {
-                                await stripeService.removeMembershipPaymentMethod({
+                            }}
+                            onMakeDefault={async (paymentMethodId) => {
+                                await stripeService.setMembershipDefaultPaymentMethod({
                                     locationId: activeLocationId,
                                     paymentMethodId,
                                 })
-                                toast.success('Saved card removed')
+                                toast.success('Default card updated')
                                 await refreshMembershipState()
-                            } catch (error) {
-                                console.error('Failed to remove saved card:', error)
-                                toast.error(
-                                    error?.response?.data?.message ||
-                                        'Unable to remove this saved card right now.'
-                                )
-                            }
-                        }}
-                        onCancelMembership={async () => {
-                            try {
-                                const response =
-                                    await stripeService.cancelMembershipSubscription({
+                            }}
+                            onRemoveCard={async (paymentMethodId) => {
+                                try {
+                                    await stripeService.removeMembershipPaymentMethod({
                                         locationId: activeLocationId,
+                                        paymentMethodId,
                                     })
-                                toast.success(
-                                    response?.membershipEndsAt
-                                        ? `Membership cancelled. Access remains until ${new Date(
-                                              response.membershipEndsAt
-                                          ).toLocaleDateString('en-US', {
-                                              month: 'short',
-                                              day: 'numeric',
-                                              year: 'numeric',
-                                          })}.`
-                                        : response?.message || 'Membership cancellation scheduled.'
-                                )
-                                await refreshMembershipState()
-                                await refetchMembershipInvoices()
-                            } catch (error) {
-                                console.error('Failed to cancel membership:', error)
-                                toast.error(
-                                    error?.response?.data?.message ||
-                                        'Unable to cancel this membership right now.'
-                                )
-                            }
-                        }}
-                        cardDialogOpen={cardDialogOpen}
-                        onCardDialogOpenChange={(nextOpen) => {
-                            setCardDialogOpen(nextOpen)
-                            if (!nextOpen && !isCheckoutProcessing) {
-                                setPendingDirectSubscriptionPayload(null)
-                            }
-                        }}
-                        onCardAdded={handleCardAddedForDirectSubscription}
-                    />
+                                    toast.success('Saved card removed')
+                                    await refreshMembershipState()
+                                } catch (error) {
+                                    console.error('Failed to remove saved card:', error)
+                                    toast.error(
+                                        error?.response?.data?.message ||
+                                            'Unable to remove this saved card right now.'
+                                    )
+                                }
+                            }}
+                            onCancelMembership={async () => {
+                                try {
+                                    const response =
+                                        await stripeService.cancelMembershipSubscription({
+                                            locationId: activeLocationId,
+                                        })
+                                    toast.success(
+                                        response?.membershipEndsAt
+                                            ? `Membership cancelled. Access remains until ${new Date(
+                                                  response.membershipEndsAt
+                                              ).toLocaleDateString('en-US', {
+                                                  month: 'short',
+                                                  day: 'numeric',
+                                                  year: 'numeric',
+                                              })}.`
+                                            : response?.message || 'Membership cancellation scheduled.'
+                                    )
+                                    await refreshMembershipState()
+                                    await refetchMembershipInvoices()
+                                } catch (error) {
+                                    console.error('Failed to cancel membership:', error)
+                                    toast.error(
+                                        error?.response?.data?.message ||
+                                            'Unable to cancel this membership right now.'
+                                    )
+                                }
+                            }}
+                            cardDialogOpen={cardDialogOpen}
+                            onCardDialogOpenChange={(nextOpen) => {
+                                setCardDialogOpen(nextOpen)
+                                if (!nextOpen && !isCheckoutProcessing) {
+                                    setPendingDirectSubscriptionPayload(null)
+                                }
+                            }}
+                            onCardAdded={handleCardAddedForDirectSubscription}
+                        />
+                    ) : null}
 
                     <CreditsPurchaseDialog
                         open={creditsDialogOpen}
@@ -576,9 +581,9 @@ const MembershipPage = () => {
                     <div className="w-full relative z-10 animate-fadeIn">
                         {isSquareCheckout ? (
                             <div className="mb-4 rounded-[1.35rem] border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900 shadow-[0_10px_25px_rgba(15,23,42,0.04)] sm:mb-5">
-                                <p className="font-semibold">Square subscription checkout</p>
+                                <p className="font-semibold">Secure membership checkout</p>
                                 <p className="mt-1 text-[13px] leading-5 text-emerald-800">
-                                    Pick a plan below to subscribe through Square. Square securely stores your card during checkout and charges the membership monthly for this location.
+                                    Pick a plan below to continue to secure checkout. Your card is stored safely and charged monthly for this location.
                                 </p>
                             </div>
                         ) : null}
@@ -610,7 +615,7 @@ const MembershipPage = () => {
                             </div>
                         ) : null}
 
-                        {isLoading || isLoadingLocation ? (
+                        {isLoading || isLoadingLocation || isBillingProviderPending ? (
                             <div className="w-full h-48 bg-gray-200 rounded-[1.75rem] animate-pulse" />
                         ) : (
                             <MembershipPlansGrid
