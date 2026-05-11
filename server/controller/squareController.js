@@ -138,10 +138,6 @@ const buildSquareMonthlyStaticPhase = ({ amountInCents, currency, uid = 'phase_0
   uid,
   cadence: 'MONTHLY',
   ordinal: 0,
-  recurring_price_money: {
-    amount: amountInCents,
-    currency,
-  },
   pricing: {
     type: 'STATIC',
     price_money: {

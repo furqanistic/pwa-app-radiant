@@ -441,10 +441,6 @@ test('updateLocation syncs active Square membership plans as monthly subscriptio
     'sq_parent_membership_plan_1'
   )
   assert.equal(
-    catalogPayloads[0].payload.object.subscription_plan_data.phases[0].recurring_price_money.amount,
-    8800
-  )
-  assert.equal(
     catalogPayloads[1].payload.object.subscription_plan_variation_data.phases[0].pricing.price_money.amount,
     8800
   )
