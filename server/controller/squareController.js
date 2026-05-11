@@ -115,6 +115,35 @@ const clearSquareMembershipDataForLocation = async (locationId) => {
   await location.save()
 }
 
+const findSquareOwnerForLocation = (locationId) => {
+  const cleanLocationId = `${locationId || ''}`.trim()
+  if (!cleanLocationId) return null
+
+  return User.findOne({
+    role: 'spa',
+    'square.merchantId': { $nin: [null, ''] },
+    $or: [
+      { 'square.locationId': cleanLocationId },
+      {
+        $and: [
+          { 'square.locationId': { $in: [null, ''] } },
+          { 'spaLocation.locationId': cleanLocationId },
+        ],
+      },
+      { 'spaLocation.locationId': cleanLocationId },
+    ],
+  })
+    .select('+square.accessToken +square.refreshToken')
+    .sort({ 'square.connectedAt': -1 })
+}
+
+const userCanManageSquareLocation = (user, locationId) => {
+  if (user?.role === 'super-admin') return true
+  const cleanLocationId = `${locationId || ''}`.trim()
+  if (!cleanLocationId) return false
+  return getUserAccessibleLocationIds(user).includes(cleanLocationId)
+}
+
 const getSquarePostConnectWarningReason = (error) => {
   const message = `${error?.message || readSquareErrorMessage(error) || ''}`
   if (
@@ -707,12 +736,32 @@ export const disconnectSquareAccount = async (req, res, next) => {
       '+square.accessToken +square.refreshToken'
     )
 
-    if (!user || !user.square?.merchantId) {
+    if (!user) {
+      return next(createError(404, 'User not found'))
+    }
+
+    const requestedLocationId = getRequestedConnectionLocationId(req, user)
+    if (requestedLocationId && !userCanManageSquareLocation(user, requestedLocationId)) {
+      return next(createError(403, 'You cannot disconnect Square for this location'))
+    }
+
+    const ownConnectedLocationId =
+      `${user.square?.locationId || user.spaLocation?.locationId || ''}`.trim()
+    const canUseOwnSquareConnection = Boolean(
+      user.square?.merchantId &&
+        (!requestedLocationId ||
+          !ownConnectedLocationId ||
+          requestedLocationId === ownConnectedLocationId)
+    )
+    const squareOwner = canUseOwnSquareConnection
+      ? user
+      : await findSquareOwnerForLocation(requestedLocationId)
+
+    if (!squareOwner || !squareOwner.square?.merchantId) {
       return next(createError(400, 'No Square account connected'))
     }
-    const requestedLocationId = getRequestedConnectionLocationId(req, user)
     const connectedLocationId =
-      `${user.square.locationId || user.spaLocation?.locationId || ''}`.trim()
+      `${squareOwner.square.locationId || squareOwner.spaLocation?.locationId || requestedLocationId || ''}`.trim()
     if (
       requestedLocationId &&
       connectedLocationId &&
@@ -721,8 +770,8 @@ export const disconnectSquareAccount = async (req, res, next) => {
       return next(createError(400, 'No Square account connected for this location'))
     }
 
-    const accessToken = user.square.accessToken
-    const refreshToken = user.square.refreshToken
+    const accessToken = squareOwner.square.accessToken
+    const refreshToken = squareOwner.square.refreshToken
 
     // Revoke both access token and refresh token to fully disconnect
     if (accessToken) {
@@ -776,7 +825,7 @@ export const disconnectSquareAccount = async (req, res, next) => {
       }
     }
 
-    user.square = {
+    squareOwner.square = {
       locationId: null,
       merchantId: null,
       merchantStatus: null,
@@ -793,7 +842,7 @@ export const disconnectSquareAccount = async (req, res, next) => {
     }
 
     await clearSquareMembershipDataForLocation(connectedLocationId)
-    await user.save()
+    await squareOwner.save()
 
     res.status(200).json({
       success: true,

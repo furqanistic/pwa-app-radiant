@@ -410,15 +410,17 @@ const SquareConnect = ({
                   Reconnect Square permissions
                 </Button>
               ) : null}
-              <Button
-                variant="outline"
-                onClick={handleOpenDashboard}
-                className="flex-1 min-w-[140px]"
-                size="sm"
-              >
-                <ExternalLink className="mr-2 h-3 w-3" />
-                Dashboard
-              </Button>
+              {accountStatus?.connected ? (
+                <Button
+                  variant="outline"
+                  onClick={handleOpenDashboard}
+                  className="flex-1 min-w-[140px]"
+                  size="sm"
+                >
+                  <ExternalLink className="mr-2 h-3 w-3" />
+                  Dashboard
+                </Button>
+              ) : null}
               <Button
                 variant="ghost"
                 onClick={fetchAccountStatus}
@@ -429,16 +431,15 @@ const SquareConnect = ({
                 <RefreshCw className="mr-2 h-3 w-3" />
                 Refresh status
               </Button>
-              {!isSharedLinkedWithoutOwnAccount && (
-                <Button
-                  variant="ghost"
-                  onClick={handleDisconnect}
-                  className="flex-1 min-w-[140px] text-red-500"
-                  size="sm"
-                >
-                  Disconnect
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                onClick={handleDisconnect}
+                disabled={loading}
+                className="flex-1 min-w-[140px] text-red-500"
+                size="sm"
+              >
+                Disconnect
+              </Button>
             </div>
           )}
 
