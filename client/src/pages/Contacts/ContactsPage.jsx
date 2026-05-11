@@ -61,6 +61,21 @@ function getContactLocationLabel(user, scopeLocationId) {
   );
 }
 
+const clampChannel = (value) => Math.max(0, Math.min(255, value))
+
+const adjustHex = (hex, amount) => {
+  if (!hex) return '#0f172a'
+  const cleaned = hex.replace('#', '')
+  if (cleaned.length !== 6) return '#0f172a'
+  const num = parseInt(cleaned, 16)
+  const r = clampChannel(((num >> 16) & 255) + amount)
+  const g = clampChannel(((num >> 8) & 255) + amount)
+  const b = clampChannel((num & 255) + amount)
+  return `#${r.toString(16).padStart(2, '0')}${g
+    .toString(16)
+    .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+}
+
 const ContactsPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -308,445 +323,402 @@ const ContactsPage = () => {
     setIsCreditsManagerOpen(false);
   };
 
-  const renderPagination = () => {
-      if (totalPages <= 1) return null;
-  
-      const getPageNumbers = () => {
-        const pages = [];
-        const maxVisible = 5;
-  
-        if (totalPages <= maxVisible) {
-          for (let i = 1; i <= totalPages; i++) {
-            pages.push(i);
-          }
-        } else {
-          const start = Math.max(1, currentPage - 2);
-          const end = Math.min(totalPages, start + maxVisible - 1);
-  
-          for (let i = start; i <= end; i++) {
-            pages.push(i);
-          }
-  
-          if (start > 1) {
-            pages.unshift("...");
-            pages.unshift(1);
-          }
-  
-          if (end < totalPages) {
-            pages.push("...");
-            pages.push(totalPages);
-          }
-        }
-  
-        return pages;
-      };
-  
-      return (
-        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
-          <div className="flex flex-1 justify-between sm:hidden">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </Button>
-          </div>
-  
-          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">{startIndex}</span> to{" "}
-                <span className="font-medium">{endIndex}</span> of{" "}
-                <span className="font-medium">{totalUsers}</span> results
-              </p>
-            </div>
-  
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                &lt;
-              </Button>
-  
-              {getPageNumbers().map((page, index) => (
-                <Button
-                  key={index}
-                  variant={page === currentPage ? "default" : "outline"}
-                  size="sm"
-                  onClick={() =>
-                    typeof page === "number" && handlePageChange(page)
-                  }
-                  disabled={page === "..."}
-                  className={page === currentPage ? "bg-[var(--brand-primary)] text-white" : ""}
-                >
-                  {page}
-                </Button>
-              ))}
-  
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                &gt;
-              </Button>
-            </div>
-          </div>
-        </div>
-      );
-    };
+  const roleBadge = (role) => {
+    const styles = {
+      'super-admin': 'bg-slate-800 text-white',
+      admin: 'bg-slate-200 text-slate-800',
+      spa: 'bg-slate-100 text-slate-600',
+      enterprise: 'bg-slate-100 text-slate-600',
+      user: 'bg-slate-50 text-slate-400',
+    }
+    return styles[role] || 'bg-slate-100 text-slate-600'
+  }
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Contacts & Users
-            </h1>
-            <p className="text-gray-600">
-              Manage your spa members, clients, and notifications
-              {effectiveLocationFilter && (
-                <span className="block text-sm mt-1 text-[var(--brand-primary)]">
-                  Showing contacts from:{" "}
-                  {activeLocationName}
-                </span>
-              )}
-              {isSuperAdmin && !effectiveLocationFilter && (
-                <span className="block text-sm mt-1 text-[var(--brand-primary)]">
-                  Showing contacts from all locations
-                </span>
-              )}
-            </p>
-          </div>
+      <div className="min-h-screen bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            {isSuperAdmin && (
-              <Button
-                onClick={() => setIsAddUserOpen(true)}
-                className="hover:opacity-90"
-                style={{ backgroundColor: brandColor, color: "#fff" }}
-              >
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add User
-              </Button>
-            )}
+          {/* ── Header card ─────────────────────────────── */}
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+            <div className="h-0.5 w-full" style={{ background: brandColor }} />
+            <div className="px-6 py-5 md:px-8 md:py-6">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h1 className="text-xl md:text-2xl font-semibold text-slate-900 tracking-tight">
+                    Contacts & Users
+                  </h1>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Manage your spa members, clients, and notifications
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-400">
+                    <span className="inline-flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />
+                      {totalUsers} total
+                    </span>
+                    <span className="w-1 h-1 rounded-full bg-slate-200" />
+                    <span>
+                      {effectiveLocationFilter
+                        ? activeLocationName || effectiveLocationFilter
+                        : 'All locations'}
+                    </span>
+                  </div>
+                </div>
 
-            {isElevatedUser && (
-              <Button
-                onClick={() => handleOpenNotificationSender()}
-                className="hover:opacity-90"
-                style={{ backgroundColor: brandColor, color: "#fff" }}
-              >
-                <Bell className="w-4 h-4 mr-2" />
-                Send Notification
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              onClick={() =>
-                queryClient.invalidateQueries({ queryKey: ["all-users"] })
-              }
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-
-          {/* Search */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search users by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                  }}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
-                />
+                <div className="flex items-center gap-2.5">
+                  {isSuperAdmin && (
+                    <Button
+                      onClick={() => setIsAddUserOpen(true)}
+                      className="h-9 rounded-xl text-sm font-medium px-4 text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                      style={{ background: `linear-gradient(135deg, ${brandColor}, ${adjustHex(brandColor, -24)})` }}
+                    >
+                      <UserPlus className="mr-1.5 h-4 w-4" />
+                      Add User
+                    </Button>
+                  )}
+                  {isElevatedUser && (
+                    <Button
+                      onClick={() => handleOpenNotificationSender()}
+                      variant="outline"
+                      className="h-9 rounded-xl text-sm font-medium px-4 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+                    >
+                      <Bell className="mr-1.5 h-4 w-4" />
+                      Notify
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['all-users'] })}
+                    className="h-9 rounded-xl text-sm font-medium px-4 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <RefreshCw className="mr-1.5 h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
               </div>
-              <select
-                value={roleFilter}
-                onChange={(e) => {
-                  setRoleFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
-              >
-                {roleFilterOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role === "all" ? "All roles" : role}
-                  </option>
-                ))}
-              </select>
-              {isSuperAdmin && (
+            </div>
+          </div>
+
+          {/* ── Filters card ────────────────────────────── */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mb-6">
+            <div className="p-4 md:p-5">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 transition-shadow placeholder:text-slate-400"
+                  />
+                </div>
+
                 <select
-                  value={locationFilter}
-                  onChange={(e) => {
-                    setLocationFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
+                  value={roleFilter}
+                  onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1) }}
+                  className="h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600"
                 >
-                  <option value="">All locations</option>
-                  {(locationsData?.data?.locations || []).map((location) => (
-                    <option key={location._id || location.locationId} value={location.locationId}>
-                      {location.name || location.locationId}
+                  {roleFilterOptions.map((role) => (
+                    <option key={role} value={role}>
+                      {role === 'all' ? 'All roles' : role}
                     </option>
                   ))}
                 </select>
-              )}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchTerm("");
-                  setDebouncedSearchTerm("");
-                  setRoleFilter("all");
-                  setLocationFilter("");
-                  setCurrentPage(1);
-                }}
-              >
-                Clear Filters
-              </Button>
+
+                {isSuperAdmin && (
+                  <select
+                    value={locationFilter}
+                    onChange={(e) => { setLocationFilter(e.target.value); setCurrentPage(1) }}
+                    className="h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600"
+                  >
+                    <option value="">All locations</option>
+                    {(locationsData?.data?.locations || []).map((location) => (
+                      <option key={location._id || location.locationId} value={location.locationId}>
+                        {location.name || location.locationId}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setDebouncedSearchTerm('');
+                    setRoleFilter('all');
+                    setLocationFilter('');
+                    setCurrentPage(1);
+                  }}
+                  className="h-9 rounded-lg text-xs px-3 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors shrink-0"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
           </div>
 
-          {/* Users Table */}
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-medium text-gray-900">
-                {isSuperAdmin ? "All Users" : "Spa Members"} ({totalUsers})
-              </h3>
+          {/* ── Users table card ────────────────────────── */}
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h2 className="text-sm font-semibold text-slate-900">
+                {isSuperAdmin ? 'All Users' : 'Spa Members'}
+                {totalUsers > 0 && (
+                  <span className="text-slate-400 font-normal ml-1">({totalUsers})</span>
+                )}
+              </h2>
             </div>
 
             {isLoadingUsers ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="w-8 h-8 border-4 border-gray-200 border-t-[var(--brand-primary)] rounded-full animate-spin"></div>
+              <div className="flex items-center justify-center py-16">
+                <div className="w-5 h-5 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
               </div>
             ) : usersError ? (
               <div className="text-center py-12">
-                <p className="text-red-600">Error loading users</p>
+                <p className="text-sm text-red-500 font-medium">Error loading users</p>
               </div>
             ) : users.length === 0 ? (
-              <div className="text-center py-12">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">
+              <div className="text-center py-14">
+                <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-500">
                   {searchTerm
-                    ? "No users found matching your search"
+                    ? 'No users found matching your search'
                     : isSuperAdmin
-                    ? "No users found in the app"
-                    : "No users found in your location"}
+                    ? 'No users found in the app'
+                    : 'No users found in your location'}
                 </p>
               </div>
             ) : (
               <>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-slate-100">
+                    <thead>
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          User
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Role
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Location
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Points
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Credits
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Joined
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
+                        {['User', 'Role', 'Location', 'Points', 'Credits', 'Joined', ''].map((h) => (
+                          <th
+                            key={h}
+                            className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider"
+                          >
+                            {h}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="divide-y divide-slate-50">
                       {users.map((user) => {
-                        const userId = user?._id || user?.userId || user?.id;
+                        const userId = user?._id || user?.userId || user?.id
                         return (
-                        <tr
-                          key={userId || user?.email || user?.name}
-                          className={`hover:bg-gray-50 ${userId ? "cursor-pointer" : "cursor-not-allowed"}`}
-                          onClick={() => {
-                            if (!userId) {
-                              toast.error("Unable to open profile for this user.");
-                              return;
-                            }
-                            navigate(withSpaParam(`/client/${userId}`), { state: { user } });
-                          }}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10">
+                          <tr
+                            key={userId || user?.email}
+                            className={`transition-colors ${
+                              userId ? 'cursor-pointer hover:bg-slate-50' : ''
+                            }`}
+                            onClick={() => {
+                              if (!userId) return toast.error('Unable to open profile for this user.')
+                              navigate(withSpaParam(`/client/${userId}`), { state: { user } })
+                            }}
+                          >
+                            <td className="px-5 py-3.5 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
                                 <div
-                                  className="h-10 w-10 rounded-full flex items-center justify-center"
+                                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm font-semibold text-white"
                                   style={{ backgroundColor: brandColor }}
                                 >
-                                  <span className="text-white font-medium text-sm">
-                                    {user.name?.charAt(0)?.toUpperCase()}
-                                  </span>
+                                  {user.name?.charAt(0)?.toUpperCase() || '?'}
+                                </div>
+                                <div>
+                                  <div className="text-sm font-medium text-slate-900">{user.name}</div>
+                                  <div className="text-xs text-slate-400">{user.email}</div>
                                 </div>
                               </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {user.name}
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {user.email}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                                user.role === "super-admin"
-                                  ? "bg-red-100 text-red-800"
-                                  : user.role === "admin"
-                                  ? "bg-purple-100 text-purple-800"
-                                  : user.role === "spa"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : user.role === "enterprise"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {user.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {getContactLocationLabel(user, effectiveLocationFilter)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {user.points || 0}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {user.credits || 0}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(user.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
+                            </td>
+                            <td className="px-5 py-3.5 whitespace-nowrap">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${roleBadge(user.role)}`}>
+                                {user.role}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-600">
+                              {getContactLocationLabel(user, effectiveLocationFilter)}
+                            </td>
+                            <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-700 font-medium tabular-nums">
+                              {user.points || 0}
+                            </td>
+                            <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-700 font-medium tabular-nums">
+                              {user.credits || 0}
+                            </td>
+                            <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-400">
+                              {user.createdAt
+                                ? new Date(user.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })
+                                : '—'}
+                            </td>
+                            <td className="px-5 py-3.5 whitespace-nowrap text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 rounded-lg hover:bg-slate-100"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <MoreVertical className="w-4 h-4 text-slate-400" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="rounded-xl border-slate-200 shadow-lg p-1.5 min-w-[180px]"
                                   onClick={(e) => e.stopPropagation()}
+                                  onPointerDown={(e) => e.stopPropagation()}
                                 >
-                                  <MoreVertical className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                onClick={(e) => e.stopPropagation()}
-                                onPointerDown={(e) => e.stopPropagation()}
-                              >
-                                {isSuperAdmin && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate(withSpaParam(`/client/${user._id}`));
-                                    }}
-                                  >
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Edit User
-                                  </DropdownMenuItem>
-                                )}
-                                {isElevatedUser && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenPointsManager(user);
-                                    }}
-                                  >
-                                    <Calculator className="w-4 h-4 mr-2" />
-                                    Manage Points
-                                  </DropdownMenuItem>
-                                )}
-                                {isElevatedUser && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenCreditsManager(user);
-                                    }}
-                                  >
-                                    <BadgeCent className="w-4 h-4 mr-2" />
-                                    Manage Credits
-                                  </DropdownMenuItem>
-                                )}
-                                {isElevatedUser && (
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenNotificationSender(user);
-                                    }}
-                                  >
-                                    <Send className="w-4 h-4 mr-2" />
-                                    Send Notification
-                                  </DropdownMenuItem>
-                                )}
-                                {(isAdminOrAbove || isElevatedUser) &&
-                                  isAdminOrAbove && <DropdownMenuSeparator />}
-                                {isSuperAdmin && (
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    disabled={deleteUserMutation.isPending}
-                                    onSelect={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      void handleDeleteUser(user);
-                                    }}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    {deleteUserMutation.isPending &&
-                                    deleteUserMutation.variables === userId
-                                      ? "Deleting..."
-                                      : "Delete User"}
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                        );
+                                  {isSuperAdmin && (
+                                    <DropdownMenuItem
+                                      className="rounded-lg text-sm text-slate-700 focus:bg-slate-50 focus:text-slate-900"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        navigate(withSpaParam(`/client/${user._id}`))
+                                      }}
+                                    >
+                                      <Edit className="w-4 h-4 mr-2.5 text-slate-400" />
+                                      Edit User
+                                    </DropdownMenuItem>
+                                  )}
+                                  {isElevatedUser && (
+                                    <DropdownMenuItem
+                                      className="rounded-lg text-sm text-slate-700 focus:bg-slate-50 focus:text-slate-900"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleOpenPointsManager(user)
+                                      }}
+                                    >
+                                      <Calculator className="w-4 h-4 mr-2.5 text-slate-400" />
+                                      Manage Points
+                                    </DropdownMenuItem>
+                                  )}
+                                  {isElevatedUser && (
+                                    <DropdownMenuItem
+                                      className="rounded-lg text-sm text-slate-700 focus:bg-slate-50 focus:text-slate-900"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleOpenCreditsManager(user)
+                                      }}
+                                    >
+                                      <BadgeCent className="w-4 h-4 mr-2.5 text-slate-400" />
+                                      Manage Credits
+                                    </DropdownMenuItem>
+                                  )}
+                                  {isElevatedUser && (
+                                    <DropdownMenuItem
+                                      className="rounded-lg text-sm text-slate-700 focus:bg-slate-50 focus:text-slate-900"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleOpenNotificationSender(user)
+                                      }}
+                                    >
+                                      <Send className="w-4 h-4 mr-2.5 text-slate-400" />
+                                      Send Notification
+                                    </DropdownMenuItem>
+                                  )}
+                                  {isSuperAdmin && <DropdownMenuSeparator className="my-1 bg-slate-100" />}
+                                  {isSuperAdmin && (
+                                    <DropdownMenuItem
+                                      className="rounded-lg text-sm text-red-600 focus:bg-red-50 focus:text-red-700"
+                                      disabled={deleteUserMutation.isPending}
+                                      onSelect={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        void handleDeleteUser(user)
+                                      }}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2.5" />
+                                      {deleteUserMutation.isPending && deleteUserMutation.variables === userId
+                                        ? 'Deleting...'
+                                        : 'Delete User'}
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        )
                       })}
                     </tbody>
                   </table>
                 </div>
-                {renderPagination()}
+
+                {/* ── Pagination ────────────────────────────── */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
+                    <p className="text-xs text-slate-400">
+                      Showing <span className="font-medium text-slate-600">{startIndex}</span>
+                      {' '}to{' '}
+                      <span className="font-medium text-slate-600">{endIndex}</span>
+                      {' '}of{' '}
+                      <span className="font-medium text-slate-600">{totalUsers}</span>
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="h-8 w-8 p-0 rounded-lg border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30"
+                      >
+                        <span className="text-xs">&lt;</span>
+                      </Button>
+                      {(() => {
+                        const pages = []
+                        const maxVisible = 5
+                        if (totalPages <= maxVisible) {
+                          for (let i = 1; i <= totalPages; i++) pages.push(i)
+                        } else {
+                          let start = Math.max(1, currentPage - 2)
+                          let end = Math.min(totalPages, start + maxVisible - 1)
+                          if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1)
+                          if (start > 1) { pages.push(1); if (start > 2) pages.push('...') }
+                          for (let i = start; i <= end; i++) pages.push(i)
+                          if (end < totalPages) { if (end < totalPages - 1) pages.push('...'); pages.push(totalPages) }
+                        }
+                        return pages.map((page, i) =>
+                          page === '...' ? (
+                            <span key={`ellipsis-${i}`} className="px-1 text-xs text-slate-300">...</span>
+                          ) : (
+                            <Button
+                              key={page}
+                              variant={page === currentPage ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => handlePageChange(page)}
+                              className={`h-8 w-8 p-0 rounded-lg text-xs font-medium ${
+                                page === currentPage
+                                  ? 'bg-slate-900 text-white hover:bg-slate-800'
+                                  : 'border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              {page}
+                            </Button>
+                          )
+                        )
+                      })()}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0 rounded-lg border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30"
+                      >
+                        <span className="text-xs">&gt;</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
 
-          {/* Modals */}
+          {/* ── Modals ──────────────────────────────────── */}
           <AddUserForm
             isOpen={isAddUserOpen}
             onClose={() => setIsAddUserOpen(false)}
@@ -754,36 +726,32 @@ const ContactsPage = () => {
           />
 
           {isElevatedUser && (
-            <NotificationSender
-              isOpen={isNotificationSenderOpen}
-              onClose={handleCloseNotificationSender}
-              currentUser={currentUser}
-              preSelectedUser={selectedUserForNotification}
-              scopeRole={roleFilter}
-              scopeLocationId={effectiveLocationFilter}
-            />
-          )}
-
-          {isElevatedUser && (
-            <PointsManager
-              isOpen={isPointsManagerOpen}
-              onClose={handleClosePointsManager}
-              user={selectedUserForPoints}
-              locationId={effectiveLocationFilter}
-            />
-          )}
-
-          {isElevatedUser && (
-            <CreditsManager
-              isOpen={isCreditsManagerOpen}
-              onClose={handleCloseCreditsManager}
-              user={selectedUserForCredits}
-            />
+            <>
+              <NotificationSender
+                isOpen={isNotificationSenderOpen}
+                onClose={handleCloseNotificationSender}
+                currentUser={currentUser}
+                preSelectedUser={selectedUserForNotification}
+                scopeRole={roleFilter}
+                scopeLocationId={effectiveLocationFilter}
+              />
+              <PointsManager
+                isOpen={isPointsManagerOpen}
+                onClose={handleClosePointsManager}
+                user={selectedUserForPoints}
+                locationId={effectiveLocationFilter}
+              />
+              <CreditsManager
+                isOpen={isCreditsManagerOpen}
+                onClose={handleCloseCreditsManager}
+                user={selectedUserForCredits}
+              />
+            </>
           )}
         </div>
       </div>
     </Layout>
-  );
+  )
 };
 
 export default ContactsPage;

@@ -119,8 +119,8 @@ const ScratchSpinPage = () => {
           }}
         />
 
-        <div className='flex-1 overflow-y-auto overscroll-contain' style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className='max-w-lg mx-auto px-4 pt-5 pb-28 flex flex-col gap-5'>
+          <div className='flex-1 overflow-y-auto overscroll-contain' style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className='max-w-lg lg:max-w-3xl mx-auto px-4 lg:px-8 pt-5 lg:pt-8 pb-28 flex flex-col gap-5 lg:gap-6'>
 
             {/* ── Top bar ─────────────────────────────────── */}
             <div className='flex items-center justify-between'>
@@ -131,7 +131,7 @@ const ScratchSpinPage = () => {
                     Daily Arena
                   </span>
                 </div>
-                <h1 className='text-2xl font-black text-slate-900 tracking-tight leading-none mt-0.5'>
+                <h1 className='text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-none mt-0.5'>
                   Lucky Rewards
                 </h1>
                 {location && (
@@ -147,10 +147,10 @@ const ScratchSpinPage = () => {
               {currentUser && (
                 <motion.div
                   whileTap={{ scale: 0.95 }}
-                  className='flex items-center gap-2 px-4 py-2.5 rounded-2xl'
+                  className='flex items-center gap-2 px-4 lg:px-5 py-2.5 lg:py-3 rounded-2xl'
                   style={{ background: 'rgba(15,23,42,0.92)', backdropFilter: 'blur(12px)' }}
                 >
-                  <Coins className='w-4 h-4 text-yellow-400' />
+                  <Coins className='w-4 h-4 lg:w-5 lg:h-5 text-yellow-400' />
                   <div>
                     <div className='text-[8px] font-black text-white/40 uppercase leading-none'>Points</div>
                     <motion.div
@@ -171,7 +171,7 @@ const ScratchSpinPage = () => {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className='relative rounded-[28px] overflow-hidden p-6 text-white'
+              className='relative rounded-[28px] overflow-hidden p-6 lg:p-8 text-white'
               style={{
                 background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColorDark} 100%)`,
                 boxShadow: `0 12px 40px color-mix(in srgb, ${brandColor} 35%, transparent)`,
@@ -186,8 +186,8 @@ const ScratchSpinPage = () => {
                   <Crown className='w-5 h-5 text-yellow-300 fill-yellow-300' />
                   <span className='text-[10px] font-black uppercase tracking-[0.2em] opacity-80'>Premium Player</span>
                 </div>
-                <h2 className='text-2xl font-black leading-snug mb-2'>Ready to Reveal<br />Your Luck?</h2>
-                <p className='text-white/75 text-xs font-medium leading-relaxed max-w-[240px]'>
+                <h2 className='text-2xl lg:text-3xl font-black leading-snug mb-2'>Ready to Reveal<br />Your Luck?</h2>
+                <p className='text-white/75 text-xs lg:text-sm font-medium leading-relaxed max-w-[240px] lg:max-w-[320px]'>
                   Spin or scratch to unlock spa treatments, credits, and bonus points daily.
                 </p>
               </div>
@@ -273,7 +273,7 @@ const GameCard = ({ game, title, subtitle, icon, brandColor, onPlay }) => {
     <motion.button
       whileTap={canPlay ? { scale: 0.97 } : {}}
       onClick={canPlay ? onPlay : undefined}
-      className='w-full text-left relative overflow-hidden rounded-[24px] border bg-white p-5 transition-all duration-200'
+      className='w-full text-left relative overflow-hidden rounded-[24px] border bg-white p-5 lg:p-6 transition-all duration-200'
       style={{
         opacity: canPlay ? 1 : 0.55,
         cursor: canPlay ? 'pointer' : 'default',
@@ -286,22 +286,22 @@ const GameCard = ({ game, title, subtitle, icon, brandColor, onPlay }) => {
       <div className='flex items-center gap-4'>
         {/* Icon */}
         <div
-          className='w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0'
-          style={{
-            background: `color-mix(in srgb, ${brandColor} 10%, transparent)`,
-            color: brandColor,
-          }}
-        >
-          {icon === 'spin'
-            ? <RefreshCcw className='w-7 h-7' />
-            : <Star className='w-7 h-7 fill-current' />
+            className='w-14 h-14 lg:w-16 lg:h-16 rounded-2xl flex items-center justify-center flex-shrink-0'
+            style={{
+              background: `color-mix(in srgb, ${brandColor} 10%, transparent)`,
+              color: brandColor,
+            }}
+          >
+            {icon === 'spin'
+              ? <RefreshCcw className='w-7 h-7 lg:w-8 lg:h-8' />
+              : <Star className='w-7 h-7 lg:w-8 lg:h-8 fill-current' />
           }
         </div>
 
         {/* Text */}
         <div className='flex-1 min-w-0'>
-          <div className='font-black text-slate-900 text-[15px] leading-tight'>{title}</div>
-          <div className='text-slate-400 text-xs font-medium mt-0.5 truncate'>{subtitle}</div>
+          <div className='font-black text-slate-900 text-[15px] lg:text-lg leading-tight'>{title}</div>
+          <div className='text-slate-400 text-xs lg:text-sm font-medium mt-0.5 truncate'>{subtitle}</div>
         </div>
 
         {/* Status */}
@@ -314,10 +314,10 @@ const GameCard = ({ game, title, subtitle, icon, brandColor, onPlay }) => {
               </span>
             </div>
             <div
-              className='w-9 h-9 rounded-full flex items-center justify-center shadow-md'
+              className='w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center shadow-md'
               style={{ background: 'rgb(15,23,42)' }}
             >
-              <ChevronRight className='w-5 h-5 text-white' />
+              <ChevronRight className='w-5 h-5 lg:w-6 lg:h-6 text-white' />
             </div>
           </div>
         ) : (

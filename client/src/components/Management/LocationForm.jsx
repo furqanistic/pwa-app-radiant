@@ -602,599 +602,572 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
   const isPending =
     createLocationMutation.isPending || updateLocationMutation.isPending
 
+  const sectionAccent = (label) => (
+    <div className='flex items-center gap-2.5 mb-4'>
+      <div className='w-0.5 h-4 rounded-full shrink-0' style={{ background: brandColor }} />
+      <h2 className='text-xs font-semibold text-slate-800 uppercase tracking-wider'>{label}</h2>
+    </div>
+  )
+
   return (
     <>
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent showCloseButton={false} className={getDialogSheetClasses}>
-        <div className='w-12 h-1.5 bg-gray-200 rounded-full mx-auto my-3 sm:hidden shrink-0' />
-        <div
-          className='px-6 py-5 sm:px-8 sm:py-6 text-white flex items-center justify-between shrink-0'
-          style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
-        >
-          <div className='flex items-center gap-2'>
-            <MapPin className='w-6 h-6 text-white' />
-            <DialogTitle className='text-lg sm:text-2xl font-bold'>
-              {initialData ? 'Edit Location' : 'Create New Location'}
+        {/* Mobile drag handle */}
+        <div className='w-10 h-1 bg-slate-200 rounded-full mx-auto mt-3 mb-1 sm:hidden shrink-0' />
+
+        {/* Brand accent bar */}
+        <div className='h-0.5 w-full shrink-0' style={{ background: brandColor }} />
+
+        {/* Header */}
+        <div className='flex items-start justify-between px-6 pt-5 pb-4 shrink-0'>
+          <div>
+            <DialogTitle className='text-lg font-semibold text-slate-900 tracking-tight'>
+              {initialData ? 'Edit location' : 'New location'}
             </DialogTitle>
+            <p className='text-sm text-slate-500 mt-0.5'>
+              {initialData
+                ? 'Update the details for this spa location'
+                : 'Add a new spa location to the platform'}
+            </p>
           </div>
           <button
             onClick={onClose}
-            className='p-2 rounded-lg hover:bg-white/15 transition-colors'
+            className='p-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 transition-colors'
             type='button'
           >
-            <X className='w-5 h-5 text-white' />
+            <X className='w-4 h-4 text-slate-400' />
           </button>
         </div>
 
-        <div className='px-6 sm:px-8 py-3 text-sm text-gray-600 border-b border-gray-100 shrink-0'>
-          {initialData
-            ? 'Update details for this spa location'
-            : 'Add a new spa location to the system using the account detail URL'}
-        </div>
+        <div className='border-t border-slate-100 mx-6' />
 
         <form onSubmit={handleSubmit} className='flex flex-1 min-h-0 flex-col'>
+          {/* Loading state */}
           {isPending && (
-            <div className='mx-6 mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800 sm:mx-8'>
-              <div className='flex items-center gap-2'>
+            <div className='mx-6 mt-4 rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3'>
+              <div className='flex items-center gap-2.5 text-sm font-medium text-blue-700'>
                 <Loader2 className='h-4 w-4 animate-spin' />
-                {initialData ? 'Updating location details...' : 'Creating location...'}
+                {initialData ? 'Updating location...' : 'Creating location...'}
               </div>
-              <div className='mt-3 h-1.5 overflow-hidden rounded-full bg-blue-100'>
+              <div className='mt-2.5 h-1 w-full overflow-hidden rounded-full bg-blue-100'>
                 <div className='h-full w-1/2 animate-pulse rounded-full bg-blue-500' />
               </div>
             </div>
           )}
-          <div className='space-y-8 px-6 sm:px-8 pt-6 overflow-y-auto overflow-x-hidden flex-1 min-h-0'>
-          <div className='bg-gray-50 p-4 rounded-2xl space-y-4'>
-            <div className='space-y-2'>
-              <Label htmlFor='locationId' className='text-sm font-semibold text-gray-700'>
-                Location ID *
-              </Label>
-              <Input
-                id='locationId'
-                name='locationId'
-                value={formData.locationId}
-                onChange={handleInputChange}
-                placeholder='e.g., j3BAQnPNZywbuAE3QCCh'
-                required
-                className='bg-white rounded-xl'
-              />
-              <p className='text-xs text-gray-400 font-medium'>
-                Enter the internal unique identifier for this clinic.
-              </p>
-            </div>
-            
-            {/* Logo Upload */}
-            <div className='space-y-4 pt-2 border-t border-gray-100'>
-              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
-                <ImageIcon className='w-4 h-4 text-pink-500' />
-                Location Logo
-              </Label>
-              <div className='flex items-center gap-4'>
-                <div className='relative w-24 h-24 bg-white border border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center shadow-sm group'>
-                  {formData.logo ? (
-                    <>
-                      <img
-                        src={resolveBrandingLogoUrl(
-                          { logo: formData.logo, logoPublicId: formData.logoPublicId },
-                          { width: 192, height: 192 },
-                        )}
-                        alt='Logo'
-                        className='w-full h-full object-cover'
-                        loading='lazy'
-                        decoding='async'
-                      />
-                      <button
-                        type='button'
-                        onClick={handleRemoveLogo}
-                        className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white'
-                      >
-                        <Trash2 className='w-6 h-6' />
-                      </button>
-                    </>
-                  ) : (
-                    <ImageIcon className='w-8 h-8 text-gray-300' />
-                  )}
-                  {isUploading && (
-                    <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
-                      <Loader2 className='w-6 h-6 animate-spin text-pink-500' />
-                    </div>
-                  )}
+
+          {/* Scrollable content */}
+          <div className='flex-1 overflow-y-auto px-6 py-5 space-y-7'>
+
+            {/* ===== Basic Information ===== */}
+            <section>
+              {sectionAccent('Basic Information')}
+              <div className='space-y-4'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='locationId' className='text-xs font-medium text-slate-700'>
+                    Location ID <span className='text-red-400'>*</span>
+                  </Label>
+                  <Input
+                    id='locationId'
+                    name='locationId'
+                    value={formData.locationId}
+                    onChange={handleInputChange}
+                    placeholder='e.g., j3BAQnPNZywbuAE3QCCh'
+                    required
+                    className='h-10 text-sm rounded-xl border-slate-200 focus:border-slate-300 focus:ring-0 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                  />
+                  <p className='text-xs text-slate-400'>Internal unique identifier for this clinic.</p>
                 </div>
-                <div className='flex-1'>
-                  <p className='text-xs text-gray-500 mb-2'>
-                    Upload a high-quality logo for this spa. You will crop it to a square. Keep it under 1MB for faster loading.
-                  </p>
-                  <div className='flex gap-2'>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={() => document.getElementById('logo-upload').click()}
-                      disabled={isUploading}
-                      className='rounded-xl border-pink-100 text-pink-600 hover:bg-pink-50'
-                    >
-                      <Upload className='w-4 h-4 mr-2' />
-                      {formData.logo ? 'Change' : 'Upload'}
-                    </Button>
-                    <input
-                      id='logo-upload'
-                      type='file'
-                      accept='image/*'
-                      className='hidden'
-                      onChange={handleLogoUpload}
+
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='name' className='text-xs font-medium text-slate-700'>
+                      Location Name <span className='text-red-400'>*</span>
+                    </Label>
+                    <Input
+                      id='name'
+                      name='name'
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder='e.g., Avous Med Spa'
+                      required
+                      className='h-10 text-sm rounded-xl border-slate-200 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='subtitle' className='text-xs font-medium text-slate-700'>
+                      Tagline
+                    </Label>
+                    <Input
+                      id='subtitle'
+                      name='subtitle'
+                      value={formData.subtitle}
+                      onChange={handleInputChange}
+                      placeholder='e.g., PEMF Therapy'
+                      className='h-10 text-sm rounded-xl border-slate-200 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='phone' className='text-xs font-medium text-slate-700'>
+                      Phone
+                    </Label>
+                    <Input
+                      id='phone'
+                      name='phone'
+                      type='tel'
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      placeholder='(555) 123-4567'
+                      className='h-10 text-sm rounded-xl border-slate-200 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
                     />
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Subdomain Field */}
-            <div className='space-y-4 pt-2 border-t border-gray-100'>
-              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
-                <Globe className='w-4 h-4 text-pink-500' />
-                Custom Subdomain (Optional)
-              </Label>
-              <div className='space-y-2'>
-                <div className='relative'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='address' className='text-xs font-medium text-slate-700'>
+                    Street Address
+                  </Label>
                   <Input
-                    id='subdomain'
-                    name='subdomain'
-                    value={formData.subdomain}
-                    onChange={handleSubdomainChange}
-                    placeholder='e.g., spark'
-                    className={`bg-white rounded-xl pr-10 ${
-                      subdomainValidation.error
-                        ? 'border-red-300'
-                        : subdomainValidation.available
-                        ? 'border-green-300'
-                        : ''
-                    }`}
+                    id='address'
+                    name='address'
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    placeholder='e.g., 10501 6 Mile Cypress Parkway Suite 110'
+                    className='h-10 text-sm rounded-xl border-slate-200 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
                   />
-                  {subdomainValidation.isValidating && (
-                    <Loader2 className='absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400' />
-                  )}
-                  {subdomainValidation.available && (
-                    <span className='absolute right-3 top-1/2 -translate-y-1/2 text-green-500 text-xl'>✓</span>
-                  )}
                 </div>
-                {subdomainValidation.error && (
-                  <p className='text-xs text-red-500 flex items-center gap-1'>
-                    <AlertCircle className='w-3 h-3' />
-                    {subdomainValidation.error}
-                  </p>
-                )}
-                {formData.subdomain && !subdomainValidation.error && (
-                  <p className='text-xs text-blue-600 flex items-center gap-1'>
-                    <ExternalLink className='w-3 h-3' />
-                    Preview: {buildSubdomainUrl(formData.subdomain)}
-                  </p>
-                )}
-                <p className='text-xs text-gray-400 font-medium'>
-                  Create a custom subdomain for this spa (e.g., spark.cxrsystems.com). Leave blank to skip.
-                </p>
               </div>
-            </div>
+            </section>
 
-            {/* Favicon Upload */}
-            <div className='space-y-4 pt-2 border-t border-gray-100'>
-              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
-                <ImageIcon className='w-4 h-4 text-pink-500' />
-                Custom Favicon (Optional)
-              </Label>
-              <div className='flex items-center gap-4'>
-                <div className='relative w-16 h-16 bg-white border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shadow-sm group'>
-                  {formData.favicon ? (
-                    <>
-                      <img
-                        src={resolveBrandingFaviconUrl(
-                          {
-                            favicon: formData.favicon,
-                            faviconPublicId: formData.faviconPublicId,
-                            logo: formData.logo,
-                            logoPublicId: formData.logoPublicId,
-                          },
-                          { width: 128, height: 128 },
+            {/* ===== Branding ===== */}
+            <section>
+              {sectionAccent('Branding')}
+              <div className='space-y-4'>
+                {/* Logo + Favicon grid */}
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  {/* Logo card */}
+                  <div className='rounded-xl border border-slate-200 p-4 transition-shadow hover:shadow-sm'>
+                    <Label className='text-xs font-medium text-slate-700 flex items-center gap-1.5 mb-3'>
+                      <ImageIcon className='w-3.5 h-3.5 text-slate-400' />
+                      Logo
+                    </Label>
+                    <div className='flex items-center gap-4'>
+                      <div className='relative w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center group shrink-0'>
+                        {formData.logo ? (
+                          <>
+                            <img
+                              src={resolveBrandingLogoUrl(
+                                { logo: formData.logo, logoPublicId: formData.logoPublicId },
+                                { width: 128, height: 128 },
+                              )}
+                              alt='Logo'
+                              className='w-full h-full object-cover'
+                              loading='lazy'
+                              decoding='async'
+                            />
+                            <button
+                              type='button'
+                              onClick={handleRemoveLogo}
+                              className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center'
+                            >
+                              <Trash2 className='w-4 h-4 text-white' />
+                            </button>
+                          </>
+                        ) : (
+                          <ImageIcon className='w-6 h-6 text-slate-300' />
                         )}
-                        alt='Favicon'
-                        className='w-full h-full object-cover'
-                        loading='lazy'
-                        decoding='async'
-                      />
-                      <button
-                        type='button'
-                        onClick={handleRemoveFavicon}
-                        className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white'
-                      >
-                        <Trash2 className='w-4 h-4' />
-                      </button>
-                    </>
-                  ) : (
-                    <ImageIcon className='w-6 h-6 text-gray-300' />
-                  )}
-                  {isUploadingFavicon && (
-                    <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
-                      <Loader2 className='w-4 h-4 animate-spin text-pink-500' />
+                        {isUploading && (
+                          <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
+                            <Loader2 className='w-4 h-4 animate-spin' style={{ color: brandColor }} />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() => document.getElementById('logo-upload').click()}
+                          disabled={isUploading}
+                          className='rounded-lg h-8 text-xs border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors'
+                        >
+                          <Upload className='w-3.5 h-3.5 mr-1.5' />
+                          {formData.logo ? 'Change' : 'Upload'}
+                        </Button>
+                        <p className='text-[11px] text-slate-400 mt-1.5'>Square format, under 1MB</p>
+                        <input
+                          id='logo-upload'
+                          type='file'
+                          accept='image/*'
+                          className='hidden'
+                          onChange={handleLogoUpload}
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className='flex-1'>
-                  <p className='text-xs text-gray-500 mb-2'>
-                    Upload a favicon. You will crop it to a square (192x192px recommended). Keep it under 1MB for faster loading. Falls back to logo if not provided.
-                  </p>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    onClick={() => document.getElementById('favicon-upload').click()}
-                    disabled={isUploadingFavicon}
-                    className='rounded-xl border-pink-100 text-pink-600 hover:bg-pink-50'
-                  >
-                    <Upload className='w-4 h-4 mr-2' />
-                    {formData.favicon ? 'Change' : 'Upload'}
-                  </Button>
-                  <input
-                    id='favicon-upload'
-                    type='file'
-                    accept='image/*'
-                    className='hidden'
-                    onChange={handleFaviconUpload}
-                  />
-                </div>
-              </div>
-            </div>
+                  </div>
 
-            {/* Theme Color */}
-            <div className='space-y-4 pt-2 border-t border-gray-100'>
-              <Label className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
-                <Palette className='w-4 h-4 text-pink-500' />
-                Theme Color
-              </Label>
-              <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
-                {THEME_COLORS.map((color) => {
-                  const isSelected = formData.themeColor === color.value
-                  const gradientEnd = adjustHex(color.value, -22)
-                  return (
-                    <button
-                      key={color.value}
-                      type='button'
-                      onClick={() =>
-                        setFormData((prev) => ({ ...prev, themeColor: color.value }))
-                      }
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                        isSelected
-                          ? 'border-gray-900 bg-gray-50 text-gray-900'
-                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span
-                        className='w-7 h-5 rounded-full border border-gray-200'
-                        style={{
-                          background: `linear-gradient(135deg, ${color.value}, ${gradientEnd})`,
-                        }}
-                      />
-                      {color.name}
-                    </button>
-                  )
-                })}
-              </div>
-              <div className='rounded-2xl border border-gray-200 overflow-hidden'>
-                <div
-                  className='px-4 py-3 text-white font-semibold text-sm'
-                  style={{
-                    background: `linear-gradient(135deg, ${formData.themeColor}, ${adjustHex(formData.themeColor, -22)})`,
-                  }}
-                >
-                  Preview: App header style
+                  {/* Favicon card */}
+                  <div className='rounded-xl border border-slate-200 p-4 transition-shadow hover:shadow-sm'>
+                    <Label className='text-xs font-medium text-slate-700 flex items-center gap-1.5 mb-3'>
+                      <ImageIcon className='w-3.5 h-3.5 text-slate-400' />
+                      Favicon
+                    </Label>
+                    <div className='flex items-center gap-4'>
+                      <div className='relative w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center group shrink-0'>
+                        {formData.favicon ? (
+                          <>
+                            <img
+                              src={resolveBrandingFaviconUrl(
+                                {
+                                  favicon: formData.favicon,
+                                  faviconPublicId: formData.faviconPublicId,
+                                  logo: formData.logo,
+                                  logoPublicId: formData.logoPublicId,
+                                },
+                                { width: 96, height: 96 },
+                              )}
+                              alt='Favicon'
+                              className='w-full h-full object-cover'
+                              loading='lazy'
+                              decoding='async'
+                            />
+                            <button
+                              type='button'
+                              onClick={handleRemoveFavicon}
+                              className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center'
+                            >
+                              <Trash2 className='w-3.5 h-3.5 text-white' />
+                            </button>
+                          </>
+                        ) : (
+                          <ImageIcon className='w-5 h-5 text-slate-300' />
+                        )}
+                        {isUploadingFavicon && (
+                          <div className='absolute inset-0 bg-white/80 flex items-center justify-center'>
+                            <Loader2 className='w-3.5 h-3.5 animate-spin' style={{ color: brandColor }} />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() => document.getElementById('favicon-upload').click()}
+                          disabled={isUploadingFavicon}
+                          className='rounded-lg h-8 text-xs border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors'
+                        >
+                          <Upload className='w-3.5 h-3.5 mr-1.5' />
+                          {formData.favicon ? 'Change' : 'Upload'}
+                        </Button>
+                        <p className='text-[11px] text-slate-400 mt-1.5'>192×192px. Falls back to logo</p>
+                        <input
+                          id='favicon-upload'
+                          type='file'
+                          accept='image/*'
+                          className='hidden'
+                          onChange={handleFaviconUpload}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className='p-4 bg-white'>
-                  <div className='flex items-center gap-3'>
+
+                {/* Theme Color */}
+                <div className='rounded-xl border border-slate-200 p-4 transition-shadow hover:shadow-sm'>
+                  <Label className='text-xs font-medium text-slate-700 flex items-center gap-1.5 mb-3'>
+                    <Palette className='w-3.5 h-3.5 text-slate-400' />
+                    Theme Color
+                  </Label>
+                  <div className='flex flex-wrap gap-2'>
+                    {THEME_COLORS.map((color) => {
+                      const isSelected = formData.themeColor === color.value
+                      return (
+                        <button
+                          key={color.value}
+                          type='button'
+                          onClick={() => setFormData((prev) => ({ ...prev, themeColor: color.value }))}
+                          className={`relative w-9 h-9 rounded-xl border-2 transition-all ${
+                            isSelected
+                              ? 'border-slate-900 scale-110 shadow-sm'
+                              : 'border-transparent hover:scale-105 hover:shadow-sm'
+                          }`}
+                          style={{ background: color.value }}
+                          title={color.name}
+                        >
+                          {isSelected && (
+                            <span className='absolute inset-0 flex items-center justify-center'>
+                              <span className='w-2 h-2 rounded-full bg-white' />
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className='mt-3 flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2.5'>
                     <div
-                      className='w-10 h-10 rounded-xl'
+                      className='w-7 h-7 rounded-lg shrink-0'
                       style={{
                         background: `linear-gradient(135deg, ${formData.themeColor}, ${adjustHex(formData.themeColor, -22)})`,
                       }}
                     />
-                    <div>
-                      <div className='text-sm font-semibold text-gray-900'>Your Brand</div>
-                      <div className='text-xs text-gray-500'>Dark gradient preview</div>
+                    <div className='text-xs'>
+                      <span className='font-medium text-slate-700'>{THEME_COLORS.find(c => c.value === formData.themeColor)?.name || 'Custom'}</span>
+                      <span className='text-slate-400 ml-2'>{formData.themeColor}</span>
                     </div>
                   </div>
                 </div>
-              </div>
-              <p className='text-xs text-gray-400 font-medium'>
-                Choose a dark theme color. The gradient preview shows how it will look in the app.
-              </p>
-            </div>
-          </div>
 
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-            {/* Location Name */}
-            <div className='space-y-2'>
-              <Label htmlFor='name' className='text-sm font-semibold text-gray-700'>
-                Location Name *
-              </Label>
-              <Input
-                id='name'
-                name='name'
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder='e.g., Avous Med Spa & Wellness'
-                required
-                className='rounded-xl'
-              />
-            </div>
-
-            {/* Sidebar Subtitle */}
-            <div className='space-y-2'>
-              <Label htmlFor='subtitle' className='text-sm font-semibold text-gray-700'>
-                Location Tagline / Subtitle (Optional)
-              </Label>
-              <Input
-                id='subtitle'
-                name='subtitle'
-                value={formData.subtitle}
-                onChange={handleInputChange}
-                placeholder='e.g., HU GO PEMF Therapy'
-                className='rounded-xl'
-              />
-            </div>
-
-            {/* Phone */}
-            <div className='space-y-2'>
-              <Label
-                htmlFor='phone'
-                className='text-sm font-semibold text-gray-700'
-              >
-                Phone Number
-              </Label>
-              <Input
-                id='phone'
-                name='phone'
-                type='tel'
-                value={formData.phone}
-                onChange={handleInputChange}
-                placeholder='e.g., (555) 123-4567'
-                className='rounded-xl'
-              />
-            </div>
-          </div>
-
-          {/* Address */}
-          <div className='space-y-2'>
-            <Label htmlFor='address' className='text-sm font-semibold text-gray-700'>
-              Street Address
-            </Label>
-            <Input
-              id='address'
-              name='address'
-              value={formData.address}
-              onChange={handleInputChange}
-              placeholder='e.g., 10501 6 Mile Cypress Parkway Suite 110'
-              className='rounded-xl'
-            />
-          </div>
-
-          {/* Review Link */}
-          <div className='space-y-2'>
-            <Label htmlFor='reviewLink' className='text-sm font-semibold text-gray-700'>
-              Review Link (Google, Yelp, etc.)
-            </Label>
-            <Input
-              id='reviewLink'
-              name='reviewLink'
-              type='url'
-              value={formData.reviewLink}
-              onChange={handleInputChange}
-              placeholder='https://g.page/your-spa/review'
-              className='rounded-xl'
-            />
-            <p className='text-xs text-gray-400 font-medium'>
-              This URL is opened from the member dashboard. Point amount and rules are configured under the
-              location&apos;s Points settings (review method).
-            </p>
-          </div>
-
-          <div className='space-y-2'>
-            <Label htmlFor='ghlApiKey' className='text-sm font-semibold text-gray-700'>
-              GHL API Key (Per Location)
-            </Label>
-            <Input
-              id='ghlApiKey'
-              name='ghlApiKey'
-              type='password'
-              value={formData.ghlApiKey}
-              onChange={handleInputChange}
-              placeholder='Paste this location sub-account API key'
-              className='rounded-xl'
-              autoComplete='new-password'
-            />
-            <p className='text-xs text-gray-400 font-medium'>
-              Save each sub-account key here so this location can use its own GHL data.
-            </p>
-          </div>
-
-          {/* Map Section */}
-          <div className='space-y-4 pt-2'>
-            <div className='flex items-center gap-2 border-b pb-2'>
-              <MapPin className='w-5 h-5 text-pink-500' />
-              <h3 className='text-lg font-bold text-gray-900'>Map Location</h3>
-            </div>
-
-            <div className='flex gap-2'>
-                <div className='relative flex-1'>
-                    <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                {/* Subdomain */}
+                <div className='space-y-1.5'>
+                  <Label htmlFor='subdomain' className='text-xs font-medium text-slate-700 flex items-center gap-1.5'>
+                    <Globe className='w-3.5 h-3.5 text-slate-400' />
+                    Custom Subdomain
+                  </Label>
+                  <div className='relative'>
                     <Input
+                      id='subdomain'
+                      name='subdomain'
+                      value={formData.subdomain}
+                      onChange={handleSubdomainChange}
+                      placeholder='e.g., spark'
+                      className={`h-10 text-sm rounded-xl border-slate-200 pr-10 transition-shadow focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 ${
+                        subdomainValidation.error
+                          ? 'border-red-300 focus-visible:ring-red-200'
+                          : subdomainValidation.available
+                          ? 'border-green-300 focus-visible:ring-green-200'
+                          : ''
+                      }`}
+                    />
+                    {subdomainValidation.isValidating && (
+                      <Loader2 className='absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-slate-400' />
+                    )}
+                    {subdomainValidation.available && (
+                      <span className='absolute right-3.5 top-1/2 -translate-y-1/2 text-green-500 text-xs font-bold'>✓</span>
+                    )}
+                  </div>
+                  {subdomainValidation.error && (
+                    <p className='text-xs text-red-500 flex items-center gap-1 mt-1'>
+                      <AlertCircle className='w-3 h-3' />
+                      {subdomainValidation.error}
+                    </p>
+                  )}
+                  {formData.subdomain && !subdomainValidation.error && !subdomainValidation.isValidating && (
+                    <p className='text-xs text-slate-400 flex items-center gap-1 mt-1'>
+                      <ExternalLink className='w-3 h-3' />
+                      {buildSubdomainUrl(formData.subdomain)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* ===== Location & Hours ===== */}
+            <section>
+              {sectionAccent('Location & Hours')}
+              <div className='space-y-4'>
+                {/* Map card */}
+                <div className='rounded-xl border border-slate-200 overflow-hidden'>
+                  <div className='flex gap-2 p-3 border-b border-slate-100 bg-slate-50/50'>
+                    <div className='relative flex-1'>
+                      <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none' />
+                      <Input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearch())}
-                        placeholder='Search address for map...'
-                        className='pl-10 rounded-xl'
-                    />
-                </div>
-                <Button 
-                    type='button' 
-                    variant='outline'
-                    onClick={handleGetLocation}
-                    disabled={isSearching}
-                    className='rounded-xl px-3 border-pink-100 text-pink-500 hover:bg-pink-50'
-                >
-                    <LocateFixed className={`w-4 h-4 ${isSearching ? 'animate-pulse' : ''}`} />
-                </Button>
-                <Button 
-                    type='button' 
-                    onClick={handleSearch}
-                    disabled={isSearching}
-                    className='bg-gray-900 text-white rounded-xl'
-                >
-                    {isSearching ? '...' : 'Find'}
-                </Button>
-            </div>
-
-            <div className='h-64 rounded-2xl overflow-hidden border-2 border-gray-100 shadow-inner relative z-0'>
-                <MapContainer
-                    center={[51.505, -0.09]}
-                    zoom={13}
-                    style={{ height: "100%", width: "100%" }}
-                >
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <MapPicker position={position} setPosition={setPosition} />
-                    <MapUpdater position={position} />
-                </MapContainer>
-            </div>
-            <p className='text-[10px] text-center text-gray-400 font-medium'>
-                Click on the map or drag the pin to set precise location
-            </p>
-          </div>
-
-          {/* Business Hours Section */}
-          <div className='space-y-4'>
-            <div className='flex items-center gap-2 border-b pb-2'>
-              <Clock className='w-5 h-5 text-pink-500' />
-              <h3 className='text-lg font-bold text-gray-900'>Business Hours</h3>
-            </div>
-
-            <div className='space-y-3'>
-              {formData.hours.map((hour, index) => (
-                <div
-                  key={hour.day}
-                  className='grid grid-cols-12 gap-3 items-center bg-gray-50/50 p-2 rounded-xl transition-all hover:bg-gray-50'
-                >
-                  <div className='col-span-3'>
-                    <span className='text-sm font-bold text-gray-700'>
-                      {hour.day}
-                    </span>
+                        placeholder='Search place or address...'
+                        className='pl-9 h-9 text-sm rounded-lg border-slate-200 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                      />
+                    </div>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={handleGetLocation}
+                      disabled={isSearching}
+                      className='h-9 w-9 p-0 rounded-lg border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    >
+                      <LocateFixed className={`w-4 h-4 ${isSearching ? 'animate-pulse' : ''}`} />
+                    </Button>
+                    <Button
+                      type='button'
+                      onClick={handleSearch}
+                      disabled={isSearching}
+                      className='h-9 text-sm px-4 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors'
+                    >
+                      {isSearching ? (
+                        <Loader2 className='w-3.5 h-3.5 animate-spin' />
+                      ) : (
+                        'Search'
+                      )}
+                    </Button>
                   </div>
-                  <div className='col-span-4'>
-                    <Input
-                      type='time'
-                      value={hour.open}
-                      disabled={hour.isClosed}
-                      onChange={(e) =>
-                        handleHourChange(index, 'open', e.target.value)
-                      }
-                      className='bg-white rounded-lg h-9 text-xs'
-                    />
-                  </div>
-                  <div className='col-span-4'>
-                    <Input
-                      type='time'
-                      value={hour.close}
-                      disabled={hour.isClosed}
-                      onChange={(e) =>
-                        handleHourChange(index, 'close', e.target.value)
-                      }
-                      className='bg-white rounded-lg h-9 text-xs'
-                    />
-                  </div>
-                  <div className='col-span-1 flex justify-end'>
-                    <input
-                      type='checkbox'
-                      id={`closed-${hour.day}`}
-                      checked={hour.isClosed}
-                      onChange={(e) =>
-                        handleHourChange(index, 'isClosed', e.target.checked)
-                      }
-                      className='w-4 h-4 rounded text-pink-500 focus:ring-pink-500 cursor-pointer'
-                    />
+                  <div className='h-48 relative z-0'>
+                    <MapContainer
+                      center={[51.505, -0.09]}
+                      zoom={13}
+                      style={{ height: '100%', width: '100%' }}
+                      zoomControl={false}
+                    >
+                      <TileLayer url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' />
+                      <MapPicker position={position} setPosition={setPosition} />
+                      <MapUpdater position={position} />
+                    </MapContainer>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Business Hours */}
+                <div className='rounded-xl border border-slate-200 divide-y divide-slate-100'>
+                  {formData.hours.map((hour, index) => {
+                    const isLast = index === formData.hours.length - 1
+                    return (
+                      <div
+                        key={hour.day}
+                        className={`flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50/50 ${hour.isClosed ? 'opacity-50' : ''}`}
+                      >
+                        <div className='w-14 shrink-0'>
+                          <span className='text-xs font-medium text-slate-700'>
+                            {hour.day.slice(0, 3)}
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-2 flex-1'>
+                          <Input
+                            type='time'
+                            value={hour.open}
+                            disabled={hour.isClosed}
+                            onChange={(e) => handleHourChange(index, 'open', e.target.value)}
+                            className='h-8 text-xs rounded-lg border-slate-200 bg-white disabled:bg-slate-50 disabled:opacity-50 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                          />
+                          <span className='text-xs text-slate-300'>—</span>
+                          <Input
+                            type='time'
+                            value={hour.close}
+                            disabled={hour.isClosed}
+                            onChange={(e) => handleHourChange(index, 'close', e.target.value)}
+                            className='h-8 text-xs rounded-lg border-slate-200 bg-white disabled:bg-slate-50 disabled:opacity-50 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                          />
+                        </div>
+                        <label className='flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer shrink-0 select-none'>
+                          <input
+                            type='checkbox'
+                            checked={hour.isClosed}
+                            onChange={(e) => handleHourChange(index, 'isClosed', e.target.checked)}
+                            className='w-3.5 h-3.5 rounded border-slate-300 text-slate-600 focus:ring-slate-300 cursor-pointer'
+                          />
+                          Closed
+                        </label>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </section>
+
+            {/* ===== Integrations ===== */}
+            <section>
+              {sectionAccent('Integrations')}
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='reviewLink' className='text-xs font-medium text-slate-700'>
+                    Review Link
+                  </Label>
+                  <Input
+                    id='reviewLink'
+                    name='reviewLink'
+                    type='url'
+                    value={formData.reviewLink}
+                    onChange={handleInputChange}
+                    placeholder='https://g.page/your-spa/review'
+                    className='h-10 text-sm rounded-xl border-slate-200 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                  />
+                  <p className='text-xs text-slate-400'>Opened from member dashboard for review rewards.</p>
+                </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='ghlApiKey' className='text-xs font-medium text-slate-700'>
+                    GHL API Key
+                  </Label>
+                  <Input
+                    id='ghlApiKey'
+                    name='ghlApiKey'
+                    type='password'
+                    value={formData.ghlApiKey}
+                    onChange={handleInputChange}
+                    placeholder='Paste sub-account API key'
+                    className='h-10 text-sm rounded-xl border-slate-200 focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+                    autoComplete='new-password'
+                  />
+                  <p className='text-xs text-slate-400'>Per-location GHL sub-account key.</p>
+                </div>
+              </div>
+            </section>
+
+            {/* ===== Notes ===== */}
+            <section>
+              {sectionAccent('Notes')}
+              <Textarea
+                id='description'
+                name='description'
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder='Optional notes about this location...'
+                rows={2}
+                className='rounded-xl text-sm border-slate-200 resize-none focus:border-slate-300 focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow'
+              />
+            </section>
+
           </div>
 
-          {/* Description */}
-          <div className='space-y-2'>
-            <Label
-              htmlFor='description'
-              className='text-sm font-semibold text-gray-700'
-            >
-              Notes / Description
-            </Label>
-            <Textarea
-              id='description'
-              name='description'
-              value={formData.description}
-              onChange={handleInputChange}
-              placeholder='Optional description or additional info...'
-              rows={3}
-              className='rounded-2xl resize-none'
-            />
-          </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className='flex gap-4 px-6 sm:px-8 py-5 border-t border-gray-100 bg-white shrink-0'>
+          {/* Footer */}
+          <div className='flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-white shrink-0'>
             <Button
               type='button'
               variant='outline'
               onClick={onClose}
-              className='flex-1 rounded-xl h-12 font-bold'
+              className='rounded-xl h-10 text-sm font-medium px-5 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'
               disabled={isPending}
             >
               Cancel
             </Button>
             <Button
               type='submit'
-              className='flex-1 text-white rounded-xl h-12 font-bold'
-              style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+              className='rounded-xl h-10 text-sm font-medium px-5 text-white transition-all hover:opacity-90 active:scale-[0.98]'
+              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
               disabled={isPending || !formData.locationId || !formData.name.trim()}
             >
               {isPending ? (
                 <>
-                  <Loader2 className='w-5 h-5 mr-2 animate-spin' />
+                  <Loader2 className='w-4 h-4 mr-2 animate-spin' />
                   Saving...
                 </>
               ) : (
-                <>
-                  {initialData ? 'Update Location' : 'Create Location'}
-                </>
+                initialData ? 'Save changes' : 'Create location'
               )}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
+
+    {/* Cropper dialog */}
     <Dialog
       open={cropperState.isOpen}
       onOpenChange={(open) =>
         !open && setCropperState({ isOpen: false, src: '', type: null, fileName: '' })
       }
     >
-      <DialogContent showCloseButton={false} className='max-w-lg w-[95vw] p-0 overflow-hidden rounded-2xl'>
-        <div className='px-5 py-4 border-b border-gray-100 flex items-center justify-between'>
-          <DialogTitle className='text-lg font-bold text-gray-900'>
+      <DialogContent showCloseButton={false} className='sm:max-w-md w-[95vw] p-0 overflow-hidden rounded-2xl shadow-xl'>
+        <div className='flex items-center justify-between px-5 py-4 border-b border-slate-100'>
+          <DialogTitle className='text-sm font-semibold text-slate-900'>
             Crop {cropperState.type === 'favicon' ? 'Favicon' : 'Logo'}
           </DialogTitle>
           <button
             type='button'
-            className='p-2 rounded-lg hover:bg-gray-100'
+            className='p-1.5 rounded-lg hover:bg-slate-100 transition-colors'
             onClick={() => setCropperState({ isOpen: false, src: '', type: null, fileName: '' })}
           >
-            <X className='w-4 h-4 text-gray-500' />
+            <X className='w-3.5 h-3.5 text-slate-400' />
           </button>
         </div>
-        <div className='relative w-full h-72 bg-gray-100'>
+        <div className='relative w-full h-64 bg-slate-100'>
           {cropperState.src && (
             <Cropper
               image={cropperState.src}
@@ -1207,27 +1180,36 @@ const LocationForm = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             />
           )}
         </div>
-        <div className='px-5 py-4 space-y-3'>
-          <Label className='text-xs font-semibold text-gray-600'>Zoom</Label>
-          <input
-            type='range'
-            min={1}
-            max={3}
-            step={0.01}
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-            className='w-full accent-pink-500'
-          />
-          <div className='flex justify-end gap-2 pt-2'>
+        <div className='px-5 py-4 space-y-4'>
+          <div className='flex items-center gap-3'>
+            <span className='text-xs font-medium text-slate-600 shrink-0'>Zoom</span>
+            <input
+              type='range'
+              min={1}
+              max={3}
+              step={0.01}
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className='w-full h-1.5 accent-slate-900 rounded-full'
+            />
+          </div>
+          <div className='flex justify-end gap-2.5'>
             <Button
               type='button'
               variant='outline'
+              size='sm'
               onClick={() => setCropperState({ isOpen: false, src: '', type: null, fileName: '' })}
+              className='rounded-lg h-9 text-xs px-4 border-slate-200 text-slate-600 hover:text-slate-900'
             >
               Cancel
             </Button>
-            <Button type='button' onClick={handleCropConfirm} className='bg-gray-900 text-white'>
-              Use Crop
+            <Button
+              type='button'
+              size='sm'
+              onClick={handleCropConfirm}
+              className='rounded-lg h-9 text-xs px-4 bg-slate-900 text-white hover:bg-slate-800 transition-colors'
+            >
+              Use crop
             </Button>
           </div>
         </div>

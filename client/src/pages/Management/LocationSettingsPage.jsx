@@ -23,8 +23,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import Layout from "@/pages/Layout/Layout";
@@ -119,50 +117,50 @@ const LocationSettingsPage = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-teal-50">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
-          <div
-            className="overflow-hidden rounded-[1.75rem] text-white shadow-sm md:rounded-3xl"
-            style={{
-              background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColorDark} 100%)`,
-            }}
-          >
-            <div className="px-4 py-4 md:px-8 md:py-8">
+      <div className="min-h-screen bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+
+          {/* ── Header card ─────────────────────────────── */}
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="h-0.5 w-full" style={{ background: brandColor }} />
+
+            <div className="px-6 py-5 md:px-8 md:py-6">
               <button
                 onClick={handleBack}
-                className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 transition hover:bg-white/20 hover:text-white md:text-sm"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors mb-3"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-3.5 w-3.5" />
                 Back to Management
               </button>
 
-              <div className="mt-4 flex flex-col gap-4 lg:mt-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight md:text-4xl">
+                  <h1 className="text-xl md:text-2xl font-semibold text-slate-900 tracking-tight">
                     Location Settings
                   </h1>
-                  <p className="mt-1.5 max-w-2xl text-xs leading-5 text-white/85 md:mt-2 md:text-base">
-                    Manage location profiles, QR access, and assignment flows
-                    from one dedicated place.
+                  <p className="mt-1 text-sm text-slate-500 max-w-xl">
+                    Manage location profiles, QR access, and assignment flows from one place.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+                <div className="flex items-center gap-2.5">
                   {isSuperAdmin && (
                     <Button
                       onClick={openCreateLocation}
-                      className="h-10 justify-center border-0 bg-white text-sm text-slate-900 hover:bg-slate-100"
+                      className="h-9 rounded-xl text-sm font-medium px-4 text-white transition-all hover:opacity-90 active:scale-[0.98]"
+                      style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
                     >
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="mr-1.5 h-4 w-4" />
                       Add Location
                     </Button>
                   )}
                   {isAdminOrAbove && (
                     <Button
                       onClick={() => setIsLocationAssignmentOpen(true)}
-                      className="h-10 justify-center border border-white/20 bg-white/10 text-sm text-white hover:bg-white/20"
+                      variant="outline"
+                      className="h-9 rounded-xl text-sm font-medium px-4 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
                     >
-                      <UserCheck className="mr-2 h-4 w-4" />
+                      <UserCheck className="mr-1.5 h-4 w-4" />
                       Assign Location
                     </Button>
                   )}
@@ -171,170 +169,148 @@ const LocationSettingsPage = () => {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 md:hidden">
-            <div className="min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50 px-2.5 py-2">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
-                Active
-              </p>
-              <p className="mt-1 text-lg font-bold leading-none text-emerald-950">
-                {isSuperAdmin
+          {/* ── Stats row ──────────────────────────────── */}
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            {[
+              {
+                label: 'Active',
+                value: isSuperAdmin
                   ? activeLocationsCount
-                  : visibleLocations.filter((location) => location.isActive)
-                      .length}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-2xl border border-rose-100 bg-rose-50 px-2.5 py-2">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-rose-700">
-                Inactive
-              </p>
-              <p className="mt-1 text-lg font-bold leading-none text-rose-950">
-                {isSuperAdmin
+                  : visibleLocations.filter((l) => l.isActive).length,
+                accent: true,
+              },
+              {
+                label: 'Inactive',
+                value: isSuperAdmin
                   ? inactiveLocationsCount
-                  : visibleLocations.filter((location) => !location.isActive)
-                      .length}
-              </p>
-            </div>
-            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white px-2.5 py-2">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Visible
-              </p>
-              <p className="mt-1 text-lg font-bold leading-none text-slate-900">
-                {visibleLocations.length}
-              </p>
-            </div>
+                  : visibleLocations.filter((l) => !l.isActive).length,
+                accent: false,
+              },
+              {
+                label: 'Visible',
+                value: visibleLocations.length,
+                accent: false,
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  {stat.label}
+                </p>
+                <p
+                  className="mt-1.5 text-2xl font-bold tracking-tight"
+                  style={stat.accent ? { color: brandColor } : { color: '#0f172a' }}
+                >
+                  {stat.value}
+                </p>
+              </div>
+            ))}
           </div>
 
-          <div className="mt-6 hidden grid-cols-1 gap-4 md:grid md:grid-cols-3">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                Active
-              </p>
-              <p className="mt-3 text-3xl font-bold text-emerald-950">
-                {isSuperAdmin ? activeLocationsCount : visibleLocations.filter((location) => location.isActive).length}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
-                Inactive
-              </p>
-              <p className="mt-3 text-3xl font-bold text-rose-950">
-                {isSuperAdmin ? inactiveLocationsCount : visibleLocations.filter((location) => !location.isActive).length}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Visible Locations
-              </p>
-              <p className="mt-3 text-3xl font-bold text-slate-900">
-                {visibleLocations.length}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-sm md:mt-6 md:rounded-2xl">
-            <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-5">
+          {/* ── Location list ──────────────────────────── */}
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <div>
-                <h2 className="text-base font-semibold text-slate-900 md:text-lg">
-                  {isSuperAdmin ? "All Locations" : "Your Location"}
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {isSuperAdmin ? 'All Locations' : 'Your Location'}
                 </h2>
-                <p className="mt-1 text-xs text-slate-600 md:text-sm">
+                <p className="text-xs text-slate-500 mt-0.5">
                   {isSuperAdmin
-                    ? "Track every spa location and open the tools you need."
-                    : "Review and update your assigned location details."}
+                    ? 'Track and manage every spa location.'
+                    : 'Review and update your assigned location.'}
                 </p>
               </div>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => refetchLocations()}
-                className="h-9 w-full text-sm md:w-auto"
+                className="h-8 rounded-lg text-xs px-3 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
               >
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Refresh
               </Button>
             </div>
 
             {isLoadingLocations ? (
-              <div className="px-4 py-5 space-y-3 md:px-5 md:py-6">
-                {[...Array(4)].map((_, index) => (
+              <div className="p-5 space-y-3">
+                {[...Array(4)].map((_, i) => (
                   <div
-                    key={`location-settings-skeleton-${index}`}
-                    className="h-16 rounded-xl bg-slate-100 animate-pulse md:h-20"
+                    key={`skeleton-${i}`}
+                    className="h-16 rounded-xl bg-slate-100 animate-pulse"
                   />
                 ))}
               </div>
             ) : visibleLocations.length === 0 ? (
-              <div className="px-4 py-10 text-center md:px-5 md:py-12">
-                <Building className="mx-auto mb-4 h-12 w-12 text-slate-300" />
-                <p className="text-base font-medium text-slate-900">
-                  No locations available
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
+              <div className="px-5 py-12 text-center">
+                <Building className="mx-auto mb-4 h-10 w-10 text-slate-200" />
+                <p className="text-sm font-medium text-slate-700">No locations available</p>
+                <p className="mt-1 text-xs text-slate-400">
                   {isSuperAdmin
-                    ? "Create your first location to start configuring the workspace."
-                    : "No location is assigned to this account yet."}
+                    ? 'Create your first location to get started.'
+                    : 'No location is assigned to this account yet.'}
                 </p>
               </div>
             ) : (
-              <div className="space-y-2.5 p-2.5 md:space-y-4 md:p-5">
+              <div className="p-3 md:p-4 space-y-2">
                 {visibleLocations.map((location) => (
                   <div
                     key={location._id}
-                    className="min-w-0 rounded-[1.2rem] border border-slate-200 bg-white p-3.5 shadow-[0_1px_0_rgba(15,23,42,0.03)] transition-all duration-200 hover:border-slate-300 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:rounded-2xl md:p-5"
+                    className="group rounded-xl border border-slate-200 bg-white px-4 py-3.5 md:px-5 md:py-4 transition-all hover:border-slate-300 hover:shadow-md"
                   >
-                    <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 flex-wrap items-start gap-2">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em] text-slate-900 md:text-lg">
-                              {location.name || "Unnamed Location"}
-                            </h3>
-                          </div>
+                        <div className="flex items-center gap-2.5">
+                          <h3 className="text-sm font-semibold text-slate-900 truncate">
+                            {location.name || 'Unnamed Location'}
+                          </h3>
                           <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                               location.isActive
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-rose-100 text-rose-800"
+                                ? 'text-slate-500 bg-slate-100'
+                                : 'text-slate-400 bg-slate-50'
                             }`}
                           >
-                            {location.isActive ? "Active" : "Inactive"}
+                            {location.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </div>
-
-                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 md:text-sm">
-                          <span className="truncate">ID: {location.locationId}</span>
-                          <span className="hidden h-1 w-1 rounded-full bg-slate-300 md:inline-block" />
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400">
+                          <span className="font-mono text-[10px]">{location.locationId}</span>
+                          <span className="w-1 h-1 rounded-full bg-slate-200" />
                           <span>
-                            Created:{" "}
                             {location.createdAt
-                              ? new Date(location.createdAt).toLocaleDateString()
-                              : "N/A"}
+                              ? new Date(location.createdAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })
+                              : '—'}
                           </span>
                         </div>
-
-                        <p className="mt-2 line-clamp-2 text-[12px] font-medium text-slate-700 md:text-sm">
-                          {location.address || "No address added yet"}
+                        <p className="mt-1.5 text-xs text-slate-500 line-clamp-1">
+                          {location.address || 'No address added'}
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 md:flex md:w-[220px] md:grid-cols-1 md:content-start">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => openEditLocation(location)}
-                          className="h-10 min-w-0 rounded-2xl border-blue-200 bg-white px-3 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 md:h-11 md:justify-start md:text-sm"
+                          className="h-8 rounded-lg text-xs px-3 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
                         >
-                          <Edit2 className="mr-2 h-4 w-4" />
+                          <Edit2 className="mr-1.5 h-3.5 w-3.5" />
                           Edit
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setSelectedQRLocation(location)}
-                          className="h-10 min-w-0 rounded-2xl border-fuchsia-200 bg-white px-3 text-[11px] font-semibold text-fuchsia-700 hover:bg-fuchsia-50 md:h-11 md:justify-start md:text-sm"
+                          className="h-8 rounded-lg text-xs px-3 border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
                         >
-                          <QrCode className="mr-2 h-4 w-4" />
-                          QR Code
+                          <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                          QR
                         </Button>
                       </div>
                     </div>
@@ -345,48 +321,40 @@ const LocationSettingsPage = () => {
           </div>
         </div>
 
+        {/* ── QR Dialog ─────────────────────────────────── */}
         <Dialog
           open={!!selectedQRLocation}
           onOpenChange={(open) => !open && setSelectedQRLocation(null)}
         >
           <DialogContent
             showCloseButton={false}
-            className="max-w-[95vw] md:max-w-[1100px] w-full p-0 border-none bg-transparent shadow-none"
+            className="max-w-[95vw] md:max-w-[900px] w-full p-0 border-0 rounded-2xl shadow-xl overflow-hidden bg-white"
           >
-            <div className="relative flex max-h-[95vh] flex-col overflow-hidden rounded-[2.5rem] bg-white shadow-2xl md:max-h-[90vh] md:rounded-[4rem]">
-              <div className="flex items-center justify-between border-b border-gray-50 px-6 py-8 md:px-12 md:py-10">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-black tracking-tight text-gray-900 md:text-3xl lg:text-4xl">
-                    {selectedQRLocation?.name}
-                  </DialogTitle>
-                  <DialogDescription className="sr-only">
-                    Manage QR code settings for the selected location.
-                  </DialogDescription>
-                </DialogHeader>
-
+            <div className="flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                <DialogTitle className="text-sm font-semibold text-slate-900">
+                  {selectedQRLocation?.name || 'Location'} — QR Code
+                </DialogTitle>
                 <button
                   onClick={() => setSelectedQRLocation(null)}
-                  className="rounded-full bg-gray-100/80 p-3 text-gray-500 shadow-sm transition-all duration-300 hover:rotate-90 hover:bg-pink-500 hover:text-white"
+                  className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
                 >
-                  <span className="sr-only">Close QR dialog</span>
-                  <X className="h-6 w-6" aria-hidden="true" />
+                  <X className="w-4 h-4 text-slate-400" />
                 </button>
               </div>
-
-              <div className="overflow-y-auto p-6 pt-4 md:p-12 md:pt-6">
-                <div className="pb-10">
-                  {selectedQRLocation && (
-                    <QRCodeManagement
-                      locationId={selectedQRLocation._id}
-                      locationName={selectedQRLocation.name}
-                    />
-                  )}
-                </div>
+              <div className="overflow-y-auto p-5">
+                {selectedQRLocation && (
+                  <QRCodeManagement
+                    locationId={selectedQRLocation._id}
+                    locationName={selectedQRLocation.name}
+                  />
+                )}
               </div>
             </div>
           </DialogContent>
         </Dialog>
 
+        {/* ── Forms ─────────────────────────────────────── */}
         {isTeamOrAbove && (
           <>
             <LocationForm

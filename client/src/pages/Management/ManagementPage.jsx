@@ -12,6 +12,7 @@ import {
     ChevronUp,
     Clock,
     Crown,
+    DollarSign,
     Gift,
     HardDrive,
     MapPin,
@@ -571,22 +572,110 @@ const ManagementPage = () => {
 
           {/* Payouts - visible to spa and to super-admin when managing a specific location */}
           {(currentUser?.role === "spa" || (currentUser?.role === "super-admin" && activeSpaLocationId)) && (
-            <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 md:p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">Payouts</h3>
-              <p className="text-sm text-slate-600 mb-4">
-                Connect and monitor Stripe or Square to receive payouts without leaving this dashboard.
-              </p>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <StripeConnect
-                  locationId={activeSpaLocationId}
-                  sharedLocationStripeLinked={sharedLocationStripeLinked}
-                  sharedLocationSquareLinked={sharedLocationSquareLinked}
-                />
-                <SquareConnect
-                  locationId={activeSpaLocationId}
-                  sharedLocationSquareLinked={sharedLocationSquareLinked}
-                  sharedLocationStripeLinked={sharedLocationStripeLinked}
-                />
+            <div className="mb-8 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              {/* Gradient accent bar */}
+              <div
+                className="h-2 w-full"
+                style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark}, ${adjustHex(brandColor, -40)})` }}
+              />
+
+              {/* Header */}
+              <div className="px-5 pt-5 pb-1 md:px-8 md:pt-7">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div
+                      className="hidden sm:flex w-12 h-12 rounded-xl items-center justify-center shadow-sm shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
+                    >
+                      <DollarSign className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl md:text-2xl font-bold text-slate-900">Payouts</h2>
+                      <p className="text-sm text-slate-500 mt-1 max-w-lg">
+                        Connect Stripe or Square to receive payments from memberships, services, and bookings.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Connection status chips */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all ${
+                        sharedLocationStripeLinked
+                          ? "border-opacity-30"
+                          : "bg-slate-50 text-slate-400 border-slate-200"
+                      }`}
+                      style={
+                        sharedLocationStripeLinked
+                          ? {
+                              backgroundColor: `${brandColor}12`,
+                              color: brandColorDark,
+                              borderColor: `${brandColor}30`,
+                            }
+                          : undefined
+                      }
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full`}
+                        style={{
+                          backgroundColor: sharedLocationStripeLinked ? brandColor : undefined,
+                          opacity: sharedLocationStripeLinked ? 1 : 0.3,
+                        }}
+                      />
+                      Stripe
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all ${
+                        sharedLocationSquareLinked
+                          ? "border-opacity-30"
+                          : "bg-slate-50 text-slate-400 border-slate-200"
+                      }`}
+                      style={
+                        sharedLocationSquareLinked
+                          ? {
+                              backgroundColor: `${brandColor}12`,
+                              color: brandColorDark,
+                              borderColor: `${brandColor}30`,
+                            }
+                          : undefined
+                      }
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full`}
+                        style={{
+                          backgroundColor: sharedLocationSquareLinked ? brandColor : undefined,
+                          opacity: sharedLocationSquareLinked ? 1 : 0.3,
+                        }}
+                      />
+                      Square
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Separator */}
+              <div className="mx-5 md:mx-8 mt-5 border-t border-slate-100" />
+
+              {/* Connect cards */}
+              <div className="px-5 pb-5 pt-5 md:px-8 md:pb-7">
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <StripeConnect
+                    locationId={activeSpaLocationId}
+                    sharedLocationStripeLinked={sharedLocationStripeLinked}
+                    sharedLocationSquareLinked={sharedLocationSquareLinked}
+                  />
+                  <SquareConnect
+                    locationId={activeSpaLocationId}
+                    sharedLocationSquareLinked={sharedLocationSquareLinked}
+                    sharedLocationStripeLinked={sharedLocationStripeLinked}
+                  />
+                </div>
+
+                {/* Footer tip */}
+                <div className="mt-5 flex items-center gap-2 text-xs text-slate-400">
+                  <div className="w-1 h-1 rounded-full bg-slate-300" />
+                  Payouts are processed automatically once connected. Funds typically arrive within 2–5 business days.
+                </div>
               </div>
             </div>
           )}

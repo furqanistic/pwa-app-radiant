@@ -307,68 +307,53 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
         showCloseButton={false}
-        className='p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 flex flex-col'
+        className='p-0 overflow-hidden max-h-[92vh] w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl fixed left-0 right-0 bottom-0 top-auto translate-x-0 translate-y-0 sm:top-1/2 sm:left-1/2 sm:right-auto sm:bottom-auto sm:-translate-x-1/2 sm:-translate-y-1/2 flex flex-col border-0'
       >
-        <div
-          className='px-6 py-4 text-white flex items-center justify-between'
-          style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
-        >
-          <div className='flex items-center gap-2'>
-            <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
-              <Plus className='w-4 h-4 text-white' />
+        <div className='h-0.5 w-full shrink-0' style={{ background: brandColor }} />
+
+        <div className='flex items-center justify-between px-5 pt-4 pb-3 shrink-0'>
+          <div className='flex items-center gap-2.5'>
+            <div className='w-8 h-8 rounded-lg flex items-center justify-center' style={{ backgroundColor: `${brandColor}14` }}>
+              <Plus className='w-4 h-4' style={{ color: brandColor }} />
             </div>
-            <DialogTitle className='text-lg font-semibold'>
+            <DialogTitle className='text-sm font-semibold text-slate-900'>
               Add New User
             </DialogTitle>
           </div>
           <button
             onClick={handleClose}
-            className='p-2 rounded-lg hover:bg-white/15 transition-colors'
+            className='p-1.5 rounded-lg hover:bg-slate-100 transition-colors'
             type='button'
           >
-            <X className='w-5 h-5 text-white' />
+            <X className='w-4 h-4 text-slate-400' />
           </button>
         </div>
-        <DialogDescription className='px-6 pt-2 text-sm text-gray-600'>
-          Create a new user account with specified role and permissions
-        </DialogDescription>
 
-        <div className='flex-1 overflow-y-auto p-6 space-y-6'>
+        <div className='px-5 pb-3 text-xs text-slate-500 border-b border-slate-100 shrink-0'>
+          Create a new user account with specified role and permissions
+        </div>
+
+        <div className='flex-1 overflow-y-auto px-5 py-4 space-y-5'>
           {/* Permission Notice */}
-          <div
-            className={`p-4 ${permissionNotice.bgColor} border ${permissionNotice.borderColor} rounded-xl`}
-          >
-            <div className='flex items-start gap-3'>
-              <permissionNotice.icon
-                className={`w-5 h-5 ${permissionNotice.textColor} mt-0.5 flex-shrink-0`}
-              />
+          <div className={`p-3.5 rounded-xl border ${permissionNotice.borderColor}`} style={{ backgroundColor: `${brandColor}08` }}>
+            <div className='flex items-start gap-2.5'>
+              <permissionNotice.icon className='w-4 h-4 mt-0.5 shrink-0' style={{ color: brandColor }} />
               <div>
-                <h4
-                  className={`font-medium ${permissionNotice.textColor} mb-1`}
-                >
-                  {permissionNotice.title}
-                </h4>
-                <p
-                  className={`text-sm ${permissionNotice.textColor} opacity-90`}
-                >
-                  {permissionNotice.description}
-                </p>
+                <h4 className='text-xs font-semibold text-slate-900 mb-0.5'>{permissionNotice.title}</h4>
+                <p className='text-xs text-slate-500'>{permissionNotice.description}</p>
               </div>
             </div>
           </div>
 
-          {/* General Error */}
           {errors.general && (
-            <div className='p-3 bg-red-50 border border-red-200 rounded-lg'>
-              <p className='text-sm text-red-600'>{errors.general}</p>
+            <div className='rounded-xl border border-red-200 bg-red-50 p-3'>
+              <p className='text-xs font-medium text-red-600'>{errors.general}</p>
             </div>
           )}
 
           {/* Full Name */}
-          <div className='space-y-2'>
-            <Label htmlFor='name' className='text-sm font-medium text-gray-700'>
-              Full Name *
-            </Label>
+          <div className='space-y-1.5'>
+            <Label htmlFor='name' className='text-xs font-medium text-slate-700'>Full Name <span className='text-red-400'>*</span></Label>
             <div className='relative'>
               <Input
                 id='name'
@@ -376,30 +361,19 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 placeholder='Enter full name...'
-                className={`pl-10 transition-all ${
-                  errors.name
-                    ? 'border-red-300 focus:border-red-500'
-                    : 'focus:border-purple-400'
+                className={`h-10 pl-10 text-sm rounded-xl border-slate-200 transition-shadow focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 ${
+                  errors.name ? 'border-red-300 focus-visible:ring-red-200' : ''
                 }`}
                 disabled={isSubmitting}
               />
-              <User className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+              <User className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400' />
             </div>
-            {errors.name && (
-              <p className='text-sm text-red-600 flex items-center gap-1'>
-                {errors.name}
-              </p>
-            )}
+            {errors.name && <p className='text-xs text-red-500'>{errors.name}</p>}
           </div>
 
-          {/* Email Address */}
-          <div className='space-y-2'>
-            <Label
-              htmlFor='email'
-              className='text-sm font-medium text-gray-700'
-            >
-              Email Address *
-            </Label>
+          {/* Email */}
+          <div className='space-y-1.5'>
+            <Label htmlFor='email' className='text-xs font-medium text-slate-700'>Email <span className='text-red-400'>*</span></Label>
             <div className='relative'>
               <Input
                 id='email'
@@ -407,92 +381,55 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 placeholder='Enter email address...'
-                className={`pl-10 transition-all ${
-                  errors.email
-                    ? 'border-red-300 focus:border-red-500'
-                    : 'focus:border-purple-400'
+                className={`h-10 pl-10 text-sm rounded-xl border-slate-200 transition-shadow focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 ${
+                  errors.email ? 'border-red-300 focus-visible:ring-red-200' : ''
                 }`}
                 disabled={isSubmitting}
               />
-              <Mail className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+              <Mail className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400' />
             </div>
-            {errors.email && (
-              <p className='text-sm text-red-600 flex items-center gap-1'>
-                {errors.email}
-              </p>
-            )}
+            {errors.email && <p className='text-xs text-red-500'>{errors.email}</p>}
           </div>
 
           {/* Role Selection */}
-          <div className='space-y-2'>
-            <Label className='text-sm font-medium text-gray-700'>Role *</Label>
+          <div className='space-y-1.5'>
+            <Label className='text-xs font-medium text-slate-700'>Role <span className='text-red-400'>*</span></Label>
             <Select
               value={formData.role}
               onValueChange={(value) => {
                 handleInputChange('role', value)
-                // Clear location if role changed and it's not eligible for location assignment
-                if (value === 'user') {
-                  handleInputChange('assignedLocation', '')
-                }
+                if (value === 'user') handleInputChange('assignedLocation', '')
               }}
             >
-              <SelectTrigger
-                className={`${
-                  errors.role
-                    ? 'border-red-300 focus:border-red-500'
-                    : 'focus:border-purple-400'
-                }`}
-              >
+              <SelectTrigger className={`h-10 rounded-xl border-slate-200 text-sm transition-shadow focus-visible:ring-2 focus-visible:ring-slate-200 ${errors.role ? 'border-red-300' : ''}`}>
                 <div className='flex items-center gap-2'>
-                  <Shield className='w-4 h-4 text-gray-400' />
+                  <Shield className='w-4 h-4 text-slate-400' />
                   <SelectValue placeholder='Select role...' />
                 </div>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className='rounded-xl border-slate-200'>
                 {availableRoles.map((role) => (
                   <SelectItem key={role.value} value={role.value}>
                     <div className='flex items-center gap-2'>
                       <span>{role.label}</span>
-                      {role.value === 'spa' && (
-                        <span className='text-xs text-gray-500'>
-                          (Spa Manager)
-                        </span>
-                      )}
+                      {role.value === 'spa' && <span className='text-xs text-slate-400'>(Spa Manager)</span>}
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.role && (
-              <p className='text-sm text-red-600 flex items-center gap-1'>
-                {errors.role}
-              </p>
-            )}
-
-            {/* Role descriptions */}
-            <div className='text-xs text-gray-500 space-y-1'>
-              {formData.role === 'user' && (
-                <p>
-                  • Regular users can access basic features and book services
-                </p>
-              )}
-              {formData.role === 'spa' && (
-                <p>
-                  • Spa managers can manage users and services in their assigned
-                  location
-                </p>
-              )}
-              {formData.role === 'admin' && (
-                <p>• Admins can manage locations, users, and system settings</p>
-              )}
+            {errors.role && <p className='text-xs text-red-500'>{errors.role}</p>}
+            <div className='text-xs text-slate-400 space-y-0.5'>
+              {formData.role === 'spa' && <p>• Spa managers can manage users and services in their assigned location</p>}
+              {formData.role === 'admin' && <p>• Admins can manage locations, users, and system settings</p>}
             </div>
           </div>
 
-          {/* Location Assignment - Only show when needed */}
+          {/* Location Assignment */}
           {shouldShowLocationAssignment() && (
-            <div className='space-y-2'>
-              <Label className='text-sm font-medium text-gray-700'>
-                Assign Location {isAdmin && formData.role === 'spa' && '*'}
+            <div className='space-y-1.5'>
+              <Label className='text-xs font-medium text-slate-700'>
+                Assign Location {isAdmin && formData.role === 'spa' && <span className='text-red-400'>*</span>}
               </Label>
               <Popover open={locationOpen} onOpenChange={setLocationOpen}>
                 <PopoverTrigger asChild>
@@ -500,83 +437,47 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                     variant='outline'
                     role='combobox'
                     aria-expanded={locationOpen}
-                    className={`w-full justify-between pl-10 ${
-                      errors.assignedLocation
-                        ? 'border-red-300 focus:border-red-500'
-                        : 'focus:border-purple-400'
+                    className={`w-full h-10 justify-between rounded-xl border-slate-200 text-sm font-normal text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors ${
+                      errors.assignedLocation ? 'border-red-300' : ''
                     }`}
                     disabled={isSubmitting || isLoadingLocations}
-                    type='button' // Prevent form submission
+                    type='button'
                   >
-                    <div className='flex items-center gap-2 flex-1 text-left'>
-                      <span className='ml-6'>
-                        {selectedLocation
-                          ? selectedLocation.name || selectedLocation.locationId
-                          : isLoadingLocations
-                          ? 'Loading locations...'
-                          : 'Select location...'}
-                      </span>
+                    <div className='flex items-center gap-2'>
+                      <MapPin className='w-4 h-4 text-slate-400' />
+                      {selectedLocation
+                        ? selectedLocation.name || selectedLocation.locationId
+                        : isLoadingLocations
+                        ? 'Loading locations...'
+                        : 'Select location...'}
                     </div>
-                    <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+                    <ChevronsUpDown className='h-4 w-4 opacity-50' />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className='w-full p-0'>
-                  <Command>
-                    <CommandInput
-                      placeholder='Search locations...'
-                      className='h-9'
-                    />
-                    <CommandEmpty>
-                      {locationsError
-                        ? 'Error loading locations'
-                        : 'No locations found.'}
-                    </CommandEmpty>
-                    <CommandGroup className='max-h-64 overflow-y-auto'>
-                      {/* Clear selection option - only for super-admin */}
+                <PopoverContent className='w-full p-0 rounded-xl border-slate-200'>
+                  <Command className='rounded-xl'>
+                    <CommandInput placeholder='Search locations...' className='h-9 text-sm' />
+                    <CommandEmpty className='text-xs text-slate-400 py-4'>No locations found.</CommandEmpty>
+                    <CommandGroup className='max-h-56 overflow-y-auto'>
                       {isSuperAdmin && (
                         <CommandItem
-                          onSelect={() => {
-                            handleInputChange('assignedLocation', '')
-                            setLocationOpen(false)
-                          }}
-                          className='text-gray-500'
+                          onSelect={() => { handleInputChange('assignedLocation', ''); setLocationOpen(false) }}
+                          className='text-xs text-slate-500'
                         >
-                          <div className='flex items-center gap-2 w-full'>
-                            <div className='w-4 h-4'></div>
-                            <span>No location assigned</span>
-                          </div>
+                          <div className='flex items-center gap-2'>No location assigned</div>
                         </CommandItem>
                       )}
-
-                      {/* Location options */}
                       {locations.map((location) => (
                         <CommandItem
                           key={location._id}
-                          onSelect={() => {
-                            handleInputChange('assignedLocation', location._id)
-                            setLocationOpen(false)
-                          }}
+                          onSelect={() => { handleInputChange('assignedLocation', location._id); setLocationOpen(false) }}
+                          className='text-sm'
                         >
                           <div className='flex items-center gap-2 w-full'>
-                            <Check
-                              className={`h-4 w-4 ${
-                                formData.assignedLocation === location._id
-                                  ? 'opacity-100'
-                                  : 'opacity-0'
-                              }`}
-                            />
-                            <div className='flex flex-col flex-1'>
-                              <span className='font-medium'>
-                                {location.name || 'Unnamed Location'}
-                              </span>
-                              <span className='text-xs text-gray-500'>
-                                ID: {location.locationId}
-                              </span>
-                              {location.address && (
-                                <span className='text-xs text-gray-400'>
-                                  {location.address}
-                                </span>
-                              )}
+                            <Check className={`h-3.5 w-3.5 ${formData.assignedLocation === location._id ? 'opacity-100' : 'opacity-0'}`} />
+                            <div className='flex flex-col flex-1 min-w-0'>
+                              <span className='font-medium text-slate-900 truncate'>{location.name || 'Unnamed Location'}</span>
+                              {location.address && <span className='text-xs text-slate-400 truncate'>{location.address}</span>}
                             </div>
                           </div>
                         </CommandItem>
@@ -585,97 +486,65 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
                   </Command>
                 </PopoverContent>
               </Popover>
-              {errors.assignedLocation && (
-                <p className='text-sm text-red-600 flex items-center gap-1'>
-                  {errors.assignedLocation}
-                </p>
-              )}
-              <p className='text-xs text-gray-500'>
+              {errors.assignedLocation && <p className='text-xs text-red-500'>{errors.assignedLocation}</p>}
+              <p className='text-xs text-slate-400'>
                 {isAdmin && formData.role === 'spa'
-                  ? 'Required - Spa managers must be assigned to a location'
-                  : 'Optional - assign user to a specific spa location'}
+                  ? 'Required — Spa managers must be assigned to a location'
+                  : 'Optional — assign user to a specific spa location'}
               </p>
             </div>
           )}
 
-          {/* Date of Birth - Fixed */}
-          <div className='space-y-2'>
-            <Label
-              htmlFor='dateOfBirth'
-              className='text-sm font-medium text-gray-700'
-            >
-              Date of Birth
-            </Label>
+          {/* Date of Birth */}
+          <div className='space-y-1.5'>
+            <Label htmlFor='dateOfBirth' className='text-xs font-medium text-slate-700'>Date of Birth</Label>
             <div className='relative'>
               <Input
                 id='dateOfBirth'
                 type='date'
                 value={formData.dateOfBirth}
                 onChange={handleDateChange}
-                onClick={(e) => e.stopPropagation()} // Prevent click from bubbling
-                onFocus={(e) => e.stopPropagation()} // Prevent focus from bubbling
-                className={`pl-10 transition-all ${
-                  errors.dateOfBirth
-                    ? 'border-red-300 focus:border-red-500'
-                    : 'focus:border-purple-400'
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
+                className={`h-10 pl-10 text-sm rounded-xl border-slate-200 transition-shadow focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 ${
+                  errors.dateOfBirth ? 'border-red-300' : ''
                 }`}
                 disabled={isSubmitting}
-                max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                max={new Date().toISOString().split('T')[0]}
               />
-              <Calendar className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none' />
+              <Calendar className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
             </div>
-            {errors.dateOfBirth && (
-              <p className='text-sm text-red-600 flex items-center gap-1'>
-                {errors.dateOfBirth}
-              </p>
-            )}
-            <p className='text-xs text-gray-500'>
-              Optional - used for age verification and personalization
-            </p>
+            {errors.dateOfBirth && <p className='text-xs text-red-500'>{errors.dateOfBirth}</p>}
           </div>
 
           {/* Password */}
-          <div className='space-y-2'>
-            <Label
-              htmlFor='password'
-              className='text-sm font-medium text-gray-700'
-            >
-              Password *
-            </Label>
+          <div className='space-y-1.5'>
+            <Label htmlFor='password' className='text-xs font-medium text-slate-700'>Password <span className='text-red-400'>*</span></Label>
             <div className='relative'>
               <Input
                 id='password'
                 type='password'
                 value={formData.password}
                 onChange={(e) => handleInputChange('password', e.target.value)}
-                placeholder='Enter password...'
-                className={`pl-10 transition-all ${
-                  errors.password
-                    ? 'border-red-300 focus:border-red-500'
-                    : 'focus:border-purple-400'
+                placeholder='At least 8 characters...'
+                className={`h-10 pl-10 text-sm rounded-xl border-slate-200 transition-shadow focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 ${
+                  errors.password ? 'border-red-300 focus-visible:ring-red-200' : ''
                 }`}
                 disabled={isSubmitting}
               />
-              <Lock className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+              <Lock className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400' />
             </div>
-            {errors.password && (
-              <p className='text-sm text-red-600 flex items-center gap-1'>
-                {errors.password}
-              </p>
-            )}
-            <p className='text-xs text-gray-500'>
-              Must be at least 8 characters long
-            </p>
+            {errors.password && <p className='text-xs text-red-500'>{errors.password}</p>}
           </div>
 
           {/* Form Actions */}
-          <div className='flex flex-col sm:flex-row gap-3 pt-4'>
+          <div className='flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100'>
             <Button
               type='button'
               variant='outline'
               onClick={handleClose}
               disabled={isSubmitting}
-              className='flex-1 sm:flex-none border-gray-300 hover:border-gray-400'
+              className='rounded-xl h-10 text-sm font-medium px-5 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'
             >
               Cancel
             </Button>
@@ -683,44 +552,37 @@ const AddUserForm = ({ isOpen, onClose, onSubmit }) => {
               type='submit'
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className='flex-1 text-white disabled:opacity-50 transition-all'
-              style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+              className='rounded-xl h-10 text-sm font-medium px-5 text-white transition-all hover:opacity-90 active:scale-[0.98]'
+              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
             >
               {isSubmitting ? (
                 <div className='flex items-center gap-2'>
-                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
                   Creating...
                 </div>
               ) : (
-                <div className='flex items-center gap-2'>
+                <div className='flex items-center gap-1.5'>
                   <Plus className='w-4 h-4' />
                   Create User
                 </div>
               )}
             </Button>
           </div>
-          {/* Info Card - MOVED INSIDE SCROLLABLE AREA */}
-          <div className='mt-8 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100'>
-            <div className='flex items-start gap-3'>
-              <Users className='w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0' />
+
+          {/* Info Card */}
+          <div className='rounded-xl border border-slate-200 p-3.5' style={{ backgroundColor: `${brandColor}08` }}>
+            <div className='flex items-start gap-2.5'>
+              <Users className='w-4 h-4 mt-0.5 shrink-0' style={{ color: brandColor }} />
               <div>
-                <h4 className='font-medium text-gray-900 mb-1'>
-                  Creating:{' '}
-                  {formData.role === 'spa'
-                    ? 'Spa Manager'
-                    : formData.role.charAt(0).toUpperCase() +
-                      formData.role.slice(1)}{' '}
-                  User
+                <h4 className='text-xs font-semibold text-slate-900 mb-0.5'>
+                  Creating: {formData.role === 'spa' ? 'Spa Manager' : formData.role.charAt(0).toUpperCase() + formData.role.slice(1)} User
                 </h4>
-                <p className='text-sm text-gray-600'>
-                  {formData.role === 'admin' &&
-                    'Admin users can manage locations and spa managers.'}
-                  {formData.role === 'spa' &&
-                    'Spa managers can manage users and services in their assigned location.'}
+                <p className='text-xs text-slate-500'>
+                  {formData.role === 'admin' && 'Admin users can manage locations and spa managers.'}
+                  {formData.role === 'spa' && 'Spa managers can manage users and services in their assigned location.'}
                   {selectedLocation && formData.role === 'spa' && (
-                    <span className='block mt-1 font-medium'>
-                      Will be assigned to:{' '}
-                      {selectedLocation.name || selectedLocation.locationId}
+                    <span className='block mt-0.5 font-medium text-slate-700'>
+                      Assigned to: {selectedLocation.name || selectedLocation.locationId}
                     </span>
                   )}
                 </p>

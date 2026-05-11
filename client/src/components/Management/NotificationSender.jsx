@@ -253,44 +253,41 @@ const NotificationSender = ({
   if (!isOpen) return null
 
   return (
-    <div className='fixed inset-0 bg-black/55 backdrop-blur-sm z-[80] flex items-end sm:items-center sm:justify-center'>
-      <div className='bg-white w-full max-w-3xl sm:rounded-2xl max-h-[92vh] overflow-hidden flex flex-col rounded-t-3xl'>
-        <div
-          className='px-6 py-4 text-white'
-          style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
-        >
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-3'>
-              <div className='w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center'>
-                <Bell className='w-5 h-5 text-white' />
-              </div>
-              <div>
-                <h2 className='text-lg font-semibold'>Send Notification</h2>
-                <p className='text-sm text-white/85'>Professional bulk messaging with targeting</p>
-              </div>
+    <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-[80] flex items-end sm:items-center sm:justify-center'>
+      <div className='bg-white w-full max-w-3xl sm:rounded-2xl max-h-[92vh] overflow-hidden flex flex-col rounded-t-2xl shadow-xl'>
+        <div className='h-0.5 w-full shrink-0' style={{ background: brandColor }} />
+
+        <div className='flex items-center justify-between px-5 pt-4 pb-3 shrink-0'>
+          <div className='flex items-center gap-3'>
+            <div className='w-8 h-8 rounded-lg flex items-center justify-center' style={{ backgroundColor: `${brandColor}14` }}>
+              <Bell className='w-4 h-4' style={{ color: brandColor }} />
             </div>
-            <button
-              onClick={handleClose}
-              className='p-2 rounded-lg hover:bg-white/20 transition-colors'
-            >
-              <X className='w-5 h-5 text-white' />
-            </button>
+            <div>
+              <h2 className='text-sm font-semibold text-slate-900'>Send Notification</h2>
+              <p className='text-xs text-slate-500'>Professional bulk messaging with targeting</p>
+            </div>
           </div>
+          <button
+            onClick={handleClose}
+            className='p-1.5 rounded-lg hover:bg-slate-100 transition-colors'
+          >
+            <X className='w-4 h-4 text-slate-400' />
+          </button>
         </div>
 
-        <div className='px-6 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between text-sm'>
-          <div className='flex items-center gap-2 text-gray-700'>
-            <Users className='w-4 h-4' />
-            <span className='font-medium'>Recipients:</span>
+        <div className='flex items-center justify-between px-5 py-2.5 border-b border-slate-100 bg-slate-50/50 text-xs'>
+          <div className='flex items-center gap-1.5 text-slate-500'>
+            <Users className='w-3.5 h-3.5' />
+            <span className='font-medium text-slate-600'>Recipients:</span>
             <span>{recipientCountText}</span>
           </div>
-          <div className='text-gray-500'>Step {step} of 3</div>
+          <span className='text-slate-400'>Step {step} of 3</span>
         </div>
 
-        <div className='flex-1 overflow-y-auto p-6'>
+        <div className='flex-1 overflow-y-auto p-5'>
           {step === 1 && (
             <div className='space-y-4'>
-              <h3 className='text-lg font-semibold text-gray-900'>Select recipient type</h3>
+              <h3 className='text-sm font-semibold text-slate-900'>Select recipient type</h3>
               <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                 {[
                   { value: 'individual', label: 'Specific Users', description: 'Search and choose exact users' },
@@ -307,12 +304,12 @@ const NotificationSender = ({
                       onClick={() => handleTypeChange(option.value)}
                       className='rounded-xl border p-4 text-left transition-all'
                       style={{
-                        borderColor: active ? brandColor : '#e5e7eb',
-                        background: active ? `${brandColor}12` : '#fff',
+                        borderColor: active ? brandColor : '#e2e8f0',
+                        backgroundColor: active ? `${brandColor}0a` : '#fff',
                       }}
                     >
-                      <div className='font-semibold text-gray-900'>{option.label}</div>
-                      <div className='text-sm text-gray-600 mt-1'>{option.description}</div>
+                      <div className='text-sm font-semibold text-slate-900'>{option.label}</div>
+                      <div className='text-xs text-slate-500 mt-0.5'>{option.description}</div>
                     </button>
                   )
                 })}
@@ -322,25 +319,21 @@ const NotificationSender = ({
 
           {step === 2 && formData.type === 'individual' && (
             <div className='space-y-4'>
-              <div className='flex flex-col md:flex-row gap-3'>
+              <div className='flex flex-col md:flex-row gap-2.5'>
                 <div className='relative flex-1'>
-                  <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                  <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
                   <input
                     type='text'
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder='Search recipients by name or email...'
-                    className='w-full pl-10 pr-3 py-2.5 border rounded-lg focus:outline-none text-sm'
-                    style={{ borderColor: '#d1d5db' }}
+                    placeholder='Search by name or email...'
+                    className='w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 transition-shadow placeholder:text-slate-400'
                   />
                 </div>
                 <select
                   value={roleFilter}
-                  onChange={(e) => {
-                    setRoleFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                  className='px-3 py-2.5 border border-gray-300 rounded-lg text-sm'
+                  onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1) }}
+                  className='h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
                 >
                   {roleFilterOptions.map((role) => (
                     <option key={role} value={role}>
@@ -351,11 +344,8 @@ const NotificationSender = ({
                 {isSuperAdmin && (
                   <select
                     value={locationFilter}
-                    onChange={(e) => {
-                      setLocationFilter(e.target.value)
-                      setCurrentPage(1)
-                    }}
-                    className='px-3 py-2.5 border border-gray-300 rounded-lg text-sm'
+                    onChange={(e) => { setLocationFilter(e.target.value); setCurrentPage(1) }}
+                    className='h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
                   >
                     <option value=''>All locations</option>
                     {(locationsData?.data?.locations || []).map((location) => (
@@ -367,53 +357,46 @@ const NotificationSender = ({
                 )}
               </div>
 
-              <div className='flex items-center justify-between text-sm'>
-                <div className='text-gray-600'>
-                  {pagination.totalUsers || 0} users found
-                </div>
+              <div className='flex items-center justify-between'>
+                <span className='text-xs text-slate-400'>{pagination.totalUsers || 0} users found</span>
                 <div className='flex items-center gap-2'>
-                  <Button type='button' variant='outline' size='sm' onClick={selectAllOnPage}>
+                  <Button type='button' variant='outline' size='sm' onClick={selectAllOnPage} className='h-7 text-xs rounded-lg border-slate-200 text-slate-500'>
                     Select Page
                   </Button>
-                  <Button type='button' variant='outline' size='sm' onClick={clearSelection}>
+                  <Button type='button' variant='outline' size='sm' onClick={clearSelection} className='h-7 text-xs rounded-lg border-slate-200 text-slate-500'>
                     Clear
                   </Button>
                 </div>
               </div>
 
-              <div className='border border-gray-200 rounded-xl overflow-hidden'>
+              <div className='border border-slate-200 rounded-xl overflow-hidden'>
                 {isLoadingRecipients || (isFetchingRecipients && recipients.length === 0) ? (
-                  <div className='p-8 text-center text-gray-500'>Loading recipients...</div>
+                  <div className='py-8 text-center text-xs text-slate-400'>Loading recipients...</div>
                 ) : recipients.length === 0 ? (
-                  <div className='p-8 text-center text-gray-500'>No users match your search</div>
+                  <div className='py-8 text-center text-xs text-slate-400'>No users match your search</div>
                 ) : (
-                  <div className='max-h-72 overflow-y-auto divide-y divide-gray-100'>
+                  <div className='max-h-64 overflow-y-auto divide-y divide-slate-100'>
                     {recipients.map((user) => {
                       const checked = selectedUsers.has(user._id)
                       return (
                         <label
                           key={user._id}
-                          className='flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer'
+                          className='flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors'
                         >
                           <input
                             type='checkbox'
                             checked={checked}
                             onChange={() => handleUserToggle(user._id)}
-                            className='w-4 h-4'
+                            className='w-3.5 h-3.5 rounded border-slate-300 text-slate-600 focus:ring-slate-300'
                           />
-                          <div
-                            className='w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold'
-                            style={{ background: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})` }}
-                          >
+                          <div className='w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm font-semibold text-white' style={{ backgroundColor: brandColor }}>
                             {user.name?.charAt(0)?.toUpperCase() || 'U'}
                           </div>
                           <div className='min-w-0 flex-1'>
-                            <div className='font-medium text-gray-900 truncate'>{user.name}</div>
-                            <div className='text-xs text-gray-500 truncate'>{user.email}</div>
+                            <div className='text-sm font-medium text-slate-900 truncate'>{user.name}</div>
+                            <div className='text-xs text-slate-400 truncate'>{user.email}</div>
                           </div>
-                          <span className='text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700'>
-                            {user.role}
-                          </span>
+                          <span className='text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium'>{user.role}</span>
                         </label>
                       )
                     })}
@@ -429,22 +412,20 @@ const NotificationSender = ({
                     size='sm'
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={currentPage <= 1}
+                    className='h-8 text-xs rounded-lg border-slate-200 text-slate-500'
                   >
                     Previous
                   </Button>
-                  <div className='text-sm text-gray-600'>
+                  <span className='text-xs text-slate-400'>
                     Page {pagination.currentPage || currentPage} of {pagination.totalPages || 1}
-                  </div>
+                  </span>
                   <Button
                     type='button'
                     variant='outline'
                     size='sm'
-                    onClick={() =>
-                      setCurrentPage((p) =>
-                        Math.min(p + 1, pagination.totalPages || p)
-                      )
-                    }
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, pagination.totalPages || p))}
                     disabled={currentPage >= (pagination.totalPages || 1)}
+                    className='h-8 text-xs rounded-lg border-slate-200 text-slate-500'
                   >
                     Next
                   </Button>
@@ -455,89 +436,99 @@ const NotificationSender = ({
 
           {step === 3 && (
             <div className='space-y-4'>
-              <h3 className='text-lg font-semibold text-gray-900'>Compose message</h3>
+              <h3 className='text-sm font-semibold text-slate-900'>Compose message</h3>
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-1'>Subject</label>
+                <div className='space-y-1.5'>
+                  <label className='text-xs font-medium text-slate-700'>Subject</label>
                   <input
                     type='text'
                     value={formData.subject}
                     onChange={(e) => setFormData((prev) => ({ ...prev, subject: e.target.value }))}
-                    className='w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm'
+                    className='w-full h-10 text-sm rounded-xl border border-slate-200 bg-white px-3.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 transition-shadow placeholder:text-slate-400'
                     placeholder='Service update, promotion, reminder...'
                   />
                 </div>
                 <div className='grid grid-cols-2 gap-3'>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, priority: e.target.value }))}
-                    className='px-3 py-2.5 border border-gray-300 rounded-lg text-sm'
-                  >
-                    <option value='low'>Low</option>
-                    <option value='normal'>Normal</option>
-                    <option value='high'>High</option>
-                    <option value='urgent'>Urgent</option>
-                  </select>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                    className='px-3 py-2.5 border border-gray-300 rounded-lg text-sm'
-                  >
-                    <option value='general'>General</option>
-                    <option value='points'>Points</option>
-                    <option value='promotion'>Promotion</option>
-                    <option value='alert'>Alert</option>
-                    <option value='game_reward'>Game Reward</option>
-                  </select>
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-medium text-slate-700'>Priority</label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, priority: e.target.value }))}
+                      className='w-full h-10 text-sm rounded-xl border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
+                    >
+                      <option value='low'>Low</option>
+                      <option value='normal'>Normal</option>
+                      <option value='high'>High</option>
+                      <option value='urgent'>Urgent</option>
+                    </select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-medium text-slate-700'>Category</label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
+                      className='w-full h-10 text-sm rounded-xl border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
+                    >
+                      <option value='general'>General</option>
+                      <option value='points'>Points</option>
+                      <option value='promotion'>Promotion</option>
+                      <option value='alert'>Alert</option>
+                      <option value='game_reward'>Game Reward</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-1'>Message</label>
+              <div className='space-y-1.5'>
+                <label className='text-xs font-medium text-slate-700'>Message</label>
                 <textarea
-                  rows={5}
+                  rows={4}
                   value={formData.message}
                   onChange={(e) => setFormData((prev) => ({ ...prev, message: e.target.value }))}
-                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm resize-none'
+                  className='w-full text-sm rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 transition-shadow resize-none placeholder:text-slate-400'
                   placeholder='Write a clear, concise notification...'
                 />
               </div>
 
-              <div className='grid grid-cols-2 gap-3'>
-                {[
-                  { value: 'app', label: 'In-App' },
-                  { value: 'push', label: 'Push' },
-                ].map((channel) => {
-                  const active = formData.channels.includes(channel.value)
-                  return (
-                    <label
-                      key={channel.value}
-                      className='border rounded-lg px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2'
-                      style={{
-                        borderColor: active ? brandColor : '#d1d5db',
-                        background: active ? `${brandColor}10` : '#fff',
-                      }}
-                    >
-                      <input
-                        type='checkbox'
-                        checked={active}
-                        onChange={(e) => {
-                          const nextChannels = e.target.checked
-                            ? [...formData.channels, channel.value]
-                            : formData.channels.filter((c) => c !== channel.value)
-                          setFormData((prev) => ({ ...prev, channels: nextChannels }))
+              <div className='space-y-1.5'>
+                <label className='text-xs font-medium text-slate-700'>Delivery channels</label>
+                <div className='grid grid-cols-2 gap-3'>
+                  {[
+                    { value: 'app', label: 'In-App' },
+                    { value: 'push', label: 'Push' },
+                  ].map((channel) => {
+                    const active = formData.channels.includes(channel.value)
+                    return (
+                      <label
+                        key={channel.value}
+                        className='flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-sm cursor-pointer transition-all'
+                        style={{
+                          borderColor: active ? brandColor : '#e2e8f0',
+                          backgroundColor: active ? `${brandColor}0a` : '#fff',
                         }}
-                      />
-                      {channel.label}
-                    </label>
-                  )
-                })}
+                      >
+                        <input
+                          type='checkbox'
+                          checked={active}
+                          onChange={(e) => {
+                            const nextChannels = e.target.checked
+                              ? [...formData.channels, channel.value]
+                              : formData.channels.filter((c) => c !== channel.value)
+                            setFormData((prev) => ({ ...prev, channels: nextChannels }))
+                          }}
+                          className='w-3.5 h-3.5 rounded border-slate-300 text-slate-600 focus:ring-slate-300'
+                        />
+                        <span className='text-sm font-medium text-slate-700'>{channel.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className='px-6 py-4 border-t border-gray-200 bg-white flex gap-3'>
+        <div className='flex items-center justify-end gap-2.5 px-5 py-4 border-t border-slate-100 bg-white shrink-0'>
           {step > 1 && (
             <Button
               variant='outline'
@@ -549,12 +540,11 @@ const NotificationSender = ({
                 }
               }}
               disabled={sendNotificationMutation.isPending}
-              className='flex-1 h-11'
+              className='rounded-xl h-10 text-sm font-medium px-5 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors'
             >
               Back
             </Button>
           )}
-
           {step < 3 ? (
             <Button
               onClick={() => {
@@ -568,8 +558,8 @@ const NotificationSender = ({
                 }
                 setStep((s) => Math.min(3, s + 1))
               }}
-              className='flex-1 h-11 text-white'
-              style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+              className='rounded-xl h-10 text-sm font-medium px-5 text-white transition-all hover:opacity-90 active:scale-[0.98]'
+              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
             >
               Continue
             </Button>
@@ -581,16 +571,19 @@ const NotificationSender = ({
                 !formData.subject.trim() ||
                 !formData.message.trim()
               }
-              className='flex-1 h-11 text-white'
-              style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})` }}
+              className='rounded-xl h-10 text-sm font-medium px-5 text-white transition-all hover:opacity-90 active:scale-[0.98]'
+              style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
             >
               {sendNotificationMutation.isPending ? (
-                'Sending...'
+                <div className='flex items-center gap-2'>
+                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
+                  Sending...
+                </div>
               ) : (
-                <>
-                  <Send className='w-4 h-4 mr-2' />
+                <div className='flex items-center gap-1.5'>
+                  <Send className='w-4 h-4' />
                   Send Notification
-                </>
+                </div>
               )}
             </Button>
           )}

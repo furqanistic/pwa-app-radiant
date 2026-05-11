@@ -871,6 +871,18 @@ const AuthPage = () => {
             </p>
           </header>
 
+          {/* Back / Switch Location button */}
+          {locationId && !['forgot', 'reset'].includes(view) && (
+            <button
+              type='button'
+              onClick={() => window.location.href = '/auth'}
+              className='flex items-center gap-2 text-sm text-gray-400 hover:text-gray-900 transition-colors mb-5 group'
+            >
+              <ArrowLeft className='w-4 h-4 group-hover:-translate-x-0.5 transition-transform' />
+              Switch Location
+            </button>
+          )}
+
           {/* View Toggle - Only show for primary auth modes */}
           {locationId && !['forgot', 'reset'].includes(view) ? (
             <div className='bg-gray-50 p-1.5 rounded-2xl mb-6 flex gap-1 border border-gray-100'>
