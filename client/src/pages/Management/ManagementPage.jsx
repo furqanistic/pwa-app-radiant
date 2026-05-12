@@ -1,5 +1,3 @@
-// File: client/src/pages/Management/ManagementPage.jsx - UPDATED (CLEANUP)
-
 import { useBranding } from "@/context/BrandingContext";
 import { authService } from "@/services/authService";
 import { locationService } from "@/services/locationService";
@@ -7,9 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Award,
     Calendar,
-    ChevronDown,
     ChevronRight,
-    ChevronUp,
     Clock,
     Crown,
     DollarSign,
@@ -28,15 +24,13 @@ import { useSelector } from "react-redux";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from 'sonner';
 
-// Import components
 import AddUserForm from "@/components/Management/AddUserForm";
 import AutomatedGiftSettings from "@/components/Management/AutomatedGiftSettings";
-import AvailabilitySettings from "@/components/Management/AvailabilitySettings"; // Import
+import AvailabilitySettings from "@/components/Management/AvailabilitySettings";
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import PointsSettings from "@/components/Management/PointsSettings";
 import SquareConnect from "@/components/Square/SquareConnect";
 import StripeConnect from "@/components/Stripe/StripeConnect";
-import { Button } from "@/components/ui/button";
 import Layout from "@/pages/Layout/Layout";
 
 const clampChannel = (value) => Math.max(0, Math.min(255, value));
@@ -55,6 +49,65 @@ const adjustHex = (hex, amount) => {
     .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 };
 
+const accentStyles = {
+  blue: {
+    border: "border-blue-100",
+    bg: "bg-blue-50/70",
+    hover: "hover:bg-blue-100/70",
+    text: "text-blue-900",
+    icon: "text-blue-600",
+  },
+  orange: {
+    border: "border-orange-100",
+    bg: "bg-orange-50/70",
+    hover: "hover:bg-orange-100/70",
+    text: "text-orange-900",
+    icon: "text-orange-600",
+  },
+  fuchsia: {
+    border: "border-fuchsia-100",
+    bg: "bg-fuchsia-50/70",
+    hover: "hover:bg-fuchsia-100/70",
+    text: "text-fuchsia-900",
+    icon: "text-fuchsia-600",
+  },
+  rose: {
+    border: "border-rose-100",
+    bg: "bg-rose-50/70",
+    hover: "hover:bg-rose-100/70",
+    text: "text-rose-900",
+    icon: "text-rose-600",
+  },
+  sky: {
+    border: "border-sky-100",
+    bg: "bg-sky-50/70",
+    hover: "hover:bg-sky-100/70",
+    text: "text-sky-900",
+    icon: "text-sky-600",
+  },
+  indigo: {
+    border: "border-indigo-100",
+    bg: "bg-indigo-50/70",
+    hover: "hover:bg-indigo-100/70",
+    text: "text-indigo-900",
+    icon: "text-indigo-600",
+  },
+  cyan: {
+    border: "border-cyan-100",
+    bg: "bg-cyan-50/70",
+    hover: "hover:bg-cyan-100/70",
+    text: "text-cyan-900",
+    icon: "text-cyan-600",
+  },
+  emerald: {
+    border: "border-emerald-100",
+    bg: "bg-emerald-50/70",
+    hover: "hover:bg-emerald-100/70",
+    text: "text-emerald-900",
+    icon: "text-emerald-600",
+  },
+};
+
 const ManagementPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,16 +117,12 @@ const ManagementPage = () => {
   const brandColor = branding?.themeColor || "#ec4899";
   const brandColorDark = adjustHex(brandColor, -24);
 
-  // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false); // New State
+  const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false);
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
   const [isPointsSettingsOpen, setIsPointsSettingsOpen] = useState(false);
-  const [showAllQuickActionsMobile, setShowAllQuickActionsMobile] = useState(false);
-  const [showAllToolsMobile, setShowAllToolsMobile] = useState(false);
 
-  // Permission checks
   const isElevatedUser = [
     "admin",
     "spa",
@@ -82,7 +131,7 @@ const ManagementPage = () => {
   ].includes(currentUser?.role);
   const isAdminOrAbove = ["admin", "super-admin"].includes(currentUser?.role);
   const isSuperAdmin = currentUser?.role === "super-admin";
-  const isTeamOrAbove = ["spa", "admin", "super-admin"].includes(currentUser?.role); // Spa check
+  const isTeamOrAbove = ["spa", "admin", "super-admin"].includes(currentUser?.role);
 
   const currentUserLocationId =
     currentUser?.selectedLocation?.locationId ||
@@ -98,7 +147,6 @@ const ManagementPage = () => {
     navigate(`${path}?spa=${encodeURIComponent(activeSpaLocationId)}`);
   };
 
-  // Fetch locations (admin only)
   const { data: locationsData } = useQuery({
     queryKey: ["locations"],
     queryFn: () => locationService.getAllLocations(),
@@ -107,13 +155,11 @@ const ManagementPage = () => {
 
   const handleOpenMembership = () => navigateWithSpa("/management/membership");
 
-  // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: authService.createSpaMember,
     onSuccess: () => {
       setIsAddUserOpen(false);
       toast.success("User created successfully!");
-      // Invalidate queries to update lists in other pages (like ContactsPage)
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
     },
     onError: (error) => {
@@ -121,7 +167,6 @@ const ManagementPage = () => {
     },
   });
 
-  // Navigation cards
   const managementRoutes = [
     {
       title: isSuperAdmin ? "Services Database" : "Service Management",
@@ -164,10 +209,14 @@ const ManagementPage = () => {
       visible: isElevatedUser,
     },
     {
-      title: "Rewards System",
-      description: "Manage rewards, points, and incentives",
+      title: isSuperAdmin ? "Rewards Database" : "Rewards System",
+      description: isSuperAdmin
+        ? "Browse all rewards across all locations"
+        : "Manage rewards, points, and incentives",
       icon: Gift,
-      path: "/management/rewards",
+      path: isSuperAdmin
+        ? "/management/rewards-database"
+        : "/management/rewards",
       color: "from-green-500 to-green-600",
       visible: isElevatedUser,
     },
@@ -185,7 +234,7 @@ const ManagementPage = () => {
       icon: TrendingUp,
       path: "/management/revenue",
       color: "from-rose-500 to-rose-600",
-      visible: isTeamOrAbove, // Accessible to spa role (spa managers)
+      visible: isTeamOrAbove,
     },
   ];
 
@@ -216,8 +265,7 @@ const ManagementPage = () => {
             description: "Create a new teammate account with role access.",
             icon: UserPlus,
             onClick: () => setIsAddUserOpen(true),
-            className:
-              "border-blue-100 bg-blue-50/70 hover:bg-blue-100/70 text-blue-900",
+            accent: "blue",
           },
         ]
       : []),
@@ -232,8 +280,7 @@ const ManagementPage = () => {
             description: "Adjust opening hours and team availability windows.",
             icon: Clock,
             onClick: () => setIsAvailabilityOpen(true),
-            className:
-              "border-orange-100 bg-orange-50/70 hover:bg-orange-100/70 text-orange-900",
+            accent: "orange",
           },
           {
             key: "gift-settings",
@@ -241,8 +288,7 @@ const ManagementPage = () => {
             description: "Set birthday and event-based gift behavior.",
             icon: Gift,
             onClick: () => setIsBirthdayGiftOpen(true),
-            className:
-              "border-fuchsia-100 bg-fuchsia-50/70 hover:bg-fuchsia-100/70 text-fuchsia-900",
+            accent: "fuchsia",
           },
           {
             key: "automated-gifts",
@@ -250,8 +296,7 @@ const ManagementPage = () => {
             description: "Schedule and control automated gift campaigns.",
             icon: Sparkles,
             onClick: () => setIsAutomatedGiftOpen(true),
-            className:
-              "border-rose-100 bg-rose-50/70 hover:bg-rose-100/70 text-rose-900",
+            accent: "rose",
           },
           {
             key: "points-rules",
@@ -259,11 +304,7 @@ const ManagementPage = () => {
             description: "Control earning, redemption, and loyalty balance rules.",
             icon: Award,
             onClick: () => setIsPointsSettingsOpen(true),
-            className:
-              "border-transparent text-white hover:opacity-95",
-            style: {
-              backgroundImage: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})`,
-            },
+            accent: "brand",
           },
         ]
       : []),
@@ -275,11 +316,7 @@ const ManagementPage = () => {
             description: "Control earning, redemption, and loyalty balance rules.",
             icon: Award,
             onClick: () => setIsPointsSettingsOpen(true),
-            className:
-              "border-transparent text-white hover:opacity-95",
-            style: {
-              backgroundImage: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})`,
-            },
+            accent: "brand",
           },
         ]
       : []),
@@ -291,8 +328,7 @@ const ManagementPage = () => {
             description: "View location calendars and booked appointments.",
             icon: Calendar,
             onClick: () => navigateWithSpa("/management/calendar"),
-            className:
-              "border-sky-100 bg-sky-50/70 hover:bg-sky-100/70 text-sky-900",
+            accent: "sky",
           },
         ]
       : []),
@@ -304,8 +340,7 @@ const ManagementPage = () => {
             description: "View GHL automations and link them to app events.",
             icon: Zap,
             onClick: () => navigateWithSpa("/management/automations"),
-            className:
-              "border-indigo-100 bg-indigo-50/70 hover:bg-indigo-100/70 text-indigo-900",
+            accent: "indigo",
           },
         ]
       : []),
@@ -320,8 +355,7 @@ const ManagementPage = () => {
                 : "Review your location membership plans and status.",
             icon: Crown,
             onClick: handleOpenMembership,
-            className:
-              "border-cyan-100 bg-cyan-50/70 hover:bg-cyan-100/70 text-cyan-900",
+            accent: "cyan",
           },
         ]
       : []),
@@ -333,8 +367,7 @@ const ManagementPage = () => {
             description: "Create, edit, and review settings for each location.",
             icon: MapPin,
             onClick: () => navigateWithSpa("/management/locations"),
-            className:
-              "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900",
+            accent: "emerald",
           },
         ]
       : []),
@@ -346,17 +379,13 @@ const ManagementPage = () => {
             description: "Review and update your location details in a dedicated page.",
             icon: MapPin,
             onClick: () => navigateWithSpa("/management/locations"),
-            className:
-              "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900",
+            accent: "emerald",
           },
         ]
       : []),
   ];
+
   const visibleManagementRoutes = managementRoutes.filter((route) => route.visible);
-  const quickActionsPrimaryMobile = visibleManagementRoutes.slice(0, 3);
-  const quickActionsSecondaryMobile = visibleManagementRoutes.slice(3);
-  const toolsPrimaryMobile = toolActions.slice(0, 3);
-  const toolsSecondaryMobile = toolActions.slice(3);
 
   const handleCreateUser = async (userData) => {
     await createUserMutation.mutateAsync(userData);
@@ -366,16 +395,21 @@ const ManagementPage = () => {
     <Layout>
       <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-stone-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
-          {/* Header */}
-          <div className="mb-8 rounded-2xl border border-slate-200 bg-white/95 shadow-sm overflow-hidden">
-            <div className="h-2 w-full bg-gradient-to-r from-cyan-400 via-sky-500 to-indigo-500" />
+          {/* ── Header ── */}
+          <div className="mb-10 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div
+              className="h-2 w-full"
+              style={{
+                background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark}, ${adjustHex(brandColor, -40)})`,
+              }}
+            />
             <div className="px-5 py-5 md:px-8 md:py-7">
-              <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
                     Management Dashboard
                   </h1>
-                  <p className="mt-2 text-slate-600">
+                  <p className="mt-1.5 text-slate-500 text-sm md:text-base">
                     Run operations, configure core settings, and keep your team aligned.
                   </p>
                 </div>
@@ -399,187 +433,96 @@ const ManagementPage = () => {
             </div>
           </div>
 
-          {/* Navigation Cards */}
+          {/* ── Quick Actions ── */}
           {isElevatedUser && (
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">
-                Quick Actions
-              </h2>
-              <div className="sm:hidden space-y-3">
-                {quickActionsPrimaryMobile.map((route) => (
-                  <button
-                    key={route.path}
-                    onClick={() => navigateWithSpa(route.path)}
-                    className={`group w-full p-4 bg-gradient-to-br ${route.color} rounded-xl text-white hover:opacity-95 transition-all duration-300 text-left`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <route.icon className="w-5 h-5 shrink-0 opacity-95" />
-                      <ChevronRight className="w-4 h-4 shrink-0 opacity-75" />
-                    </div>
-                    <h3 className="mt-3 font-semibold text-sm">{route.title}</h3>
-                    <p className="mt-1 text-xs opacity-90 leading-relaxed">{route.description}</p>
-                  </button>
-                ))}
-
-                {quickActionsSecondaryMobile.length > 0 && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAllQuickActionsMobile((prev) => !prev)}
-                      className="w-full justify-between"
-                    >
-                      <span>
-                        {showAllQuickActionsMobile
-                          ? "Show fewer quick actions"
-                          : `Show ${quickActionsSecondaryMobile.length} more quick actions`}
-                      </span>
-                      {showAllQuickActionsMobile ? (
-                        <ChevronUp className="w-4 h-4 ml-2" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 ml-2" />
-                      )}
-                    </Button>
-
-                    {showAllQuickActionsMobile && (
-                      <div className="space-y-3">
-                        {quickActionsSecondaryMobile.map((route) => (
-                          <button
-                            key={route.path}
-                            onClick={() => navigateWithSpa(route.path)}
-                            className={`group w-full p-4 bg-gradient-to-br ${route.color} rounded-xl text-white hover:opacity-95 transition-all duration-300 text-left`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <route.icon className="w-5 h-5 shrink-0 opacity-95" />
-                              <ChevronRight className="w-4 h-4 shrink-0 opacity-75" />
-                            </div>
-                            <h3 className="mt-3 font-semibold text-sm">{route.title}</h3>
-                            <p className="mt-1 text-xs opacity-90 leading-relaxed">{route.description}</p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+            <div className="mb-10">
+              <div className="flex items-center gap-3 mb-5">
+                <div
+                  className="w-1 h-7 rounded-full shrink-0"
+                  style={{ background: `linear-gradient(to bottom, ${brandColor}, ${brandColorDark})` }}
+                />
+                <h2 className="text-lg font-semibold text-slate-900">Quick Actions</h2>
               </div>
 
-              <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {visibleManagementRoutes.map((route) => (
                   <button
                     key={route.path}
                     onClick={() => navigateWithSpa(route.path)}
-                    className={`group p-5 bg-gradient-to-br ${route.color} rounded-xl text-white hover:opacity-95 transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-0.5 text-left`}
+                    className={`group p-4 sm:p-5 bg-gradient-to-br ${route.color} rounded-xl text-white hover:opacity-95 transition-all duration-300 shadow-sm hover:shadow-lg hover:-translate-y-0.5 text-left`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <route.icon className="w-6 h-6 shrink-0 opacity-95" />
-                      <ChevronRight className="w-5 h-5 shrink-0 opacity-75 group-hover:translate-x-0.5 transition-transform" />
+                      <route.icon className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 opacity-95" />
+                      <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 opacity-75 group-hover:translate-x-0.5 transition-transform" />
                     </div>
-                    <h3 className="mt-6 font-semibold text-base">{route.title}</h3>
-                    <p className="mt-1.5 text-sm opacity-90 leading-relaxed">{route.description}</p>
+                    <h3 className="mt-4 sm:mt-6 font-semibold text-sm sm:text-base">{route.title}</h3>
+                    <p className="mt-1 sm:mt-1.5 text-xs sm:text-sm opacity-90 leading-relaxed">{route.description}</p>
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Management Tools */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">
-              Management Tools
-            </h2>
-            <div className="sm:hidden space-y-3">
-              {toolsPrimaryMobile.map((action) => (
-                <button
-                  key={action.key}
-                  onClick={action.onClick}
-                  className={`w-full rounded-xl border p-4 text-left transition-all duration-200 ${action.className}`}
-                  style={action.style}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <action.icon className="h-5 w-5 shrink-0" />
-                    <ChevronRight className="h-4 w-4 opacity-70" />
-                  </div>
-                  <h3 className="mt-3 text-sm font-semibold">{action.title}</h3>
-                  <p className="mt-1 text-xs opacity-85 leading-relaxed">
-                    {action.description}
-                  </p>
-                </button>
-              ))}
+          {/* ── Settings & Tools ── */}
+          {toolActions.length > 0 && (
+            <div className="mb-10">
+              <div className="flex items-center gap-3 mb-5">
+                <div
+                  className="w-1 h-7 rounded-full shrink-0"
+                  style={{ background: `linear-gradient(to bottom, ${brandColor}, ${brandColorDark})` }}
+                />
+                <h2 className="text-lg font-semibold text-slate-900">Settings &amp; Tools</h2>
+              </div>
 
-              {toolsSecondaryMobile.length > 0 && (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAllToolsMobile((prev) => !prev)}
-                    className="w-full justify-between"
-                  >
-                    <span>
-                      {showAllToolsMobile
-                        ? "Show fewer tools"
-                        : `Show ${toolsSecondaryMobile.length} more tools`}
-                    </span>
-                    {showAllToolsMobile ? (
-                      <ChevronUp className="w-4 h-4 ml-2" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 ml-2" />
-                    )}
-                  </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {toolActions.map((action) => {
+                  const isBrandAccent = action.accent === "brand";
+                  const s = isBrandAccent
+                    ? {}
+                    : accentStyles[action.accent] || accentStyles.blue;
 
-                  {showAllToolsMobile && (
-                    <div className="space-y-3">
-                      {toolsSecondaryMobile.map((action) => (
-                        <button
-                          key={action.key}
-                          onClick={action.onClick}
-                          className={`w-full rounded-xl border p-4 text-left transition-all duration-200 ${action.className}`}
-                          style={action.style}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <action.icon className="h-5 w-5 shrink-0" />
-                            <ChevronRight className="h-4 w-4 opacity-70" />
-                          </div>
-                          <h3 className="mt-3 text-sm font-semibold">{action.title}</h3>
-                          <p className="mt-1 text-xs opacity-85 leading-relaxed">
-                            {action.description}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
+                  return (
+                    <button
+                      key={action.key}
+                      onClick={action.onClick}
+                      className={`group rounded-xl border p-4 text-left transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
+                        isBrandAccent
+                          ? "border-transparent text-white hover:opacity-95"
+                          : `${s.border} ${s.bg} ${s.hover} ${s.text}`
+                      }`}
+                      style={
+                        isBrandAccent
+                          ? { background: `linear-gradient(120deg, ${brandColor}, ${brandColorDark})` }
+                          : undefined
+                      }
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <action.icon
+                          className={`h-5 w-5 shrink-0 ${isBrandAccent ? "text-white/90" : s.icon}`}
+                        />
+                        <ChevronRight className={`h-4 w-4 shrink-0 opacity-60 group-hover:translate-x-0.5 transition-transform ${isBrandAccent ? "text-white/70" : ""}`} />
+                      </div>
+                      <h3 className={`mt-3.5 text-sm font-semibold ${isBrandAccent ? "text-white" : ""}`}>
+                        {action.title}
+                      </h3>
+                      <p className={`mt-1 text-xs leading-relaxed ${isBrandAccent ? "text-white/80" : "opacity-85"}`}>
+                        {action.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          )}
 
-            <div className="hidden sm:grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {toolActions.map((action) => (
-                <button
-                  key={action.key}
-                  onClick={action.onClick}
-                  className={`rounded-xl border p-4 text-left transition-all duration-200 hover:shadow-sm ${action.className}`}
-                  style={action.style}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <action.icon className="h-5 w-5 shrink-0" />
-                    <ChevronRight className="h-4 w-4 opacity-70" />
-                  </div>
-                  <h3 className="mt-4 text-sm font-semibold">{action.title}</h3>
-                  <p className="mt-1 text-xs opacity-85 leading-relaxed">
-                    {action.description}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Payouts - visible to spa and to super-admin when managing a specific location */}
+          {/* ── Payouts ── */}
           {(currentUser?.role === "spa" || (currentUser?.role === "super-admin" && activeSpaLocationId)) && (
             <div className="mb-8 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              {/* Gradient accent bar */}
               <div
                 className="h-2 w-full"
                 style={{ background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark}, ${adjustHex(brandColor, -40)})` }}
               />
 
-              {/* Header */}
               <div className="px-5 pt-5 pb-1 md:px-8 md:pt-7">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div className="flex items-start gap-4">
@@ -597,7 +540,6 @@ const ManagementPage = () => {
                     </div>
                   </div>
 
-                  {/* Connection status chips */}
                   <div className="flex items-center gap-2 shrink-0">
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all ${
@@ -616,7 +558,7 @@ const ManagementPage = () => {
                       }
                     >
                       <span
-                        className={`w-1.5 h-1.5 rounded-full`}
+                        className="w-1.5 h-1.5 rounded-full"
                         style={{
                           backgroundColor: sharedLocationStripeLinked ? brandColor : undefined,
                           opacity: sharedLocationStripeLinked ? 1 : 0.3,
@@ -641,7 +583,7 @@ const ManagementPage = () => {
                       }
                     >
                       <span
-                        className={`w-1.5 h-1.5 rounded-full`}
+                        className="w-1.5 h-1.5 rounded-full"
                         style={{
                           backgroundColor: sharedLocationSquareLinked ? brandColor : undefined,
                           opacity: sharedLocationSquareLinked ? 1 : 0.3,
@@ -653,10 +595,8 @@ const ManagementPage = () => {
                 </div>
               </div>
 
-              {/* Separator */}
               <div className="mx-5 md:mx-8 mt-5 border-t border-slate-100" />
 
-              {/* Connect cards */}
               <div className="px-5 pb-5 pt-5 md:px-8 md:pb-7">
                 <div className="grid gap-5 lg:grid-cols-2">
                   <StripeConnect
@@ -671,7 +611,6 @@ const ManagementPage = () => {
                   />
                 </div>
 
-                {/* Footer tip */}
                 <div className="mt-5 flex items-center gap-2 text-xs text-slate-400">
                   <div className="w-1 h-1 rounded-full bg-slate-300" />
                   Payouts are processed automatically once connected. Funds typically arrive within 2–5 business days.
@@ -681,32 +620,23 @@ const ManagementPage = () => {
           )}
         </div>
 
-        {/* Modals */}
         <AddUserForm
           isOpen={isAddUserOpen}
           onClose={() => setIsAddUserOpen(false)}
           onSubmit={handleCreateUser}
         />
-        
-        {/* Availability Modal */}
-        <AvailabilitySettings 
+        <AvailabilitySettings
           isOpen={isAvailabilityOpen}
           onClose={() => setIsAvailabilityOpen(false)}
         />
-
-        {/* Birthday Gift Modal */}
         <BirthdayGiftSettings
           isOpen={isBirthdayGiftOpen}
           onClose={() => setIsBirthdayGiftOpen(false)}
         />
-
-        {/* Automated Gift Modal */}
         <AutomatedGiftSettings
           isOpen={isAutomatedGiftOpen}
           onClose={() => setIsAutomatedGiftOpen(false)}
         />
-
-        {/* Points Settings Modal */}
         <PointsSettings
           isOpen={isPointsSettingsOpen}
           onClose={() => setIsPointsSettingsOpen(false)}

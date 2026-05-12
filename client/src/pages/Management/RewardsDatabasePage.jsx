@@ -1,18 +1,17 @@
 import { useBranding } from '@/context/BrandingContext'
 import Layout from '@/pages/Layout/Layout'
-import { bookingService } from '@/services/bookingService'
 import { locationService } from '@/services/locationService'
+import { rewardsService } from '@/services/rewardsService'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Calendar,
   ChevronLeft,
   ChevronRight,
-  Clock,
-  Database,
+  Gift,
   MapPin,
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Star,
   X,
 } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
@@ -33,7 +32,34 @@ const adjustHex = (hex, amount) => {
     .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-const BookingsDatabasePage = () => {
+const rewardTypeOptions = [
+  { value: 'add_on', label: 'Add-On' },
+  { value: 'upgrade', label: 'Upgrade' },
+  { value: 'experience', label: 'Experience' },
+  { value: 'free_service', label: 'Free Service' },
+  { value: 'discount', label: 'Discount' },
+  { value: 'credit', label: 'Service Credit' },
+  { value: 'service', label: 'Free Service' },
+  { value: 'combo', label: 'Combo Deal' },
+  { value: 'referral', label: 'Referral Reward' },
+]
+
+const getRewardTypeLabel = (type) => {
+  const match = rewardTypeOptions.find((o) => o.value === type)
+  return match?.label || type || 'Unknown'
+}
+
+const getRewardValueDisplay = (reward) => {
+  if (!reward) return '—'
+  if (reward.displayValue) return reward.displayValue
+  const numericValue = Number(reward.value)
+  if (!Number.isFinite(numericValue)) return '—'
+  if (['service', 'free_service'].includes(reward.type)) return 'Free'
+  if (['discount', 'experience', 'combo', 'service_discount'].includes(reward.type)) return `${numericValue}%`
+  return `$${numericValue}`
+}
+
+const RewardsDatabasePage = () => {
   const { currentUser } = useSelector((state) => state.user)
   const { branding } = useBranding()
   const brandColor = branding?.themeColor || '#ec4899'
@@ -41,12 +67,13 @@ const BookingsDatabasePage = () => {
 
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
   const [locationId, setLocationId] = useState('')
-  const [sortBy, setSortBy] = useState('date')
-  const [sortOrder, setSortOrder] = useState('desc')
+  const [type, setType] = useState('')
+  const [status, setStatus] = useState('')
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(25)
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   useEffect(() => {
@@ -54,7 +81,6 @@ const BookingsDatabasePage = () => {
       setSearch(searchInput.trim())
       setPage(1)
     }, 300)
-
     return () => clearTimeout(timer)
   }, [searchInput])
 
@@ -63,36 +89,47 @@ const BookingsDatabasePage = () => {
       page,
       limit,
       search,
-      status,
       locationId,
+      type: type || undefined,
+      status,
       sortBy,
       sortOrder,
     }),
-    [page, limit, search, status, locationId, sortBy, sortOrder]
+    [page, limit, search, locationId, type, status, sortBy, sortOrder]
   )
 
   const {
-    data: bookingsData,
+    data: rewardsResponse,
     isLoading,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ['bookings-database', queryParams],
-    queryFn: () => bookingService.getAdminBookings(queryParams),
+    queryKey: ['rewards-database', queryParams],
+    queryFn: () => rewardsService.getRewards(queryParams),
     enabled: currentUser?.role === 'super-admin',
     placeholderData: (previousData) => previousData,
+    select: (data) => ({
+      rewards: data?.data?.rewards || [],
+      pagination: data?.data?.pagination || {
+        totalRewards: 0,
+        currentPage: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    }),
   })
 
   const { data: locationsData } = useQuery({
-    queryKey: ['locations', 'bookings-database'],
+    queryKey: ['locations', 'rewards-database'],
     queryFn: () => locationService.getAllLocations(),
     enabled: currentUser?.role === 'super-admin',
     staleTime: 5 * 60 * 1000,
   })
 
-  const bookings = bookingsData?.data?.bookings || []
-  const pagination = bookingsData?.data?.pagination || {
-    totalBookings: 0,
+  const rewards = rewardsResponse?.rewards || []
+  const pagination = rewardsResponse?.pagination || {
+    totalRewards: 0,
     currentPage: 1,
     totalPages: 1,
   }
@@ -106,26 +143,23 @@ const BookingsDatabasePage = () => {
     return map
   }, [locations])
 
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setSortBy(field)
+    setSortOrder('desc')
+  }
+
   const resetFilters = () => {
-    setStatus('')
     setLocationId('')
-    setSortBy('date')
+    setType('')
+    setStatus('')
+    setSortBy('createdAt')
     setSortOrder('desc')
     setLimit(25)
     setPage(1)
-  }
-
-  const getStatusChip = (value) => {
-    if (['confirmed', 'scheduled'].includes(value)) {
-      return 'bg-green-50 text-green-700'
-    }
-    if (value === 'completed') {
-      return 'bg-blue-50 text-blue-700'
-    }
-    if (value === 'cancelled') {
-      return 'bg-red-50 text-red-700'
-    }
-    return 'bg-slate-100 text-slate-600'
   }
 
   if (currentUser?.role !== 'super-admin') {
@@ -135,7 +169,7 @@ const BookingsDatabasePage = () => {
           <div className='bg-white border border-slate-200 rounded-2xl p-6'>
             <h1 className='text-xl font-bold text-slate-900'>Access denied</h1>
             <p className='text-sm text-slate-600 mt-2'>
-              Bookings Database is only available to super-admin users.
+              Rewards Database is only available to super-admin users.
             </p>
           </div>
         </div>
@@ -158,19 +192,19 @@ const BookingsDatabasePage = () => {
                     className='hidden sm:flex w-10 h-10 rounded-xl items-center justify-center shrink-0'
                     style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColorDark})` }}
                   >
-                    <Database className='w-5 h-5 text-white' />
+                    <Gift className='w-5 h-5 text-white' />
                   </div>
                   <div>
                     <h1 className='text-xl md:text-2xl font-semibold text-slate-900 tracking-tight'>
-                      Bookings Database
+                      Rewards Database
                     </h1>
                     <p className='mt-1 text-sm text-slate-500'>
-                      Platform-wide live bookings visibility
+                      Browse all rewards across all locations
                     </p>
                     <div className='mt-1.5 flex items-center gap-2 text-xs text-slate-400'>
                       <span className='inline-flex items-center gap-1'>
-                        <Database className='w-3.5 h-3.5' />
-                        {pagination.totalBookings || 0} total
+                        <Star className='w-3.5 h-3.5' />
+                        {pagination.totalRewards || 0} total
                       </span>
                       <span className='w-1 h-1 rounded-full bg-slate-200' />
                       <span>Page {pagination.currentPage || 1} / {pagination.totalPages || 1}</span>
@@ -200,7 +234,7 @@ const BookingsDatabasePage = () => {
                   <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none' />
                   <input
                     type='text'
-                    placeholder='Search client, email, service...'
+                    placeholder='Search rewards...'
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     className='w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-slate-200 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 focus:border-slate-300 transition-shadow placeholder:text-slate-400'
@@ -214,9 +248,20 @@ const BookingsDatabasePage = () => {
                 >
                   <option value=''>All locations</option>
                   {locations.map((location) => (
-                    <option key={location._id} value={location.locationId}>
+                    <option key={location._id || location.locationId} value={location.locationId}>
                       {location.name || location.locationId}
                     </option>
+                  ))}
+                </select>
+
+                <select
+                  value={type}
+                  onChange={(e) => { setType(e.target.value); setPage(1) }}
+                  className='hidden md:block h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
+                >
+                  <option value=''>All types</option>
+                  {rewardTypeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
 
@@ -226,31 +271,8 @@ const BookingsDatabasePage = () => {
                   className='hidden md:block h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
                 >
                   <option value=''>Any status</option>
-                  <option value='scheduled'>Scheduled</option>
-                  <option value='confirmed'>Confirmed</option>
-                  <option value='completed'>Completed</option>
-                  <option value='cancelled'>Cancelled</option>
-                  <option value='no-show'>No Show</option>
-                </select>
-
-                <select
-                  value={sortBy}
-                  onChange={(e) => { setSortBy(e.target.value); setPage(1) }}
-                  className='hidden md:block h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
-                >
-                  <option value='date'>Sort by Date</option>
-                  <option value='createdAt'>Sort by Created</option>
-                  <option value='finalPrice'>Sort by Price</option>
-                  <option value='status'>Sort by Status</option>
-                </select>
-
-                <select
-                  value={sortOrder}
-                  onChange={(e) => { setSortOrder(e.target.value); setPage(1) }}
-                  className='hidden md:block h-9 text-sm rounded-lg border border-slate-200 bg-white px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-200 transition-shadow text-slate-600'
-                >
-                  <option value='desc'>Desc</option>
-                  <option value='asc'>Asc</option>
+                  <option value='active'>Active</option>
+                  <option value='inactive'>Inactive</option>
                 </select>
 
                 <select
@@ -288,50 +310,50 @@ const BookingsDatabasePage = () => {
               <div className='flex items-center justify-center py-16'>
                 <div className='w-5 h-5 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin' />
               </div>
-            ) : bookings.length === 0 ? (
+            ) : rewards.length === 0 ? (
               <div className='rounded-2xl border border-slate-200 bg-white p-8 text-center'>
-                <Database className='w-10 h-10 text-slate-200 mx-auto mb-3' />
+                <Gift className='w-10 h-10 text-slate-200 mx-auto mb-3' />
                 <p className='text-sm font-medium text-slate-500'>
-                  {search ? 'No bookings found matching your search' : 'No bookings found'}
+                  {search ? 'No rewards found matching your search' : 'No rewards found'}
                 </p>
               </div>
             ) : (
-              bookings.map((booking) => (
-                <div key={booking._id} className='rounded-2xl border border-slate-200 bg-white p-4 space-y-3'>
+              rewards.map((reward) => (
+                <div key={reward._id} className='rounded-2xl border border-slate-200 bg-white p-4 space-y-3'>
                   <div className='flex items-start justify-between gap-2'>
                     <div className='min-w-0'>
-                      <p className='text-sm font-medium text-slate-900 leading-tight'>
-                        {booking.serviceName || 'Unknown service'}
-                      </p>
-                      <p className='text-xs text-slate-500 mt-0.5'>
-                        {booking.clientName || booking.userId?.name || 'Unknown client'}
+                      <p className='text-sm font-medium text-slate-900 leading-tight'>{reward.name}</p>
+                      <p className='text-xs text-slate-500 mt-0.5 line-clamp-2'>
+                        {reward.description || 'No description'}
                       </p>
                     </div>
-                    <span className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${getStatusChip(booking.status)}`}>
-                      {booking.status || 'unknown'}
+                    <span className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      reward.status === 'active'
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {reward.status}
                     </span>
                   </div>
 
                   <div className='grid grid-cols-2 gap-2 text-xs'>
                     <div className='rounded-lg bg-slate-50 border border-slate-100 p-2.5'>
-                      <p className='text-slate-500 font-medium'>Date</p>
-                      <p className='text-slate-800 font-semibold truncate mt-0.5'>
-                        {booking.date ? new Date(booking.date).toLocaleDateString() : 'N/A'}
-                      </p>
+                      <p className='text-slate-500 font-medium'>Type</p>
+                      <p className='text-slate-800 font-semibold truncate mt-0.5'>{getRewardTypeLabel(reward.type)}</p>
                     </div>
                     <div className='rounded-lg bg-slate-50 border border-slate-100 p-2.5'>
-                      <p className='text-slate-500 font-medium'>Time</p>
-                      <p className='text-slate-800 font-semibold truncate mt-0.5'>{booking.time || 'N/A'}</p>
+                      <p className='text-slate-500 font-medium'>Points</p>
+                      <p className='text-slate-800 font-semibold truncate mt-0.5'>{reward.pointCost || 0}</p>
+                    </div>
+                    <div className='rounded-lg bg-slate-50 border border-slate-100 p-2.5'>
+                      <p className='text-slate-500 font-medium'>Value</p>
+                      <p className='text-slate-900 font-semibold mt-0.5'>{getRewardValueDisplay(reward)}</p>
                     </div>
                     <div className='rounded-lg bg-slate-50 border border-slate-100 p-2.5'>
                       <p className='text-slate-500 font-medium'>Location</p>
                       <p className='text-slate-800 font-semibold truncate mt-0.5'>
-                        {locationMap.get(booking.locationId) || booking.locationId || 'Unknown'}
+                        {locationMap.get(reward.locationId) || reward.locationId || 'All'}
                       </p>
-                    </div>
-                    <div className='rounded-lg bg-slate-50 border border-slate-100 p-2.5'>
-                      <p className='text-slate-500 font-medium'>Price</p>
-                      <p className='text-slate-900 font-semibold mt-0.5'>${booking.finalPrice?.toFixed(2) || '0.00'}</p>
                     </div>
                   </div>
                 </div>
@@ -343,9 +365,9 @@ const BookingsDatabasePage = () => {
           <div className='hidden md:block rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden'>
             <div className='px-5 py-4 border-b border-slate-100'>
               <h2 className='text-sm font-semibold text-slate-900'>
-                Bookings
-                {pagination.totalBookings > 0 && (
-                  <span className='text-slate-400 font-normal ml-1'>({pagination.totalBookings})</span>
+                Rewards
+                {pagination.totalRewards > 0 && (
+                  <span className='text-slate-400 font-normal ml-1'>({pagination.totalRewards})</span>
                 )}
               </h2>
             </div>
@@ -354,66 +376,72 @@ const BookingsDatabasePage = () => {
               <table className='min-w-full divide-y divide-slate-100'>
                 <thead>
                   <tr>
-                    <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Client</th>
-                    <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Service</th>
-                    <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Date</th>
+                    <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Reward</th>
+                    <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Type</th>
                     <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Location</th>
-                    <th className='px-5 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Price</th>
-                    <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Status</th>
+                    <th className='px-5 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer' onClick={() => handleSort('pointCost')}>Points</th>
+                    <th className='px-5 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Value</th>
+                    <th className='px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer' onClick={() => handleSort('status')}>Status</th>
+                    <th className='px-5 py-3 text-right text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer' onClick={() => handleSort('createdAt')}>Created</th>
                   </tr>
                 </thead>
                 <tbody className='divide-y divide-slate-50'>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className='px-5 py-10 text-center'>
+                      <td colSpan={7} className='px-5 py-10 text-center'>
                         <div className='flex items-center justify-center gap-2'>
                           <div className='w-4 h-4 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin' />
-                          <span className='text-sm text-slate-400'>Loading bookings...</span>
+                          <span className='text-sm text-slate-400'>Loading rewards...</span>
                         </div>
                       </td>
                     </tr>
-                  ) : bookings.length === 0 ? (
+                  ) : rewards.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className='px-5 py-10 text-center text-sm text-slate-400'>No bookings found with current filters.</td>
+                      <td colSpan={7} className='px-5 py-10 text-center text-sm text-slate-400'>No rewards found with current filters.</td>
                     </tr>
                   ) : (
-                    bookings.map((booking) => (
-                      <tr key={booking._id} className='transition-colors hover:bg-slate-50'>
-                        <td className='px-5 py-3.5 whitespace-nowrap'>
-                          <div>
-                            <p className='text-sm font-medium text-slate-900'>{booking.clientName || booking.userId?.name || 'Unknown'}</p>
-                            <p className='text-xs text-slate-400'>{booking.clientEmail || booking.userId?.email || 'N/A'}</p>
-                          </div>
-                        </td>
+                    rewards.map((reward) => (
+                      <tr key={reward._id} className='transition-colors hover:bg-slate-50'>
                         <td className='px-5 py-3.5'>
-                          <p className='text-sm text-slate-700'>{booking.serviceName || 'N/A'}</p>
-                          {booking.treatmentName && <p className='text-xs text-slate-400'>{booking.treatmentName}</p>}
+                          <div className='min-w-[200px]'>
+                            <p className='text-sm font-medium text-slate-900'>{reward.name}</p>
+                            <p className='text-xs text-slate-500 line-clamp-1 mt-0.5'>{reward.description || 'No description'}</p>
+                          </div>
                         </td>
                         <td className='px-5 py-3.5 whitespace-nowrap'>
-                          <div className='text-sm text-slate-700'>
-                            <div className='flex items-center gap-1'>
-                              <Calendar className='w-3.5 h-3.5 text-slate-400 shrink-0' />
-                              {booking.date ? new Date(booking.date).toLocaleDateString() : 'N/A'}
-                            </div>
-                            <div className='flex items-center gap-1 text-slate-400 mt-0.5'>
-                              <Clock className='w-3.5 h-3.5 text-slate-400 shrink-0' />
-                              {booking.time || 'N/A'}
-                            </div>
-                          </div>
+                          <span className='inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-slate-100 text-slate-700'>
+                            {getRewardTypeLabel(reward.type)}
+                          </span>
                         </td>
                         <td className='px-5 py-3.5 whitespace-nowrap'>
                           <div className='flex items-center gap-1 text-sm text-slate-700'>
                             <MapPin className='w-3.5 h-3.5 text-slate-400 shrink-0' />
-                            {locationMap.get(booking.locationId) || booking.locationId || 'Unknown'}
+                            {locationMap.get(reward.locationId) || reward.locationId || 'All locations'}
                           </div>
                         </td>
                         <td className='px-5 py-3.5 whitespace-nowrap text-right text-sm font-medium text-slate-900 tabular-nums'>
-                          ${booking.finalPrice?.toFixed(2) || '0.00'}
+                          {reward.pointCost || 0}
+                        </td>
+                        <td className='px-5 py-3.5 whitespace-nowrap text-right text-sm text-slate-700 tabular-nums'>
+                          {getRewardValueDisplay(reward)}
                         </td>
                         <td className='px-5 py-3.5 whitespace-nowrap'>
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${getStatusChip(booking.status)}`}>
-                            {booking.status || 'unknown'}
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            reward.status === 'active'
+                              ? 'bg-green-50 text-green-700'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {reward.status}
                           </span>
+                        </td>
+                        <td className='px-5 py-3.5 whitespace-nowrap text-right text-xs text-slate-400 tabular-nums'>
+                          {reward.createdAt
+                            ? new Date(reward.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })
+                            : '—'}
                         </td>
                       </tr>
                     ))
@@ -431,7 +459,7 @@ const BookingsDatabasePage = () => {
                 <div className='flex items-center gap-1'>
                   <button
                     onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                    disabled={!pagination.currentPage || pagination.currentPage <= 1 || isFetching}
+                    disabled={!pagination.hasPrev || isFetching}
                     className='h-8 w-8 p-0 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30 flex items-center justify-center text-xs'
                   >
                     &lt;
@@ -473,7 +501,7 @@ const BookingsDatabasePage = () => {
                   })()}
                   <button
                     onClick={() => setPage((prev) => prev + 1)}
-                    disabled={!pagination.totalPages || pagination.currentPage >= pagination.totalPages || isFetching}
+                    disabled={!pagination.hasNext || isFetching}
                     className='h-8 w-8 p-0 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50 disabled:opacity-30 flex items-center justify-center text-xs'
                   >
                     &gt;
@@ -493,14 +521,14 @@ const BookingsDatabasePage = () => {
                 <div className='flex items-center gap-2'>
                   <button
                     onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                    disabled={!pagination.currentPage || pagination.currentPage <= 1 || isFetching}
+                    disabled={!pagination.hasPrev || isFetching}
                     className='h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-50 flex items-center gap-1'
                   >
                     <ChevronLeft className='w-3.5 h-3.5' /> Prev
                   </button>
                   <button
                     onClick={() => setPage((prev) => prev + 1)}
-                    disabled={!pagination.totalPages || pagination.currentPage >= pagination.totalPages || isFetching}
+                    disabled={!pagination.hasNext || isFetching}
                     className='h-8 px-3 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-50 flex items-center gap-1'
                   >
                     Next <ChevronRight className='w-3.5 h-3.5' />
@@ -527,29 +555,21 @@ const BookingsDatabasePage = () => {
                   <select value={locationId} onChange={(e) => { setLocationId(e.target.value); setPage(1) }} className='w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700'>
                     <option value=''>All locations</option>
                     {locations.map((location) => (
-                      <option key={location._id} value={location.locationId}>{location.name || location.locationId}</option>
+                      <option key={location._id || location.locationId} value={location.locationId}>{location.name || location.locationId}</option>
+                    ))}
+                  </select>
+
+                  <select value={type} onChange={(e) => { setType(e.target.value); setPage(1) }} className='w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700'>
+                    <option value=''>All types</option>
+                    {rewardTypeOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
 
                   <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className='w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700'>
                     <option value=''>Any status</option>
-                    <option value='scheduled'>Scheduled</option>
-                    <option value='confirmed'>Confirmed</option>
-                    <option value='completed'>Completed</option>
-                    <option value='cancelled'>Cancelled</option>
-                    <option value='no-show'>No Show</option>
-                  </select>
-
-                  <select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setPage(1) }} className='w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700'>
-                    <option value='date'>Sort by Date</option>
-                    <option value='createdAt'>Sort by Created</option>
-                    <option value='finalPrice'>Sort by Price</option>
-                    <option value='status'>Sort by Status</option>
-                  </select>
-
-                  <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); setPage(1) }} className='w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700'>
-                    <option value='desc'>Desc</option>
-                    <option value='asc'>Asc</option>
+                    <option value='active'>Active</option>
+                    <option value='inactive'>Inactive</option>
                   </select>
 
                   <select value={limit} onChange={(e) => { setLimit(parseInt(e.target.value, 10)); setPage(1) }} className='w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700'>
@@ -573,4 +593,4 @@ const BookingsDatabasePage = () => {
   )
 }
 
-export default BookingsDatabasePage
+export default RewardsDatabasePage

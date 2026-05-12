@@ -33,6 +33,7 @@ import AutomationsManagementPage from './pages/Management/AutomationsManagementP
 import LocationSettingsPage from './pages/Management/LocationSettingsPage'
 import MembershipManagementPage from './pages/Management/MembershipManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
+import RewardsDatabasePage from './pages/Management/RewardsDatabasePage'
 import ServicesDatabasePage from './pages/Management/ServicesDatabasePage'
 import DatabaseBackupsPage from './pages/Management/DatabaseBackupsPage'
 import SessionTrackerPage from './pages/Management/SessionTrackerPage'
@@ -676,6 +677,15 @@ const App = () => {
           element={
             <RoleProtectedRoute allowedRoles={["super-admin"]}>
               <ServicesDatabasePage />
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/management/rewards-database"
+          element={
+            <RoleProtectedRoute allowedRoles={["super-admin"]}>
+              <RewardsDatabasePage />
             </RoleProtectedRoute>
           }
         />
