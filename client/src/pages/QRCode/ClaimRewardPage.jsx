@@ -163,9 +163,6 @@ const ClaimRewardPage = () => {
                                     <p className="text-sm text-blue-800 font-medium">
                                         You've already claimed from this QR code.
                                     </p>
-                                    <p className="text-xs text-blue-600 mt-1">
-                                        If you try to claim again before 15 hours have passed, you'll see the remaining wait time.
-                                    </p>
                                 </div>
                             )}
                             <div>
