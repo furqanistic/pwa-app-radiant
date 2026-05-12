@@ -490,12 +490,17 @@ export const scanQRCode = async (req, res, next) => {
     });
 
     if (recentScan) {
+      const minutesAgo = Math.floor((Date.now() - new Date(recentScan.createdAt).getTime()) / (60 * 1000));
+      const waitMinutes = Math.ceil((duplicateScanWindowMs - (Date.now() - new Date(recentScan.createdAt).getTime())) / (60 * 1000));
+
       return next(
         createError(
-          400,
+          429,
           actualPurpose === CHECKIN_PURPOSE
-            ? "You already checked in recently. Please try again shortly."
-            : "You already scanned this QR code recently. Please try again later."
+            ? `Duplicate check-in blocked: You already checked in at ${location.name} ${minutesAgo} minute${minutesAgo > 1 ? 's' : ''} ago. ` +
+              `For security, you must wait ${waitMinutes} more minute${waitMinutes > 1 ? 's' : ''} before checking in again.`
+            : `Duplicate scan blocked: You already scanned this QR code at ${location.name} ${minutesAgo} minute${minutesAgo > 1 ? 's' : ''} ago. ` +
+              `To prevent abuse, you must wait ${waitMinutes} more minute${waitMinutes > 1 ? 's' : ''} before scanning again.`
         )
       );
     }
@@ -641,11 +646,36 @@ export const scanQRCode = async (req, res, next) => {
     if (recentClaimAtLocation) {
       const timeSinceLastClaim = Date.now() - new Date(recentClaimAtLocation.createdAt).getTime();
       const hoursRemaining = Math.ceil((rateLimitWindowMs - timeSinceLastClaim) / (60 * 60 * 1000));
+      const minutesRemaining = Math.ceil((rateLimitWindowMs - timeSinceLastClaim) / (60 * 1000));
+
+      // Format the time remaining in a user-friendly way
+      let timeRemainingText;
+      if (hoursRemaining >= 1) {
+        timeRemainingText = `${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''}`;
+      } else {
+        timeRemainingText = `${minutesRemaining} minute${minutesRemaining > 1 ? 's' : ''}`;
+      }
+
+      // Format the last claim time
+      const lastClaimDate = new Date(recentClaimAtLocation.createdAt);
+      const lastClaimTimeStr = lastClaimDate.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
 
       return next(
         createError(
           429,
-          `You've already claimed points at this location recently. Please wait ${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''} before claiming again.`
+          `Rate limit: You already claimed ${recentClaimAtLocation.pointsAwarded} points at ${location.name} on ${lastClaimTimeStr}. ` +
+          `To prevent abuse, you must wait ${timeRemainingText} before claiming again. ` +
+          `Please return after ${new Date(lastClaimDate.getTime() + rateLimitWindowMs).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}.`
         )
       );
     }
