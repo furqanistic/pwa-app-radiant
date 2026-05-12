@@ -19,6 +19,7 @@ import {
   EARN_MORE_POINTS_METHOD_KEYS,
   mergePointsMethodsWithDefaults,
 } from '../utils/pointsSettings.js'
+import { getLocationCredits } from '../utils/credits.js'
 
 const RECENT_QR_CLAIMS_WINDOW_DAYS = 3
 const RECENT_QR_CLAIMS_LIMIT = 250
@@ -806,7 +807,7 @@ export const getDashboardData = async (req, res, next) => {
                 email: scannedByUser.email,
                 avatar: scannedByUser.avatar,
                 points: scannedByUser.points || 0,
-                credits: Number(scannedByUser.credits || 0),
+                credits: getLocationCredits(scannedByUser, locationId),
               }
             : null,
           activeRewardSummary: rewardSummary,
@@ -1078,7 +1079,7 @@ export const getDashboardData = async (req, res, next) => {
           referralCode: user.referralCode,
         },
         credits: {
-          available: Math.max(0, Number(user.credits || 0)),
+          available: getLocationCredits(user, targetLocationId),
           gifts: giftCards,
           expiring: nearestExpiring ? nearestExpiring.expiresAt : null,
           expiringReward: nearestExpiring,

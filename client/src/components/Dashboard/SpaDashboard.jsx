@@ -237,8 +237,11 @@ const SpaDashboard = ({ data, refetch, refreshRecentCheckIns, dashboardFilters =
   }
 
   const getCustomerCredits = (claim) => {
-    const value = Number(claim?.customer?.credits)
-    return Number.isFinite(value) ? Math.max(0, value) : 0
+    const credits = claim?.customer?.credits
+    if (!credits) return 0
+    if (typeof credits === 'number') return Math.max(0, Math.floor(credits))
+    const locationVal = credits[locationId]
+    return Number.isFinite(Number(locationVal)) ? Math.max(0, Math.floor(Number(locationVal))) : 0
   }
 
   const openClientProfile = (claim) => {

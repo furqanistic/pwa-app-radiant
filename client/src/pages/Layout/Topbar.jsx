@@ -32,7 +32,7 @@ const Topbar = ({
 }) => {
   const { currentUser } = useSelector((state) => state.user);
   const { totalItems } = useSelector((state) => state.cart);
-  const { branding } = useBranding();
+  const { branding, locationId } = useBranding();
   const isSuperAdmin = useSelector(selectIsSuperAdmin);
   const isElevatedUser = useSelector(selectIsElevatedUser);
   const { isInstalled, browserInfo, triggerInstall } = usePwaInstall();
@@ -45,7 +45,12 @@ const Topbar = ({
   const showCart = !isSuperAdmin && !isElevatedUser;
   const creditSystemEnabled = Boolean(branding?.membership?.creditSystem?.isEnabled);
   const showCredits = showCart && creditSystemEnabled;
-  const availableCredits = Math.max(0, Number(currentUser?.credits || 0));
+  const userCreditsMap = currentUser?.credits || {}
+  const availableCredits = Math.max(0, Number(
+    typeof userCreditsMap === 'number'
+      ? userCreditsMap
+      : (userCreditsMap[locationId] ?? 0)
+  ))
   const showInstallHint = !isInstalled && browserInfo?.isMobile;
 
   const handleInstallHint = async () => {

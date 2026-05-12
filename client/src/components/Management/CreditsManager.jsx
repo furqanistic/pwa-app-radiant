@@ -18,6 +18,7 @@ const CreditsManager = ({
   isOpen,
   onClose,
   user = null,
+  locationId = null,
 }) => {
   const queryClient = useQueryClient()
   const { branding } = useBranding()
@@ -54,8 +55,8 @@ const CreditsManager = ({
   }, [isOpen])
 
   const adjustCreditsMutation = useMutation({
-    mutationFn: ({ userId, type, amount, reason }) =>
-      authService.adjustUserCredits(userId, type, amount, reason),
+    mutationFn: ({ userId, type, amount, reason, locationId }) =>
+      authService.adjustUserCredits(userId, type, amount, reason, locationId),
     onSuccess: () => {
       toast.success('Credits updated successfully!')
       queryClient.invalidateQueries({ queryKey: ['all-users'] })
@@ -96,10 +97,16 @@ const CreditsManager = ({
       type: formData.type,
       amount,
       reason: formData.reason.trim(),
+      locationId,
     })
   }
 
-  const currentCredits = Math.max(0, Number(user?.credits || 0))
+  const userCreditsMap = user?.credits || {}
+  const currentCredits = Math.max(0, Number(
+    typeof userCreditsMap === 'number'
+      ? userCreditsMap
+      : (userCreditsMap[locationId] ?? 0)
+  ))
   const amount = Number(formData.amount) || 0
 
   const getOperationDetails = () => {

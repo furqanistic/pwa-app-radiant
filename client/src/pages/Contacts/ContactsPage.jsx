@@ -545,7 +545,12 @@ const ContactsPage = () => {
                               {user.points || 0}
                             </td>
                             <td className="px-5 py-3.5 whitespace-nowrap text-sm text-slate-700 font-medium tabular-nums">
-                              {user.credits || 0}
+                              {(() => {
+                                const uc = user.credits || {}
+                                return Math.max(0, Number(
+                                  typeof uc === 'number' ? uc : (uc[effectiveLocationFilter] ?? 0)
+                                ))
+                              })()}
                             </td>
                             <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-400">
                               {user.createdAt
@@ -745,6 +750,7 @@ const ContactsPage = () => {
                 isOpen={isCreditsManagerOpen}
                 onClose={handleCloseCreditsManager}
                 user={selectedUserForCredits}
+                locationId={effectiveLocationFilter}
               />
             </>
           )}

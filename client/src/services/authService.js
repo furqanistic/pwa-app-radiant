@@ -100,11 +100,12 @@ export const authService = {
     return response.data
   },
 
-  adjustUserCredits: async (userId, type, amount, reason = '') => {
+  adjustUserCredits: async (userId, type, amount, reason = '', locationId = '') => {
     const response = await axiosInstance.post(`/auth/users/${userId}/credits`, {
       type,
       amount: Number(amount),
       reason,
+      locationId,
     })
     return response.data
   },

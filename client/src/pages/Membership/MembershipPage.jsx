@@ -166,6 +166,7 @@ const MembershipPage = () => {
     const isSquareCheckout = checkoutProvider === 'square'
     const creditSystemConfig = membershipSummary?.creditSystem || locationMembership?.creditSystem || {}
     const creditSystemEnabled = Boolean(creditSystemConfig?.isEnabled)
+    const allowCreditPurchase = Boolean(creditSystemConfig?.allowCreditPurchase)
     const availableCredits = Math.max(
         0,
         Number(membershipSummary?.creditsBalance ?? currentUser?.credits ?? 0)
@@ -588,7 +589,7 @@ const MembershipPage = () => {
                             </div>
                         ) : null}
 
-                        {creditSystemEnabled && checkoutProvider !== 'square' ? (
+                        {creditSystemEnabled && allowCreditPurchase && checkoutProvider !== 'square' ? (
                             <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-white/90 px-4 py-3 shadow-[0_10px_25px_rgba(15,23,42,0.04)] backdrop-blur sm:mb-5">
                                 <div className="min-w-0">
                                     <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">

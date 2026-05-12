@@ -141,6 +141,10 @@ const normalizeCreditSystemConfig = (creditSystemInput, existingCreditSystemInpu
       Number.isFinite(resolvedPricePerCredit) && resolvedPricePerCredit >= 0
         ? resolvedPricePerCredit
         : 1,
+    allowCreditPurchase:
+      incoming.allowCreditPurchase !== undefined
+        ? Boolean(incoming.allowCreditPurchase)
+        : Boolean(existing.allowCreditPurchase),
   };
 };
 

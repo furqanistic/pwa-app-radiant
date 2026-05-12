@@ -50,9 +50,9 @@ const UserSchema = new mongoose.Schema(
       default: 100,
     },
     credits: {
-      type: Number,
-      default: 0,
-      min: 0,
+      type: Map,
+      of: Number,
+      default: {},
     },
     lastLogin: {
       type: Date,

@@ -60,6 +60,7 @@ const normalizeMembership = (membership) => {
     pricePerCredit: Number.isFinite(Number(membership?.creditSystem?.pricePerCredit))
       ? Math.max(0, Number(membership.creditSystem.pricePerCredit))
       : 1,
+    allowCreditPurchase: Boolean(membership?.creditSystem?.allowCreditPurchase),
   };
 
   if (Array.isArray(membership?.plans) && membership.plans.length > 0) {
@@ -184,6 +185,7 @@ const MembershipManagementModal = ({
     creditSystem: {
       isEnabled: false,
       pricePerCredit: 1,
+      allowCreditPurchase: true,
     },
     plans: [normalizePlan(DEFAULT_PLAN)],
   });
@@ -378,6 +380,7 @@ const MembershipManagementModal = ({
       creditSystem: {
         isEnabled: Boolean(formData.creditSystem?.isEnabled),
         pricePerCredit: Number(formData.creditSystem?.pricePerCredit || 0),
+        allowCreditPurchase: Boolean(formData.creditSystem?.allowCreditPurchase),
       },
       pendingStripeActivation:
         submitIntent === 'save' &&
@@ -610,31 +613,65 @@ const MembershipManagementModal = ({
                   : 'Credits stay hidden for this location, and the credit system is effectively off for subscribers here.'}
               </div>
               {formData.creditSystem?.isEnabled ? (
-                <div className="space-y-2 pt-1">
-                  <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-                    Price Per Credit ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.creditSystem?.pricePerCredit ?? 1}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        creditSystem: {
-                          ...prev.creditSystem,
-                          pricePerCredit: e.target.value,
-                        },
-                      }))
-                    }
-                    disabled={isReadOnly}
-                    className="w-full max-w-xs px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
-                    min="0"
-                    step="0.01"
-                    placeholder="1"
-                  />
-                  <p className="text-xs text-slate-500">
-                    Customers will be charged this amount for each credit they buy.
-                  </p>
+                <div className="space-y-3 pt-1">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                      Price Per Credit ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.creditSystem?.pricePerCredit ?? 1}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          creditSystem: {
+                            ...prev.creditSystem,
+                            pricePerCredit: e.target.value,
+                          },
+                        }))
+                      }
+                      disabled={isReadOnly}
+                      className="w-full max-w-xs px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
+                      min="0"
+                      step="0.01"
+                      placeholder="1"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Customers will be charged this amount for each credit they buy.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-100">
+                    <div>
+                      <label className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+                        Allow Extra Credit Purchases
+                      </label>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Members can buy additional credits beyond plan credits
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          creditSystem: {
+                            ...prev.creditSystem,
+                            allowCreditPurchase: !prev.creditSystem?.allowCreditPurchase,
+                          },
+                        }))
+                      }
+                      disabled={isReadOnly}
+                      className={`w-12 h-6 rounded-full transition-colors relative shrink-0 ${
+                        formData.creditSystem?.allowCreditPurchase ? 'bg-emerald-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                          formData.creditSystem?.allowCreditPurchase ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </div>

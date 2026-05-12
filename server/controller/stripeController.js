@@ -13,6 +13,7 @@ import User from '../models/User.js'
 import UserReward from '../models/UserReward.js'
 import { createGhlAppointmentForBooking } from './ghl.js'
 import { getPointsMethodForLocation } from '../utils/pointsSettings.js'
+import { getLocationCredits, setLocationCredits, incrementLocationCredits } from '../utils/credits.js'
 import {
   resolveSingleBookingRewardUsage,
 } from '../utils/rewardCheckout.js'
@@ -1953,10 +1954,11 @@ const buildMembershipSummaryResponse = async ({
     squarePlanVariationId: billing.squarePlanVariationId || null,
     stripeAccountId: stripeAccountId || billing.stripeAccountId || null,
     customerId: billing.stripeCustomerId || null,
-    creditsBalance: Math.max(0, Number(user?.credits || 0)),
+    creditsBalance: getLocationCredits(user, resolvedLocationId),
     creditSystem: {
       isEnabled: Boolean(location?.membership?.creditSystem?.isEnabled),
       pricePerCredit: Number(location?.membership?.creditSystem?.pricePerCredit || 0),
+      allowCreditPurchase: Boolean(location?.membership?.creditSystem?.allowCreditPurchase),
       currency: `${
         getLocationMembershipPlans(location)[0]?.currency ||
         location?.membership?.currency ||
@@ -2888,11 +2890,7 @@ export const purchaseCredits = async (req, res, next) => {
       expYear: paymentMethod.card?.exp_year || null,
     })
 
-    const nextCreditsBalance = Math.max(
-      0,
-      Number(user.credits || 0) + requestedQuantity
-    )
-    user.credits = nextCreditsBalance
+    const nextCreditsBalance = incrementLocationCredits(user, locationId, requestedQuantity)
     await user.save()
 
     const latestCharge =
@@ -6426,11 +6424,7 @@ async function handleCheckoutSessionCompleted(session) {
     customer.set('membershipBilling.stripeAccountId', stripeAccountId)
     customer.set('membershipBilling.locationId', locationId)
 
-    const nextCreditsBalance = Math.max(
-      0,
-      Number(customer.credits || 0) + requestedQuantity
-    )
-    customer.credits = nextCreditsBalance
+    const nextCreditsBalance = incrementLocationCredits(customer, locationId, requestedQuantity)
     await customer.save()
 
     await Payment.create({
@@ -7205,7 +7199,7 @@ async function handleMembershipInvoicePaid(invoice, stripeAccountId) {
   const planCreditsIncluded = Math.max(0, Math.floor(Number(plan?.creditsIncluded || 0)))
 
   if (shouldAwardPlanCredits && planCreditsIncluded > 0) {
-    user.credits = Math.max(0, Number(user.credits || 0)) + planCreditsIncluded
+    incrementLocationCredits(user, locationId, planCreditsIncluded)
   }
 
   await applyMembershipStateToUser({

@@ -19,6 +19,7 @@ import {
 } from './ghl.js'
 import { createSystemNotification } from './notification.js'
 import { updateUserTier } from './referral.js'
+import { getLocationCredits, setLocationCredits } from '../utils/credits.js'
 
 const isVerboseServerLogsEnabled =
   String(process.env.VERBOSE_SERVER_LOGS || '').toLowerCase() === 'true'
@@ -2404,7 +2405,18 @@ export const adjustUserCredits = async (req, res, next) => {
       return next(createError(404, 'User not found'))
     }
 
-    const oldCredits = Math.max(0, Number(user.credits || 0))
+    const targetLocationId =
+      `${req.body?.locationId || ''}`.trim() ||
+      req.user?.selectedLocation?.locationId ||
+      user?.selectedLocation?.locationId ||
+      user?.spaLocation?.locationId ||
+      null
+
+    if (!targetLocationId) {
+      return next(createError(400, 'A location ID is required to adjust credits'))
+    }
+
+    const oldCredits = getLocationCredits(user, targetLocationId)
     let newCredits = oldCredits
 
     switch (type) {
@@ -2421,7 +2433,7 @@ export const adjustUserCredits = async (req, res, next) => {
         return next(createError(400, 'Invalid adjustment type'))
     }
 
-    user.credits = newCredits
+    setLocationCredits(user, targetLocationId, newCredits)
     await user.save()
 
     let notificationTitle = 'Credits Updated'
