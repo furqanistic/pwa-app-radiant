@@ -275,6 +275,24 @@ const LocationSchema = new mongoose.Schema(
       ],
     },
 
+    // ==================== POINTS REDEMPTION (CASHBACK) ====================
+    pointsRedemption: {
+      isEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      pointsStep: {
+        type: Number,
+        default: 100,
+        min: 1,
+      },
+      dollarValue: {
+        type: Number,
+        default: 5,
+        min: 1,
+      },
+    },
+
     // ==================== QR CODE FIELDS ====================
     // NEW: QR Code data for this location
     qrCode: {

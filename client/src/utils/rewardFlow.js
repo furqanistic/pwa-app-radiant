@@ -242,6 +242,33 @@ export const calculateCartRewardDiscount = ({
   return 0
 }
 
+export const calculatePointsCashbackOptions = ({
+  userPoints = 0,
+  pointsStep = 100,
+  dollarValue = 5,
+  maxDiscount = Infinity,
+}) => {
+  if (!userPoints || !pointsStep || !dollarValue) return []
+  const maxSteps = Math.min(
+    Math.floor(userPoints / pointsStep),
+    Math.floor(maxDiscount / dollarValue)
+  )
+  const options = []
+  for (let i = 0; i <= maxSteps; i++) {
+    const points = i * pointsStep
+    const discount = i * dollarValue
+    options.push({
+      label: i === 0
+        ? 'No cashback'
+        : `${points} pts = -$${discount}.00`,
+      pointsRedeemed: points,
+      discount,
+      value: i, // step count: 0, 1, 2, etc.
+    })
+  }
+  return options
+}
+
 export const getApplicableRewardsForService = ({
   userRewards = [],
   serviceId = null,

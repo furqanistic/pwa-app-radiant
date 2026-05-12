@@ -23,6 +23,7 @@ import Layout from "@/pages/Layout/Layout";
 import { resolveServiceImageUrl } from "@/lib/imageHelpers";
 import {
     calculateRewardDiscount,
+    calculatePointsCashbackOptions,
     getApplicableRewardsForService,
     getRewardDisplayValue,
 } from "@/utils/rewardFlow";
@@ -54,6 +55,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from 'sonner';
 import { addToCart } from "../../redux/cartSlice";
+import { selectUserPoints } from "../../redux/userSlice";
+import { brandingService } from "@/services/brandingService";
 import ghlService from "../../services/ghlService";
 import stripeService from "../../services/stripeService";
 
@@ -358,6 +361,7 @@ const ServiceDetailPage = () => {
   const autoApplyRewardSnapshot = location.state?.autoApplyRewardSnapshot || null;
   const dispatch = useDispatch();
   const { currentUser } = useSelector((state) => state.user);
+  const userPoints = useSelector(selectUserPoints);
   const { branding, locationId: brandedLocationId, subdomain: brandingSubdomain } = useBranding();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = (() => {
@@ -407,6 +411,7 @@ const ServiceDetailPage = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [cashbackStep, setCashbackStep] = useState(0); // 0 = no cashback, 1, 2, 3...
 
   const {
     data: service,
@@ -451,6 +456,15 @@ const ServiceDetailPage = () => {
     enabled: Boolean(activeLocationId && currentUser?._id),
     staleTime: 60 * 1000,
   });
+
+  // Fetch cashback config for the service's location regardless of branding context
+  const { data: locationBranding } = useQuery({
+    queryKey: ["branding", "location", activeLocationId],
+    queryFn: () => brandingService.getBrandingByLocationId(activeLocationId),
+    enabled: Boolean(activeLocationId),
+    staleTime: 5 * 60 * 1000,
+  });
+  const locationPointsRedemption = locationBranding?.data?.pointsRedemption || branding?.pointsRedemption || {};
 
   const linkedGhlCalendarId = `${service?.ghlCalendar?.calendarId || ""}`.trim();
   const linkedGhlServiceId = `${service?.ghlService?.serviceId || ""}`.trim();
@@ -625,6 +639,10 @@ const ServiceDetailPage = () => {
   useEffect(() => {
     setIsDescriptionExpanded(false);
   }, [serviceId]);
+
+  useEffect(() => {
+    setCashbackStep(0);
+  }, [serviceId, selectedDate, selectedTime]);
 
   // Auto-select single treatment if strict match
 
@@ -857,7 +875,7 @@ const ServiceDetailPage = () => {
       return;
     }
 
-    const totalPrice = calculateTotalPrice({ includeReward: false });
+    const totalPrice = Math.max(0, calculateTotalPrice({ includeReward: false }) - cashbackDiscount);
     const totalDuration = calculateTotalDuration();
 
     const cartItem = {
@@ -890,7 +908,8 @@ const ServiceDetailPage = () => {
       })),
       rewardUsed: appliedReward?.id || null,
       rewardName: appliedReward?.name || null,
-      pointsUsed: 0,
+      pointsUsed: selectedCashbackOption.pointsRedeemed || 0,
+      pointsCashbackDiscount: cashbackDiscount || 0,
       isBirthdayGift: isBirthdayGift,
       notificationId: birthdayNotificationId,
     };
@@ -974,7 +993,8 @@ const ServiceDetailPage = () => {
         notes: "",
         rewardUsed: appliedReward?.id || null,
         userRewardId: appliedReward?.id || null,
-        pointsUsed: 0,
+        pointsUsed: selectedCashbackOption.pointsRedeemed || 0,
+        pointsCashbackDiscount: cashbackDiscount || 0,
         treatments: selectedTreatments.map(t => ({
             id: t._id || t.id,
             name: t.name,
@@ -996,7 +1016,7 @@ const ServiceDetailPage = () => {
           duration:
             addon.finalDuration || addon.customDuration || addon.duration,
         })),
-        totalPrice: calculateTotalPrice(),
+        totalPrice: Math.max(0, calculateTotalPrice() - cashbackDiscount),
         isBirthdayGift: isBirthdayGift,
         notificationId: birthdayNotificationId,
         useSavedCardDirectCharge: hasSavedMembershipCard,
@@ -1038,7 +1058,20 @@ const ServiceDetailPage = () => {
     navigate(-1);
   };
 
-  const totalPrice = calculateTotalPrice();
+  const baseTotal = calculateTotalPrice();
+  const pointsRedemptionCfg = locationPointsRedemption
+  const cashbackEnabled = Boolean(pointsRedemptionCfg?.isEnabled)
+  const cashbackPointsStep = Number(pointsRedemptionCfg?.pointsStep) || 100
+  const cashbackDollarValue = Number(pointsRedemptionCfg?.dollarValue) || 5
+  const cashbackOptions = calculatePointsCashbackOptions({
+    userPoints: userPoints,
+    pointsStep: cashbackPointsStep,
+    dollarValue: cashbackDollarValue,
+    maxDiscount: baseTotal,
+  })
+  const selectedCashbackOption = cashbackOptions.find((o) => o.value === cashbackStep) || cashbackOptions[0] || { pointsRedeemed: 0, discount: 0, value: 0 }
+  const cashbackDiscount = selectedCashbackOption.discount
+  const totalPrice = Math.max(0, baseTotal - cashbackDiscount);
   const totalDuration = calculateTotalDuration();
   const regularServicePrice = Number(service?.basePrice) || 0
   const currentPlanMemberPrice = getMemberPriceForUserPlan(service, currentUser)
@@ -1767,6 +1800,36 @@ const ServiceDetailPage = () => {
                           </div>
                       )}
 
+                      {cashbackEnabled && cashbackOptions.length > 1 && userPoints > 0 && (
+                        <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                              Use Points
+                            </span>
+                            <span className="text-[10px] font-semibold text-amber-500">
+                              ({userPoints.toLocaleString()} available)
+                            </span>
+                          </div>
+                          <select
+                            value={cashbackStep}
+                            onChange={(e) => setCashbackStep(Number(e.target.value))}
+                            className="w-full rounded-lg border border-amber-200 bg-white px-2.5 py-2 text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                          >
+                            {cashbackOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex items-center justify-between mt-2 text-xs">
+                            <span className="text-amber-600 font-medium">Points to redeem</span>
+                            <span className="font-bold text-amber-800">
+                              {selectedCashbackOption.pointsRedeemed.toLocaleString()} pts
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       {hasMemberDeal && (
                         <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white p-3">
                           <div className="mb-2 flex items-start justify-between gap-2">
@@ -1807,16 +1870,25 @@ const ServiceDetailPage = () => {
                         </div>
                       )}
                       
+                      {cashbackDiscount > 0 && (
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Points cashback</span>
+                            <span className="font-medium text-green-600">
+                              -${cashbackDiscount.toFixed(2)}
+                            </span>
+                        </div>
+                      )}
+
                       <div className="h-px bg-gray-100 my-2" />
                       
                       <div className="flex justify-between items-center">
-                         <span className="text-gray-900 font-bold">Total</span>
-                         <div className="text-right">
-                            <div className="text-2xl font-bold bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] bg-clip-text text-transparent">
-                               ${totalPrice.toFixed(2)}
-                            </div>
-                            <div className="text-xs text-gray-500 font-medium">{totalDuration} mins</div>
-                         </div>
+                          <span className="text-gray-900 font-bold">Total</span>
+                          <div className="text-right">
+                             <div className="text-2xl font-bold bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] bg-clip-text text-transparent">
+                                ${totalPrice.toFixed(2)}
+                             </div>
+                             <div className="text-xs text-gray-500 font-medium">{totalDuration} mins</div>
+                          </div>
                       </div>
                    </div>
 
@@ -1879,21 +1951,47 @@ const ServiceDetailPage = () => {
 
       {/* MOBILE STICKY BOTTOM BAR */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[60] border-t border-slate-200/80 bg-white/95 p-3 shadow-[0_-10px_28px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/85 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-         <div className="mx-auto grid max-w-lg grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-3">
-            {hasMemberDeal && (
-              <div className="col-span-2 rounded-xl bg-emerald-50 px-4 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Member Price</span>
-                  <span className="text-[2rem] font-black leading-none text-emerald-700">{formatPrice(memberDealPrice)}</span>
-                </div>
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-               <div className="mb-0.5 text-xs font-medium text-slate-500">Total for {totalDuration} min</div>
-               <div className="text-[1.9rem] font-black leading-none tracking-tight text-slate-900">
-                  ${totalPrice.toFixed(2)}
+          <div className="mx-auto grid max-w-lg grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-3">
+             {hasMemberDeal && (
+               <div className="col-span-2 rounded-xl bg-emerald-50 px-4 py-2.5">
+                 <div className="flex items-center justify-between gap-2">
+                   <span className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Member Price</span>
+                   <span className="text-[2rem] font-black leading-none text-emerald-700">{formatPrice(memberDealPrice)}</span>
+                 </div>
                </div>
-            </div>
+             )}
+             {cashbackEnabled && cashbackOptions.length > 1 && userPoints > 0 && (
+               <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2">
+                 <div className="flex items-center justify-between gap-2">
+                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                     Points ({userPoints.toLocaleString()})
+                   </span>
+                   <select
+                     value={cashbackStep}
+                     onChange={(e) => setCashbackStep(Number(e.target.value))}
+                     className="text-xs rounded-lg border border-amber-200 bg-white px-2 py-1 font-semibold text-gray-700 focus:outline-none"
+                   >
+                     {cashbackOptions.map((opt) => (
+                       <option key={opt.value} value={opt.value}>
+                         {opt.discount > 0 ? `${opt.pointsRedeemed} pts = -$${opt.discount}` : 'No cashback'}
+                       </option>
+                     ))}
+                   </select>
+                 </div>
+                 {cashbackDiscount > 0 && (
+                   <div className="flex justify-between mt-1 text-[11px]">
+                     <span className="text-amber-600">Points discount</span>
+                     <span className="font-bold text-green-600">-${cashbackDiscount.toFixed(2)}</span>
+                   </div>
+                 )}
+               </div>
+             )}
+             <div className="min-w-0 flex-1">
+                <div className="mb-0.5 text-xs font-medium text-slate-500">Total for {totalDuration} min</div>
+                <div className="text-[1.9rem] font-black leading-none tracking-tight text-slate-900">
+                   ${totalPrice.toFixed(2)}
+                </div>
+             </div>
             <div
               className={`grid items-stretch gap-2 ${
                 hasSavedMembershipCard

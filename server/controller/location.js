@@ -826,6 +826,7 @@ export const updateLocation = async (req, res, next) => {
       faviconPublicId,
       themeColor,
       membership,
+      pointsRedemption,
     } = req.body
 
     const location = await Location.findById(id)
@@ -980,6 +981,17 @@ export const updateLocation = async (req, res, next) => {
     if (favicon !== undefined) updateData.favicon = favicon
     if (faviconPublicId !== undefined) updateData.faviconPublicId = faviconPublicId
     if (themeColor !== undefined) updateData.themeColor = themeColor
+    if (pointsRedemption !== undefined) {
+      if (req.user.role !== 'super-admin') {
+        return next(createError(403, 'Only super-admin can configure points redemption settings'))
+      }
+      const { isEnabled, pointsStep, dollarValue } = pointsRedemption
+      const sanitized = {}
+      if (isEnabled !== undefined) sanitized.isEnabled = Boolean(isEnabled)
+      if (pointsStep !== undefined) sanitized.pointsStep = Math.max(1, Number(pointsStep))
+      if (dollarValue !== undefined) sanitized.dollarValue = Math.max(1, Number(dollarValue))
+      updateData.pointsRedemption = sanitized
+    }
     if (membership !== undefined) {
       updateData.membership = await syncMembershipWithStripe({
         membership,

@@ -2,7 +2,6 @@ import CreditsPurchaseDialog from "@/components/Membership/CreditsPurchaseDialog
 import { useBranding } from "@/context/BrandingContext";
 import { resolveBrandingLogoUrl } from "@/lib/imageHelpers";
 import { selectIsElevatedUser, selectIsSuperAdmin } from "@/redux/userSlice";
-import { usePwaInstall } from "@/hooks/usePwaInstall";
 import { BadgeCent, Plus, ShoppingCart } from "lucide-react";
 import { motion } from "framer-motion";
 import React, { useState } from "react";
@@ -35,7 +34,6 @@ const Topbar = ({
   const { branding, locationId } = useBranding();
   const isSuperAdmin = useSelector(selectIsSuperAdmin);
   const isElevatedUser = useSelector(selectIsElevatedUser);
-  const { isInstalled, browserInfo, triggerInstall } = usePwaInstall();
   const brandColor = branding?.themeColor || '#ec4899';
   const brandColorDark = adjustHex(brandColor, -24);
   const navigate = useNavigate();
@@ -51,23 +49,6 @@ const Topbar = ({
       ? userCreditsMap
       : (userCreditsMap[locationId] ?? 0)
   ))
-  const showInstallHint = !isInstalled && browserInfo?.isMobile;
-
-  const handleInstallHint = async () => {
-    try {
-      const result = await triggerInstall();
-      if (result.status === "unavailable") {
-        window.dispatchEvent(
-          new CustomEvent("cxr:open-install-prompt", {
-            detail: { source: "topbar-install-hint" },
-          })
-        );
-      }
-    } catch (error) {
-      console.error("Install hint action failed:", error);
-    }
-  };
-
   return (
     <>
       <div className={cn("bg-white border-b border-gray-200 sticky top-0 z-30", className)}>
@@ -174,21 +155,6 @@ const Topbar = ({
             </div>
           </div>
         </div>
-        {showInstallHint && (
-          <div className="border-t border-gray-100 px-4 py-1.5 text-center">
-            <button
-              type="button"
-              onClick={handleInstallHint}
-              className="text-[11px] font-medium text-gray-500 transition-colors hover:text-[color:var(--brand-primary-dark)]"
-            >
-              Using the browser? Tap{" "}
-              <span style={{ color: brandColor }} className="font-semibold">
-                here
-              </span>{" "}
-              to install the app.
-            </button>
-          </div>
-        )}
       </div>
       <CreditsPurchaseDialog
         open={creditsDialogOpen}

@@ -176,22 +176,23 @@ export const BrandingProvider = ({ children }) => {
     }
   }, [branding]);
 
-  // Persist branding JSON for the inline splash in index.html (same keys as getSplashBrandingCacheKey there).
+  // Persist branding JSON for the inline splash in index.html with timestamp
   useEffect(() => {
     if (!branding) return;
     try {
+      const payload = JSON.stringify({ __data: branding, __cachedAt: Date.now() });
       const spaParam = new URLSearchParams(location.search).get('spa')?.trim();
       if (spaParam) {
-        localStorage.setItem(`splash-branding:spa:${spaParam}`, JSON.stringify(branding));
+        localStorage.setItem(`splash-branding:spa:${spaParam}`, payload);
         return;
       }
       if (subdomain) {
-        localStorage.setItem(`splash-branding:subdomain:${subdomain}`, JSON.stringify(branding));
+        localStorage.setItem(`splash-branding:subdomain:${subdomain}`, payload);
         return;
       }
       const id = locationId?.trim();
       if (id) {
-        localStorage.setItem(`splash-branding:location:${id}`, JSON.stringify(branding));
+        localStorage.setItem(`splash-branding:location:${id}`, payload);
       }
     } catch {
       // ignore storage failures

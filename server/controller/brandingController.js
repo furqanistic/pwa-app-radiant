@@ -20,7 +20,7 @@ export const getBrandingBySubdomain = async (req, res, next) => {
     const location = await Location.findOne({ 
       subdomain: subdomain.toLowerCase(),
       isActive: true 
-    }).select('name subtitle logo logoPublicId favicon faviconPublicId themeColor subdomain locationId address membership reviewLink');
+    }).select('name subtitle logo logoPublicId favicon faviconPublicId themeColor subdomain locationId address membership reviewLink pointsRedemption');
 
     if (!location) {
       return res.status(404).json({
@@ -45,6 +45,7 @@ export const getBrandingBySubdomain = async (req, res, next) => {
         address: location.address,
         membership: location.membership,
         reviewLink: location.reviewLink || "",
+        pointsRedemption: location.pointsRedemption || { isEnabled: false, pointsStep: 100, dollarValue: 5 },
       },
     });
   } catch (error) {
@@ -71,7 +72,7 @@ export const getBrandingByLocationId = async (req, res, next) => {
     const location = await Location.findOne({
       locationId,
       isActive: true,
-    }).select('name subtitle logo logoPublicId favicon faviconPublicId themeColor subdomain locationId address membership reviewLink');
+    }).select('name subtitle logo logoPublicId favicon faviconPublicId themeColor subdomain locationId address membership reviewLink pointsRedemption');
 
     if (!location) {
       return res.status(404).json({
@@ -95,6 +96,7 @@ export const getBrandingByLocationId = async (req, res, next) => {
         address: location.address,
         membership: location.membership,
         reviewLink: location.reviewLink || "",
+        pointsRedemption: location.pointsRedemption || { isEnabled: false, pointsStep: 100, dollarValue: 5 },
       },
     });
   } catch (error) {

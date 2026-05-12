@@ -66,6 +66,7 @@ const PointsSettings = ({ isOpen, onClose, locations = [], currentUser }) => {
   const brandSofter = hexToRgba(brandColor, 0.1) || 'rgba(236,72,153,0.1)'
   const [methods, setMethods] = useState([])
   const [isDirty, setIsDirty] = useState(false)
+  const [cashback, setCashback] = useState({ isEnabled: false, pointsStep: 100, dollarValue: 5 })
   const [saveProgress, setSaveProgress] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedLocationId, setSelectedLocationId] = useState(null)
@@ -96,6 +97,13 @@ const PointsSettings = ({ isOpen, onClose, locations = [], currentUser }) => {
         )
       : incomingMethods
     setMethods(cloneMethods(scopedMethods))
+    // Load cashback settings
+    const pr = selectedLocation?.pointsRedemption || {}
+    setCashback({
+      isEnabled: pr.isEnabled ?? false,
+      pointsStep: pr.pointsStep ?? 100,
+      dollarValue: pr.dollarValue ?? 5,
+    })
     setIsDirty(false)
   }, [selectedLocation, isSpaManager])
 
@@ -168,9 +176,13 @@ const PointsSettings = ({ isOpen, onClose, locations = [], currentUser }) => {
 
   const handleSave = async () => {
     if (!locationId || isSaving) return
-    await updateLocationMutation.mutateAsync({
+    const payload = {
       pointsSettings: { methods },
-    })
+    }
+    if (isSuperAdmin) {
+      payload.pointsRedemption = cashback
+    }
+    await updateLocationMutation.mutateAsync(payload)
     setSaveProgress(100)
     setTimeout(() => setSaveProgress(0), 500)
   }
@@ -485,6 +497,98 @@ const PointsSettings = ({ isOpen, onClose, locations = [], currentUser }) => {
                   )})}
                 </div>
               )}
+
+              {isSuperAdmin && (
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-0.5 h-4 rounded-full shrink-0" style={{ background: brandColor }} />
+                    <h3 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Points Cashback Redemption</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Let users redeem points for $ off any service. Configure the rate per location.
+                  </p>
+
+                  <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-semibold text-gray-900">Enable Cashback</span>
+                        <p className="text-xs text-gray-500">Allow users to convert points to discounts</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCashback((prev) => ({ ...prev, isEnabled: !prev.isEnabled }))
+                          setIsDirty(true)
+                        }}
+                        disabled={isSaving}
+                        className={`w-12 h-6 rounded-full relative transition-colors ${
+                          cashback.isEnabled ? 'bg-green-500' : 'bg-gray-300'
+                        } ${isSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      >
+                        <div
+                          className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                            cashback.isEnabled ? 'translate-x-6' : ''
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-gray-50 px-4 py-3">
+                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                          Points per Step
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={cashback.pointsStep}
+                            disabled={isSaving}
+                            onChange={(e) => {
+                              setCashback((prev) => ({ ...prev, pointsStep: Math.max(1, Number(e.target.value || 1)) }))
+                              setIsDirty(true)
+                            }}
+                            className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 text-right"
+                          />
+                          <span className="text-xs text-gray-500 font-medium">points</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-gray-50 px-4 py-3">
+                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                          = $ Off
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-700">$</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={cashback.dollarValue}
+                            disabled={isSaving}
+                            onChange={(e) => {
+                              setCashback((prev) => ({ ...prev, dollarValue: Math.max(1, Number(e.target.value || 1)) }))
+                              setIsDirty(true)
+                            }}
+                            className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 text-right"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {cashback.isEnabled && (
+                      <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 px-4 py-3">
+                        <p className="text-xs text-blue-700 font-medium">
+                          Every <span className="font-bold">{cashback.pointsStep} points</span> ={' '}
+                          <span className="font-bold">${cashback.dollarValue}.00 off</span>
+                        </p>
+                        <p className="text-xs text-blue-500 mt-1">
+                          Users will see cashback options in multiples of {cashback.pointsStep} points at checkout.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             <div className='px-6 md:px-8 pb-6'>

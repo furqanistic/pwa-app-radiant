@@ -756,26 +756,48 @@
         return 'splash-branding:default'
       }
 
+      const SPLASH_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+      const readSplashCache = (key) => {
+        try {
+          const raw = localStorage.getItem(key)
+          if (!raw) return null
+          const parsed = JSON.parse(raw)
+          if (!parsed || !parsed.__data) return null
+          const age = Date.now() - (parsed.__cachedAt || 0)
+          if (age > SPLASH_CACHE_TTL_MS) {
+            localStorage.removeItem(key)
+            return null
+          }
+          return parsed.__data
+        } catch { return null }
+      }
+
+      const writeSplashCache = (key, data) => {
+        try {
+          localStorage.setItem(key, JSON.stringify({
+            __data: data,
+            __cachedAt: Date.now(),
+          }))
+        } catch {}
+      }
+
       // Initialize from cache immediately (Synchronous)
       const cacheKey = getSplashBrandingCacheKey()
-      let cachedData = null
-      try {
-        const cachedValue = localStorage.getItem(cacheKey)
-        if (cachedValue) {
-          cachedData = JSON.parse(cachedValue)
-          // We can't apply to DOM yet if body isn't parsed, 
-          // but we can set CSS variables immediately
-          if (cachedData?.themeColor) {
-            const rgb = hexToRgb(cachedData.themeColor)
-            document.documentElement.style.setProperty('--splash-primary', cachedData.themeColor)
-            document.documentElement.style.setProperty('--splash-primary-rgb', rgb)
-          }
-        }
-      } catch (e) {
-        console.warn('Splash cache error', e)
+      let cachedData = readSplashCache(cacheKey)
+
+      if (cachedData?.themeColor) {
+        const rgb = hexToRgb(cachedData.themeColor)
+        document.documentElement.style.setProperty('--splash-primary', cachedData.themeColor)
+        document.documentElement.style.setProperty('--splash-primary-rgb', rgb)
       }
 
       const loadSplashBranding = async () => {
+        // Skip network fetch if we already have fresh cache
+        if (cachedData) {
+          applySplashBranding(cachedData)
+          return
+        }
         try {
           const params = new URLSearchParams(window.location.search)
           const spaLocationId = params.get('spa')?.trim()
@@ -796,12 +818,11 @@
             const branding = payload?.data || null
             if (branding) {
               applySplashBranding(branding)
-              localStorage.setItem(cacheKey, JSON.stringify(branding))
+              writeSplashCache(cacheKey, branding)
               return
             }
           }
           
-          // Fallback to cache if request fails, or default
           applySplashBranding(cachedData)
         } catch {
           applySplashBranding(cachedData)
@@ -898,42 +919,44 @@
         console.log('iOS Safari - can be installed as PWA')
       }
 
-      // Hide splash screen when app is ready
+      // Track whether splash was already dismissed
+      let splashDismissed = false
+
+      // Hide splash screen with fade-out
       function hideSplashScreen() {
+        if (splashDismissed) return
+        splashDismissed = true
         const splash = document.getElementById('splash-screen')
-        if (splash) {
-          splash.classList.add('hidden')
-        }
+        if (splash) splash.classList.add('hidden')
       }
 
-      // Make function globally available for React
+      // Make globally available for React
       window.hideSplashScreen = hideSplashScreen
 
-      // Second load in the same tab session (e.g. service worker activated → reload):
-      // show splash only briefly so first-open does not feel like a "double splash".
-      const SPLASH_QUICK_HIDE_MS = 120
+      // React calls this when auth + branding are resolved
+      window.splashAppReady = () => {
+        hideSplashScreen()
+      }
+
+      // Second load in same tab session: skip splash entirely for instant feel
       const splashSessionKey = 'cxr-splash-session-dismissed'
-      let splashHideDelayMs = 400
       try {
         if (sessionStorage.getItem(splashSessionKey)) {
-          splashHideDelayMs = SPLASH_QUICK_HIDE_MS
+          // App was already running — hide splash immediately once DOM is ready
+          const hideFast = () => hideSplashScreen()
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', hideFast)
+          } else {
+            hideFast()
+          }
         }
         sessionStorage.setItem(splashSessionKey, '1')
       } catch {
         // Ignore private mode / storage errors.
       }
 
-      // Auto-hide splash screen after 5 seconds (failsafe)
-      setTimeout(() => {
-        hideSplashScreen()
-      }, 5000)
-
-      // Hide splash on page load
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          hideSplashScreen()
-        }, splashHideDelayMs)
-      })
+      // Failsafe: auto-hide after 5 seconds regardless
+      setTimeout(() => { hideSplashScreen() }, 5000)
     </script>
   </head>
   <body>

@@ -28,7 +28,6 @@ import AddUserForm from "@/components/Management/AddUserForm";
 import AutomatedGiftSettings from "@/components/Management/AutomatedGiftSettings";
 import AvailabilitySettings from "@/components/Management/AvailabilitySettings";
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
-import PointsSettings from "@/components/Management/PointsSettings";
 import SquareConnect from "@/components/Square/SquareConnect";
 import StripeConnect from "@/components/Stripe/StripeConnect";
 import Layout from "@/pages/Layout/Layout";
@@ -121,7 +120,6 @@ const ManagementPage = () => {
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false);
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
-  const [isPointsSettingsOpen, setIsPointsSettingsOpen] = useState(false);
 
   const isElevatedUser = [
     "admin",
@@ -299,23 +297,11 @@ const ManagementPage = () => {
             accent: "rose",
           },
           {
-            key: "points-rules",
-            title: "Points Rules",
+            key: "points-settings",
+            title: "Points Settings",
             description: "Control earning, redemption, and loyalty balance rules.",
             icon: Award,
-            onClick: () => setIsPointsSettingsOpen(true),
-            accent: "brand",
-          },
-        ]
-      : []),
-    ...(isTeamOrAbove && isSuperAdmin
-      ? [
-          {
-            key: "points-rules",
-            title: "Points Rules",
-            description: "Control earning, redemption, and loyalty balance rules.",
-            icon: Award,
-            onClick: () => setIsPointsSettingsOpen(true),
+            onClick: () => navigate("/management/points"),
             accent: "brand",
           },
         ]
@@ -334,6 +320,14 @@ const ManagementPage = () => {
       : []),
     ...(isSuperAdmin
       ? [
+          {
+            key: "points-settings",
+            title: "Points Settings",
+            description: "Control earning, redemption, and loyalty balance rules.",
+            icon: Award,
+            onClick: () => navigate("/management/points"),
+            accent: "brand",
+          },
           {
             key: "view-automations",
             title: "Automations",
@@ -636,12 +630,6 @@ const ManagementPage = () => {
         <AutomatedGiftSettings
           isOpen={isAutomatedGiftOpen}
           onClose={() => setIsAutomatedGiftOpen(false)}
-        />
-        <PointsSettings
-          isOpen={isPointsSettingsOpen}
-          onClose={() => setIsPointsSettingsOpen(false)}
-          locations={locations}
-          currentUser={currentUser}
         />
       </div>
     </Layout>

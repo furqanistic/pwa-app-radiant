@@ -34,6 +34,19 @@ import { useBranding } from '@/context/BrandingContext';
 import { useScopedLocationId } from '@/hooks/useScopedLocationId';
 import { isValidProfilePhone } from '@/lib/phoneValidation';
 
+const hexToRgb = (hex) => {
+  const cleaned = hex.replace('#', '');
+  if (cleaned.length !== 6) return '236, 72, 153';
+  const num = parseInt(cleaned, 16);
+  return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`;
+};
+
+const fadeUp = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+};
+
+const cardClass = "bg-white border border-slate-200 rounded-xl p-5";
 
 // API Functions
 const profileAPI = {
@@ -80,39 +93,40 @@ const ProfileField = ({
   disabled = false,
   error = null,
 }) => {
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full"
-    >
+    <motion.div layout {...fadeUp} className="w-full">
       {!isEditing ? (
         <motion.div
-          whileTap={{ scale: disabled ? 1 : 0.98 }}
-          className={`group flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all ${
+          whileTap={{ scale: disabled ? 1 : 0.99 }}
+          className={`group flex items-center justify-between ${cardClass} ${
             disabled
               ? "opacity-60 cursor-not-allowed"
-              : "active:bg-[color:var(--brand-primary)/0.08] cursor-pointer"
+              : "cursor-pointer hover:border-slate-300"
           }`}
           onClick={disabled ? undefined : onEdit}
         >
-          <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)/0.12] to-[color:var(--brand-primary)/0.08] rounded-xl shrink-0 text-[color:var(--brand-primary)]">
-              <Icon className="w-5 h-5" />
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div
+              className="p-2.5 rounded-lg shrink-0 text-white"
+              style={{ backgroundColor: brandColor }}
+            >
+              <Icon className="w-4 h-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 {label}
               </p>
-              <p className="text-base font-semibold text-gray-900 truncate">
+              <p className="text-sm font-semibold text-slate-900 truncate">
                 {value}
               </p>
             </div>
           </div>
           {!disabled && (
-            <div className="p-2 bg-gray-50 rounded-full group-hover:bg-[color:var(--brand-primary)/0.08] transition-colors">
-                 <Edit3 className="w-4 h-4 text-gray-400 group-hover:text-[color:var(--brand-primary)] transition-colors" />
+            <div className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+              <Edit3 className="w-3.5 h-3.5 text-slate-400" />
             </div>
           )}
         </motion.div>
@@ -120,14 +134,17 @@ const ProfileField = ({
         <motion.div
           initial={{ scale: 0.98, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70"
+          className={cardClass}
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl">
-              <Icon className="w-5 h-5 text-white" />
+            <div
+              className="p-2 rounded-lg text-white"
+              style={{ backgroundColor: brandColor }}
+            >
+              <Icon className="w-4 h-4" />
             </div>
-            <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
-              Editing {label}
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Edit {label}
             </p>
           </div>
           <input
@@ -135,20 +152,23 @@ const ProfileField = ({
             value={value}
             onChange={onChange}
             placeholder={placeholder}
-            className={`w-full px-4 py-3 bg-white rounded-xl border ${
-              error
-                ? "border-red-300 focus:border-red-400 focus:ring-red-100"
-                : "border-gray-100 focus:border-[color:var(--brand-primary)]"
-            } focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium placeholder:text-gray-300`}
+            className={`w-full px-4 py-2.5 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all text-sm font-medium placeholder:text-slate-400 ${
+              error ? "border-red-300" : ""
+            }`}
             autoFocus
           />
-          {error && <p className="text-red-500 text-xs mt-2 font-medium flex items-center gap-1"><AlertCircle size={12}/> {error}</p>}
+          {error && (
+            <p className="text-red-500 text-xs mt-2 font-medium flex items-center gap-1">
+              <AlertCircle size={12} /> {error}
+            </p>
+          )}
           <div className="flex gap-3 mt-4">
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.97 }}
               onClick={onSave}
               disabled={disabled}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold transition-all disabled:opacity-70"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 hover:brightness-90"
+              style={{ backgroundColor: brandColor }}
             >
               {disabled ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -158,10 +178,10 @@ const ProfileField = ({
               {disabled ? "Saving..." : "Save Changes"}
             </motion.button>
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.97 }}
               onClick={onCancel}
               disabled={disabled}
-              className="px-6 py-3 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
+              className="px-5 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
             >
               Cancel
             </motion.button>
@@ -180,6 +200,9 @@ const PasswordChangeField = ({
   onSave,
   isLoading,
 }) => {
+  const { branding } = useBranding();
+  const brandColor = branding?.themeColor || '#ec4899';
+
   const [passwords, setPasswords] = useState({
     currentPassword: "",
     newPassword: "",
@@ -224,51 +247,52 @@ const PasswordChangeField = ({
   };
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full"
-    >
+    <motion.div layout {...fadeUp} className="w-full">
       {!isEditing ? (
         <motion.div
-          whileTap={{ scale: 0.98 }}
-          className="group flex items-center justify-between p-4 md:p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/70 hover:border-gray-200/70 transition-all active:bg-[color:var(--brand-primary)/0.08] cursor-pointer"
+          whileTap={{ scale: 0.99 }}
+          className={`group flex items-center justify-between ${cardClass} cursor-pointer hover:border-slate-300`}
           onClick={onEdit}
         >
-          <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)/0.12] to-[color:var(--brand-primary)/0.08] rounded-xl shrink-0 text-[color:var(--brand-primary)]">
-              <Lock className="w-5 h-5" />
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div
+              className="p-2.5 rounded-lg shrink-0 text-white"
+              style={{ backgroundColor: brandColor }}
+            >
+              <Lock className="w-4 h-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Security
               </p>
-              <p className="text-base font-semibold text-gray-900 truncate">
+              <p className="text-sm font-semibold text-slate-900 truncate">
                 Change Password
               </p>
             </div>
           </div>
-           <div className="p-2 bg-gray-50 rounded-full group-hover:bg-[color:var(--brand-primary)/0.08] transition-colors">
-                <Shield className="w-4 h-4 text-gray-400 group-hover:text-[color:var(--brand-primary)] transition-colors" />
-           </div>
+          <div className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+            <Shield className="w-3.5 h-3.5 text-slate-400" />
+          </div>
         </motion.div>
       ) : (
         <motion.div
           initial={{ scale: 0.98, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-           className="p-4 md:p-5 bg-gradient-to-br from-white to-[color:var(--brand-primary)/0.08] rounded-2xl border border-gray-200/70"
+          className={cardClass}
         >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2.5 bg-gradient-to-br from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] rounded-xl">
-              <Lock className="w-5 h-5 text-white" />
+            <div
+              className="p-2 rounded-lg text-white"
+              style={{ backgroundColor: brandColor }}
+            >
+              <Lock className="w-4 h-4" />
             </div>
-            <p className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Change Password
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div>
               <input
                 type="password"
@@ -280,9 +304,9 @@ const PasswordChangeField = ({
                     currentPassword: e.target.value,
                   })
                 }
-                className={`w-full px-4 py-3 bg-white rounded-xl border ${
-                  errors.currentPassword ? "border-red-300" : "border-gray-100"
-                } focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium`}
+                className={`w-full px-4 py-2.5 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all text-sm font-medium placeholder:text-slate-400 ${
+                  errors.currentPassword ? "border-red-300" : ""
+                }`}
                 autoFocus
               />
               {errors.currentPassword && (
@@ -298,9 +322,9 @@ const PasswordChangeField = ({
                 onChange={(e) =>
                   setPasswords({ ...passwords, newPassword: e.target.value })
                 }
-                className={`w-full px-4 py-3 bg-white rounded-xl border ${
-                  errors.newPassword ? "border-red-300" : "border-gray-100"
-                } focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium`}
+                className={`w-full px-4 py-2.5 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all text-sm font-medium placeholder:text-slate-400 ${
+                  errors.newPassword ? "border-red-300" : ""
+                }`}
               />
               {errors.newPassword && (
                 <p className="text-red-500 text-xs mt-1 font-medium">{errors.newPassword}</p>
@@ -318,9 +342,9 @@ const PasswordChangeField = ({
                     confirmPassword: e.target.value,
                   })
                 }
-                className={`w-full px-4 py-3 bg-white rounded-xl border ${
-                  errors.confirmPassword ? "border-red-300" : "border-gray-100"
-                } focus:border-[color:var(--brand-primary)] focus:outline-none focus:ring-4 focus:ring-[color:var(--brand-primary)/0.12] transition-all text-base font-medium`}
+                className={`w-full px-4 py-2.5 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-all text-sm font-medium placeholder:text-slate-400 ${
+                  errors.confirmPassword ? "border-red-300" : ""
+                }`}
               />
               {errors.confirmPassword && (
                 <p className="text-red-500 text-xs mt-1 font-medium">{errors.confirmPassword}</p>
@@ -330,10 +354,11 @@ const PasswordChangeField = ({
 
           <div className="flex gap-3 mt-5">
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.97 }}
               onClick={handleSave}
               disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white rounded-xl text-sm font-bold transition-all disabled:opacity-70"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 hover:brightness-90"
+              style={{ backgroundColor: brandColor }}
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -343,10 +368,10 @@ const PasswordChangeField = ({
               {isLoading ? "Updating..." : "Update Password"}
             </motion.button>
             <motion.button
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.97 }}
               onClick={handleCancel}
               disabled={isLoading}
-               className="px-6 py-3 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
+              className="px-5 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all disabled:opacity-50"
             >
               Cancel
             </motion.button>
@@ -375,16 +400,12 @@ const LoadingState = () => {
 
   return (
     <Layout>
-      <div
-        className="min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white p-4 md:p-8 space-y-8 max-w-7xl mx-auto flex items-center justify-center"
-        style={{
-          ['--brand-primary']: brandColor,
-          ['--brand-primary-dark']: brandColorDark,
-        }}
-      >
+      <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 bg-white/50 rounded-2xl animate-pulse mx-auto mb-4" />
-          <div className="h-4 bg-white/50 rounded w-32 mx-auto animate-pulse" />
+          <div className="flex items-center justify-center gap-3 text-slate-400">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="text-sm font-medium">Loading profile...</span>
+          </div>
         </div>
       </div>
     </Layout>
@@ -409,30 +430,23 @@ const ErrorState = ({ error, retry }) => {
 
   return (
     <Layout>
-      <div
-        className="min-h-screen grid place-items-center bg-gradient-to-br from-[color:var(--brand-primary)/0.08] to-white p-4"
-        style={{
-          ['--brand-primary']: brandColor,
-          ['--brand-primary-dark']: brandColorDark,
-        }}
-      >
-        <div className="text-center p-8 bg-white rounded-3xl max-w-sm w-full border border-gray-200/70">
-          <AlertCircle className="w-12 h-12 text-[color:var(--brand-primary)] mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
+      <div className="min-h-screen bg-slate-50/50 grid place-items-center p-4">
+        <div className="text-center max-w-sm w-full bg-white border border-slate-200 rounded-xl p-8">
+          <AlertCircle className="w-10 h-10 mx-auto mb-4" style={{ color: brandColor }} />
+          <h2 className="text-lg font-bold text-slate-900 mb-1">
             Failed to load profile
           </h2>
-          <p className="text-gray-500 mb-6 text-sm">
+          <p className="text-slate-500 mb-6 text-sm">
             {error?.message || "Something went wrong"}
           </p>
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             onClick={retry}
-            className="w-full py-3 text-white rounded-xl font-bold hover:brightness-95 transition-all"
-            style={{
-              background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
-            }}
+            className="w-full py-2.5 text-white rounded-lg text-sm font-semibold hover:brightness-90 transition-all"
+            style={{ backgroundColor: brandColor }}
           >
             Try Again
-          </button>
+          </motion.button>
         </div>
       </div>
     </Layout>
@@ -462,6 +476,8 @@ const ProfilePage = () => {
       .toString(16)
       .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
   })();
+
+  const brandRgb = hexToRgb(brandColor);
 
   const toastStyle = {
     style: {
@@ -496,7 +512,7 @@ const ProfilePage = () => {
     mutationFn: profileAPI.updateUser,
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(currentUserQueryKey, updatedUser);
-      dispatch(updateProfile(updatedUser)); // Update Redux state
+      dispatch(updateProfile(updatedUser));
       toastSuccess("Profile updated successfully");
     },
     onError: (error) => {
@@ -592,7 +608,6 @@ const ProfilePage = () => {
       typeof window !== "undefined" ? window.location.origin : FRONTEND_URL;
 
     try {
-      // In dev, always encode the host you're running on so scans/opens hit the same API/app.
       const baseUrl =
         import.meta.env.DEV && typeof window !== "undefined"
           ? window.location.origin
@@ -643,7 +658,7 @@ const ProfilePage = () => {
 
     generateSpaPreviewQrImages();
   }, [spaClaimQr?.qrId, spaCheckInQr?.qrId]);
-    
+
   const getMembershipDisplay = (user) => {
     const membershipStatus = String(
       user?.membership?.status ||
@@ -850,109 +865,108 @@ const ProfilePage = () => {
 
   return (
     <Layout>
-      <div
-        className="min-h-screen bg-gradient-to-br from-[color:var(--brand-primary)/0.08] via-[color:var(--brand-primary)/0.03] to-white pb-20 md:pb-12"
-        style={{
-          ['--brand-primary']: brandColor,
-          ['--brand-primary-dark']: brandColorDark,
-        }}
-      >
+      <div className="min-h-screen bg-slate-50/50 pb-20 md:pb-12">
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-8">
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden rounded-3xl border border-[color:var(--brand-primary)/0.25] bg-gradient-to-r from-[color:var(--brand-primary)] to-[color:var(--brand-primary-dark)] text-white p-6 md:p-10"
+            className="relative overflow-hidden rounded-2xl text-white"
+            style={{
+              background: `linear-gradient(to right, ${brandColor}, ${brandColorDark})`,
+            }}
           >
-            <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/20" />
-            <div className="pointer-events-none absolute -left-20 -bottom-24 h-64 w-64 rounded-full bg-black/10" />
-            <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-white/15" />
+            <div className="pointer-events-none absolute -left-20 -bottom-24 h-64 w-64 rounded-full bg-black/8" />
+            <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between p-6 md:p-8">
               <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider">
                   <Sparkles size={12} className="text-yellow-200 fill-yellow-200" />
                   {isSpaUser ? "Spa Account" : getMembershipDisplay(user)}
                 </div>
-                <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-tight">
+                <h1 className="text-2xl md:text-4xl font-bold tracking-tight leading-tight">
                   Hello, {user.name.split(" ")[0]}
                 </h1>
-                <p className="text-white/85 font-medium text-sm md:text-base">
+                <p className="text-white/80 text-sm md:text-base font-normal">
                   Manage your account details and access your location tools.
                 </p>
-                <div className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-black/15 px-3 py-2 text-sm font-semibold">
-                  <MapPin className="h-4 w-4" />
+                <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-black/12 px-3 py-1.5 text-sm font-medium">
+                  <MapPin className="h-3.5 w-3.5" />
                   {activeLocationName}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 self-start lg:self-auto">
-                <div className="rounded-2xl border border-white/25 bg-white/10 px-4 py-3 min-w-[112px]">
-                  <p className="text-[10px] uppercase tracking-wider text-white/75 font-bold">Points</p>
-                  <p className="text-2xl font-black">{user.points}</p>
+              <div className="flex gap-3 self-start lg:self-auto">
+                <div className="rounded-xl border border-white/25 bg-white/10 px-4 py-3 min-w-[100px]">
+                  <p className="text-[10px] uppercase tracking-wider text-white/70 font-semibold">Points</p>
+                  <p className="text-xl font-bold">{user.points}</p>
                 </div>
-                <div className="rounded-2xl border border-white/25 bg-white/10 px-4 py-3 min-w-[112px]">
-                  <p className="text-[10px] uppercase tracking-wider text-white/75 font-bold">Joined</p>
-                  <p className="text-lg font-black leading-tight">{user.memberSince}</p>
+                <div className="rounded-xl border border-white/25 bg-white/10 px-4 py-3 min-w-[100px]">
+                  <p className="text-[10px] uppercase tracking-wider text-white/70 font-semibold">Joined</p>
+                  <p className="text-base font-bold leading-tight">{user.memberSince}</p>
                 </div>
               </div>
             </div>
           </motion.div>
 
-          <div className="mt-6 grid grid-cols-1 xl:grid-cols-12 gap-6">
+          <div className="mt-6 grid grid-cols-1 xl:grid-cols-12 gap-5">
             {!isSpaUser && (
               <motion.div
-                initial={{ opacity: 0, y: 18 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.03 }}
                 className="xl:col-span-12"
               >
-                <div className="bg-white rounded-2xl border-2 border-gray-200/70 p-6 lg:p-7">
+                <div className={cardClass}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
-                        <Crown className="w-5 h-5" />
+                      <div
+                        className="p-2.5 rounded-lg text-white"
+                        style={{ backgroundColor: brandColor }}
+                      >
+                        <Crown className="w-4 h-4" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-black text-gray-900">
+                        <h3 className="text-base font-bold text-slate-900">
                           Membership Status
                         </h3>
-                        <p className="text-sm text-gray-500 font-medium">
+                        <p className="text-sm text-slate-500">
                           Plan and billing period details
                         </p>
                       </div>
                     </div>
                     <span
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                         isMembershipActive
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-gray-100 text-gray-700"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-slate-50 text-slate-600 border border-slate-200"
                       }`}
                     >
                       {isMembershipActive ? "Active" : "Inactive"}
                     </span>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold">
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
                         Plan
                       </p>
-                      <p className="text-sm font-extrabold text-gray-900 mt-1">
+                      <p className="text-sm font-bold text-slate-900 mt-0.5">
                         {membershipPlanName}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
                         Start Date
                       </p>
-                      <p className="text-sm font-extrabold text-gray-900 mt-1">
+                      <p className="text-sm font-bold text-slate-900 mt-0.5">
                         {formatMembershipDate(membershipStartDate)}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
                         End Date
                       </p>
-                      <p className="text-sm font-extrabold text-gray-900 mt-1">
+                      <p className="text-sm font-bold text-slate-900 mt-0.5">
                         {formatMembershipDate(membershipEndDate)}
                       </p>
                     </div>
@@ -962,25 +976,27 @@ const ProfilePage = () => {
             )}
 
             <motion.div
-              initial={{ opacity: 0, y: 18 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
               className={`order-2 xl:order-1 ${isSpaUser ? "xl:col-span-7" : "xl:col-span-12"}`}
             >
-              <div className="bg-white rounded-2xl border-2 border-gray-200/70 p-6 lg:p-8">
-                <div className="flex items-center gap-4 mb-8 border-b border-gray-100 pb-6">
-                  <div className="p-3 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
-                    <Zap className="w-6 h-6" />
+              <div className={cardClass}>
+                <div className="flex items-center gap-3 mb-6 pb-5 border-b border-slate-100">
+                  <div
+                    className="p-2.5 rounded-lg text-white"
+                    style={{ backgroundColor: brandColor }}
+                  >
+                    <Zap className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-gray-900">Personal Settings</h3>
-                    <p className="text-sm text-gray-500 font-medium">
+                    <h3 className="text-base font-bold text-slate-900">Personal Settings</h3>
+                    <p className="text-xs text-slate-500">
                       Update your identity and login credentials
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-3">
                   <ProfileField
                     icon={User}
                     label="Full Name"
@@ -1038,69 +1054,71 @@ const ProfilePage = () => {
             </motion.div>
 
             {isSpaUser && (
-              <div className="order-1 xl:order-2 xl:col-span-5 space-y-6">
+              <div className="order-1 xl:order-2 xl:col-span-5 space-y-5">
                 <motion.div
-                  initial={{ opacity: 0, y: 18 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.09 }}
-                  className="bg-white rounded-2xl border-2 border-gray-200/70 p-6"
+                  className={cardClass}
                 >
-                  <div className="flex items-center justify-between gap-3 mb-5">
+                  <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
                     <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-[color:var(--brand-primary)/0.12] rounded-xl text-[color:var(--brand-primary)]">
-                        <QrCode className="w-5 h-5" />
+                      <div
+                        className="p-2.5 rounded-lg text-white"
+                        style={{ backgroundColor: brandColor }}
+                      >
+                        <QrCode className="w-4 h-4" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-black text-gray-900">QR Download Center</h3>
-                        <p className="text-sm text-gray-500 font-medium">Claim and check-in codes for your location</p>
+                        <h3 className="text-base font-bold text-slate-900">QR Download Center</h3>
+                        <p className="text-xs text-slate-500">Claim and check-in codes for your location</p>
                       </div>
                     </div>
-                    <div className="hidden md:inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700">
-                      <MapPin className="w-3.5 h-3.5 text-[color:var(--brand-primary)]" />
-                      <span className="max-w-[160px] truncate">{activeLocationName}</span>
+                    <div className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                      <MapPin className="w-3 h-3" style={{ color: brandColor }} />
+                      <span className="max-w-[140px] truncate">{activeLocationName}</span>
                     </div>
                   </div>
 
                   {!myLocation && !spaBusinessLocationId ? (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-slate-500">
                       No assigned location found for your account.
                     </p>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <button
                         onClick={() => setIsQrDownloadPanelOpen((prev) => !prev)}
-                        className="w-full rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white hover:from-gray-100 hover:to-white px-4 py-3.5 flex items-center justify-between text-left transition-colors"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 px-4 py-3 flex items-center justify-between text-left transition-colors"
                       >
                         <div className="min-w-0">
-                          <p className="text-[11px] font-black uppercase tracking-widest text-gray-500">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                             Location QRs
                           </p>
-                          <p className="text-sm font-extrabold text-gray-900 truncate">
+                          <p className="text-sm font-semibold text-slate-900 truncate">
                             Download for {activeLocationName}
                           </p>
                         </div>
                         {isQrDownloadPanelOpen ? (
-                          <ChevronUp className="w-4 h-4 text-gray-500 shrink-0" />
+                          <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
                         ) : (
-                          <ChevronDown className="w-4 h-4 text-gray-500 shrink-0" />
+                          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
                         )}
                       </button>
 
                       {isQrDownloadPanelOpen && (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           {isLoadingMyLocation || isLoadingSpaClaimQr || isLoadingSpaCheckInQr ? (
-                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
                               <Loader2 className="w-4 h-4 animate-spin" />
                               Loading your QR codes...
                             </div>
                           ) : (
                             <>
-                              <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 space-y-3">
+                              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
                                 <div className="flex items-center justify-between gap-3">
-                                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Claim Rewards
                                   </p>
-                                  <span className="text-[10px] font-black uppercase tracking-widest rounded-full px-2 py-1 bg-pink-100 text-pink-700">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider rounded-full px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200">
                                     Points
                                   </span>
                                 </div>
@@ -1110,39 +1128,39 @@ const ProfilePage = () => {
                                       <img
                                         src={spaClaimQrImage}
                                         alt="Claim rewards QR"
-                                        className="w-44 h-44 object-contain"
+                                        className="w-40 h-40 object-contain"
                                       />
                                     </div>
                                     <Button
                                       onClick={() => handleDownloadSpaQr("claim")}
-                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      className="w-full rounded-lg text-sm font-semibold"
                                       style={{
-                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        backgroundColor: brandColor,
                                         color: "#fff",
                                       }}
                                     >
-                                      <Download className="w-4 h-4 mr-2" />
+                                      <Download className="w-4 h-4 mr-1.5" />
                                       Download Claim QR
                                     </Button>
                                   </>
                                 ) : (
                                   <div className="space-y-3">
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-slate-500">
                                       Claim QR not generated yet.
                                     </p>
                                     <Button
                                       onClick={() => handleGenerateSpaQr("claim")}
                                       disabled={generatingSpaQrPurpose === "claim" || !spaLocationDbId}
-                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      className="w-full rounded-lg text-sm font-semibold"
                                       style={{
-                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        backgroundColor: brandColor,
                                         color: "#fff",
                                       }}
                                     >
                                       {generatingSpaQrPurpose === "claim" ? (
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
                                       ) : (
-                                        <QrCode className="w-4 h-4 mr-2" />
+                                        <QrCode className="w-4 h-4 mr-1.5" />
                                       )}
                                       {spaLocationDbId ? "Generate Claim QR" : "Loading Location..."}
                                     </Button>
@@ -1150,12 +1168,12 @@ const ProfilePage = () => {
                                 )}
                               </div>
 
-                              <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-4 space-y-3">
+                              <div className="rounded-xl border border-slate-200 p-4 space-y-3">
                                 <div className="flex items-center justify-between gap-3">
-                                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     Check-In
                                   </p>
-                                  <span className="text-[10px] font-black uppercase tracking-widest rounded-full px-2 py-1 bg-indigo-100 text-indigo-700">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider rounded-full px-2 py-0.5 bg-indigo-50 text-indigo-600 border border-indigo-200">
                                     Visit
                                   </span>
                                 </div>
@@ -1165,39 +1183,39 @@ const ProfilePage = () => {
                                       <img
                                         src={spaCheckInQrImage}
                                         alt="Check-in QR"
-                                        className="w-44 h-44 object-contain"
+                                        className="w-40 h-40 object-contain"
                                       />
                                     </div>
                                     <Button
                                       onClick={() => handleDownloadSpaQr("checkin")}
-                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      className="w-full rounded-lg text-sm font-semibold"
                                       style={{
-                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        backgroundColor: brandColor,
                                         color: "#fff",
                                       }}
                                     >
-                                      <Download className="w-4 h-4 mr-2" />
+                                      <Download className="w-4 h-4 mr-1.5" />
                                       Download Check-In QR
                                     </Button>
                                   </>
                                 ) : (
                                   <div className="space-y-3">
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-slate-500">
                                       Check-in QR not generated yet.
                                     </p>
                                     <Button
                                       onClick={() => handleGenerateSpaQr("checkin")}
                                       disabled={generatingSpaQrPurpose === "checkin" || !spaLocationDbId}
-                                      className="w-full rounded-xl py-3 text-sm font-bold"
+                                      className="w-full rounded-lg text-sm font-semibold"
                                       style={{
-                                        background: `linear-gradient(90deg, ${brandColor}, ${brandColorDark})`,
+                                        backgroundColor: brandColor,
                                         color: "#fff",
                                       }}
                                     >
                                       {generatingSpaQrPurpose === "checkin" ? (
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
                                       ) : (
-                                        <QrCode className="w-4 h-4 mr-2" />
+                                        <QrCode className="w-4 h-4 mr-1.5" />
                                       )}
                                       {spaLocationDbId ? "Generate Check-In QR" : "Loading Location..."}
                                     </Button>

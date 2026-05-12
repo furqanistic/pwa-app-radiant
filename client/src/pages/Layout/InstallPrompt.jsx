@@ -128,53 +128,32 @@ const InstallPrompt = () => {
     openInstructionsForEnvironment,
   ])
 
-  // Main installation effect
+  // Auto-show install prompt for browser users, once per visit session
   useEffect(() => {
-    // ONLY show install prompt if user has selected a location
-    if (!locationId) {
-      setShowInstallPrompt(false)
-      return
-    }
-
+    if (!locationId) return
     if (isInstalled) {
       const hasShownSuccess = localStorage.getItem(STORAGE_KEYS.SUCCESS_SHOWN)
-      if (!hasShownSuccess) {
-        showInstallSuccess()
-      }
+      if (!hasShownSuccess) showInstallSuccess()
       return
     }
 
-    if (localStorage.getItem(STORAGE_KEYS.NEVER_SHOW) === 'true') {
-      return
-    }
+    if (localStorage.getItem(STORAGE_KEYS.NEVER_SHOW) === 'true') return
 
     const dismissedTime = localStorage.getItem(STORAGE_KEYS.DISMISSED)
-    if (
-      dismissedTime &&
-      Date.now() - parseInt(dismissedTime) < DISMISSAL_DURATION
-    ) {
-      return
-    }
+    if (dismissedTime && Date.now() - parseInt(dismissedTime) < DISMISSAL_DURATION) return
+
+    // Only auto-show on mobile browsers
+    if (!browserInfo.isMobile) return
 
     const timer = setTimeout(() => {
-      if (!isInstalled && !showInstallPrompt && hasNativePrompt && isPWAReady) {
-        console.log('🔄 Showing native install prompt')
-        setPromptState(PROMPT_STATES.INITIAL)
+      if (!showInstallPrompt) {
+        setPromptState(hasNativePrompt ? PROMPT_STATES.INITIAL : PROMPT_STATES.GENERAL_INSTRUCTIONS)
         setShowInstallPrompt(true)
       }
-    }, 1500)
+    }, 2000)
 
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [
-    isInstalled,
-    showInstallPrompt,
-    hasNativePrompt,
-    isPWAReady,
-    showInstallSuccess,
-    locationId,
-  ])
+    return () => clearTimeout(timer)
+  }, [isInstalled, locationId, showInstallPrompt, hasNativePrompt, browserInfo.isMobile, showInstallSuccess])
 
   // MAIN INSTALL HANDLER - Automatically installs based on browser
   const handleAutoInstall = async () => {

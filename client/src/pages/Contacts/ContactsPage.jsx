@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 // Import components
 import AddUserForm from "@/components/Management/AddUserForm";
 import CreditsManager from "@/components/Management/CreditsManager";
+import EditUserForm from "@/components/Management/EditUserForm";
 import NotificationSender from "@/components/Management/NotificationSender";
 import PointsManager from "@/components/Management/PointsManager";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,8 @@ const ContactsPage = () => {
 
   // State management
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState(null);
   const [isNotificationSenderOpen, setIsNotificationSenderOpen] = useState(false);
   const [isPointsManagerOpen, setIsPointsManagerOpen] = useState(false);
   const [isCreditsManagerOpen, setIsCreditsManagerOpen] = useState(false);
@@ -114,7 +117,7 @@ const ContactsPage = () => {
     currentUser?.spaLocation?.locationId;
   const scopedLocationId = currentUserLocationId || "";
   const effectiveLocationFilter = isSuperAdmin
-    ? locationFilter || scopedLocationId
+    ? locationFilter
     : scopedLocationId;
   const activeLocationName =
     branding?.name ||
@@ -129,9 +132,9 @@ const ContactsPage = () => {
   };
 
   const roleFilterOptions = isSuperAdmin
-    ? ["all", "super-admin", "admin", "spa", "enterprise", "user"]
+    ? ["all", "super-admin", "spa", "user"]
     : isAdminOrAbove
-    ? ["all", "admin", "spa", "enterprise", "user"]
+    ? ["all", "spa", "user"]
     : ["all", "user"];
 
   useEffect(() => {
@@ -584,7 +587,8 @@ const ContactsPage = () => {
                                       className="rounded-lg text-sm text-slate-700 focus:bg-slate-50 focus:text-slate-900"
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        navigate(withSpaParam(`/client/${user._id}`))
+                                        setSelectedUserForEdit(user)
+                                        setIsEditUserOpen(true)
                                       }}
                                     >
                                       <Edit className="w-4 h-4 mr-2.5 text-slate-400" />
@@ -729,6 +733,14 @@ const ContactsPage = () => {
             onClose={() => setIsAddUserOpen(false)}
             onSubmit={handleCreateUser}
           />
+
+          {isSuperAdmin && (
+            <EditUserForm
+              isOpen={isEditUserOpen}
+              onClose={() => { setIsEditUserOpen(false); setSelectedUserForEdit(null) }}
+              user={selectedUserForEdit}
+            />
+          )}
 
           {isElevatedUser && (
             <>

@@ -31,6 +31,7 @@ import ManagementPage from './pages/Management/ManagementPage'
 import CalendarManagementPage from './pages/Management/CalendarManagementPage'
 import AutomationsManagementPage from './pages/Management/AutomationsManagementPage'
 import LocationSettingsPage from './pages/Management/LocationSettingsPage'
+import PointsSettingsPage from './pages/Management/PointsSettingsPage'
 import MembershipManagementPage from './pages/Management/MembershipManagementPage'
 import ServiceManagementPage from './pages/Management/ServiceManagementPage'
 import RewardsDatabasePage from './pages/Management/RewardsDatabasePage'
@@ -106,11 +107,7 @@ const ProtectedRoute = ({ children }) => {
     spaId ? `${path}?spa=${encodeURIComponent(spaId)}` : path
 
   if (!currentUser && token) {
-    return (
-      <div className='min-h-screen flex items-center justify-center bg-white'>
-        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
-      </div>
-    )
+    return <div className='min-h-screen bg-white' />
   }
 
   if (!currentUser) {
@@ -131,11 +128,7 @@ const RoleProtectedRoute = ({ children, allowedRoles = [] }) => {
     spaId ? `${path}?spa=${encodeURIComponent(spaId)}` : path
 
   if (!currentUser && token) {
-    return (
-      <div className='min-h-screen flex items-center justify-center bg-white'>
-        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
-      </div>
-    )
+    return <div className='min-h-screen bg-white' />
   }
 
   if (!currentUser) {
@@ -157,11 +150,7 @@ const PublicRoute = ({ children }) => {
     locationId ? `${path}?spa=${encodeURIComponent(locationId)}` : path
 
   if (!currentUser && token) {
-    return (
-      <div className='min-h-screen flex items-center justify-center bg-white'>
-        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
-      </div>
-    )
+    return <div className='min-h-screen bg-white' />
   }
 
   if (currentUser && token) {
@@ -183,11 +172,7 @@ const WelcomeRoute = () => {
     currentUser?.role === 'super-admin' ? '/management' : '/dashboard'
 
   if (!currentUser && token) {
-    return (
-      <div className='min-h-screen flex items-center justify-center bg-white'>
-        <div className='text-sm font-semibold text-gray-500'>Loading...</div>
-      </div>
-    )
+    return <div className='min-h-screen bg-white' />
   }
 
   if (!currentUser || !token) {
@@ -292,6 +277,15 @@ const App = () => {
 
   useEffect(() => {
     currentUserRef.current = currentUser
+  }, [currentUser])
+
+  // Signal to inline splash that React is ready
+  useEffect(() => {
+    const token = getStoredAuthToken()
+    if (!token || currentUser) {
+      const timer = setTimeout(() => window.splashAppReady?.(), 150)
+      return () => clearTimeout(timer)
+    }
   }, [currentUser])
 
   useEffect(() => {
@@ -765,6 +759,15 @@ const App = () => {
           element={
             <RoleProtectedRoute allowedRoles={["super-admin"]}>
               <AutomationsManagementPage />
+            </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/management/points"
+          element={
+            <RoleProtectedRoute allowedRoles={["admin", "spa", "super-admin"]}>
+              <PointsSettingsPage />
             </RoleProtectedRoute>
           }
         />
