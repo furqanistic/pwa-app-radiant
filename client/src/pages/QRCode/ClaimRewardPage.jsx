@@ -156,25 +156,18 @@ const ClaimRewardPage = () => {
                 </div>
 
                 <div className="p-8">
-                    {hasAlreadyClaimed ? (
-                        <div className="text-center space-y-6">
-                            <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
-                                <Check className="w-8 h-8 text-green-600" />
-                            </div>
-                            <div>
-                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Already Claimed!</h3>
-                                <p className="text-gray-600">You've already claimed the points from this QR code.</p>
-                            </div>
-                            <button
-                                onClick={() => navigate(currentUser ? "/dashboard" : "/auth")}
-                                className="w-full py-4 text-white rounded-xl font-bold shadow-lg transition-all"
-                                style={{ background: brandColor }}
-                            >
-                                {currentUser ? "Go to Dashboard" : "Sign In / Sign Up"}
-                            </button>
-                        </div>
-                    ) : !result ? (
+                    {!result ? (
                         <form onSubmit={handleSubmit} className="space-y-6">
+                            {hasAlreadyClaimed && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                    <p className="text-sm text-blue-800 font-medium">
+                                        You've already claimed from this QR code.
+                                    </p>
+                                    <p className="text-xs text-blue-600 mt-1">
+                                        If you try to claim again before 15 hours have passed, you'll see the remaining wait time.
+                                    </p>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Email Address
