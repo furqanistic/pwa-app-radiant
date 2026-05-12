@@ -25,4 +25,19 @@ export const backupService = {
       { responseType: 'blob' }
     )
   },
+
+  verifySnapshot: async (id) => {
+    const response = await axiosInstance.get(
+      `/backup/snapshots/${encodeURIComponent(id)}/verify`
+    )
+    return response.data
+  },
+
+  restoreSnapshot: async (id) => {
+    const response = await axiosInstance.post(
+      `/backup/snapshots/${encodeURIComponent(id)}/restore`,
+      { confirm: true }
+    )
+    return response.data
+  },
 }

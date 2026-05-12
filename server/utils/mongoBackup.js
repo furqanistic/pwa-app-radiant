@@ -1,10 +1,12 @@
 import { EJSON } from 'bson'
-import { createGzip } from 'zlib'
-import { createWriteStream, promises as fs } from 'fs'
+import { createGzip, createGunzip } from 'zlib'
+import { createReadStream, createWriteStream, promises as fs } from 'fs'
 import path from 'path'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import { fileURLToPath } from 'url'
+import crypto from 'crypto'
+import readline from 'readline'
 import mongoose from 'mongoose'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -33,6 +35,22 @@ const safeSnapshotId = (id) => {
 }
 
 const toSnapshotFilename = (id) => `${id}${SNAPSHOT_SUFFIX}`
+
+const getShaPath = (filePath) => `${filePath}.sha256`
+
+const computeFileSha256 = async (filePath) => {
+  const hash = crypto.createHash('sha256')
+  const stream = createReadStream(filePath)
+  for await (const chunk of stream) {
+    hash.update(chunk)
+  }
+  return hash.digest('hex')
+}
+
+const saveChecksum = async (filePath) => {
+  const checksum = await computeFileSha256(filePath)
+  await fs.writeFile(getShaPath(filePath), checksum + '\n')
+}
 
 export const ensureBackupDir = async () => {
   const dir = getBackupDir()
@@ -127,6 +145,8 @@ export const createMongoSnapshot = async () => {
     const fileStream = createWriteStream(fullPath)
     await pipeline(Readable.from(ndjsonLines()), gzip, fileStream)
 
+    await saveChecksum(fullPath)
+
     const stat = await fs.stat(fullPath)
     await pruneOldBackups(dir)
 
@@ -198,11 +218,154 @@ export const resolveSnapshotPath = async (id) => {
 export const deleteMongoSnapshot = async (id) => {
   const fullPath = await resolveSnapshotPath(id)
   await fs.unlink(fullPath)
+  await fs.unlink(getShaPath(fullPath)).catch(() => {})
 }
 
 /**
  * Called from cron when BACKUP_CRON is set.
  */
+export const verifyMongoSnapshot = async (id) => {
+  const filePath = await resolveSnapshotPath(id)
+  const shaPath = getShaPath(filePath)
+
+  const stat = await fs.stat(filePath)
+  if (stat.size === 0) {
+    return { valid: false, error: 'File is empty' }
+  }
+
+  let checksumValid = null
+  try {
+    const stored = await fs.readFile(shaPath, 'utf-8')
+    const expected = stored.trim()
+    const actual = await computeFileSha256(filePath)
+    checksumValid = actual === expected
+  } catch {
+    checksumValid = null
+  }
+
+  let headerFound = false
+  let collections = 0
+  let documents = 0
+  let parseErrors = 0
+  const collectionNames = []
+
+  try {
+    const gunzip = createGunzip()
+    const source = createReadStream(filePath)
+    const rl = readline.createInterface({
+      input: source.pipe(gunzip),
+      crlfDelay: Infinity,
+    })
+
+    for await (const line of rl) {
+      if (!line.trim()) continue
+      try {
+        const obj = JSON.parse(line)
+        if (obj._backup === 'header') {
+          headerFound = true
+        } else if (obj._backup === 'collection') {
+          collections++
+          if (obj.name) collectionNames.push(obj.name)
+        } else if (obj._backup === 'document') {
+          documents++
+        } else {
+          parseErrors++
+        }
+      } catch {
+        parseErrors++
+      }
+    }
+  } catch (err) {
+    return { valid: false, error: `Decompression failed: ${err.message}` }
+  }
+
+  const valid = headerFound && collections > 0 && parseErrors === 0
+  return {
+    valid,
+    checksumValid,
+    headerFound,
+    collections,
+    collectionNames,
+    documents,
+    parseErrors,
+    sizeBytes: stat.size,
+    error: valid ? null : 'Invalid or corrupt NDJSON structure',
+  }
+}
+
+export const restoreFromMongoSnapshot = async (id, { dropExisting = true } = {}) => {
+  const filePath = await resolveSnapshotPath(id)
+
+  if (mongoose.connection.readyState !== 1) {
+    const err = new Error('Database is not connected')
+    err.status = 503
+    throw err
+  }
+
+  const db = mongoose.connection.db
+  let currentCollection = null
+  const results = { collectionsRestored: 0, documentsRestored: 0, errors: [] }
+
+  const gunzip = createGunzip()
+  const source = createReadStream(filePath)
+  const rl = readline.createInterface({
+    input: source.pipe(gunzip),
+    crlfDelay: Infinity,
+  })
+
+  let docBuffer = []
+  const BATCH_SIZE = 500
+
+  const flushBuffer = async (coll) => {
+    if (docBuffer.length === 0) return
+    try {
+      const docs = docBuffer.map((d) => EJSON.deserialize(d))
+      await coll.insertMany(docs, { ordered: false })
+      results.documentsRestored += docs.length
+    } catch (err) {
+      results.errors.push(`Insert error in ${coll.collectionName}: ${err.message}`)
+    }
+    docBuffer = []
+  }
+
+  for await (const line of rl) {
+    if (!line.trim()) continue
+    try {
+      const obj = JSON.parse(line)
+
+      if (obj._backup === 'header') continue
+
+      if (obj._backup === 'collection') {
+        if (currentCollection && docBuffer.length > 0) {
+          await flushBuffer(currentCollection)
+        }
+        const coll = db.collection(obj.name)
+        currentCollection = coll
+        if (dropExisting) {
+          await coll.deleteMany({})
+        }
+        results.collectionsRestored++
+        continue
+      }
+
+      if (obj._backup === 'document' && currentCollection) {
+        docBuffer.push(obj.payload)
+        if (docBuffer.length >= BATCH_SIZE) {
+          await flushBuffer(currentCollection)
+        }
+      }
+    } catch {
+      results.errors.push('Failed to parse line')
+    }
+  }
+
+  if (currentCollection && docBuffer.length > 0) {
+    await flushBuffer(currentCollection)
+  }
+
+  return results
+}
+
 export const runScheduledMongoSnapshot = async () => {
   if (mongoose.connection.readyState !== 1) {
     console.warn('[backup] Skipped scheduled snapshot: database not connected')

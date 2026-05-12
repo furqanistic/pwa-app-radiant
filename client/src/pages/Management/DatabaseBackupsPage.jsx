@@ -2,7 +2,7 @@ import { useBranding } from '@/context/BrandingContext'
 import Layout from '@/pages/Layout/Layout'
 import { backupService } from '@/services/backupService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, ChevronLeft, Database, Download, HardDrive, RefreshCw, Trash2 } from 'lucide-react'
+import { Archive, ChevronLeft, Database, Download, HardDrive, RefreshCw, ShieldCheck, Trash2, Upload } from 'lucide-react'
 import React from 'react'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
@@ -75,6 +75,36 @@ const DatabaseBackupsPage = () => {
     },
   })
 
+  const verifyMutation = useMutation({
+    mutationFn: (id) => backupService.verifySnapshot(id),
+    onSuccess: (res) => {
+      const d = res?.data
+      if (d?.valid) {
+        let msg = `Valid backup: ${d.documents} documents in ${d.collections} collections`
+        if (d.checksumValid === true) msg += ' — checksum OK'
+        else if (d.checksumValid === null) msg += ' — no checksum on file'
+        else msg += ' — ⚠️ checksum mismatch'
+        toast.success(msg)
+      } else {
+        toast.error(d?.error || 'Backup is corrupt or invalid')
+      }
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Verification failed')
+    },
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: (id) => backupService.restoreSnapshot(id),
+    onSuccess: (res) => {
+      toast.success(res?.message || 'Database restored from snapshot')
+      queryClient.invalidateQueries({ queryKey: ['database-backups'] })
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Restore failed')
+    },
+  })
+
   const handleDownload = async (id) => {
     try {
       const response = await backupService.downloadSnapshotBlob(id)
@@ -96,6 +126,20 @@ const DatabaseBackupsPage = () => {
   const confirmDelete = (id) => {
     if (!window.confirm(`Delete backup ${id}? This cannot be undone.`)) return
     deleteMutation.mutate(id)
+  }
+
+  const confirmRestore = (id) => {
+    const msg =
+      '⚠️ DESTRUCTIVE OPERATION ⚠️\n\n' +
+      `Restoring backup "${id}" will REPLACE ALL DATA in every collection with the snapshot contents.\n\n` +
+      'This cannot be undone. The current database will be permanently overwritten.\n\n' +
+      'Type "RESTORE" to confirm.'
+    const input = window.prompt(msg)
+    if (input !== 'RESTORE') {
+      toast.error('Restore cancelled — you must type "RESTORE" to confirm')
+      return
+    }
+    restoreMutation.mutate(id)
   }
 
   if (currentUser?.role !== 'super-admin') {
@@ -237,9 +281,30 @@ const DatabaseBackupsPage = () => {
                           type='button'
                           onClick={() => handleDownload(row.id)}
                           className='inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-blue-700 hover:bg-blue-50 mr-1'
+                          title='Download snapshot file'
                         >
                           <Download className='w-3.5 h-3.5' />
                           Download
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => verifyMutation.mutate(row.id)}
+                          disabled={verifyMutation.isPending}
+                          className='inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-emerald-700 hover:bg-emerald-50 mr-1 disabled:opacity-50'
+                          title='Verify snapshot integrity'
+                        >
+                          <ShieldCheck className='w-3.5 h-3.5' />
+                          {verifyMutation.isPending ? '…' : 'Verify'}
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => confirmRestore(row.id)}
+                          disabled={restoreMutation.isPending}
+                          className='inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-amber-700 hover:bg-amber-50 mr-1 disabled:opacity-50'
+                          title='Restore entire database from this snapshot'
+                        >
+                          <Upload className='w-3.5 h-3.5' />
+                          {restoreMutation.isPending ? '…' : 'Restore'}
                         </button>
                         <button
                           type='button'

@@ -5,6 +5,8 @@ import {
   deleteMongoSnapshot,
   listMongoSnapshots,
   resolveSnapshotPath,
+  restoreFromMongoSnapshot,
+  verifyMongoSnapshot,
 } from '../utils/mongoBackup.js'
 
 export const postSnapshot = async (req, res, next) => {
@@ -48,6 +50,37 @@ export const getSnapshotDownload = async (req, res, next) => {
   } catch (error) {
     if (error.status) return next(createError(error.status, error.message))
     return next(createError(500, 'Failed to download snapshot'))
+  }
+}
+
+export const verifySnapshot = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const result = await verifyMongoSnapshot(id)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    if (error.status) return next(createError(error.status, error.message))
+    return next(createError(500, 'Failed to verify snapshot'))
+  }
+}
+
+export const restoreSnapshot = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { confirm } = req.body
+    if (confirm !== true) {
+      return next(createError(400, 'Restore requires { confirm: true } in request body'))
+    }
+
+    const result = await restoreFromMongoSnapshot(id, { dropExisting: true })
+    return res.json({
+      success: true,
+      message: `Restored ${result.documentsRestored} documents across ${result.collectionsRestored} collections`,
+      data: result,
+    })
+  } catch (error) {
+    if (error.status) return next(createError(error.status, error.message))
+    return next(createError(500, 'Failed to restore snapshot'))
   }
 }
 
