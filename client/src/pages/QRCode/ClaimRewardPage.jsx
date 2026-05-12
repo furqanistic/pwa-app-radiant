@@ -3,11 +3,13 @@ import { resolveBrandingLogoUrl } from "@/lib/imageHelpers";
 import { setPoints } from "@/redux/userSlice";
 import { qrCodeService } from "@/services/qrCodeService";
 import { motion } from "framer-motion";
-import { AlertCircle, Check, Loader2, QrCode } from "lucide-react";
+import { AlertCircle, Check, Clock, Loader2, QrCode } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+
+const CLAIMED_STORAGE_KEY = (id) => `qr_claimed_${id}`;
 
 const ClaimRewardPage = () => {
     const [searchParams] = useSearchParams();
@@ -21,6 +23,16 @@ const ClaimRewardPage = () => {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
+    const [hasAlreadyClaimed, setHasAlreadyClaimed] = useState(false);
+
+    // Check if user has already claimed from this QR code
+    useEffect(() => {
+        if (!qrId) return;
+        const claimed = localStorage.getItem(CLAIMED_STORAGE_KEY(qrId));
+        if (claimed === 'true') {
+            setHasAlreadyClaimed(true);
+        }
+    }, [qrId]);
 
     const redirectToSignup = () => {
         const signupUrl = result?.data?.signupUrl;
@@ -60,6 +72,10 @@ const ClaimRewardPage = () => {
                 if (response.data?.user?.totalPoints) {
                     dispatch(setPoints(response.data.user.totalPoints));
                 }
+                // Store claim status to prevent showing claim form again
+                if (qrId) {
+                    localStorage.setItem(CLAIMED_STORAGE_KEY(qrId), 'true');
+                }
                 setResult({
                     success: true,
                     message: response.message,
@@ -76,11 +92,22 @@ const ClaimRewardPage = () => {
                 toast.info(response.message);
             }
         } catch (error) {
+            const statusCode = error.response?.status;
             const errorMessage = error.response?.data?.message || "Failed to process QR code";
-            setResult({
-                success: false,
-                message: errorMessage,
-            });
+
+            // Handle rate limit error (429) specially
+            if (statusCode === 429) {
+                setResult({
+                    success: false,
+                    message: errorMessage,
+                    isRateLimit: true,
+                });
+            } else {
+                setResult({
+                    success: false,
+                    message: errorMessage,
+                });
+            }
             toast.error(errorMessage);
         } finally {
             setLoading(false);
@@ -129,7 +156,24 @@ const ClaimRewardPage = () => {
                 </div>
 
                 <div className="p-8">
-                    {!result ? (
+                    {hasAlreadyClaimed ? (
+                        <div className="text-center space-y-6">
+                            <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+                                <Check className="w-8 h-8 text-green-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-bold text-gray-900 mb-2">Already Claimed!</h3>
+                                <p className="text-gray-600">You've already claimed the points from this QR code.</p>
+                            </div>
+                            <button
+                                onClick={() => navigate(currentUser ? "/dashboard" : "/auth")}
+                                className="w-full py-4 text-white rounded-xl font-bold shadow-lg transition-all"
+                                style={{ background: brandColor }}
+                            >
+                                {currentUser ? "Go to Dashboard" : "Sign In / Sign Up"}
+                            </button>
+                        </div>
+                    ) : !result ? (
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -182,6 +226,21 @@ const ClaimRewardPage = () => {
                                     <div className="bg-pink-50 rounded-xl p-4" style={{ backgroundColor: `${brandColor}15` }}>
                                         <p className="text-sm text-gray-600 mb-1">Total Points</p>
                                         <p className="text-3xl font-bold" style={{ color: brandColor }}>{result.data?.user?.totalPoints || "50"}</p>
+                                    </div>
+                                </>
+                            ) : result.isRateLimit ? (
+                                <>
+                                    <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+                                        <Clock className="w-8 h-8 text-amber-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Please Wait</h3>
+                                        <p className="text-gray-600">{result.message}</p>
+                                    </div>
+                                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                                        <p className="text-sm text-amber-800">
+                                            Points can only be claimed once every 15 hours at each location.
+                                        </p>
                                     </div>
                                 </>
                             ) : (

@@ -625,6 +625,31 @@ export const scanQRCode = async (req, res, next) => {
 
     const pointsToAward = Number(location.qrCode?.pointsValue || 0);
 
+    // 15-hour rate limit: prevent users from claiming points too frequently
+    const CLAIM_RATE_LIMIT_HOURS = 15;
+    const rateLimitWindowMs = CLAIM_RATE_LIMIT_HOURS * 60 * 60 * 1000;
+
+    const recentClaimAtLocation = await QRCodeScan.findOne({
+      locationId: location.locationId,
+      scanType: CLAIM_PURPOSE,
+      scannedByUser: user._id,
+      status: "verified",
+      pointsAwarded: { $gt: 0 },
+      createdAt: { $gt: new Date(Date.now() - rateLimitWindowMs) },
+    }).sort({ createdAt: -1 });
+
+    if (recentClaimAtLocation) {
+      const timeSinceLastClaim = Date.now() - new Date(recentClaimAtLocation.createdAt).getTime();
+      const hoursRemaining = Math.ceil((rateLimitWindowMs - timeSinceLastClaim) / (60 * 60 * 1000));
+
+      return next(
+        createError(
+          429,
+          `You've already claimed points at this location recently. Please wait ${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''} before claiming again.`
+        )
+      );
+    }
+
     user.points = (user.points || 0) + pointsToAward;
     await user.save();
 
