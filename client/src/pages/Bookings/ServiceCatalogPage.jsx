@@ -312,7 +312,8 @@ const ServiceCard = ({
         ) : (
           <ServiceImagePlaceholder
             serviceName={service.name}
-            brandColor={isMembership ? '#f59e0b' : branding?.themeColor || '#ec4899'}
+            brandColor={isMembership ? '#f59e0b' : undefined}
+            size='lg'
             className='aspect-[16/9]'
           />
         )}

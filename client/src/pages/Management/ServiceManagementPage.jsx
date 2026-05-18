@@ -349,6 +349,7 @@ const ServiceSelectionModal = ({
                             <ServiceImagePlaceholder
                               serviceName={service.name}
                               brandColor={brandColor}
+                              size='sm'
                               style={{ width: '100%', height: '100%' }}
                             />
                           )}
@@ -826,13 +827,13 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
         ) : (
           <ServiceImagePlaceholder
             serviceName={service.name}
-            brandColor={'#ec4899'}
+            size='lg'
             className='aspect-[16/9]'
           />
         )}
 
         {/* Status Badge */}
-        <div className='absolute left-3 top-3'>
+        <div className='absolute left-3 top-3 z-20'>
           <div
             className={`rounded-full border border-white/70 px-2 py-1 shadow-sm backdrop-blur-md ${
               service.status === 'active'
@@ -849,7 +850,7 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 
         {/* Category Badge */}
         {category && (
-          <div className='absolute top-3 right-3'>
+          <div className='absolute top-3 right-3 z-20'>
             <div
               className='rounded-full border border-white/70 px-2 py-1 shadow-sm backdrop-blur-md'
               style={{ background: 'rgba(255,255,255,0.92)' }}
@@ -866,7 +867,7 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 
         {/* Discount Badge */}
         {isDiscountActive && (
-          <div className='absolute bottom-3 right-3'>
+          <div className='absolute bottom-3 right-3 z-20'>
             <span className='bg-red-500 text-white px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-lg'>
               <Percent className='w-3 h-3' />
               {service.discount.percentage}% OFF
@@ -876,7 +877,7 @@ const ServiceCard = ({ service, category, onEdit, onDelete }) => {
 
         {/* Edit/Delete Actions - Always Visible */}
         <div
-          className='absolute bottom-3 left-3 flex gap-2'
+          className='absolute bottom-3 left-3 z-20 flex gap-2'
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -2544,7 +2545,8 @@ const ServiceForm = ({ service, onSave, onCancel }) => {
                             ) : (
                               <ServiceImagePlaceholder
                                 serviceName={linkedService.name}
-                                brandColor={'#ec4899'}
+                                brandColor={brandColor}
+                                size='sm'
                                 style={{ width: '100%', height: '100%' }}
                               />
                             )}
@@ -2966,7 +2968,7 @@ const ServiceManagementPage = () => {
                             ) : (
                               <ServiceImagePlaceholder
                                 serviceName={service.name}
-                                brandColor={'#ec4899'}
+                                size='sm'
                                 style={{ width: '100%', height: '100%' }}
                               />
                             )}
@@ -3075,7 +3077,7 @@ const ServiceManagementPage = () => {
                       ) : (
                         <ServiceImagePlaceholder
                           serviceName={service.name}
-                          brandColor={'#ec4899'}
+                          size='sm'
                           style={{ width: '100%', height: '100%' }}
                         />
                       )}

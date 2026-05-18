@@ -1,48 +1,68 @@
 import React from 'react'
 
+const SIZE_STYLES = {
+  sm: {
+    fontSize: 'clamp(6px, 1.4vw, 8px)',
+    lineClampClass: 'line-clamp-2',
+    padding: 'px-1 py-0.5',
+    stylish: false,
+  },
+  md: {
+    fontSize: 'clamp(8px, 1.8vw, 11px)',
+    lineClampClass: 'line-clamp-2',
+    padding: 'px-2 py-1',
+    stylish: true,
+  },
+  lg: {
+    fontSize: 'clamp(10px, 2.2vw, 15px)',
+    lineClampClass: 'line-clamp-2',
+    padding: 'px-4 pt-3 pb-11',
+    stylish: true,
+  },
+}
+
 export const ServiceImagePlaceholder = ({
   serviceName = 'Service',
-  brandColor = '#ec4899',
+  brandColor,
+  size = 'md',
   className = '',
   style = {},
 }) => {
-  const brandColorDark = (() => {
-    const cleaned = brandColor.replace('#', '')
-    if (cleaned.length !== 6) return '#b0164e'
-    const num = parseInt(cleaned, 16)
-    const r = Math.max(0, ((num >> 16) & 255) - 24)
-    const g = Math.max(0, ((num >> 8) & 255) - 24)
-    const b = Math.max(0, (num & 255) - 24)
-    return `#${r.toString(16).padStart(2, '0')}${g
-      .toString(16)
-      .padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-  })()
+  const textColor = brandColor || 'var(--brand-primary)'
+  const sizeStyle = SIZE_STYLES[size] || SIZE_STYLES.md
+
+  const bgStyle = brandColor
+    ? {
+        background: `linear-gradient(135deg, ${brandColor}15 0%, ${brandColor}08 100%)`,
+      }
+    : {
+        background:
+          'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 8%, #f8fafc) 0%, color-mix(in srgb, var(--brand-primary) 4%, #ffffff) 100%)',
+      }
 
   return (
     <div
       className={`flex items-center justify-center w-full h-full relative overflow-hidden ${className}`}
-      style={{
-        background: `linear-gradient(135deg, ${brandColor}15 0%, ${brandColor}08 100%)`,
-        ...style,
-      }}
+      style={{ ...bgStyle, ...style }}
     >
       <div className='absolute inset-0 opacity-5 bg-[url("https://www.transparenttextures.com/patterns/cubes.png")]' />
 
-      <div className='relative z-10 text-center px-4 py-6 w-full h-full flex items-center justify-center'>
+      <div
+        className={`relative flex items-center justify-center w-full h-full text-center pointer-events-none ${sizeStyle.padding}`}
+      >
         <p
-          className='font-black italic leading-snug'
+          className={`max-w-[90%] leading-tight ${sizeStyle.lineClampClass} ${
+            sizeStyle.stylish ? 'font-black italic' : 'font-bold'
+          }`}
           style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 'clamp(14px, 5vw, 36px)',
-            background: `linear-gradient(135deg, ${brandColor} 0%, ${brandColorDark} 100%)`,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            maxWidth: '95%',
-            wordWrap: 'break-word',
-            overflowWrap: 'break-word',
+            fontFamily: sizeStyle.stylish ? "'Playfair Display', serif" : 'inherit',
+            fontSize: sizeStyle.fontSize,
+            color: textColor,
+            wordBreak: 'break-word',
+            overflowWrap: 'anywhere',
             hyphens: 'auto',
           }}
+          title={serviceName}
         >
           {serviceName}
         </p>
