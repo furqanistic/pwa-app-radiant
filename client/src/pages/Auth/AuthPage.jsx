@@ -34,7 +34,7 @@ import {
   User,
   Zap,
 } from 'lucide-react'
-import { isValidProfilePhone, PHONE_FORMAT_ERROR, PHONE_FORMAT_HINT } from '@/lib/phoneValidation'
+import { isValidProfilePhone, normalizePhone, PHONE_FORMAT_ERROR, PHONE_FORMAT_HINT } from '@/lib/phoneValidation'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -714,7 +714,7 @@ const AuthPage = () => {
         name: formData.fullName,
         email: `${formData.email || ''}`.trim().toLowerCase(),
         password: formData.password,
-        phone: `${formData.phone || ''}`.trim(),
+        phone: normalizePhone(formData.phone),
         assignedLocation: locationId,
         dateOfBirth: formData.birthdate,
       }
@@ -814,12 +814,15 @@ const AuthPage = () => {
             >
               {shouldShowLocationPicker ? (
                 <div className='flex flex-col items-center text-center'>
-                  <img 
-                    src='/cxr.png' 
-                    alt='CxR' 
-                    className='h-28 w-auto object-contain mb-10'
-                    loading='eager'
-                  />
+                  <div className='relative mb-10'>
+                    <div className='absolute inset-0 -m-4 rounded-full bg-neutral-900/50 blur-xl' />
+                    <img 
+                      src='/cxr.png' 
+                      alt='CxR' 
+                      className='relative h-28 w-auto object-contain'
+                      loading='eager'
+                    />
+                  </div>
                   
                   <h2 className='text-4xl font-bold text-white leading-tight mb-4 tracking-tight'>
                     {view === 'signup'
@@ -837,7 +840,10 @@ const AuthPage = () => {
                 </div>
               ) : brandingLoading ? (
                 <div className='flex flex-col items-center text-center'>
-                  <div className='w-20 h-20 bg-neutral-800 rounded-full mb-5 animate-pulse' />
+                  <div className='relative mb-5'>
+                    <div className='absolute inset-0 -m-3 rounded-full bg-neutral-900/50 blur-xl' />
+                    <div className='relative w-20 h-20 bg-neutral-800 rounded-full animate-pulse' />
+                  </div>
                   <div className='w-32 h-6 bg-neutral-800 rounded mb-3 animate-pulse' />
                   <div className='w-48 h-4 bg-neutral-800 rounded mb-2 animate-pulse' />
                   <div className='w-40 h-4 bg-neutral-800 rounded animate-pulse' />
@@ -847,21 +853,27 @@ const AuthPage = () => {
                   <div className='flex flex-col items-center mb-10'>
                     {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
                       <>
-                        <img 
-                          src={resolveBrandingLogoUrl(branding, { width: 256, height: 256 })}
-                          alt={branding.name} 
-                          className='h-20 w-auto object-contain mb-5'
-                          loading='lazy'
-                          decoding='async'
-                        />
+                        <div className='relative mb-5'>
+                          <div className='absolute inset-0 -m-3 rounded-full bg-neutral-900/50 blur-xl' />
+                          <img 
+                            src={resolveBrandingLogoUrl(branding, { width: 256, height: 256 })}
+                            alt={branding.name} 
+                            className='relative h-20 w-auto object-contain'
+                            loading='lazy'
+                            decoding='async'
+                          />
+                        </div>
                         <h1 className='text-3xl font-bold text-white tracking-tight uppercase'>
                           {branding.name}
                         </h1>
                       </>
                     ) : (
-                      <h1 className='text-5xl font-bold text-white tracking-tight mb-5'>
-                        CxR <span className='text-neutral-600'>Systems</span>
-                      </h1>
+                      <div className='relative mb-5'>
+                        <div className='absolute inset-0 -m-3 rounded-full bg-neutral-900/50 blur-xl' />
+                        <h1 className='relative text-5xl font-bold text-white tracking-tight'>
+                          CxR <span className='text-neutral-600'>Systems</span>
+                        </h1>
+                      </div>
                     )}
                   </div>
 
@@ -1045,8 +1057,8 @@ const AuthPage = () => {
                   </div>
                 ) : filteredSpas.length === 0 ? (
                   <div className='flex flex-col items-center justify-center py-16 px-4'>
-                    <div className='w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4'>
-                      <MapPin className='w-7 h-7 text-gray-300' />
+                    <div className='w-16 h-16 rounded-full flex items-center justify-center mb-4' style={{ background: '#7dcfae25' }}>
+                      <MapPin className='w-7 h-7' style={{ color: '#7dcfae' }} />
                     </div>
                     <p className='text-sm font-medium text-gray-500'>No locations found</p>
                     <p className='text-xs text-gray-400 mt-1 text-center'>Try a different search term</p>
@@ -1064,9 +1076,9 @@ const AuthPage = () => {
                             onClick={() => handleSpaSelection(spa)}
                             className='w-full text-left px-5 py-3.5 flex items-center gap-3.5 hover:bg-gray-50 active:bg-gray-100/70 transition-colors border-b border-gray-100 last:border-b-0 touch-manipulation'
                           >
-                            <div className='w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0' style={{ background: `${brandColor}12` }}>
-                              <MapPin className='w-5 h-5' style={{ color: brandColor }} />
-                            </div>
+                        <div className='w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0' style={{ background: '#7dcfae25' }}>
+                          <MapPin className='w-5 h-5' style={{ color: '#7dcfae' }} />
+                        </div>
                             <div className='flex-1 min-w-0'>
                               <div className='font-semibold text-gray-900 text-[15px] truncate'>
                                 {spa.name}
