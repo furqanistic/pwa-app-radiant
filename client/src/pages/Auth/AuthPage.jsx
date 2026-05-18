@@ -757,7 +757,7 @@ const AuthPage = () => {
     resetPasswordMutation.isPending
   const shouldShowLocationPicker = !locationId && !['forgot', 'reset'].includes(view)
   const authHeading = shouldShowLocationPicker
-    ? 'Choose your spa'
+    ? 'Select Location'
     : view === 'signup'
       ? 'Create Account'
       : view === 'forgot'
@@ -766,7 +766,7 @@ const AuthPage = () => {
           ? 'Choose New Password'
           : 'Welcome back'
   const authSubheading = shouldShowLocationPicker
-    ? 'Select a location to continue to login.'
+    ? 'Choose your spa to continue'
     : view === 'signup'
       ? 'Join our community of beauty enthusiasts.'
       : view === 'forgot'
@@ -783,67 +783,128 @@ const AuthPage = () => {
       }}
     >
       {!isMobile && (
-        <div className='w-1/2 relative overflow-hidden flex items-center justify-center p-12 bg-gray-50'>
-          <div className='relative z-20 w-full max-w-lg'>
+        <div className='w-1/2 relative overflow-hidden flex items-center justify-center p-16 bg-black'>
+          {/* Bokeh style gradients */}
+          <div className='absolute inset-0 pointer-events-none'>
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              animate={{ scale: [1, 1.1, 1], opacity: [0.12, 0.22, 0.12] }}
+              transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+              className='absolute -top-20 -left-20 w-[500px] h-[500px] rounded-full blur-[120px]'
+              style={{ background: '#7dcfae' }}
+            />
+            <motion.div
+              animate={{ scale: [1, 1.15, 1], opacity: [0.08, 0.18, 0.08] }}
+              transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+              className='absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full blur-[100px]'
+              style={{ background: '#7dcfae' }}
+            />
+            <motion.div
+              animate={{ scale: [1, 1.05, 1], opacity: [0.05, 0.12, 0.05] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+              className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full blur-[80px]'
+              style={{ background: '#7dcfae' }}
+            />
+          </div>
+
+          <div className='relative z-10 w-full max-w-md'>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className='flex flex-col items-center justify-center mb-12 w-full'>
-                {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
-                  <div className="flex flex-col items-center">
-                    <img 
-                      src={resolveBrandingLogoUrl(branding, { width: 256, height: 256 })}
-                      alt={branding.name} 
-                      className="h-24 w-auto mb-6 object-contain"
-                      loading='lazy'
-                      decoding='async'
-                    />
-                    <h1 className='text-4xl font-black text-gray-900 tracking-tight uppercase text-center'>
-                      {branding.name}
-                    </h1>
+              {shouldShowLocationPicker ? (
+                <div className='flex flex-col items-center text-center'>
+                  <img 
+                    src='/cxr.png' 
+                    alt='CxR' 
+                    className='h-28 w-auto object-contain mb-10'
+                    loading='eager'
+                  />
+                  
+                  <h2 className='text-4xl font-bold text-white leading-tight mb-4 tracking-tight'>
+                    {view === 'signup'
+                      ? 'Join our community'
+                      : view === 'forgot'
+                        ? 'Recover access'
+                        : view === 'reset'
+                          ? 'Set your new password'
+                          : 'Welcome back'}
+                  </h2>
+                  
+                  <p className='text-base text-neutral-500 font-medium leading-relaxed max-w-xs mx-auto'>
+                    Manage your beauty experience with ease. Elegant, simple, and intuitive.
+                  </p>
+                </div>
+              ) : brandingLoading ? (
+                <div className='flex flex-col items-center text-center'>
+                  <div className='w-20 h-20 bg-neutral-800 rounded-full mb-5 animate-pulse' />
+                  <div className='w-32 h-6 bg-neutral-800 rounded mb-3 animate-pulse' />
+                  <div className='w-48 h-4 bg-neutral-800 rounded mb-2 animate-pulse' />
+                  <div className='w-40 h-4 bg-neutral-800 rounded animate-pulse' />
+                </div>
+              ) : (
+                <div className='flex flex-col items-center text-center'>
+                  <div className='flex flex-col items-center mb-10'>
+                    {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
+                      <>
+                        <img 
+                          src={resolveBrandingLogoUrl(branding, { width: 256, height: 256 })}
+                          alt={branding.name} 
+                          className='h-20 w-auto object-contain mb-5'
+                          loading='lazy'
+                          decoding='async'
+                        />
+                        <h1 className='text-3xl font-bold text-white tracking-tight uppercase'>
+                          {branding.name}
+                        </h1>
+                      </>
+                    ) : (
+                      <h1 className='text-5xl font-bold text-white tracking-tight mb-5'>
+                        CxR <span className='text-neutral-600'>Systems</span>
+                      </h1>
+                    )}
                   </div>
-                ) : (
-                  <h1 className='text-6xl font-black text-gray-900 tracking-tighter'>
-                    CxR <span style={{ color: '#000000' }}>Systems</span>
-                  </h1>
-                )}
-              </div>
 
-              <h2 className='text-5xl font-extrabold text-gray-900 leading-tight mb-8 text-center'>
-                {view === 'signup'
-                  ? 'Join our community'
-                  : view === 'forgot'
-                    ? 'Recover access'
-                    : view === 'reset'
-                      ? 'Set your new password'
-                      : 'Welcome back'}
-              </h2>
+                  <h2 className='text-4xl font-bold text-white leading-tight mb-4 tracking-tight'>
+                    {view === 'signup'
+                      ? 'Join our community'
+                      : view === 'forgot'
+                        ? 'Recover access'
+                        : view === 'reset'
+                          ? 'Set your new password'
+                          : 'Welcome back'}
+                  </h2>
 
-              <p className='text-lg text-gray-600 font-medium leading-relaxed text-center mx-auto max-w-sm'>
-                Manage your beauty experience with ease.
-                Elegant, simple, and intuitive.
-              </p>
+                  <p className='text-base text-neutral-500 font-medium leading-relaxed max-w-xs mx-auto'>
+                    Manage your beauty experience with ease. Elegant, simple, and intuitive.
+                  </p>
+                </div>
+              )}
             </motion.div>
           </div>
         </div>
       )}
 
-      {/* Decorative background for mobile/pwa feel */}
-      <div className='absolute inset-0 z-0 bg-gray-50/50 pointer-events-none' />
-
       <div
         className={`${
-          isMobile ? 'w-full px-6' : 'w-1/2'
+          isMobile ? 'w-full px-5 pt-safe-8 pb-safe-8' : 'w-1/2'
         } relative flex flex-col justify-center bg-white`}
       >
         <div className='max-w-md w-full mx-auto'>
           {/* Header */}
-          <header className='mb-2'>
+          <header className={`mb-2 ${shouldShowLocationPicker ? 'mb-4' : ''}`}>
             {isMobile && (
-              <div className='flex flex-col items-center justify-center mb-10'>
-                {hasBranding && (branding?.logo || branding?.logoPublicId) ? (
+              <div className={`flex flex-col items-center justify-center ${shouldShowLocationPicker ? 'mb-8' : 'mb-10'}`}>
+                {shouldShowLocationPicker ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <img 
+                      src='/cxr.png' 
+                      alt='CxR' 
+                      className="h-16 w-auto object-contain"
+                      loading='eager'
+                    />
+                  </div>
+                ) : hasBranding && (branding?.logo || branding?.logoPublicId) ? (
                   <div className="flex flex-col items-center gap-3">
                     <img 
                       src={resolveBrandingLogoUrl(branding, { width: 160, height: 160 })}
@@ -863,12 +924,27 @@ const AuthPage = () => {
                 )}
               </div>
             )}
-            <h3 className='text-3xl font-bold text-gray-900 mb-1'>
-              {authHeading}
-            </h3>
-            <p className='text-gray-500'>
-              {authSubheading}
-            </p>
+            {shouldShowLocationPicker ? (
+              <div className='flex items-baseline justify-between'>
+                <h3 className='text-2xl font-bold text-gray-900'>
+                  {authHeading}
+                </h3>
+                {!locationsLoading && !shouldWaitForSubdomainResolution && spas.length > 0 && (
+                  <span className='text-sm text-gray-400 font-medium'>
+                    {spas.length} {spas.length === 1 ? 'location' : 'locations'}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <>
+                <h3 className='text-3xl font-bold text-gray-900 mb-1'>
+                  {authHeading}
+                </h3>
+                <p className='text-gray-500'>
+                  {authSubheading}
+                </p>
+              </>
+            )}
           </header>
 
           {/* Back / Switch Location button */}
@@ -910,18 +986,31 @@ const AuthPage = () => {
               </button>
             </div>
           ) : shouldShowLocationPicker ? (
-            <div className='mb-8 px-2'>
-              <div className='relative flex items-center bg-gray-100 rounded-full h-14 border border-transparent focus-within:bg-white focus-within:border-gray-200 focus-within:shadow-sm transition-all duration-200'>
-                <div className='pl-5'>
-                  <Search className='w-5 h-5 text-gray-500' />
+            <div className='mb-5'>
+              <div className='relative flex items-center bg-gray-100/80 rounded-xl h-11 border border-transparent focus-within:bg-white focus-within:border-gray-200 focus-within:shadow-sm transition-all duration-200'>
+                <div className='pl-3.5'>
+                  <Search className='w-4 h-4 text-gray-400' />
                 </div>
                 <input
                   type='text'
-                  placeholder='Search locations'
+                  placeholder='Search by name or address'
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className='w-full px-4 bg-transparent outline-none text-gray-700 text-lg'
+                  className='w-full px-3 bg-transparent outline-none text-gray-900 text-[15px] placeholder:text-gray-400'
                 />
+                {searchTerm && (
+                  <button
+                    type='button'
+                    onClick={() => setSearchTerm('')}
+                    className='pr-3.5 text-gray-400 hover:text-gray-600 transition-colors'
+                  >
+                    <span className='sr-only'>Clear search</span>
+                    <svg className='w-4 h-4' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.5' strokeLinecap='round'>
+                      <line x1='18' y1='6' x2='6' y2='18' />
+                      <line x1='6' y1='6' x2='18' y2='18' />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           ) : null}
@@ -938,43 +1027,63 @@ const AuthPage = () => {
           {success && <SuccessAlert message={success} />}
 
           {/* Form Content or Location Selector */}
-          <div className='relative overflow-hidden'>
+          <div className='relative'>
             {shouldShowLocationPicker ? (
-              <div className='space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar'>
+              <div className='-mx-5 sm:mx-0'>
                 {locationsLoading || shouldWaitForSubdomainResolution ? (
-                  [1, 2, 3, 4].map((i) => (
-                    <div key={i} className='h-20 bg-gray-50 rounded-2xl animate-pulse' />
-                  ))
+                  <div className='space-y-0'>
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className='flex items-center gap-3.5 px-5 py-4 border-b border-gray-100 last:border-b-0'>
+                        <div className='w-10 h-10 bg-gray-100 rounded-xl animate-pulse flex-shrink-0' />
+                        <div className='flex-1 space-y-2'>
+                          <div className='h-4 bg-gray-100 rounded-lg animate-pulse w-3/4' />
+                          <div className='h-3 bg-gray-50 rounded-lg animate-pulse w-1/2' />
+                        </div>
+                        <div className='w-5 h-5 bg-gray-50 rounded animate-pulse' />
+                      </div>
+                    ))}
+                  </div>
                 ) : filteredSpas.length === 0 ? (
-                  <div className='text-center py-10 text-sm text-gray-500'>
-                    No locations match your search.
+                  <div className='flex flex-col items-center justify-center py-16 px-4'>
+                    <div className='w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4'>
+                      <MapPin className='w-7 h-7 text-gray-300' />
+                    </div>
+                    <p className='text-sm font-medium text-gray-500'>No locations found</p>
+                    <p className='text-xs text-gray-400 mt-1 text-center'>Try a different search term</p>
                   </div>
                 ) : (
-                    <div className='space-y-4 pb-8'>
-                      {filteredSpas.map((spa, idx) => (
-                        <motion.button
-                          key={spa.locationId}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          onClick={() => handleSpaSelection(spa)}
-                          className='w-full text-left bg-white border border-gray-200 rounded-2xl p-5 flex items-center gap-4 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-sm'
-                        >
-                          <div className='w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0'>
-                            <MapPin className='w-6 h-6 text-gray-600' />
-                          </div>
-                          <div className='flex-1 min-w-0'>
-                            <div className='font-bold text-gray-900 text-lg truncate'>
-                              {spa.name}
+                  <div className='relative'>
+                    <div className='max-h-[50vh] overflow-y-auto overscroll-contain sm:max-h-[450px]'>
+                      <div className='space-y-0'>
+                        {filteredSpas.map((spa, idx) => (
+                          <motion.button
+                            key={spa.locationId}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.04 }}
+                            onClick={() => handleSpaSelection(spa)}
+                            className='w-full text-left px-5 py-3.5 flex items-center gap-3.5 hover:bg-gray-50 active:bg-gray-100/70 transition-colors border-b border-gray-100 last:border-b-0 touch-manipulation'
+                          >
+                            <div className='w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0' style={{ background: `${brandColor}12` }}>
+                              <MapPin className='w-5 h-5' style={{ color: brandColor }} />
                             </div>
-                            <div className='text-sm text-gray-500 truncate'>
-                              {spa.address}
+                            <div className='flex-1 min-w-0'>
+                              <div className='font-semibold text-gray-900 text-[15px] truncate'>
+                                {spa.name}
+                              </div>
+                              <div className='text-sm text-gray-500 truncate mt-0.5'>
+                                {spa.address}
+                              </div>
                             </div>
-                          </div>
-                          <ChevronRight className='w-5 h-5 text-gray-400' />
-                        </motion.button>
-                      ))}
+                            <ChevronRight className='w-4 h-4 text-gray-300 flex-shrink-0' />
+                          </motion.button>
+                        ))}
+                      </div>
                     </div>
+                    {filteredSpas.length > 4 && (
+                      <div className='absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none' />
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
@@ -1573,10 +1682,10 @@ const AuthPage = () => {
             )}
           </div>
 
-          <footer className='mt-12 text-center'>
-            <p className='text-sm text-gray-400'>
+          <footer className={`${shouldShowLocationPicker ? 'mt-8' : 'mt-12'} text-center`}>
+            <p className='text-xs text-gray-400'>
               Need help?{' '}
-              <button className='text-gray-900 font-bold hover:text-[color:var(--brand-primary)] transition-colors'>
+              <button className='text-gray-600 font-semibold hover:text-[color:var(--brand-primary)] transition-colors'>
                 Contact Support
               </button>
             </p>
