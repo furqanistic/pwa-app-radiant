@@ -30,6 +30,7 @@ import AvailabilitySettings from "@/components/Management/AvailabilitySettings";
 import BirthdayGiftSettings from "@/components/Management/BirthdayGiftSettings";
 import SquareConnect from "@/components/Square/SquareConnect";
 import StripeConnect from "@/components/Stripe/StripeConnect";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Layout from "@/pages/Layout/Layout";
 
 const clampChannel = (value) => Math.max(0, Math.min(255, value));
@@ -120,6 +121,7 @@ const ManagementPage = () => {
   const [isAvailabilityOpen, setIsAvailabilityOpen] = useState(false);
   const [isBirthdayGiftOpen, setIsBirthdayGiftOpen] = useState(false);
   const [isAutomatedGiftOpen, setIsAutomatedGiftOpen] = useState(false);
+  const [isPayoutsOpen, setIsPayoutsOpen] = useState(false);
 
   const isElevatedUser = [
     "admin",
@@ -353,6 +355,18 @@ const ManagementPage = () => {
           },
         ]
       : []),
+    ...(["admin", "super-admin"].includes(currentUser?.role)
+      ? [
+          {
+            key: "payouts",
+            title: "Payouts",
+            description: "Connect Stripe or Square to receive payments.",
+            icon: DollarSign,
+            onClick: () => setIsPayoutsOpen(true),
+            accent: "emerald",
+          },
+        ]
+      : []),
     ...(isSuperAdmin
       ? [
           {
@@ -510,7 +524,7 @@ const ManagementPage = () => {
           )}
 
           {/* ── Payouts ── */}
-          {(currentUser?.role === "spa" || (currentUser?.role === "super-admin" && activeSpaLocationId)) && (
+          {currentUser?.role === "spa" && (
             <div className="mb-8 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div
                 className="h-2 w-full"
@@ -631,6 +645,90 @@ const ManagementPage = () => {
           isOpen={isAutomatedGiftOpen}
           onClose={() => setIsAutomatedGiftOpen(false)}
         />
+
+        <Dialog open={isPayoutsOpen} onOpenChange={setIsPayoutsOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Payouts
+              </DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              <p className="text-sm text-slate-500 mb-6">
+                Connect Stripe or Square to receive payments from memberships, services, and bookings.
+              </p>
+              <div className="flex items-center gap-2 mb-6">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all ${
+                    sharedLocationStripeLinked
+                      ? "border-opacity-30"
+                      : "bg-slate-50 text-slate-400 border-slate-200"
+                  }`}
+                  style={
+                    sharedLocationStripeLinked
+                      ? {
+                          backgroundColor: `${brandColor}12`,
+                          color: brandColorDark,
+                          borderColor: `${brandColor}30`,
+                        }
+                      : undefined
+                  }
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor: sharedLocationStripeLinked ? brandColor : undefined,
+                      opacity: sharedLocationStripeLinked ? 1 : 0.3,
+                    }}
+                  />
+                  Stripe
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border transition-all ${
+                    sharedLocationSquareLinked
+                      ? "border-opacity-30"
+                      : "bg-slate-50 text-slate-400 border-slate-200"
+                  }`}
+                  style={
+                    sharedLocationSquareLinked
+                      ? {
+                          backgroundColor: `${brandColor}12`,
+                          color: brandColorDark,
+                          borderColor: `${brandColor}30`,
+                        }
+                      : undefined
+                  }
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor: sharedLocationSquareLinked ? brandColor : undefined,
+                      opacity: sharedLocationSquareLinked ? 1 : 0.3,
+                    }}
+                  />
+                  Square
+                </span>
+              </div>
+              <div className="grid gap-5 md:grid-cols-2">
+                <StripeConnect
+                  locationId={activeSpaLocationId}
+                  sharedLocationStripeLinked={sharedLocationStripeLinked}
+                  sharedLocationSquareLinked={sharedLocationSquareLinked}
+                />
+                <SquareConnect
+                  locationId={activeSpaLocationId}
+                  sharedLocationSquareLinked={sharedLocationSquareLinked}
+                  sharedLocationStripeLinked={sharedLocationStripeLinked}
+                />
+              </div>
+              <div className="mt-5 flex items-center gap-2 text-xs text-slate-400">
+                <div className="w-1 h-1 rounded-full bg-slate-300" />
+                Payouts are processed automatically once connected. Funds typically arrive within 2–5 business days.
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

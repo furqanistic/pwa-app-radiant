@@ -177,20 +177,7 @@ export const DEFAULT_POINTS_METHODS = [
     notes: 'Increases reactivation power',
     isActive: true,
   },
-  {
-    key: 'quick_skin_goals_quiz',
-    title: 'Quick Skin Goals Quiz',
-    description: 'Complete the quick quiz to earn points',
-    pointsValue: 100,
-    pointsLabel: '+100',
-    icon: 'ClipboardList',
-    action: 'Take Quiz',
-    actionType: 'passive',
-    frequency: '1 time only',
-    verification: 'Quiz submission',
-    notes: 'Helps segmentation and upsells',
-    isActive: true,
-  },
+
   {
     key: 'confirm_appointment_within_2h',
     title: 'Confirm Appointment Within 2 Hours',
