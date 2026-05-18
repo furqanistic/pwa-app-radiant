@@ -906,15 +906,20 @@ const AuthPage = () => {
           {/* Header */}
           <header className={`mb-2 ${shouldShowLocationPicker ? 'mb-4' : ''}`}>
             {isMobile && (
-              <div className={`flex flex-col items-center justify-center ${shouldShowLocationPicker ? 'mb-8' : 'mb-10'}`}>
+              <div className={`flex flex-col items-center ${shouldShowLocationPicker ? 'mb-4' : 'mb-10'}`}>
                 {shouldShowLocationPicker ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <img 
-                      src='/cxr.png' 
-                      alt='CxR' 
-                      className="h-16 w-auto object-contain"
-                      loading='eager'
-                    />
+                  <div className="flex flex-col items-center gap-4">
+                    <div className='relative flex items-center justify-center w-28 h-28 rounded-full' style={{ background: '#0a0a0a' }}>
+                      <img 
+                        src='/cxr.png' 
+                        alt='CxR' 
+                        className="h-16 w-auto object-contain"
+                        loading='eager'
+                      />
+                    </div>
+                    <span className="text-xl font-bold text-gray-900 tracking-widest uppercase">
+                      CxR Systems
+                    </span>
                   </div>
                 ) : hasBranding && (branding?.logo || branding?.logoPublicId) ? (
                   <div className="flex flex-col items-center gap-3">
